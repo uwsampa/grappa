@@ -1,65 +1,68 @@
 # Grappa
 Enabling high-throughput graph processing on commodity clusters.
 
-# Building
-We currently use Make to build the components of Grappa into a static (or dynamic) library. Stay tuned for CMake build!
+## Quick Start
+Ensure that you have CMake version >= 2.8.6, GCC version >= 4.7, and MPI on your path. If you have Boost version >= 1.51 installed, find where it is. To use the convenient job-launch script we provide, you must have Slurm on your system as well. Then:
+
+```bash
+git clone git@github.com:uwsampa/grappa.git
+cd grappa
+./configure --cc=$(which gcc) --cxx=$(which cxx) --boost=/path/to/boost/install
+cd build/Make+Release
+make -j demo-hello_world.exe
+bin/grappa_srun.rb --nnode=2 --ppn=2 -- applications/demos/hello_world/demo-hello_world.exe
+```
+
+## Building
+We use CMake to build Grappa, including downloading and building some dependencies, and the set of applications that we provide. CMake can generate scripts for a number of different build systems, but Makefiles are the best-tested for Grappa.
+
+See more detailed building instructions in [BUILD.md](BUILD.md).
 
 ## Dependences
 * Compiler
-  * GCC >= 4.7.2 (we not depend on C++11 features only present in 4.7.2 and newer)
+  * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
 * External:
-  * Boost (preferably > v1.51)
+  * Boost ( > v1.51)
 * Slightly modified versions distributed with Grappa:
   * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
-  * gflags
   * glog
-  * VampirTrace
-* Running Slurm implementation
-
-Build Grappa:
-
-```bash
-# build packaged dependences
-cd $GRAPPA_HOME/tools
-./build_deps.sh
-# build Grappa library
-cd $GRAPPA_HOME/system
-make
-```
+* Downloaded and built automatically:
+  * gflags
+  * gperftools (with `GOOGLE_PROFILER ON` or `TRACING` defined)
+  * VampirTrace (with `TRACING` defined)
+* Slurm job manager (in theory just need to be able to launch MPI jobs, but Slurm is the best tested)
 
 ## Documentation
-The Grappa system directory is documented with Doxygen comments. To generate the documentation, you must first ensure you have doxygen installed, then:
+The Grappa system directory is documented with Doxygen comments. To generate the documentation, you must verify that you have Doxygen installed, then build the `docs` target. For example:
 
 ```bash
-cd $GRAPPA_HOME/system
-doxygen
-# for HTML, open: $GRAPPA_HOME/system/doxygen/html/index.html
+# from build/Make+Release
+make docs
 ```
+
+This will generate doxygen HTML and PDF documentation in: `build/doxygen`. So you can open in your browser: `<grappa_dir>/build/doxygen/html/index.html`.
 
 # Running Grappa programs
 ## Using `grappa_srun.rb`
-The Ruby script `bin/grappa_srun.rb` can be used to automatically manage the pesky `srun` flags and GASNET settings that are needed to run Grappa programs correctly on a number of machines that we've tested on.
+The Ruby script `bin/grappa_srun.rb` can be used to automatically manage the pesky `srun` flags and GASNET settings that are needed to run Grappa programs correctly on a number of machines that we've tested on. Try running `bin/grappa_srun.rb --help` for more detailed usage information.
 
 ### Running an application:
 ```bash
-# in $GRAPPA_HOME/applications/graph500/grappa, with `graph.exe` built
-../../../bin/grappa_srun.rb --nnode=2 --ppn=2 --freeze-on-error -- graph.exe --num_starting_workers=512 -- -s 10
+# in build/Make+Release:
+# build the desired executable
+make -j graph_new.exe
+# launch a Slurm job to run it:
+bin/grappa_srun.rb --nnode=2 --ppn=2 -- graph_new.exe --scale=26 --bench=bfs --nbfs=8 --num_starting_workers=512
 ```
+
 ### Running a Grappa test:
 ```bash
-# in $GRAPPA_HOME/system
+# in your configured directory, (e.g. build/Make+Release)
+# (builds and runs the test)
+make -j check-New_delegate_tests
+# or in two steps:
 make -j New_delegate_tests.test
-../bin/grappa_srun.rb --nnode=2 --ppn=2 --test=New_delegate_tests
-```
-
-## Using Makefile to run
-Another way to run a Grappa program is to use the `mpi_run` build target that is included in each of the existing applications' directories. This does both the build and the `srun` run in one command.
-
-The following example will build and run the sorting benchmark with 2 nodes, with 2 cores per node.
-
-```bash
-# in $GRAPPA_HOME/applications/sort/grappa
-make -j mpi_run TARGET=sort.exe NNODE=2 PPN=2 GARGS='--aggregator_autoflush_ticks=2000000 -- --scale=10 --log2maxkey=64 --log2buckets=7'
+bin/grappa_srun.rb --nnode=2 --ppn=2 --test=New_delegate_tests
 ```
 
 # Writing Grappa programs
@@ -67,28 +70,30 @@ make -j mpi_run TARGET=sort.exe NNODE=2 PPN=2 GARGS='--aggregator_autoflush_tick
 
 This guide will try to outline the key features of Grappa from an application's perspective at a high level. Detailed description of functionality is left out here, look at the generated Doxygen documentation for details. We have tried to put all of the useful Grappa features in "Modules" to make it easier to find them. Note that anything in the `impl` namespace is intended to be implementation that is not intended to be used directly in applications.
 
+As a general rule, the version of an API in the `Grappa` namespace is the most up-to-date. Anything with `Grappa_` is deprecated.
+
 ## Setup in main()
-Everything that goes in `main` is boiler-plate code. In a future version of the runtime/language this will probably be completely hidden from the programmer, but for now it is necessary for setup in all Grappa programs:
+As with other systems like MPI, main has a couple standard setup calls that will be present in all Grappa programs.
 
-```c
+```cpp
+using namespace Grappa;
 int main(int argc, char* argv[]) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
-  Grappa_run_user_main(&user_main, (void*)NULL);
-  Grappa_finish(0);
+  init(&argc, &argv);
+  // launches the single main task, started on core 0
+  // when this task exits, the program ends 
+  run([]{
+    
+  });
+  finalize();
+  return 0;
 }
 ```
 
-We fire up Grappa programs similarly to how MPI works. Each node must call `Grappa_init`, `Grappa_activate` to configure the system, set up the communication layers, global memory, etc. Then by calling `Grappa_run_user_main`, the first task in the system, "user_main", is created and started on Node 0. Finally, `Grappa_finish` will tear down the system.
+The call to `Grappa::init()` parses the command-line arguments (with `gflags`), sets up the communication layers, global memory, tasking, etc.
 
-## User main
-Everything in the `user_main` function is run by the "main" task. There is actually nothing special about this task except that when it returns, the program terminates.
+`Grappa::run()` launches the "main" Grappa task *on Core 0 only* (in contrast to the SPMD execution of MPI & UPC). This task represents a *global view* of the application, and will typically issue parallel loops or issue stealable tasks to spread work throughout the machine. When this task returns, the entire Grappa program terminates.
 
-```c
-void user_main(void * ignore) {
-  // do stuff
-}
-```
+Finally, `Grappa::finalize()` tears down the system, communication layers, etc, terminating the program at the end. The final `return` call will not be reached.
 
 ## System overview and terminology
 ### Cores, Locales, and Nodes, oh my!
@@ -107,6 +112,16 @@ Tasks are just a functor. In order to execute them, they must be paired with a s
 
 The task scheduler keeps track of all of the workers that are ready to execute or suspended at any given time.
 
+#### Parallel Loops
+Instead of spawning tasks individually, it's almost always better to use a parallel loop of some sort. These spawn loop iterations recursively until hitting a threshold. This prevents over-filling the task buffers for large loops, prevents excessive task overhead, and improves work-stealing by making it more likely that a single steal will generate significantly more work.
+
+Basic loops include:
+* `forall_global()`: launches public (stealable) tasks on all cores in the system.
+* `forall_global_private()`: launches private tasks on all cores, regardless of locality.
+* `forall_localized(GlobalAddress,size_t,lambda)`: launches private tasks with iterations corresponding to a range of global address space to allow sequential access to array elements without excess communication.
+
+See Doxygen for more details.
+
 ### Memory
 #### Global memory
 There are two kinds of Global addresses: Linear addresses, which refer to memory allocated in the global heap, and 2D addresses which generally refer to a chunk of memory on a particular node (usually things allocated on a task's stack or malloc'd on the local heap).
@@ -118,30 +133,32 @@ These addresses can be easily constructed from pointers with:
 
 Global allocator calls. For best results, probably should be called from in `user_main` only.
 
-* `Grappa_malloc()`, `Grappa_typed_malloc()`: allocate global memory, will be allocated in a round-robin fashion across all nodes in the system.
-* `Grappa_free()`: free global memory allocated with the given global base address.
+* `Grappa::global_alloc<T>()`: allocates global memory, will be allocated in a round-robin fashion across all nodes in the system.
+* `Grappa::global_free()`: free global memory allocated with the given global base address.
 
 #### Locale shared memory
 Memory can be allocated out of the heap of memory on a Locale in the cluster. Any memory that will be accessed by a message must be in locale shared memory in order to enable delivery of messages within a locale. Workers' stacks are implicitly in this locale shared memory. Functions to explicitly allocate and free from this shared heap:
 * `Grappa::locale_alloc<T>(n)`
 * `Grappa::locale_free(T*)`
 
-### Communication
-* `Grappa::message(Core c, F func)`: The most basic communication primitive we have. This sends an active message to a particular node to execute, using the Aggregator to make larger messages. This means that it could take a significant amount of time for a message to come back, and they will come back in an arbitrary order.
-* Delegate operations are useful for reading and writing global memory, as well as doing arbitrary remote procedure calls. See "Delegates" module in Doxygen for these.
-* Caches: useful for buffering data locally. See "Caches" module in Doxygen.
+### Communication & Synchronization
+* Delegate operations are essentially remote procedure calls. They can be blocking (must block if they return a value), or asynchronous. If asynchronous, they will have a synchronization object associated with them (typically a `GlobalCompletionEvent`) which can later be blocked on to ensure completion.
+  * `Grappa::delegate::call(Core, lambda)`: the most basic unit of blocking delegate. Takes a destination Core and a lambda. The lambda will be executed atomically at the indicated core, and *must not attempt to block or yield*.
+  * `Grappa::delegate::call_async<Sync>(Core, lambda)`: generic non-blocking delegate. Has a template parameter specifying the GlobalCompletionEvent it synchronizes with.
+  * Many useful helpers exist to do simple delegate operations, such as `read`, `write`, `increment_async`, `write_async`, `fetch_and_add`, etc. Check them out in the Doxygen docs.
 * Synchronization: see Doxygen.
-* Loops: Instead of spawning tasks directly, it's almost always better to use a parallel loop of some sort. See Doxygen for details.
+* Caches: for manually buffering data locally. See "Caches" module in Doxygen.
+* Collectives: primitive reduction support is available.
+* `Grappa::message(Core c, F func)`: The most basic communication primitive we have. This sends an active message to a particular node to execute, using the Aggregator to make larger messages. This means that it could take a significant amount of time for a message to come back, and they will come back in an arbitrary order. **Messages should almost never need to be sent explicitly. It is almost always better to use a *delegate***.
 
 ## Example programs
-Some suggestions for places to find examples of how to use these features:
+Some suggestions for places to find *fairly up-to-date* examples of how to use these features:
 
 - `system/New_loop_tests.cpp`
 - `system/New_delegate_tests.cpp`
 - `system/CompletionEvent_tests.cpp`
 - `system/Collective_tests.cpp`
-- `system/Cache_tests.cpp`
-- `applications/graph500/grappa/{bfs,bfs_local}.cpp`
+- `applications/graph500/grappa/{main_new,bfs_local_adj,cc_new}.cpp`
 - `applications/NPB/GRAPPA/IS/intsort.cpp`
 - `applications/suite/grappa/{centrality.cpp,main.cpp}`
 - `applications/pagerank/pagerank.cpp`
@@ -149,11 +166,11 @@ Some suggestions for places to find examples of how to use these features:
 # Debugging
 First of all, Grappa is a very young system, so there are likely to be many bugs, and some functionality is particularly brittle at the moment. In the course of debugging our own programs, we have found ways to debug:
 
-* The Google logging library we use is *really* good at getting things in order and flushing correctly. Use them and trust them. Debugging verbosity can be changed per-file with `--vmodule`.
-* GASNet has support for suspending applications to allow you to attach to them in gdb. In `system/Makefile` are a bunch of GASNet settings that make it freeze on an error, or you can send a signal to suspend all GASNet processes.
-* `system/grappa_gdb.macros`: Some useful macros for introspection into grappa data structures. Also allows you to switch to a running task and see its stack. Add the macro to your `.gdbinit` and type `help grappa` in gdb to see commands and usage.
-* Build with DEBUG mode on to get better stack traces.
+* Build with `./configure --mode=Debug` to get better stack traces (note, you'll have to use a different CMake-generated build directory, but this prevents confusing situations where not all files were built for debug).
+* The Google logging library we use is *really* good at getting things in order and flushing correctly. Use them and trust them. Debugging verbosity can be changed per-file with `--vmodule`. See [their documentation](http://google-glog.googlecode.com/svn/trunk/doc/glog.html).
+* GASNet has support for suspending applications to allow you to attach to them in gdb. Calling `grappa_srun.rb` with `--freeze-on-error` will enable this feature.
+* **(TO BE FIXED SOON)** `system/grappa_gdb.macros`: Some useful macros for introspection into grappa data structures. Also allows you to switch to a running task and see its stack. Add the macro to your `.gdbinit` and type `help grappa` in gdb to see commands and usage.
 
 ## Performance debugging tips
-* Grappa has a bunch of statistics that can be dumped (`Grappa::Statistics::merge_and_print()`), use these to find out basic coarse-grained information.
-* Grappa also supports collecting traces of the statistics over time using VampirTrace. These can be visualized in Vampir. Build with `VAMPIR_TRACE=1` and `GOOGLE_SAMPLED=1`.
+* Grappa has a bunch of statistics that can be dumped (`Grappa::Statistics::merge_and_print()`), use these to find out basic coarse-grained information. You can also easily add your own using `GRAPPA_DEFINE_STAT()`.
+* Grappa also supports collecting traces of the statistics over time using VampirTrace. These can be visualized in Vampir. **(SUPPORT in CMake coming soon)** Build with `VAMPIR_TRACE=1` and `GOOGLE_SAMPLED=1`.
