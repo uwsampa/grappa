@@ -95,7 +95,10 @@ struct Graph {
       delegate::call(g->vs+i, [i](V * v){
         std::stringstream ss;
         ss << "<" << i << ">";
-        for (int64_t i=0; i<v->nadj; i++) ss << " " << v->local_adj[i];
+	ss << " color: " << (int64_t) v->vertex_data << ":" ;
+        for (int64_t i=0; i<v->nadj; i++) {
+	  ss << " " << v->local_adj[i];
+	}
         VLOG(LEVEL) << ss.str();
       });
     }
