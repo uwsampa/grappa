@@ -55,24 +55,31 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
   int64_t color = pattern.top();
   int64_t vcolor = (int64_t) (g->vs+node)->vertex_data;
 
-  //  LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) (g->vs+node)->vertex_data << " pc = " << color << " nc = " << vcolor;
+  LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) (g->vs+node)->vertex_data << " pc = " << color << " nc = " << vcolor << " pattern depth: " << pattern.size();
   
   if (color == vcolor) {
     if (pattern.size() == 1) {
-      LOG(INFO) << "Found path ending at node: " << node;
+      LOG(INFO) << "Found path ending at node: " << node << " - Pattern depth: " << pattern.size();
       return 1; //end of path, return found 1 path
     }  
     else { //recursive case
       int paths = 0;
       for (int64_t i = 0; i < (g->vs+node)->nadj; i++) {
+	//add the current node to the list of visited nodes
+	visited_nodes.push_back(node);
+
+	//get the next node in the adjacency array
 	int64_t next_node = (g->vs+node)->local_adj[i];
+	
+	//if not visited already or current node, traverse
 	if(std::find(visited_nodes.begin(), visited_nodes.end(), next_node) == visited_nodes.end()) {
 	  pattern.pop();
-	  visited_nodes.push_back(node);
 	  paths += find_iso_paths(g, next_node, pattern, visited_nodes);
-	  visited_nodes.pop_back();
 	  pattern.push(color);
 	}
+	
+	//remove the current node from list of visited nodes
+	visited_nodes.pop_back();
       }
       return paths;
     }
@@ -90,6 +97,12 @@ void set_color(GlobalAddress<Graph<VertexP>> g) {
   }
 }
 
+void set_color2(GlobalAddress<Graph<VertexP>> g) {
+  int64_t num_vtx = g->nv;
+  for (int64_t n = 0; n < num_vtx; n++) {
+    (g->vs+n)->parent(n % 2);
+  }
+}
 
 void iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
   //set the vertices to have color 1

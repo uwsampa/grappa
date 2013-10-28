@@ -62,7 +62,7 @@ allclean: clean
 	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
 clean:
-	rm -f $(SOURCES) main.o main_new.o bfs_*.o graph.exe generator.a
+	rm -f $(SOURCES) main.o main_new.o bfs_*.o graph.exe iso_path.exe graph_new.exe generator.a
 	cd ../generator; $(MAKE) -f Makefile.grappa clean
 
 otf: force
