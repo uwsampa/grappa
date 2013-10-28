@@ -182,3 +182,19 @@ foreach(test_cpp ${TEST_SOURCES})
 endforeach()
 
 add_custom_target("check-all" DEPENDS ${GRAPPA_TESTS})
+
+# add a target to generate API documentation with Doxygen
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+  get_property(CMAKE_CURRENT_INCLUDES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+  
+  set(DOXYGEN_OUTPUT "doxygen")
+  set(DOXYGEN_BUILD_DIR ${CMAKE_SOURCE_DIR}/build)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+  add_custom_target(docs
+    ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+    COMMAND echo "Documentation in ${DOXYGEN_BUILD_DIR}/${DOXYGEN_OUTPUT}"
+    WORKING_DIRECTORY ${DOXYGEN_BUILD_DIR}
+    COMMENT "Generating API documentation with Doxygen." VERBATIM
+  )
+endif(DOXYGEN_FOUND)

@@ -49,7 +49,7 @@ typedef void (*HandlerPointer)();
 typedef int16_t Core;
 typedef int16_t Locale;
 
-/// @legacy
+/// @deprecated
 typedef Core Node;
 
 /// Maximum size of GASNet medium active message payload. 

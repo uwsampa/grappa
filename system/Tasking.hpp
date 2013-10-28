@@ -110,7 +110,7 @@ namespace Grappa {
       Grappa::impl::global_task_manager.spawnLocalPrivate( Grappa::impl::task_heapfunctor_proxy<TF>, tp, tp, tp );
     } else {
       /// Shove copy of functor into space used for task arguments.
-      /// @TODO: misusing argument list. Is this okay?
+      /// @todo: misusing argument list. Is this okay?
       uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
       /// // if not, substitute this:
       // uint64_t args[3] = { 0 };

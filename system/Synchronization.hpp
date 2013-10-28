@@ -8,7 +8,7 @@ typedef Thread Worker;
 
 namespace Grappa {
   
-  /// @TODO: remove me in the future.
+  /// @todo: remove me in the future.
   typedef Thread Worker;
 
   /// @addtogroup Synchronization
