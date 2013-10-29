@@ -47,6 +47,8 @@ DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-
 DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
 
 
+//#define TRACE 0 //outputs traversal trace if high
+
 int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int64_t> &pattern, std::vector<int64_t> &visited_nodes) {
 
   if (pattern.size() == 0) {
@@ -54,9 +56,12 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
   }
   int64_t color = pattern.top();
   int64_t vcolor = (int64_t) (g->vs+node)->vertex_data;
+  //  vcolor = delegate::call( g->vs+node, [g,node] { return g->vs+node->vertex_data; } );
 
+#ifdef TRACE
   LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) (g->vs+node)->vertex_data << " pc = " << color << " nc = " << vcolor << " pattern depth: " << pattern.size();
-  
+#endif
+
   if (color == vcolor) {
     if (pattern.size() == 1) {
       LOG(INFO) << "Found path ending at node: " << node << " - Pattern depth: " << pattern.size();
@@ -122,6 +127,7 @@ void iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
   pattern.push((int64_t) 3);
   */
 
+  //forall_local
   int num_paths = 0;
   int paths;
   //iterate over all vertices
@@ -159,7 +165,7 @@ void user_main(void * ignore) {
   construction_time = walltime() - t;
   LOG(INFO) << "construction_time: " << construction_time;
 
-  Graph<>::dump(g);
+  //  Graph<>::dump(g);
   
   //run the isomorphics paths routine
   iso_paths(tg, g);

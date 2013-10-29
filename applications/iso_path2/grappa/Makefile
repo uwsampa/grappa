@@ -72,7 +72,7 @@ fm: force
 	make -f ../../../system/Makefile.tau fm TARGET=graph.exe
 
 run graph_new: graph_new.exe
-	../../../bin/grappa_srun.rb --nnode=1 --ppn=1 --freeze-on-error -- graph_new.exe --num_starting_workers=512 -- -s 10
+	../../../bin/grappa_srun.rb --nnode=2 --ppn=2 --freeze-on-error -- graph_new.exe --num_starting_workers=512 -- -s 10
 
 run iso_path: iso_path.exe
-	../../../bin/grappa_srun.rb --nnode=1 --ppn=1 --freeze-on-error -- iso_path.exe --num_starting_workers=512 -- -s 4
+	../../../bin/grappa_srun.rb --nnode=2 --ppn=2 --freeze-on-error -- iso_path.exe --num_starting_workers=512 -- -s 4
