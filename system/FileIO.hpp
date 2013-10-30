@@ -35,7 +35,9 @@ inline void array_dir_scan(const fs::path& p, int64_t * start, int64_t * end) {
   sscanf(p.stem().c_str(), "block.%ld.%ld", start, end);
 }
 
+#ifdef SIGRTMIN
 #define AIO_SIGNAL SIGRTMIN+1
+#endif
 
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \
@@ -95,7 +97,9 @@ struct IODescriptor {
     nextCompleted = NULL;
     ac.aio_reqprio = 0;
     ac.aio_sigevent.sigev_notify = SIGEV_SIGNAL; // notify completion using a signal
+#ifdef AIO_SIGNAL
     ac.aio_sigevent.sigev_signo = AIO_SIGNAL;
+#endif
     ac.aio_sigevent.sigev_value.sival_ptr = this;
     file(file_desc);
     offset(file_offset);

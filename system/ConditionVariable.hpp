@@ -13,7 +13,7 @@ namespace Grappa {
   /// @{
   
   /// Proxy for remote ConditionVariable manipulation
-  /// @TODO: implement
+  /// @todo: implement
   inline void wait( GlobalAddress<ConditionVariable> m ) {
     // if local, just wait
     // if remote, spawn a task on the home node to wait

@@ -11,7 +11,7 @@
 #include "Grappa.hpp"
 
 /*### Macros ###*/
-#define DFMT "lld"
+#define  DFMT  "lld"
 
 /*### Typedefs ###*/
 typedef int64_t graphint;
