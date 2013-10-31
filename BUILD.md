@@ -6,7 +6,7 @@ This document describes how to use CMake to perform out-of-source builds. This m
 ## Quick start
 Example usage:
 
-    ./configure --generator=Make --mode=Release
+    ./configure --gen=Make --mode=Release
     cd build/Make+Release
     make -j
 
