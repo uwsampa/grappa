@@ -234,6 +234,20 @@ macro(add_grappa_test name)
   list(APPEND GRAPPA_TESTS "check-${base}")
 endmacro(add_grappa_test)
 
+####################
+# find igor scripts
+file(GLOB_RECURSE igor_scripts
+  RELATIVE ${CMAKE_SOURCE_DIR}
+  igor_*
+)
+foreach(script ${igor_scripts})
+  get_filename_component(out_dir "${script}" PATH)
+  message("-- out_dir: ${out_dir}")
+  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${out_dir})
+  execute_process(COMMAND ln -sf ${CMAKE_SOURCE_DIR}/${script} ${CMAKE_BINARY_DIR}/${script})
+endforeach()
+# message("igor scripts: ${igor_scripts}")
+
 
 # put Grappa system directory on include path for everything following this
 include_directories(system)
