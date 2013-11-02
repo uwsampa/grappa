@@ -16,8 +16,6 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#define _GRAPPA 1
-
 #include "../generator/make_graph.h"
 #include "../generator/utils.h"
 #include "../prng.h"
@@ -319,7 +317,6 @@ static void user_main(int * args) {
   } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
   
   if (!load_checkpoint) {
-   
     tg.edges = global_alloc<packed_edge>(desired_nedge);
     
     /* Make the raw graph edges. */

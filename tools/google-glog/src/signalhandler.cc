@@ -38,12 +38,16 @@
 
 #include <signal.h>
 #include <time.h>
-#ifdef HAVE_UCONTEXT_H
+
+// needed for building on OSX because getcontext is deprecated
+#define _XOPEN_SOURCE
+
+// #ifdef HAVE_UCONTEXT_H
 # include <ucontext.h>
-#endif
-#ifdef HAVE_SYS_UCONTEXT_H
-# include <sys/ucontext.h>
-#endif
+// #endif
+// #ifdef HAVE_SYS_UCONTEXT_H
+// # include <sys/ucontext.h>
+// #endif
 #include <algorithm>
 
 _START_GOOGLE_NAMESPACE_

@@ -20,6 +20,9 @@
 #endif
 #include <inttypes.h>
 
+#ifdef GRAPH_GENERATOR_GRAPPA
+#define _GRAPPA
+#endif
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -g -Wall -Drestrict=__restrict__ -O3 -DNDEBUG -ffast-math -DGRAPH_GENERATOR_SEQ # -g -pg
+CFLAGS = -g -Wall -Drestrict=__restrict__ -O3 -DNDEBUG -ffast-math -DGRAPH_GENERATOR_SEQ -D_GRAPPA # -g -pg
 # CFLAGS = -g -Wall -Drestrict=__restrict__
 LDFLAGS = -g # -g -pg
 
@@ -13,3 +13,4 @@ generator_test_seq: generator_test_seq.c $(GENERATOR_SOURCES) $(GENERATOR_HEADER
 
 clean:
 	-rm -f generator_test_seq
+

@@ -25,3 +25,6 @@ generator_test_mpi: generator_test_mpi.c $(GENERATOR_SOURCES) $(GENERATOR_HEADER
 clean:
 	rm -f generator_test_mpi
 	rm -f $(GENERATOR_OBJS) generator.a
+
+# %.o: %.c
+	# /sampa/share/gcc-4.7.2/rtf/bin/gcc $(CFLAGS) -c -o $@ $<
