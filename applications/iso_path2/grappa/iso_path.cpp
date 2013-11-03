@@ -6,9 +6,9 @@
 #include <Collective.hpp>
 
 #define _GRAPPA 1
-#include "../generator/make_graph.h"
+#include "../../graph500/generator/make_graph.h"
 
-#include "../generator/utils.h"
+#include "../../graph500/generator/utils.h"
 #include "../prng.h"
 #include "common.h"
 
@@ -175,7 +175,7 @@ void user_main(void * ignore) {
     //bfs_benchmark(tg, g, FLAGS_nbfs);
   }
   if (FLAGS_bench.find("cc") != std::string::npos) {
-    long ncomponents = cc_benchmark(g);
+
   }
   
   g->destroy();
