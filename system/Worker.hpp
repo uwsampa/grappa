@@ -101,20 +101,15 @@ class Worker {
  
   public: 
   inline intptr_t stack_remaining() {
-    int64_t remain;
 #ifdef __clang__
-    // #warning Clang does not support global register variables (http://clang.llvm.org/docs/UsersManual.html#id34).
-    asm ( "movq %%rsp, %0 \n\t"
-          "subq %1,    %0 \n\t"
-          "subq $4096, %0 "
-          : "=r"(remain)
-          : "r"(this->base), "0"(remain) );
+    int64_t rsp = NULL;
+    asm volatile("mov %%rsp, %0" : "=r"(rsp) );
 #else
     long rsp asm("rsp");
+#endif
     int64_t remain = static_cast<int64_t>(rsp) - reinterpret_cast<int64_t>(this->base) - 4096;
     DCHECK_LT(remain, static_cast<int64_t>(STACK_SIZE)) << "rsp = " << reinterpret_cast<void*>(rsp) << ", base = " << base << ", STACK_SIZE = " << STACK_SIZE;
     DCHECK_GE(remain, 0) << "rsp = " << reinterpret_cast<void*>(rsp) << ", base = " << base << ", STACK_SIZE = " << STACK_SIZE;
-#endif
 
     return remain;
   }
