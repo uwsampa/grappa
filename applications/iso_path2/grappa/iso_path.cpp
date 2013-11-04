@@ -35,7 +35,7 @@ static double construction_time;
 static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
-DEFINE_int64(scale, 4, "Graph500 scale (graph will have ~2^scale vertices)");
+DEFINE_int64(scale, 3, "Graph500 scale (graph will have ~2^scale vertices)");
 DEFINE_int64(edgefactor, 1, "Approximate number of edges in graph will be 2*2^(scale)*edgefactor");
 DEFINE_int64(nbfs, 8, "Number of BFS traversals to do");
 
@@ -49,6 +49,20 @@ DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top
 
 //#define TRACE 0 //outputs traversal trace if high
 
+//-----[DELEGATE CALL HELPERS]-----//
+
+//delegate call to read color
+int64_t read_color(GlobalAddress<VertexP> v) {
+  return delegate::call(v, [](VertexP *v) {return v->parent(); });
+}
+
+//delegate call to write color
+void write_color(GlobalAddress<VertexP> v, int64_t c) {
+  return delegate::call(v, [c](VertexP * v) {v->parent(c); });
+}
+
+//#define TRACE 1
+
 int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int64_t> &pattern, std::vector<int64_t> &visited_nodes) {
 
   if (pattern.size() == 0) {
@@ -56,10 +70,12 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
   }
   int64_t color = pattern.top();
   int64_t vcolor = (int64_t) (g->vs+node)->vertex_data;
-  //  vcolor = delegate::call( g->vs+node, [g,node] { return g->vs+node->vertex_data; } );
 
+  //delegate read call to get node color
+  vcolor = read_color(g->vs+node);
+  
 #ifdef TRACE
-  LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) (g->vs+node)->vertex_data << " pc = " << color << " nc = " << vcolor << " pattern depth: " << pattern.size();
+  LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) (g->vs+node)->vertex_data << " patc = " << color << " vtxc = " << vcolor << " pattern depth: " << pattern.size();
 #endif
 
   if (color == vcolor) {
@@ -69,6 +85,7 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
     }  
     else { //recursive case
       int paths = 0;
+      
       for (int64_t i = 0; i < (g->vs+node)->nadj; i++) {
 	//add the current node to the list of visited nodes
 	visited_nodes.push_back(node);
@@ -95,50 +112,113 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
   return 0;
 }
 
+
+//applies delegate call to write colors to nodes
+//TODO: make this a forall_localized call
 void set_color(GlobalAddress<Graph<VertexP>> g) {
   int64_t num_vtx = g->nv;
   for (int64_t n = 0; n < num_vtx; n++) {
-    (g->vs+n)->parent(n);
+    write_color(g->vs+n, 1);
+    //(g->vs+n)->parent(n);
   }
 }
 
 void set_color2(GlobalAddress<Graph<VertexP>> g) {
   int64_t num_vtx = g->nv;
   for (int64_t n = 0; n < num_vtx; n++) {
-    (g->vs+n)->parent(n % 2);
+    int color = n % 2;
+    write_color(g->vs+n, color);
+    
+    //(g->vs+n)->parent(n % 2);
   }
 }
 
-void iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
+std::stack<int64_t> generate_pattern(std::vector<int64_t> pattern) {
+  std::stack<int64_t> p;
+  for (int64_t i = pattern.size() - 1; i >= 0; i++) {
+    p.push(pattern[i]);
+  }
+  return p;
+}
+
+//grappa version of the isomorphic path implementation
+void grappa_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
   //set the vertices to have color 1
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
+  set_color(g);
+  //set_color2(g);
+  Graph<VertexP>::dump(g);
+  
+  //forall_local
+  int grappa_paths = 0;
+  int seq_paths = 0;
+  int paths = 0;
+
+  //holder for path results
+  LOG(INFO) << "Allocating " << g->nv << " result slots...\n";
+  GlobalAddress<int64_t> results = global_alloc<int64_t>(g->nv);
+  
+  //GRAPPA isopaths call
+  forall_localized(g->vs, g->nv, [g, results] (int64_t i, VertexP &v) {
+      //generate a node copy of the visited nodes list
+      std::vector<int64_t> visited_nodes;
+      
+      //generate a node copy of the pattern
+      //TOFIX: this is a hack
+      std::stack<int64_t> pattern;
+      for (int j = 0; j < 3; j++) {
+	pattern.push((int64_t) 1);
+      }
+
+      //run the path search on the node
+      #ifdef TRACE
+      LOG(INFO) << "Starting path search at node: " << i; 
+      #endif
+      int num_paths = find_iso_paths(g, i , pattern, visited_nodes);
+      #ifdef TRACE
+      LOG(INFO) << "Number of paths from node " << i << ": " << num_paths;
+      #endif
+      delegate::write(results+i, num_paths);
+    });
+
+  //collect the result path count
+  for (int j = 0; j < g->nv; j++) {
+    grappa_paths += delegate::read(results+j);
+  }
+
+  LOG(INFO) << "[Grappa] Total number of isomorphic paths: " << grappa_paths;
+}
+
+
+//reference implementation of the isomorphic path implementation
+void ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
+  auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
   //set_color(g);
+  set_color2(g);
   Graph<VertexP>::dump(g);
   
   std::stack<int64_t> pattern;
 
-  
-  for (int j = 0; j < 6; j++) {
+  for (int j = 0; j < 2; j++) {
     pattern.push((int64_t) 1);
   }
-  /*  
-  pattern.push((int64_t) 0);
-  pattern.push((int64_t) 15);
-  pattern.push((int64_t) 3);
-  */
 
-  //forall_local
-  int num_paths = 0;
-  int paths;
+  int paths = 0;
+  int seq_paths = 0;
+
   //iterate over all vertices
   for (int64_t n = 0; n < g->nv; n++) {
     std::vector<int64_t> visited_nodes;
+    #ifdef TRACE
     LOG(INFO) << "Starting path search at node: " << n;
+    #endif
     paths = find_iso_paths(g, n, pattern, visited_nodes);
+    #ifdef TRACE
     LOG(INFO) << "Number of paths from node: " << n << " = " << paths;
-    num_paths += paths;
+    #endif
+    seq_paths += paths;
   }
-  LOG(INFO) << "Total number of isomorphic paths: " << num_paths;
+  LOG(INFO) << "[Sequential] Total number of isomorphic paths: " << seq_paths;
 }
 
 
@@ -164,11 +244,12 @@ void user_main(void * ignore) {
   auto g = Graph<>::create(tg);
   construction_time = walltime() - t;
   LOG(INFO) << "construction_time: " << construction_time;
-
-  //  Graph<>::dump(g);
   
   //run the isomorphics paths routine
-  iso_paths(tg, g);
+  grappa_iso_paths(tg, g);
+
+  //run the sequential reference version of isomorphic paths routine
+  //ref_iso_paths(tg, g);
 
   // choose benchmark
   if (FLAGS_bench.find("bfs") != std::string::npos) {
