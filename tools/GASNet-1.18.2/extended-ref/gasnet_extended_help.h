@@ -29,7 +29,7 @@ GASNETI_BEGIN_EXTERNC
     #undef  GASNETI_MAX_THREADS /* limit lowered by configure */
     #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
   #else
-    #define GASNETI_MAX_THREADS_REASON "This limit is imposed by "GASNET_EXTENDED_NAME_STR" conduit."
+    #define GASNETI_MAX_THREADS_REASON "This limit is imposed by " GASNET_EXTENDED_NAME_STR " conduit."
   #endif
 #else /* default */
   #if GASNETI_MAX_THREADS_CONFIGURE

@@ -391,8 +391,8 @@ GASNETI_END_EXTERNC
              "SPEC=" _STRINGIFY(GASNET_SPEC_VERSION_MAJOR) "."            \
              _STRINGIFY(GASNET_SPEC_VERSION_MINOR) ","                    \
              "CONDUIT=" GASNET_CONDUIT_NAME_STR "("                       \
-             GASNET_CORE_NAME_STR"-"GASNET_CORE_VERSION_STR "/"           \
-             GASNET_EXTENDED_NAME_STR"-"GASNET_EXTENDED_VERSION_STR "),"  \
+             GASNET_CORE_NAME_STR"-" GASNET_CORE_VERSION_STR  "/"           \
+             GASNET_EXTENDED_NAME_STR"-" GASNET_EXTENDED_VERSION_STR  "),"  \
              "THREADMODEL=" _STRINGIFY(GASNETI_THREAD_MODEL) ","          \
              "SEGMENT=" _STRINGIFY(GASNETI_SEGMENT_CONFIG) ","            \
              "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) ","                    \
