@@ -133,9 +133,9 @@ namespace Grappa {
       }
       
       /// Block on result being returned.
-      inline const R& get() {
+      inline const R get() {
         // ... and wait for the result
-        const R& r = _result.readFF();
+        const R r = _result.readFF();
         delegate_stats.record_wakeup_latency(start_time, network_time);
         return r;
       }
