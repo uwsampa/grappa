@@ -21,7 +21,6 @@ set(SYSTEM_SOURCES
   Cache.cpp
   Collective.cpp
   Communicator.cpp
-  ContextSwitchRate_bench.cpp
   CurrentThread.cpp
   Delegate.cpp
   FlatCombiner.cpp
