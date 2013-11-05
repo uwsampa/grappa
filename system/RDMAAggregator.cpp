@@ -1260,16 +1260,16 @@ void RDMAAggregator::draw_routing_graph() {
                  << " for locale " << locale << " core " << current_dest_core;
       }
 
-      if( aggregated_size > 0 ) {
+      // if( aggregated_size >= 0 ) {
         DVLOG(4) << __func__ << "/" << sequence_number << ": " 
                  << "Ready to send buffer " << b << " size " << aggregated_size
                  << " to locale " << locale << " core " << dest_core;
-      } else {
-        DVLOG(4) << __func__ << "/" << sequence_number << ": " 
-               << "Nothing to send in buffer " << b << " size " << aggregated_size
-               << " to locale " << locale << " core " << dest_core;
-        break;
-      }
+      // } else {
+      //   DVLOG(4) << __func__ << "/" << sequence_number << ": " 
+      //          << "Nothing to send in buffer " << b << " size " << aggregated_size
+      //          << " to locale " << locale << " core " << dest_core;
+      //   break;
+      // }
 
       DVLOG(3) << __func__ << "/" << sequence_number << ": " << "Sending buffer " << b << " sequence " << sequence_number
                << " size " << aggregated_size
