@@ -25,6 +25,7 @@ OptionParser.new{|p|
   p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p }
   p.on('--cxx=path/to/c++/compiler','Alternative C++ compiler (must match --cc choice)'){|p| opt.cxx = p }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
+  p.on('--name=NAME',"Add an additional name to this configuration to distinguish it (i.e. compiler version)"){|n| opt.name = n }
 }.parse!(ARGV)
 
 unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
@@ -65,6 +66,7 @@ def configure(generator, mode, opt)
   
   build_dir = "build/#{generator}"
   build_dir << "+#{mode}" if mode
+  build_dir << "+#{opt.name}" if opt.name
   
   mkdir_p build_dir
   cd build_dir do
