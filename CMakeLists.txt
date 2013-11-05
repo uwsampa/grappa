@@ -249,6 +249,6 @@ add_subdirectory(scratch)
 add_subdirectory(system)
 add_subdirectory(tools)
 
-if(DEFINED LLVM_PREFIX)
+if(DEFINED LLVM_ROOT)
   add_subdirectory(compiler)
 endif()

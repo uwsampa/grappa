@@ -1,4 +1,4 @@
-message("@@ LLVM_ROOT: ${LLVM_ROOT}")
+message("-- LLVM_ROOT: ${LLVM_ROOT}")
 set( LLVM_DIR "${LLVM_ROOT}/share/llvm/cmake" )
 set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${LLVM_DIR} )
 find_package(LLVM)
@@ -6,9 +6,8 @@ include(AddLLVM)
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
-message("@@ LLVM_DEFINITIONS: ${LLVM_DEFINITIONS}")
-message("@@ LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
-message("@@ LLVM_LIBRARY_DIRS: ${LLVM_LIBRARY_DIRS}")
+message("-- LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
+message("-- LLVM_LIBRARY_DIRS: ${LLVM_LIBRARY_DIRS}")
 
 # # A bit of a sanity check:
 # if(NOT EXISTS "${LLVM_ROOT}/include/llvm")
