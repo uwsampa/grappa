@@ -69,12 +69,21 @@ if(TRACING)
     BUILD_COMMAND      make -j
     INSTALL_COMMAND    make install
   )
+  set_property(TARGET tool-gperftools PROPERTY FOLDER "Third Party")
+  
   set(tool_list ${tool_list} tool-gperftools)
 endif()
 
 # set(tool-targets  tool-gasnet tool-gflags tool-glog tool-gperftools )
 add_custom_target(all-tools DEPENDS ${tool_list} )
+set_property(TARGET all-tools PROPERTY FOLDER "Third Party")
+
+foreach(tool_target ${tool_list})
+  set_property(TARGET ${tool_target} PROPERTY FOLDER "Third Party")
+endforeach()
 
 add_custom_target(clean-tools
   rm -rf ${TOOLS_INSTALL_DIR}
 )
+set_property(TARGET clean-tools PROPERTY FOLDER "Third Party")
+
