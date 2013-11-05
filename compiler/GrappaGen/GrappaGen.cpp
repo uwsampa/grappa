@@ -1,3 +1,8 @@
+#ifdef DEBUG
+//#define _DEBUG
+#undef DEBUG
+#endif
+
 #define DEBUG_TYPE "grappa_gen"
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
@@ -95,7 +100,7 @@ namespace {
 
     virtual bool runOnFunction(Function &F) {
       bool changed = false;
-      errs() << "processing fn: " << F.getName() << "\n";
+//      errs() << "processing fn: " << F.getName() << "\n";
       
       std::vector<LoadInst*> todo;
       
@@ -152,7 +157,16 @@ namespace {
 
     virtual bool doInitialization(Module& module) {
       errs() << "initializing\n";
+      
+//      for (auto& f : module.getFunctionList()) {
+//        llvm::errs() << "---"; f.dump();
+//      }
+      
       get_fn = module.getFunction("grappa_get");
+      if (!get_fn) {
+        llvm::errs() << "unable to find grappa_get\n";
+        abort();
+      }
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
       void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
 
