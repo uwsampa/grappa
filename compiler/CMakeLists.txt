@@ -28,4 +28,5 @@ add_subdirectory(bin)
 
 add_custom_target( compiler
   DEPENDS LLVMGrappaGen )
+set_property(TARGET compiler PROPERTY FOLDER "Compiler")
 
