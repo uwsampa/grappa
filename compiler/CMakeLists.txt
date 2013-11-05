@@ -38,3 +38,11 @@ add_custom_target( compiler
 )
 set_property(TARGET compiler PROPERTY FOLDER "Compiler")
 
+# macro that runs the Grappa optimization pass when compiling
+macro(add_grappaclang_exe target exe)
+  add_grappa_exe("${target}" "${exe}" ${ARGN})
+  add_dependencies("${target}" compiler)
+  set_property(TARGET "${target}" PROPERTY COMPILE_FLAGS "-Xclang -load -Xclang ${GRAPPA_GEN_LOCATION}")
+endmacro()
+
+add_subdirectory( test )
