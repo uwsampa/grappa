@@ -99,7 +99,7 @@ def configure(generator, mode, opt)
     puts "warning: --boost not specified, will download & build it, which may take a while"
   end
   
-  args << "-DLLVM_PREFIX=#{opt.llvm}" if opt.llvm
+  args << "-DLLVM_ROOT=#{opt.llvm}" if opt.llvm
   
   build_dir = "build/#{generator}"
   build_dir << "+#{mode}" if mode

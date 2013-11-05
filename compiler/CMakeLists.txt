@@ -1,5 +1,5 @@
-message("@@ LLVM_PREFIX: ${LLVM_PREFIX}")
-set( LLVM_DIR "${LLVM_PREFIX}/share/llvm/cmake" )
+message("@@ LLVM_ROOT: ${LLVM_ROOT}")
+set( LLVM_DIR "${LLVM_ROOT}/share/llvm/cmake" )
 set( CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${LLVM_DIR} )
 find_package(LLVM)
 include(AddLLVM)
@@ -11,8 +11,8 @@ message("@@ LLVM_INCLUDE_DIRS: ${LLVM_INCLUDE_DIRS}")
 message("@@ LLVM_LIBRARY_DIRS: ${LLVM_LIBRARY_DIRS}")
 
 # # A bit of a sanity check:
-# if(NOT EXISTS "${LLVM_PREFIX}/include/llvm")
-#   message(FATAL_ERROR "LLVM_PREFIX (${LLVM_PREFIX}) is not a valid LLVM install")
+# if(NOT EXISTS "${LLVM_ROOT}/include/llvm")
+#   message(FATAL_ERROR "LLVM_ROOT (${LLVM_ROOT}) is not a valid LLVM install")
 # endif()
 # # We incorporate the CMake features provided by LLVM:
 # # set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${LLVM_INSTALL_DIR}/share/llvm/cmake")
