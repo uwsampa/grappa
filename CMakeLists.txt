@@ -202,15 +202,16 @@ endif()
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 
-macro(add_grappa_exe name )
-  add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
-  target_link_libraries(${name} Grappa)
-  target_link_libraries(${name} ${MPI_CXX_LIBRARIES})
-  target_link_libraries(${name} ${Boost_LIBRARIES})
+macro(add_grappa_exe target exe )
+  add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
+  set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
+  target_link_libraries(${target} Grappa)
+  target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
+  target_link_libraries(${target} ${Boost_LIBRARIES})
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
-  add_grappa_exe(${name} ${ARGN})
+  add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Applications") # For organization in Xcode project
 endmacro(add_grappa_application)
 
@@ -219,7 +220,7 @@ set(GRAPPA_TESTS "")
 macro(add_grappa_test name)
   get_filename_component(base ${name} NAME_WE) # name without extension
   
-  add_grappa_exe(${name} ${ARGN})
+  add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
   set_target_properties(${test} PROPERTIES
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
