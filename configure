@@ -22,11 +22,20 @@ OptionParser.new{|p|
   line_break = "\n#{p.summary_indent}#{' '*p.summary_width}   "
   p.on('--gen=[Make]|Ninja|Xcode[,*]',"Build tool to generate scripts for.#{line_break}Default: Make.#{line_break}Can specify multiple with commas."){|a| opt.generator = a }
   p.on('--mode=[Release]|Debug[,*]','Build mode. Default: Release (with debug symbols)'){|a| opt.mode = a }
-  p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p }
-  p.on('--cxx=path/to/c++/compiler','Alternative C++ compiler (must match --cc choice)'){|p| opt.cxx = p }
+  p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to distinguish it (i.e. compiler version)"){|n| opt.name = n }
 }.parse!(ARGV)
+
+if opt.used_cc_flag
+  # automatically determine cxx from --cc
+  case opt.cc
+  when /bin\/gcc/
+    opt.cxx = opt.cc.gsub(/bin\/gcc/,'bin/g++')
+  when /bin\/clang/
+    opt.cxx = opt.cc.gsub(/bin\/clang/,'bin/clang++')
+  end
+end
 
 unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
   if not(opt.cc) || not(opt.cxx)
