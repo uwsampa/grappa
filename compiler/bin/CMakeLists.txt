@@ -35,7 +35,7 @@ foreach(d ${defs})
 endforeach()
 
 get_property( include_dirs  DIRECTORY "${sysdir}" PROPERTY INCLUDE_DIRECTORIES )
-foreach(d ${include_dirs})
+foreach(d ${include_dirs} "${CMAKE_CURRENT_SOURCE_DIR}/../include")
   set(GRAPPA_INCLUDES "${GRAPPA_INCLUDES} -I${d}")
 endforeach()
 

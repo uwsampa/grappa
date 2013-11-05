@@ -44,7 +44,6 @@ set(SYSTEM_SOURCES
   MessagePool.cpp
   ParallelLoop.cpp
   PerformanceTools.cpp
-  Primitive.cpp
   ProfilerGroups.cpp
   RDMAAggregator.cpp
   SharedMessagePool.cpp
@@ -109,7 +108,6 @@ set(SYSTEM_SOURCES
   ParallelLoop_future.hpp
   PerformanceTools.hpp
   PoolAllocator.hpp
-  Primitive.hpp
   ProfilerConfig.hpp
   ProfilerGroups.hpp
   PushBuffer.hpp

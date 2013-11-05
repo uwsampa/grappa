@@ -1,3 +1,4 @@
+#pragma once
 #include <Addressing.hpp>
 #include <Communicator.hpp>
 #include <Message.hpp>
@@ -64,7 +65,7 @@ void grappa_get(void *addr, void global* g, size_t sz) {
     
     auto g_result = ga_make_global(&result);
     
-    Grappa::send_message(ga_core(g), [g,sz,g_result]{
+    Grappa::send_heap_message(ga_core(g), [g,sz,g_result]{
       
       Grappa::send_heap_message(ga_core(g_result), [g_result](void * payload, size_t psz){
         
@@ -81,4 +82,3 @@ void grappa_get(void *addr, void global* g, size_t sz) {
   }
 }
 
-void grappa_foo() { printf("foo\n"); }

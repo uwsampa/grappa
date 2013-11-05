@@ -23,10 +23,18 @@ message("@@ LLVM_LIBRARY_DIRS: ${LLVM_LIBRARY_DIRS}")
 # link_directories(${LLVM_LIBRARY_DIRS})
 # add_definitions(${LLVM_DEFINITIONS})
 
-add_subdirectory(GrappaGen)
-add_subdirectory(bin)
+include_directories( "${CMAKE_CURRENT_SOURCE_DIR}/include" )
+file(GLOB compiler_includes "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
+
+add_subdirectory( GrappaGen )
+
+get_property( GRAPPA_GEN_LOCATION TARGET LLVMGrappaGen  PROPERTY LOCATION )
+
+add_subdirectory( bin )
 
 add_custom_target( compiler
-  DEPENDS LLVMGrappaGen )
+  DEPENDS LLVMGrappaGen
+  SOURCES ${compiler_includes}
+)
 set_property(TARGET compiler PROPERTY FOLDER "Compiler")
 
