@@ -10,6 +10,7 @@ OptionParser.new {|p|
 
 system "git clone http://llvm.org/git/llvm.git"
 system "git clone http://llvm.org/git/clang.git llvm/tools/clang"
+system "git clone http://llvm.org/git/lldb.git llvm/tools/lldb"
 # system "git clone http://llvm.org/git/clang-tools-extra.git llvm/tools/clang/tools/extra"
 # system "git clone http://llvm.org/git/libcxx.git llvm/projects/libcxx"
 
@@ -21,7 +22,7 @@ cd(*mkdir_p("llvm/build")) {
   
   # build LLVM & Clang using autoconf/make so we can use '--with-gcc-toolchain' to setup include directories
   system "../configure --enable-optimized --enable-debug-symbols --with-gcc-toolchain=#{gcc_dir} --prefix=#{opt.prefix}"
-  system "make -j"
+  system "make -j12"
   system "make install"
   
   # install cmake files so we can use find_package(LLVM)
