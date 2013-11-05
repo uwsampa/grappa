@@ -1,2 +1,2 @@
 #!/bin/bash
-exec clang++ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_FILE@ -O1 "$@"
+exec @CMAKE_CXX_COMPILER@ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_LOCATION@ @GRAPPA_INCLUDES@ @GRAPPA_DEFINITIONS@ -O1 "$@" -rdynamic @GRAPPA_LIBRARIES@
