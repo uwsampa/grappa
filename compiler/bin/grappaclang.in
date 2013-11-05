@@ -1,0 +1,2 @@
+#!/bin/bash
+exec clang++ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_FILE@ -O1 "$@"

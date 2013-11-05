@@ -9,6 +9,7 @@ opt.mode      = 'Release'
 opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
 
+# hard-coded host-specific defaults
 case `hostname`
 when /n[\d+]/
   opt.boost = "/sampa/share/gcc-4.7.2/src/boost_1_51_0"
@@ -25,10 +26,11 @@ OptionParser.new{|p|
   p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to distinguish it (i.e. compiler version)"){|n| opt.name = n }
+  p.on('--llvm=/path/to/llvm/install',"Location where LLVM is installed (if same as --cc, )."){|_| opt.llvm = _ }
 }.parse!(ARGV)
 
+# automatically determine cxx from --cc
 if opt.used_cc_flag
-  # automatically determine cxx from --cc
   case opt.cc
   when /bin\/gcc/
     opt.cxx = opt.cc.gsub(/bin\/gcc/,'bin/g++')
@@ -41,6 +43,19 @@ unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other com
   if not(opt.cc) || not(opt.cxx)
     abort("Must specify C compiler (either use '--cc=' flag, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
   end
+end
+
+# configure compiler if clang is being used as compiler
+if opt.cc =~ /bin\/clang/ && !opt.llvm
+  opt.llvm = opt.cc[/(.*)\/bin\/clang.*/,1]
+end
+
+if opt.llvm && !File.exists?("#{opt.llvm}/share/llvm/cmake")
+  abort "llvm install needs to contain cmake config. did you use the provided `setup_llvm.sh` script?\nexpected: #{opt.llvm}/share/llvm/cmake"
+end
+
+if not opt.llvm
+  puts "note: disabling custom compiler optimizations; specify '--llvm' (or use clang as C compiler) to enable"
 end
 
 def configure(generator, mode, opt)
@@ -83,6 +98,8 @@ def configure(generator, mode, opt)
   unless opt.boost
     puts "warning: --boost not specified, will download & build it, which may take a while"
   end
+  
+  args << "-DLLVM_PREFIX=#{opt.llvm}" if opt.llvm
   
   build_dir = "build/#{generator}"
   build_dir << "+#{mode}" if mode

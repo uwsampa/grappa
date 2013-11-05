@@ -248,3 +248,7 @@ add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(system)
 add_subdirectory(tools)
+
+if(DEFINED LLVM_PREFIX)
+  add_subdirectory(compiler)
+endif()
