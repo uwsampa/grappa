@@ -30,15 +30,20 @@ using namespace llvm;
 //STATISTIC(grappaGlobalRefs, "calls to Grappa's distributed shared memory system");
 
 namespace {
+
+#define dump_var(dumpee) \
+    errs() << #dumpee << ": "; \
+    dumpee->dump(); \
+    errs() << "\n"
   
   static const int GLOBAL_SPACE = 100;
-
+  
   bool isaGlobalPointer(Type* type) {
     PointerType* pt = dyn_cast<PointerType>(type);
     if( pt && pt->getAddressSpace() == GLOBAL_SPACE ) return true;
     return false;
   }
-
+  
   //////////////////////////////////////
   /// From llvmGlobalToWide.cpp
   AllocaInst* makeAlloca(llvm::Type* type,
@@ -71,10 +76,10 @@ namespace {
     
     return tempVar;
   }
-
+  
   Constant* createSizeof(Type* type)
   {
-//    assert( !containsGlobalPointers(info, type) );
+    // assert( !containsGlobalPointers(info, type) );
     return ConstantExpr::getSizeOf(type);
   }
   
@@ -87,88 +92,130 @@ namespace {
     Old->eraseFromParent();
   }
   
+  Constant* getFunctionSafe(Module& module, const char* fn_name) {
+    auto fn = module.getFunction(fn_name);
+    if (!fn) {
+      llvm::errs() << "unable to find " << fn_name << "\n";
+      abort();
+    }
+    return fn;
+  }
+  
   struct GrappaGen : public FunctionPass {
     static char ID;
     
-    Constant* get_fn;
+    Constant *get_fn, *put_fn;
     
     Type *void_ty, *void_ptr_ty, *void_gptr_ty;
     
     GrappaGen() : FunctionPass(ID) { }
+    
+    void replaceWithRemoteLoad(LoadInst *orig_ld) {
+      auto ty = orig_ld->getType();
+      auto gptr = orig_ld->getPointerOperand();
+      
+      auto alloc = makeAlloca(ty, "", orig_ld); // allocate space to load into
+      
+      auto void_alloc = new BitCastInst(alloc, void_ptr_ty, "", orig_ld);
+      auto void_gptr = new BitCastInst(gptr, void_gptr_ty, "", orig_ld);
+      auto szof = createSizeof(ty);
+      
+      Value* args[] = { void_alloc, void_gptr, szof };
+      CallInst::Create(get_fn, args, "", orig_ld);
+      
+      // Now load from alloc'd area
+      auto new_ld = new LoadInst(alloc, "", orig_ld->isVolatile(), orig_ld->getAlignment(), orig_ld->getOrdering(), orig_ld->getSynchScope(), orig_ld);
+      
+      myReplaceInstWithInst(orig_ld, new_ld);
+      
+      errs() << "global load("; ty->dump(); errs() << ")\n";
+    }
 
+    void replaceWithRemoteStore(StoreInst *orig) {
+      auto gptr = orig->getPointerOperand();
+      auto val = orig->getValueOperand();
+      auto ty = val->getType();
+      
+      // TODO: find out if we can store directly from source
+      auto alloc = makeAlloca(ty, "", orig); // allocate space to put from
+      
+      // Now store into alloc'd area
+      new StoreInst(val, alloc, orig->isVolatile(), orig->getAlignment(), orig->getOrdering(), orig->getSynchScope(), orig);
+      
+      Value * args[] = {
+        new BitCastInst(gptr, void_gptr_ty, "", orig),
+        new BitCastInst(alloc, void_ptr_ty, "", orig),
+        createSizeof(ty)
+      };
+      auto put = CallInst::Create(put_fn, args, "", orig);
+      
+      // substitue original instruction for the new last one (call to 'grappa_put')
+      myReplaceInstWithInst(orig, put);
+      
+      errs() << "global store("; ty->dump(); errs() << ")\n";
+    }
+    
     virtual bool runOnFunction(Function &F) {
       bool changed = false;
       // errs() << "processing fn: " << F.getName() << "\n";
       
-      std::vector<LoadInst*> todo;
+      std::vector<LoadInst*> global_loads;
+      std::vector<StoreInst*> global_stores;
       
       for (auto& bb : F) {
         for (auto& inst : bb) {
           switch ( inst.getOpcode() ) {
-          case Instruction::Load:
-            auto orig_ld = cast<LoadInst>(&inst);
-            if (orig_ld->getPointerAddressSpace() == GLOBAL_SPACE) {
-              todo.push_back(orig_ld);
+            
+            case Instruction::Load: {
+              auto orig_ld = cast<LoadInst>(&inst);
+              if (orig_ld->getPointerAddressSpace() == GLOBAL_SPACE) {
+                global_loads.push_back(orig_ld);
+                changed = true;
+              }
+              break;
             }
-            break;
+            
+            case Instruction::Store: {
+              auto orig_store = cast<StoreInst>(&inst);
+              if (orig_store->getPointerAddressSpace() == GLOBAL_SPACE) {
+                global_stores.push_back(orig_store);
+              }
+              break;
+            }
+            
           }
         }
       }
       
-      for (auto* orig_ld : todo) {
-        auto ty = orig_ld->getType();
-        auto gptr = orig_ld->getPointerOperand();
-        auto alloc = makeAlloca(ty, "", orig_ld);
-        
-        errs() << "types:\n  ";
-        alloc->getAllocatedType()->dump(); errs() << "\n  ";
-        void_ptr_ty->dump(); errs() << "\n  ";
-        void_gptr_ty->dump(); errs() << "\n";
-        
-        auto void_alloc = new BitCastInst(alloc, void_ptr_ty, "", orig_ld);
-        auto void_gptr = new BitCastInst(gptr, void_gptr_ty, "", orig_ld);
-        auto szof = createSizeof(ty);
-        
-        Value* args[] = { void_alloc, void_gptr, szof };
-        CallInst::Create(get_fn, args, "", orig_ld);
-        
-        // Now load from alloc'd area
-        auto new_ld = new LoadInst(alloc, "", orig_ld->isVolatile(), orig_ld->getAlignment(), orig_ld->getOrdering(), orig_ld->getSynchScope(), orig_ld);
-        
-        myReplaceInstWithInst(orig_ld, new_ld);
-        
-        errs() << "global load("; ty->dump(); errs() << ")\n";
-        changed = true;
-      }
+      for (auto* inst : global_loads) { replaceWithRemoteLoad(inst); }
+      for (auto* inst : global_stores) { replaceWithRemoteStore(inst); }
       
       return changed;
     }
-
+    
     virtual bool doInitialization(Module& module) {
       errs() << "initializing\n";
       
-//      for (auto& f : module.getFunctionList()) {
-//        llvm::errs() << "---"; f.dump();
-//      }
+      // for (auto& f : module.getFunctionList()) {
+      //   llvm::errs() << "---"; f.dump();
+      // }
       
-      get_fn = module.getFunction("grappa_get");
-      if (!get_fn) {
-        llvm::errs() << "unable to find grappa_get\n";
-        abort();
-      }
+      get_fn = getFunctionSafe(module, "grappa_get");
+      put_fn = getFunctionSafe(module, "grappa_put");
+      
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
       void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
-
-//      module = &m;
-//      auto int_ty = m.getTypeByName("int");
-//      delegate_read_fn = m.getOrInsertFunction("delegate_read_int", int_ty, );
+      
+      // module = &m;
+      // auto int_ty = m.getTypeByName("int");
+      // delegate_read_fn = m.getOrInsertFunction("delegate_read_int", int_ty, );
       return false;
     }
-  
+    
     virtual bool doFinalization(Module &M) {
       return true;
     }
-
+    
     ~GrappaGen() {
       llvm::errs() << "closing\n";
     }
@@ -179,9 +226,9 @@ namespace {
   //////////////////////////////
   // Register optional pass
   static RegisterPass<GrappaGen> X(
-    "grappa-gen", "Grappa Code Generator",
-    false, false
-  );
+                                   "grappa-gen", "Grappa Code Generator",
+                                   false, false
+                                   );
   
   //////////////////////////////
   // Register as default pass

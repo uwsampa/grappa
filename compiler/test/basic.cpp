@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
       
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {
-          delegate::write(as_global_addr(array+i), i);
+          array[i] = i;
         }
         barrier();
       } else {
