@@ -10,8 +10,10 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/DebugLoc.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/ADT/Statistic.h>
+#include <llvm/ADT/Twine.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/PassManager.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
@@ -30,7 +32,7 @@ using namespace llvm;
 //STATISTIC(grappaGlobalRefs, "calls to Grappa's distributed shared memory system");
 
 namespace {
-
+  
 #define dump_var(dumpee) \
     errs() << #dumpee << ": "; \
     dumpee->dump(); \
@@ -101,6 +103,19 @@ namespace {
     return fn;
   }
   
+  template< typename T >
+  void ir_comment(T* target, StringRef label, const Twine& text) {
+    auto& ctx = target->getContext();
+    target->setMetadata(label, MDNode::get(ctx, MDString::get(ctx, text.str())));
+  }
+
+  template< typename T >
+  void ir_comment(T* target, StringRef label, const DebugLoc& dloc) {
+    auto& ctx = target->getContext();
+    outs() << "dloc: "; dloc.dump(ctx); outs() << "\n";
+    target->setMetadata(label, dloc.getAsMDNode(ctx));
+  }
+  
   struct GrappaGen : public FunctionPass {
     static char ID;
     
@@ -115,6 +130,7 @@ namespace {
       auto gptr = orig_ld->getPointerOperand();
       
       auto alloc = makeAlloca(ty, "", orig_ld); // allocate space to load into
+      ir_comment(alloc, "grappa.alloca", orig_ld->getDebugLoc());
       
       auto void_alloc = new BitCastInst(alloc, void_ptr_ty, "", orig_ld);
       auto void_gptr = new BitCastInst(gptr, void_gptr_ty, "", orig_ld);
