@@ -60,6 +60,10 @@ $(GEN)/generator.a:
 
 clean::
 	rm -f join.o join.exe triangles.exe triangles.o twohop.o twohop.exe triangles_partition.exe triangles_partition.o
+
+graph-clean: clean
+	cd $(APP_GRAPH500); $(MAKE) clean
+	cd $(GEN); $(MAKE) -f Makefile.grappa clean
 	
 
 # XXX remove
