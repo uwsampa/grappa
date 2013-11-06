@@ -39,7 +39,7 @@ end
 
 unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
   if not(opt.cc) || not(opt.cxx)
-    abort("Must specify CC & CXX, either by setting the environment variables or using '--cc=' & '--cxx=' flags\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc) --cxx=$(which g++)...")
+    abort("Must specify C compiler (either use '--cc=' flag, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
   end
 end
 
