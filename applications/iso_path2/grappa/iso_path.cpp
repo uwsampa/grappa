@@ -49,49 +49,56 @@ DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top
 
 //#define TRACE 0 //outputs traversal trace if high
 
-//-----[DELEGATE CALL HELPERS]-----//
 
-//delegate call to read color
-int64_t read_color(GlobalAddress<VertexP> v) {
-  return delegate::call(v, [](VertexP *v) {return v->parent(); });
-}
+//-----[ISOMORPHIC PATH ALGORITHM DEFINITION]-----//
 
-//delegate call to write color
-void write_color(GlobalAddress<VertexP> v, int64_t c) {
-  return delegate::call(v, [c](VertexP * v) {v->parent(c); });
-}
-
-//#define TRACE 1
-
+/* Recursive call definition for isomorphic path search
+ * Given a root and pattern sequence, will recursively call until the pattern is empty, or there are no more
+ * vertices to traverse.
+ * Searches for patterns with the designated color pattern and returns the number of paths with the specified
+ * pattern coloring starting from the specified node
+ * Parameters:
+ *    GlobalAddress<Graph<VertexP>> g - a graph representation
+ *    int64_t node - the node to process in the traversal
+ *    std::stack<int64_t> pattern - a stack of the remaining colors that need to be matched in the path
+ *    std::visited_notes<int64_t> - a list of nodes that have already been visited in the path search traversal
+ */
 int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int64_t> &pattern, std::vector<int64_t> &visited_nodes) {
 
+  //if the pattern size is zero, something went wrong so abort
   if (pattern.size() == 0) {
     return 0;
   }
-  int64_t color = pattern.top();
-  int64_t vcolor = (int64_t) (g->vs+node)->vertex_data;
-
-  //delegate read call to get node color
-  vcolor = read_color(g->vs+node);
+  int64_t color = pattern.top(); //get the next color in the pattern sequence
   
-#ifdef TRACE
-  LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) (g->vs+node)->vertex_data << " patc = " << color << " vtxc = " << vcolor << " pattern depth: " << pattern.size();
-#endif
+  //get the color of the current vertex being traversed
+  VertexP vp = delegate::read(g->vs+node);
+  int64_t vcolor = (int64_t) vp.vertex_data;
 
+  //get the number of adjacent vertices for this node
+  int64_t nadj = vp.nadj;
+
+  //#ifdef TRACE
+  LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) vcolor << " patc = " << color << " vtxc = " << vcolor << " pattern depth: " << pattern.size();
+  //#endif
+
+  //check if the vertex color matches the next color in the pattern
   if (color == vcolor) {
+    //if the length of the pattern to match is 1, and it matches, we're done
     if (pattern.size() == 1) {
-      LOG(INFO) << "Found path ending at node: " << node << " - Pattern depth: " << pattern.size();
+      LOG(INFO) << "[PATH FOUND] Path ending at node: " << node;
       return 1; //end of path, return found 1 path
     }  
     else { //recursive case
       int paths = 0;
       
-      for (int64_t i = 0; i < (g->vs+node)->nadj; i++) {
+      //iterate over all adjacent nodes
+      for (int64_t i = 0; i < nadj; i++) {
 	//add the current node to the list of visited nodes
 	visited_nodes.push_back(node);
 
 	//get the next node in the adjacency array
-	int64_t next_node = (g->vs+node)->local_adj[i];
+	int64_t next_node = delegate::call(g->vs+node, [i](VertexP *v) {return v->local_adj[i];});
 	
 	//if not visited already or current node, traverse
 	if(std::find(visited_nodes.begin(), visited_nodes.end(), next_node) == visited_nodes.end()) {
@@ -105,10 +112,11 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
       }
       return paths;
     }
-  } else {
+  } else { //color does not match so return 0 paths
     return 0;
   }
 
+  //failsafe
   return 0;
 }
 
@@ -118,90 +126,105 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
 void set_color(GlobalAddress<Graph<VertexP>> g) {
   int64_t num_vtx = g->nv;
   for (int64_t n = 0; n < num_vtx; n++) {
-    write_color(g->vs+n, 1);
-    //(g->vs+n)->parent(n);
+    delegate::call(g->vs+n, [](VertexP* v) { v->vertex_data = (void *) 1; });
   }
 }
 
+//sets the color to the node number parity
 void set_color2(GlobalAddress<Graph<VertexP>> g) {
   int64_t num_vtx = g->nv;
   for (int64_t n = 0; n < num_vtx; n++) {
-    int color = n % 2;
-    write_color(g->vs+n, color);
-    
-    //(g->vs+n)->parent(n % 2);
+    int64_t color = n % 2;
+    delegate::call(g->vs+n, [color](VertexP* v) { v->vertex_data = (void *) color; });
   }
 }
 
+//generates a stack representation of the pattern from a vector
 std::stack<int64_t> generate_pattern(std::vector<int64_t> pattern) {
   std::stack<int64_t> p;
-  for (int64_t i = pattern.size() - 1; i >= 0; i++) {
+  for (int64_t i = pattern.size() - 1; i >= 0; i--) {
     p.push(pattern[i]);
   }
   return p;
 }
 
 //grappa version of the isomorphic path implementation
-void grappa_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
+int grappa_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
   //set the vertices to have color 1
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
-  set_color(g);
+  set_color2(g);
   //set_color2(g);
   Graph<VertexP>::dump(g);
   
   //forall_local
-  int grappa_paths = 0;
+  int64_t grappa_paths = 0;
   int seq_paths = 0;
   int paths = 0;
 
   //holder for path results
   LOG(INFO) << "Allocating " << g->nv << " result slots...\n";
   GlobalAddress<int64_t> results = global_alloc<int64_t>(g->nv);
-  
+
+  //allocate space for putting the pattern in global memory
+  //TODO: see if there's just a way to pass with the lambda call
+  GlobalAddress<int64_t> global_pattern = global_alloc<int64_t>(vpattern.size());
+
+  //write the pattern to global memory
+  for (int i = 0; i < vpattern.size(); i++) {
+    delegate::write(global_pattern+i, vpattern[i]);
+  }
+
+  int64_t psize = vpattern.size();
+
   //GRAPPA isopaths call
-  forall_localized(g->vs, g->nv, [g, results] (int64_t i, VertexP &v) {
+  forall_localized(g->vs, g->nv, [g, results, global_pattern, psize] (int64_t i, VertexP &v) {
       //generate a node copy of the visited nodes list
       std::vector<int64_t> visited_nodes;
       
       //generate a node copy of the pattern
-      //TOFIX: this is a hack
       std::stack<int64_t> pattern;
-      for (int j = 0; j < 3; j++) {
-	pattern.push((int64_t) 1);
+
+      //generate a local pattern in stack form
+      for (int64_t i = psize - 1; i >= 0; i--) {
+	int64_t pcolor = delegate::read(global_pattern+i);
+	pattern.push(pcolor);
       }
 
       //run the path search on the node
       #ifdef TRACE
-      LOG(INFO) << "Starting path search at node: " << i; 
+      LOG(INFO) << "[GRAPPA] Starting path search at node: " << i; 
       #endif
       int num_paths = find_iso_paths(g, i , pattern, visited_nodes);
       #ifdef TRACE
-      LOG(INFO) << "Number of paths from node " << i << ": " << num_paths;
+      LOG(INFO) << "[GRAPPA] Number of paths from node " << i << ": " << num_paths;
       #endif
       delegate::write(results+i, num_paths);
     });
 
   //collect the result path count
   for (int j = 0; j < g->nv; j++) {
-    grappa_paths += delegate::read(results+j);
+    int64_t num_paths = delegate::read(results+j);
+    #ifdef TRACE
+    LOG(INFO) << "From node " << j << " counted " << num_paths << " routes...";
+    #endif
+    grappa_paths += num_paths;
   }
 
   LOG(INFO) << "[Grappa] Total number of isomorphic paths: " << grappa_paths;
+  return grappa_paths;
 }
 
-
 //reference implementation of the isomorphic path implementation
-void ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
+//purely sequential version
+int ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
   //set_color(g);
   set_color2(g);
   Graph<VertexP>::dump(g);
   
+  //generate a node copy of the pattern
   std::stack<int64_t> pattern;
-
-  for (int j = 0; j < 2; j++) {
-    pattern.push((int64_t) 1);
-  }
+  pattern = generate_pattern(vpattern);
 
   int paths = 0;
   int seq_paths = 0;
@@ -210,18 +233,22 @@ void ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph) {
   for (int64_t n = 0; n < g->nv; n++) {
     std::vector<int64_t> visited_nodes;
     #ifdef TRACE
-    LOG(INFO) << "Starting path search at node: " << n;
+    LOG(INFO) << "[SEQ] Starting path search at node: " << n;
     #endif
     paths = find_iso_paths(g, n, pattern, visited_nodes);
     #ifdef TRACE
-    LOG(INFO) << "Number of paths from node: " << n << " = " << paths;
+    LOG(INFO) << "[SEQ] Number of paths from node: " << n << " = " << paths;
     #endif
     seq_paths += paths;
   }
   LOG(INFO) << "[Sequential] Total number of isomorphic paths: " << seq_paths;
+  return seq_paths;
 }
 
-
+//-----[PRIMARY USER MAIN]-----//
+/* Performs graph construction and setup.
+ * Calls the grappa implementation and single core implementation and compares results.
+ */
 void user_main(void * ignore) {
   double t, start_time;
   start_time = walltime();
@@ -245,20 +272,29 @@ void user_main(void * ignore) {
   construction_time = walltime() - t;
   LOG(INFO) << "construction_time: " << construction_time;
   
+  int grappa_paths = 0;
+  int ref_paths = 0;
+
+  //define a search path pattern
+  std::vector<int64_t> path_pattern {1,1,1};
+
   //run the isomorphics paths routine
-  grappa_iso_paths(tg, g);
+  grappa_paths = grappa_iso_paths(tg, g, path_pattern);
 
   //run the sequential reference version of isomorphic paths routine
-  //ref_iso_paths(tg, g);
+  ref_paths = ref_iso_paths(tg, g, path_pattern);
 
-  // choose benchmark
-  if (FLAGS_bench.find("bfs") != std::string::npos) {
-    //bfs_benchmark(tg, g, FLAGS_nbfs);
-  }
-  if (FLAGS_bench.find("cc") != std::string::npos) {
+  LOG(INFO) << "//-----[ISOMORPHIC PATHS EXECUTION REPORT-----//";
+  LOG(INFO) << "[Grappa] Isomorphic paths: " << grappa_paths;
+  LOG(INFO) << "[Sequential] Isomorphic paths: " << ref_paths;
 
-  }
-  
+  //dump the graph if it's small enough
+  if (FLAGS_scale < 5) {
+    LOG(INFO) << "//-----[GRAPH EDGE LIST DUMP]-----//";
+    Graph<>::dump(g);
+  } 
+
+  //clean up
   g->destroy();
   global_free(tg.edges);
     
