@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
     long global* array = global_alloc<long>(10);
     
     on_all_cores([xa,array]{
-      LOG(INFO) << as_global_addr(xa);
+      LOG(INFO) << gaddr(xa);
       long y = *xa;
       LOG(INFO) << "*xa = " << y;
       

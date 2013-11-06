@@ -369,7 +369,7 @@ public:
   }
   
 #ifdef __GRAPPA_CLANG__
-    
+  
   operator T grappa_global* ( ) {
     return reinterpret_cast< T grappa_global* >( storage_ );
   }

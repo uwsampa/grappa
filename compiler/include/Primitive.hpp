@@ -8,29 +8,29 @@
 #define global grappa_global
 
 template< typename T >
-inline T global* as_ptr(GlobalAddress<T> ga) {
+inline T global* gptr(GlobalAddress<T> ga) {
   return reinterpret_cast<T global*>(ga.raw_bits());
 }
 
 template< typename T >
-inline GlobalAddress<T> as_global_addr(T global* ptr) {
+inline GlobalAddress<T> gaddr(T global* ptr) {
   return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(ptr));
 }
 //template <>
-//inline GlobalAddress<char> as_global_addr(void global* ptr) {
+//inline GlobalAddress<char> gaddr(void global* ptr) {
 //  return GlobalAddress<char>::Raw(reinterpret_cast<intptr_t>(ptr));
 //}
 
 namespace Grappa {
 
-  Core core(void global* g) { return as_global_addr(g).core(); }
+  Core core(void global* g) { return gaddr(g).core(); }
 
   template< typename T>
-  T* pointer(T global* g) { return as_global_addr(g).pointer(); }
+  T* pointer(T global* g) { return gaddr(g).pointer(); }
   
   template< typename T >
   inline T global* globalize( T* t, Core n = Grappa::mycore() ) {
-    return as_ptr(make_global(t, n));
+    return gptr(make_global(t, n));
   }
 
 }
@@ -38,7 +38,7 @@ namespace Grappa {
 /// most basic way to read data from remote address (compiler generates these from global* accesses)
 extern "C"
 void grappa_get(void *addr, void global* src, size_t sz) {
-  auto ga = as_global_addr(src);
+  auto ga = gaddr(src);
   auto origin = Grappa::mycore();
   auto dest = ga.core();
   
