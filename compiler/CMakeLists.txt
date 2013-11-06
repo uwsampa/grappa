@@ -41,7 +41,10 @@ set_property(TARGET compiler PROPERTY FOLDER "Compiler")
 macro(add_grappaclang_exe target exe)
   add_grappa_exe("${target}" "${exe}" ${ARGN})
   add_dependencies("${target}" compiler)
-  set_property(TARGET "${target}" PROPERTY COMPILE_FLAGS "-Xclang -load -Xclang ${GRAPPA_GEN_LOCATION}")
+  set_target_properties("${target}" PROPERTIES
+    COMPILE_FLAGS       "-Xclang -load -Xclang ${GRAPPA_GEN_LOCATION}"
+    COMPILE_DEFINITIONS "__GRAPPA_CLANG__"
+  )
 endmacro()
 
 add_subdirectory( test )

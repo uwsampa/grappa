@@ -28,8 +28,8 @@ endforeach()
 
 set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -Wl,--enable-new-dtags -Wl,-rpath,${myrpath}")
 
-get_property( defs  DIRECTORY "${sysdir}" PROPERTY COMPILE_DEFINITIONS )
-foreach(d ${defs})
+get_property( defs DIRECTORY "${sysdir}" PROPERTY COMPILE_DEFINITIONS )
+foreach(d ${defs} "__GRAPPA_CLANG__")
   set(GRAPPA_DEFINITIONS "${GRAPPA_DEFINITIONS} -D${d}")
 endforeach()
 

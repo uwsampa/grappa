@@ -1,6 +1,7 @@
 #include <Grappa.hpp>
 #include <Primitive.hpp>
 #include <Collective.hpp>
+#include <GlobalAllocator.hpp>
 
 using namespace Grappa;
 
@@ -9,12 +10,29 @@ int main(int argc, char* argv[]) {
   run([]{
     
     long x = 1;
-    long global* xa = ga_make_global(&x);
+    long global* xa = make_global(&x);
     
-    on_all_cores([xa]{
-//      LOG(INFO) << "xa: <" << ga_core(xa) << "," << ga_pointer(xa) << ">";
+    long global* array = global_alloc<long>(10);
+    
+    on_all_cores([xa,array]{
+      LOG(INFO) << as_global_addr(xa);
       long y = *xa;
       LOG(INFO) << "*xa = " << y;
+      
+      if (mycore() == 0) {
+        for (long i=0; i<10; i++) {
+          delegate::write(as_global_addr(array+i), i);
+        }
+        barrier();
+      } else {
+        barrier();
+        long total = 0;
+        for (long i=0; i<10; i++) {
+          total += array[i];
+        }
+        LOG(INFO) << "total: " << total;
+      }
+      
     });
     
   });
