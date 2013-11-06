@@ -23,6 +23,7 @@ add_definitions(-Drestrict=__restrict__ -DGRAPH_GENERATOR_GRAPPA)
 set(QUERIES
   triangles
   triangles_partition
+  squares_partition
   twohop
 )
 
