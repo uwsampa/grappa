@@ -35,12 +35,10 @@ namespace Grappa {
 
 }
 
-/// most basic way to get data from global address
-///
-/// TODO: have aggregator implement this directly to save overhead (i.e. instead of serializing/deserializing it can just extract the pointers directly)
+/// most basic way to read data from remote address (compiler generates these from global* accesses)
 extern "C"
-void grappa_get(void *addr, void global* ptr, size_t sz) {
-  auto ga = as_global_addr(ptr);
+void grappa_get(void *addr, void global* src, size_t sz) {
+  auto ga = as_global_addr(src);
   auto origin = Grappa::mycore();
   auto dest = ga.core();
   
@@ -71,3 +69,28 @@ void grappa_get(void *addr, void global* ptr, size_t sz) {
   }
 }
 
+/// most basic way to write data at remote address (compiler generates these from global* accesses)
+extern "C"
+void grappa_put(void global* dest, void* src, size_t sz) {
+  auto origin = Grappa::mycore();
+  
+  if (Grappa::core(dest) == origin) {
+    
+    memcpy(Grappa::pointer(dest), src, sz);
+    
+  } else {
+    
+    Grappa::FullEmpty<bool> result;
+    auto g_result = make_global(&result);
+    
+    Grappa::send_heap_message(Grappa::core(dest), [dest,sz,g_result](void * payload, size_t psz){
+      
+      memcpy(Grappa::pointer(dest), payload, sz);
+      
+      Grappa::send_heap_message(g_result.core(), [g_result]{ g_result->writeEF(true); });
+      
+    }, src, sz);
+    
+    result.readFF();
+  }
+}
