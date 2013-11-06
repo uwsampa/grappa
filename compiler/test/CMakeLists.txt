@@ -17,7 +17,7 @@ foreach(file ${tests})
   # )
   
   set(target_name "compiler-test-${base}")
-  add_grappaclang_exe("${target_name}" "${base}.exe" ${file})
-  set_property(TARGET "${target_name}" PROPERTY FOLDER "Compiler")
+  add_grappaclang_exe(${target_name} "${base}.exe" ${file})
+  set_property(TARGET ${target_name} PROPERTY FOLDER "Compiler")
   
 endforeach()
