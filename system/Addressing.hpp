@@ -369,14 +369,9 @@ public:
   }
   
 #ifdef __GRAPPA_CLANG__
-  
-  operator void grappa_global* ( ) {
-    return reinterpret_cast< void grappa_global* >( storage_ );
-  }
-  
-  template< typename U >
-  operator U grappa_global* ( ) {
-    return reinterpret_cast< U grappa_global* >( storage_ );
+    
+  operator T grappa_global* ( ) {
+    return reinterpret_cast< T grappa_global* >( storage_ );
   }
   
 #endif
