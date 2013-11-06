@@ -90,17 +90,15 @@ namespace {
   struct GrappaGen : public FunctionPass {
     static char ID;
     
-    Constant* delegate_read_fn;
-//    std::map<Type*,Constant*> delegate_reads;
-//    Module* module;
     Constant* get_fn;
+    
     Type *void_ty, *void_ptr_ty, *void_gptr_ty;
     
     GrappaGen() : FunctionPass(ID) { }
 
     virtual bool runOnFunction(Function &F) {
       bool changed = false;
-//      errs() << "processing fn: " << F.getName() << "\n";
+      // errs() << "processing fn: " << F.getName() << "\n";
       
       std::vector<LoadInst*> todo;
       
@@ -108,7 +106,6 @@ namespace {
         for (auto& inst : bb) {
           switch ( inst.getOpcode() ) {
           case Instruction::Load:
-//            grappaGlobalRefs++;
             auto orig_ld = cast<LoadInst>(&inst);
             if (orig_ld->getPointerAddressSpace() == GLOBAL_SPACE) {
               todo.push_back(orig_ld);
@@ -133,22 +130,14 @@ namespace {
         auto szof = createSizeof(ty);
         
         Value* args[] = { void_alloc, void_gptr, szof };
-        auto call = CallInst::Create(get_fn, args, "", orig_ld);
+        CallInst::Create(get_fn, args, "", orig_ld);
         
         // Now load from alloc'd area
         auto new_ld = new LoadInst(alloc, "", orig_ld->isVolatile(), orig_ld->getAlignment(), orig_ld->getOrdering(), orig_ld->getSynchScope(), orig_ld);
         
         myReplaceInstWithInst(orig_ld, new_ld);
         
-        //              if (!module->getFunction("delegate_read_int")) { errs() << "unable to find!\n"; }
-        //              if (delegate_reads.count(ty) == 0) {
-        //                delegate_reads[ty] = module->getOrInsertFunction("delegate_read_int",
-        //                                                                 ty, ptr->getType(), NULL);
-        //              }
-        //              auto fn = delegate_reads[ty];
-        errs() << "global load(";
-        ty->dump();
-        errs() << ")\n";
+        errs() << "global load("; ty->dump(); errs() << ")\n";
         changed = true;
       }
       
