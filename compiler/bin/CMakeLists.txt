@@ -26,7 +26,10 @@ foreach(dir ${rpath_dirs})
   set(myrpath "${myrpath}:${dir}")
 endforeach()
 
-set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -Wl,--enable-new-dtags -Wl,-rpath,${myrpath}")
+if(NOT APPLE)
+  set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -Wl,--enable-new-dtags")
+endif()
+set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -Wl,-rpath,${myrpath}")
 
 get_property( defs DIRECTORY "${sysdir}" PROPERTY COMPILE_DEFINITIONS )
 foreach(d ${defs} "__GRAPPA_CLANG__")
