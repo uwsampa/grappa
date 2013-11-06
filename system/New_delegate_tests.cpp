@@ -211,9 +211,7 @@ void check_call_suspending() {
 void user_main(void * args) {
   CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
 
-  Grappa::on_all_cores( [] {
-      Grappa_start_profiling();
-    } );
+  Grappa::Statistics::start_tracing();
 
   check_short_circuiting();
   
@@ -244,10 +242,7 @@ void user_main(void * args) {
   Grappa::wait(&waiter);
   BOOST_CHECK_EQUAL(seed, 222);
   
-  Grappa::on_all_cores( [] {
-      Grappa_stop_profiling();
-    } );
-
+  Grappa::Statistics::stop_tracing();
   Grappa::Statistics::merge_and_print();
 }
 

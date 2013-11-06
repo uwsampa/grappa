@@ -244,6 +244,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   aio_completed_stack = NULL;
 
   // handler
+#ifdef AIO_SIGNAL
   struct sigaction aio_sa;
   aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
   aio_sa.sa_sigaction = Grappa_handle_aio;
@@ -251,6 +252,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     fprintf(stderr, "Error setting up async io signal handler.\n");
     exit(1);
   }
+#endif
 
   // initialize Tau profiling groups
   generate_profile_groups();
@@ -262,6 +264,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   global_aggregator.init();
 
   // set CPU affinity if requested
+#ifdef CPU_SET
   if( FLAGS_set_affinity ) {
     char * localid_str = getenv("SLURM_LOCALID");
     if( NULL != localid_str ) {
@@ -272,6 +275,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
       sched_setaffinity( 0, sizeof(mask), &mask );
     }
   }
+#endif
 
   // initialize node shared memory
   locale_shared_memory.init();

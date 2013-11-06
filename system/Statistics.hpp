@@ -34,6 +34,9 @@ namespace Grappa {
     /// Create clone of stats list, merge all stats into it, and print them.
     void merge_and_print(std::ostream& out = std::cerr);
     
+    /// Merge stats from all cores and dump them to file specified by '--stats_blob_filename'
+    void merge_and_dump_to_file();
+    
     /// Dump local registered stats to file.
     void dump_stats_blob();
     
@@ -45,6 +48,13 @@ namespace Grappa {
     
     /// Do `reset()` on all cores (uses `Grappa::call_on_all_cores`)
     void reset_all_cores();
+    
+    /// Begin recording stats using VampirTrace (also enables Google gperf profiling) (also resets stats)
+    void start_tracing();
+    
+    /// Stop recording tracing and profiling information. Trace/profile is written out and aggregated 
+    /// at end of execution.
+    void stop_tracing();
   }
   
 } // namespace Grappa

@@ -39,13 +39,30 @@ endif
 
 LD_LIBRARY_PATH:=$(BOOST)/stage/lib:$(LD_LIBRARY_PATH)
 
-CC=mpicc
-CXX=mpicxx
-LD=mpicxx
+ifdef CLANG
+
+CLANG_HOME=/sampa/home/bholt/grappac/deps
+CC=$(CLANG_HOME)/bin/clang
+CXX=$(CLANG_HOME)/bin/clang++
+LD=$(CLANG_HOME)/bin/clang++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
+LD_LIBRARY_PATH:=$(CLANG_HOME)/lib64:$(LD_LIBRARY_PATH)
+	
+else
+
+GCC472=/sampa/share/gcc-4.7.2/rtf
+CC=$(GCC472)/bin/gcc
+CXX=$(GCC472)/bin/g++
+LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
+GCC472_LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
+LD_LIBRARY_PATH:=$(GCC472)/lib64:$(LD_LIBRARY_PATH)
+
+MPI_ROOT= $(shell M=`which mpicxx`; echo $${M%%/bin/mpicxx})
+CFLAGS += -I$(MPI_ROOT)/include
 
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
+endif
 
 
 # to build on PAL cluster
@@ -73,6 +90,7 @@ NELSON=/pic/people/nels707
 CC=mpicc
 CXX=mpicxx
 LD=mpicxx
+
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr

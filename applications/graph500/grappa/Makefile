@@ -15,8 +15,16 @@ TARGET:= graph.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system -I.. 
+CFLAGS += -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks -I.. 
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA
+
+ifdef PAL
+CFLAGS += -DUSE_MPI3_COLLECTIVES
+endif
+
+ifdef SMALL_GRAPH
+CFLAGS += -DSMALL_GRAPH
+endif
 
 LDFLAGS += -g 
 
@@ -27,13 +35,16 @@ LDFLAGS += -g
 BFS = bfs_local
 
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
-SOURCES = main.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
+SOURCES = graph.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
 HEADERS = common.h oned_csr.h verify.hpp
 
 include $(GRAPPA_HOME)/system/Makefile
 
-graph.exe: $(SOURCES) $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+graph.exe: $(SOURCES) main.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) main.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
+graph_new.exe: $(SOURCES) main_new.o cc_new.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a bfs_local_adj.o
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) bfs_local_adj.o main_new.o cc_new.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib

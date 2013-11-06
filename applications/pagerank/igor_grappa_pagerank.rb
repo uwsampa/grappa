@@ -2,7 +2,7 @@
 require 'igor'
 
 # inherit parser, sbatch_flags
-load '../../igor_common.rb'
+require_relative '../../util/igor_common.rb'
 
 def expand_flags(*names)
   names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
@@ -11,7 +11,7 @@ end
 Igor do
   include Isolatable
   
-  database 'sosp.db', :pagerank
+  database '~/exp/sosp.db', :pagerank
 
   exec_name = 'pagerank.exe'
 
@@ -33,7 +33,7 @@ Igor do
 
                    # spM configuration
                    nnz_factor 10
-                   logN      16  
+                   scale      16  
 
                    # accepted damping parameter for pagerank
                    damping 0.8
@@ -52,7 +52,7 @@ Igor do
   
   params {
     nnode       8
-    ppn         12
+    ppn         8
     tag         'none'
     problem     'pagerank'
   }

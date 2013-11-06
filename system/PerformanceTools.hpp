@@ -135,6 +135,11 @@ void Grappa_profiling_sample_user();
 void Grappa_dump_user_stats( std::ostream& o, const char * terminator );
 void Grappa_reset_user_stats();
 
+#ifdef VTRACE
+#define GRAPPA_TRACER(name) VT_TRACER(name)
+#else
+#define GRAPPA_TRACER(name) do {} while (0)
+#endif
 
 #endif // PERFORMANCE_TOOLS_HPP
 
