@@ -1,16 +1,17 @@
 #include <stdint.h>
 #include <iostream>
 #include <cmath>
-#include <graph.hpp>
 #include <Collective.hpp>
 #include <ParallelLoop.hpp>
 #include <Delegate.hpp>
 #include <Grappa.hpp>
 #include "local_graph.hpp"
 
+#ifdef PROGRESS
 extern "C" {
   #include <ProgressOutput.h>
 }
+#endif
 
 // graph includes
 #include "../graph500/generator/make_graph.h"
@@ -203,8 +204,10 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
   // 2. compute triangles locally
   //
   on_all_cores([] {
+#ifdef PROGRESS
     ProgressOutput countp;
     ProgressOutput_init( FLAGS_progressInterval, 1, PO_ARG(countp));
+#endif
 
     LOG(INFO) << "received (" << localAssignedEdges_R1.size() << ", " << localAssignedEdges_R2.size() << ", " << localAssignedEdges_R3.size() << ") edges";
 
@@ -258,10 +261,12 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
               if (R3.inNeighborhood(z, x)) {
                 emit( x, y, z );
                 triangle_count++;
+#ifdef PROGRESS
                 i++;
                 if (i % (1<<20)) {
                   ProgressOutput_updateShared( &countp, count );
                 }
+#endif
               }
             }
           }
