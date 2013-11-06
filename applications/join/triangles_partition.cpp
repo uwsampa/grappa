@@ -30,6 +30,12 @@ DEFINE_uint64( scale, 7, "Graph will have ~ 2^scale vertices" );
 DEFINE_uint64( edgefactor, 16, "Median degree; graph will have ~ 2*edgefactor*2^scale edges" );
 DEFINE_uint64( progressInterval, 5, "interval between progress updates" );
 
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
+
+//outputs
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
+
 double generation_time;
 double construction_time;
 
@@ -121,9 +127,15 @@ std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
 }
 
 void triangles(GlobalAddress<Graph<Vertex>> g) {
+  
+  on_all_cores( [] { Grappa::Statistics::reset(); } );
+
 
   // need to arrange the processors in 3d cube
   auto sidelength = Loc3d::int_cbrt( cores() );
+
+  double start, end;
+  start = Grappa_walltime(); 
   
   // 1. Send edges to the partitions
   //
@@ -182,7 +194,11 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       }
     }
   });
-  on_all_cores([] { LOG(INFO) << "edges sent: " << edgesSent; });
+  on_all_cores([] { 
+      LOG(INFO) << "edges sent: " << edgesSent; 
+      edges_transfered += edgesSent;
+  });
+  
 
   // 2. compute triangles locally
   //
@@ -241,6 +257,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
             if (yadj.size() < R3.nadj(z)) {
               if (R3.inNeighborhood(z, x)) {
                 emit( x, y, z );
+                triangle_count++;
                 i++;
                 if (i % (1<<20)) {
                   ProgressOutput_updateShared( &countp, count );
@@ -254,6 +271,11 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
 
     LOG(INFO) << "counted " << count << " triangles; R1adjs="<<R1adjs;
   });
+  end = Grappa_walltime();
+  triangles_runtime = end - start;
+  
+  
+  Grappa::Statistics::merge_and_print();
  
 }
 
