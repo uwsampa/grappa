@@ -17,6 +17,8 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/PassManager.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils/Cloning.h>
+#include <llvm/Transforms/Utils/CodeExtractor.h>
 
 #include <sstream>
 #include <set>
@@ -118,42 +120,60 @@ namespace {
   struct GrappaGen : public FunctionPass {
     static char ID;
     
-    Constant *get_fn, *put_fn;
+    Constant *get_fn, *put_fn, *read_long_fn;
     
-    Type *void_ty, *void_ptr_ty, *void_gptr_ty;
+    Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
     
     GrappaGen() : FunctionPass(ID) { }
     
     void replaceWithRemoteLoad(LoadInst *orig_ld) {
+      outs() << "global get:"; orig_ld->dump();
+      outs() << "  uses: " << orig_ld->getNumUses() << "\n";
+      orig_ld->getOperandUse(0);
       auto ty = orig_ld->getType();
       auto gptr = orig_ld->getPointerOperand();
       
-      auto alloc = makeAlloca(ty, "", orig_ld); // allocate space to load into
-      ir_comment(alloc, "grappa.alloca", "");
+      if (ty == i64_ty) {
+        outs() << "  specializing -- grappa_read_long()\n";
+        Value *args[] = {
+          gptr
+        };
+        auto f = CallInst::Create(read_long_fn, args, "", orig_ld);
+        ir_comment(f, "grappa.read", "");
+        myReplaceInstWithInst(orig_ld, f);
+        // (call gets inlined by -O2 so won't be able to find 'grappa_read_long' call)
+        
+      } else {
+        
+        auto alloc = makeAlloca(ty, "", orig_ld); // allocate space to load into
+        ir_comment(alloc, "grappa.get.alloca", "");
+        
+        auto void_alloc = new BitCastInst(alloc, void_ptr_ty, "", orig_ld);
+        auto void_gptr = new BitCastInst(gptr, void_gptr_ty, "", orig_ld);
+        auto szof = createSizeof(ty);
+        
+        Value* args[] = { void_alloc, void_gptr, szof };
+        CallInst::Create(get_fn, args, "", orig_ld);
+        
+        // Now load from alloc'd area
+        auto new_ld = new LoadInst(alloc, "", orig_ld->isVolatile(), orig_ld->getAlignment(), orig_ld->getOrdering(), orig_ld->getSynchScope(), orig_ld);
+        
+        myReplaceInstWithInst(orig_ld, new_ld);
+        ir_comment(new_ld, "grappa.get", "");
+      }
       
-      auto void_alloc = new BitCastInst(alloc, void_ptr_ty, "", orig_ld);
-      auto void_gptr = new BitCastInst(gptr, void_gptr_ty, "", orig_ld);
-      auto szof = createSizeof(ty);
-      
-      Value* args[] = { void_alloc, void_gptr, szof };
-      CallInst::Create(get_fn, args, "", orig_ld);
-      
-      // Now load from alloc'd area
-      auto new_ld = new LoadInst(alloc, "", orig_ld->isVolatile(), orig_ld->getAlignment(), orig_ld->getOrdering(), orig_ld->getSynchScope(), orig_ld);
-      
-      myReplaceInstWithInst(orig_ld, new_ld);
-      ir_comment(new_ld, "grappa.get", "");
-      
-      errs() << "global load("; ty->dump(); errs() << ")\n";
     }
 
     void replaceWithRemoteStore(StoreInst *orig) {
+      outs() << "global put:"; orig->dump();
+      
       auto gptr = orig->getPointerOperand();
       auto val = orig->getValueOperand();
       auto ty = val->getType();
       
       // TODO: find out if we can store directly from source
       auto alloc = makeAlloca(ty, "", orig); // allocate space to put from
+      ir_comment(alloc, "grappa.put.alloca", "");
       
       // Now store into alloc'd area
       new StoreInst(val, alloc, orig->isVolatile(), orig->getAlignment(), orig->getOrdering(), orig->getSynchScope(), orig);
@@ -167,8 +187,8 @@ namespace {
       
       // substitue original instruction for the new last one (call to 'grappa_put')
       myReplaceInstWithInst(orig, put);
+      ir_comment(put, "grappa.put", "");
       
-      errs() << "global store("; ty->dump(); errs() << ")\n";
     }
     
     virtual bool runOnFunction(Function &F) {
@@ -218,7 +238,9 @@ namespace {
       
       get_fn = getFunctionSafe(module, "grappa_get");
       put_fn = getFunctionSafe(module, "grappa_put");
+      read_long_fn = getFunctionSafe(module, "grappa_read_long");
       
+      i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
       void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
       
@@ -252,5 +274,6 @@ namespace {
     fprintf(stderr, "Registered GrappaGen pass!\n");
     PM.add(new GrappaGen());
   }
-  static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_OptimizerLast, registerGrappaGen);
+  static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_ScalarOptimizerLate, registerGrappaGen);
+  
 }

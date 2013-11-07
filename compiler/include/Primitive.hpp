@@ -4,6 +4,7 @@
 #include <Communicator.hpp>
 #include <Message.hpp>
 #include <string.h>
+#include <Delegate.hpp>
 
 #define global grappa_global
 
@@ -33,6 +34,11 @@ namespace Grappa {
     return gptr(make_global(t, n));
   }
 
+}
+
+extern "C"
+long grappa_read_long(long global* a) {
+  return Grappa::delegate::read(gaddr(a));
 }
 
 /// most basic way to read data from remote address (compiler generates these from global* accesses)
