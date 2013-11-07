@@ -32,6 +32,8 @@ long cc_benchmark(GlobalAddress<Graph<>> g);
 
 static double generation_time;
 static double construction_time;
+static double grappa_runtime;
+static double reference_runtime;
 static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
@@ -45,9 +47,6 @@ DEFINE_bool(verify, true, "Do verification. Note: `--noverify` is equivalent to 
 
 DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-up.");
 DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
-
-
-//#define TRACE 0 //outputs traversal trace if high
 
 
 //-----[ISOMORPHIC PATH ALGORITHM DEFINITION]-----//
@@ -78,9 +77,9 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
   //get the number of adjacent vertices for this node
   int64_t nadj = vp.nadj;
 
-  //#ifdef TRACE
+  #ifdef TRACE
   LOG(INFO) << "Traversed node: " << node << " with color " << (int64_t) vcolor << " patc = " << color << " vtxc = " << vcolor << " pattern depth: " << pattern.size();
-  //#endif
+  #endif
 
   //check if the vertex color matches the next color in the pattern
   if (color == vcolor) {
@@ -149,7 +148,13 @@ std::stack<int64_t> generate_pattern(std::vector<int64_t> pattern) {
 }
 
 //grappa version of the isomorphic path implementation
-int grappa_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
+/* Takes a graph representation and runs the isomorphic path search in parallel on each node
+ * Returns the number of isomorphic paths with the specified pattern in the graph
+ * Parameters:
+ *    generic_graph - the graph to be processed
+ *    vpattern - a vector of colors representing the pattern to be searched
+ */
+int grappa_iso_paths(GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
   //set the vertices to have color 1
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
   set_color2(g);
@@ -176,7 +181,7 @@ int grappa_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std:
 
   int64_t psize = vpattern.size();
 
-  //GRAPPA isopaths call
+  //GRAPPA isopaths call on all nodes for each core
   forall_localized(g->vs, g->nv, [g, results, global_pattern, psize] (int64_t i, VertexP &v) {
       //generate a node copy of the visited nodes list
       std::vector<int64_t> visited_nodes;
@@ -215,8 +220,11 @@ int grappa_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std:
 }
 
 //reference implementation of the isomorphic path implementation
-//purely sequential version
-int ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
+/* Runs the isomorphic path search algorithm on only the main core.
+ * Main core will just issue delegate::read operations on information stored on other nodes.
+ * All other cores in the computation are left idle except for servicing delegate::read requests
+ */ 
+int ref_iso_paths(GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
   //set_color(g);
   set_color2(g);
@@ -229,7 +237,7 @@ int ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std::ve
   int paths = 0;
   int seq_paths = 0;
 
-  //iterate over all vertices
+  //iterate over all vertices and search for number of paths starting at each node with pattern vpattern
   for (int64_t n = 0; n < g->nv; n++) {
     std::vector<int64_t> visited_nodes;
     #ifdef TRACE
@@ -248,6 +256,7 @@ int ref_iso_paths(tuple_graph &tg, GlobalAddress<Graph<>> generic_graph, std::ve
 //-----[PRIMARY USER MAIN]-----//
 /* Performs graph construction and setup.
  * Calls the grappa implementation and single core implementation and compares results.
+ * Prints some statistics for graph generation and run time.
  */
 void user_main(void * ignore) {
   double t, start_time;
@@ -262,15 +271,15 @@ void user_main(void * ignore) {
   tuple_graph tg;
   tg.edges = global_alloc<packed_edge>(desired_nedge);
   
+  //call the kronecker graph generator to generate the test graph
   t = walltime();
   make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
   generation_time = walltime() - t;
-  LOG(INFO) << "graph_generation: " << generation_time;
   
+  //create the graph from the tuple graph representation
   t = walltime();
   auto g = Graph<>::create(tg);
   construction_time = walltime() - t;
-  LOG(INFO) << "construction_time: " << construction_time;
   
   int grappa_paths = 0;
   int ref_paths = 0;
@@ -279,14 +288,23 @@ void user_main(void * ignore) {
   std::vector<int64_t> path_pattern {1,1,1};
 
   //run the isomorphics paths routine
-  grappa_paths = grappa_iso_paths(tg, g, path_pattern);
+  t = walltime();
+  grappa_paths = grappa_iso_paths(g, path_pattern);
+  grappa_runtime = walltime() - t;
 
   //run the sequential reference version of isomorphic paths routine
-  ref_paths = ref_iso_paths(tg, g, path_pattern);
+  t = walltime();
+  ref_paths = ref_iso_paths(g, path_pattern);
+  reference_runtime = walltime() - t;
 
+  //print statistics related to the executions
   LOG(INFO) << "//-----[ISOMORPHIC PATHS EXECUTION REPORT-----//";
-  LOG(INFO) << "[Grappa] Isomorphic paths: " << grappa_paths;
-  LOG(INFO) << "[Sequential] Isomorphic paths: " << ref_paths;
+  LOG(INFO) << "[INFO] Grappa Isomorphic paths: " << grappa_paths;
+  LOG(INFO) << "[INFO] Reference Isomorphic paths: " << ref_paths;
+
+  if (grappa_paths != ref_paths) {
+    LOG(INFO) << "[STATUS] Failure: Number of paths does not match.";
+  }
 
   //dump the graph if it's small enough
   if (FLAGS_scale < 5) {
@@ -297,10 +315,16 @@ void user_main(void * ignore) {
   //clean up
   g->destroy();
   global_free(tg.edges);
-    
-  LOG(INFO) << "total_runtime: " << walltime() - start_time;
+
+  //print some statistics and figures
+  LOG(INFO) << "[INFO] Graph generation time: " << generation_time;
+  LOG(INFO) << "[INFO] Graph construction time: " << construction_time;    
+  LOG(INFO) << "[INFO] Grappa Runtime: " << grappa_runtime;
+  LOG(INFO) << "[INFO] Reference Runtime: " << reference_runtime;
+  LOG(INFO) << "[INFO] Total graph processing runtime: " << walltime() - start_time;
 }
 
+//Main method
 int main(int argc, char** argv) {
   Grappa_init(&argc, &argv);
   Grappa_activate();
