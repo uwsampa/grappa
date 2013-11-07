@@ -112,7 +112,6 @@ namespace {
   template< typename T >
   void ir_comment(T* target, StringRef label, const DebugLoc& dloc) {
     auto& ctx = target->getContext();
-    outs() << "dloc: "; dloc.dump(ctx); outs() << "\n";
     target->setMetadata(label, dloc.getAsMDNode(ctx));
   }
   
@@ -130,7 +129,7 @@ namespace {
       auto gptr = orig_ld->getPointerOperand();
       
       auto alloc = makeAlloca(ty, "", orig_ld); // allocate space to load into
-      ir_comment(alloc, "grappa.alloca", orig_ld->getDebugLoc());
+      ir_comment(alloc, "grappa.alloca", "");
       
       auto void_alloc = new BitCastInst(alloc, void_ptr_ty, "", orig_ld);
       auto void_gptr = new BitCastInst(gptr, void_gptr_ty, "", orig_ld);
@@ -143,6 +142,7 @@ namespace {
       auto new_ld = new LoadInst(alloc, "", orig_ld->isVolatile(), orig_ld->getAlignment(), orig_ld->getOrdering(), orig_ld->getSynchScope(), orig_ld);
       
       myReplaceInstWithInst(orig_ld, new_ld);
+      ir_comment(new_ld, "grappa.get", "");
       
       errs() << "global load("; ty->dump(); errs() << ")\n";
     }
