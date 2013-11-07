@@ -128,9 +128,9 @@ Before building, you must set up a Slurm allocation and launch distcc daemons. B
     
     # or to control the allocation (such as number of nodes),
     # invoke the salloc job with make manually:
-    salloc -N8 bin/distcc.sh make -j
+    salloc -N8 bin/distcc.sh make -j <target>
 
-Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds:
+Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds or if distcc daemons are not loading correctly using the distcc_make option above.
 
     salloc -N8 <grappa-dir>/bin/distcc.sh bash --login
     cd build/Make+Release
@@ -139,15 +139,4 @@ Another alternative is to launch a shell to hold onto an allocation. This may be
     # whenever finished with builds, relinquish allocation:
     exit
 
-Or use the helper script:
-
-    # equivalent to 'salloc -N8 bin/distcc.sh bash --login'
-    bin/distcc_bash
-
-This will relinquish the Slurm job immediately after the command returns.
-
-**TODO:** come up with way to get distcc allocation without using a second shell (use sbatch to get a persistent job...)
-
-    sbatch --input=/dev/random bin/distcc.sh
-    # get nodelist somehow...
 
