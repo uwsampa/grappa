@@ -186,7 +186,8 @@ list(APPEND GRAPPA_ENV
 )
 
 
-add_definitions(-DSHMMAX=12884901888) # 12 GB
+add_definitions(-DSHMMAX=${SHMMAX})
+# add_definitions(-DSHMMAX=12884901888) # 12 GB
 # add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if(NOT APPLE)

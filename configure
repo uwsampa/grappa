@@ -61,6 +61,17 @@ def configure(generator, mode, opt)
     args << %Q[-G"#{generator}"]
   end
   
+  # determine shared memory size
+  opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
+  if not $?.success?
+    opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
+    if not $?.success?
+      opt.shmmax = nil
+      warn "warning: unable to determine Sys V shared memory size; continuing, but you may be unable to run programs"
+    end
+  end
+  args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
+  
   args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
   args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
   if mode
