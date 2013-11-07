@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <iostream>
+#include <vector>
 #include <cmath>
 #include <graph.hpp>
 #include <Collective.hpp>
@@ -47,97 +48,6 @@ void emit(int64_t x, int64_t y, int64_t z) {
   count++;
 }
 
-class LocD {
-  private:
-    std::vector<int64_t> shares;
-
-  class Iter {
-    private:
-      std::vector<int64> current_positions;
-      std::vector<int64_t> wildcards;
-    
-//TODO good target for memoizing
-      /* Turn the current n-dimensional vector into a sequential id */
-      static int64_t serialId (std::vector<int64_t> pos, std::vector<int64_t> sizes) {
-        int64_t sum = pos[0];
-        for (int i=1; i<pos.size(); i++) {
-          sum += pos[i] * sizes[i-1];
-        }
-        return sum;
-      }
-
-    public:
-    Iter(std::vector<int64_t> iteration_box)    // TODO: would be elegant in Chapel distributions
-      : current_positions(iteration_box.size()) 
-      , wildcards() {
-
-      for (int i = 0; i<iteration_box.size(); i++) {
-        int64_t p = iteration_box[i];
-        if (p==ALL) {
-          // if whole dimension then start at 0 to prepare for iteration
-          current_positions[i] = 0;
-          wildcards.push_back(p);
-        } else {
-          // fixed dimension
-          current_positions[i] = p;
-        }
-      }
-    }
-    
-    bool operator!= (const Iter& other) const {
-      return done!=other.done
-        || other stuff
-    }
-
-    const Iter& operator++() {
-      int i = 0;
-      while (i < wildcards.size()) {
-        int64_t dim = wildcards[i];
-        if (current_positions[dim]+1 == shares[dim]) {
-          current_positions[dim] = 0;
-          i++;
-        } else {
-          current_positions[dim]++;
-          break;
-        }
-      }
-
-      // if ran out of dimensions then at end
-      if (i == wildcards.size()) {
-        done = true;
-      }
-      
-      return this;
-    }
-
-    int64_t operator*() const {
-      return serialId(current_position, shares);
-    }
-  };
-
-  public:
-  static const int64_t ALL = -1;
-
-  //TODO replace with product find
-  static int64_t int_cbrt(int64_t x) {
-    int64_t root = round(floor(cbrt(x)));
-    int64_t rootCube = root*root*root;
-    if (x != (rootCube) ) { LOG(WARNING) << x << " not a perfect cube; processors 0-"<<(rootCube-1)<<") will count"; }
-    return root;
-  }
-
-  LocD(std::vector<int64_t> shares) {
-    : shares(shares) // copy 
-    }
-
-  Iter begin() {
-    return Iter(x,y,z,dim,false);
-  }
-  
-  Iter end() {
-    return Iter(x,y,z,dim,true);
-  }
-};
 
 std::vector<Edge> localAssignedEdges_R1;
 std::vector<Edge> localAssignedEdges_R2;
@@ -149,7 +59,7 @@ std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
   return [dim](int64_t x) { return x % dim; };
 }
 
-void triangles(GlobalAddress<Graph<Vertex>> g) {
+void squares(GlobalAddress<Graph<Vertex>> g) {
   
   on_all_cores( [] { Grappa::Statistics::reset(); } );
 
@@ -169,49 +79,47 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
     // hash function
     auto hf = makeHash( sidelength );
 
-    for (auto& dst : v.adj_iter()) {
+    for (auto& dest : v.adj_iter()) {
       
-      const int64_t from = i;
-      const int64_t to = dst;
+      const int64_t src = i;
+      const int64_t dst = dest;
 
-      // x-y
-      auto locs_xy = Loc3d(sidelength, hf(from), hf(to), Loc3d::ALL);    
-      for (auto l : locs_xy) {
-        Edge e(from, to);
+      // a->b
+      auto locs_ab = LocD(hf(src), hf(dst), LocD::ALL, LocD::ALL);
+      for (auto l : locs_ab) {
+        Edge e(src, dst);
         delegate::call_async( *shared_pool, l, [e] { 
-#if DIFFERENT_RELATIONS
           localAssignedEdges_R1.push_back(e); 
-#else
-          localAssignedEdges_R1.push_back(e);
-#endif
         });
         edgesSent++;
       }
 
-      // y-z
-      auto locs_yz = Loc3d(sidelength, Loc3d::ALL, hf(from), hf(to));
-      for (auto l : locs_yz) {
-        Edge e(from, to);
+      // b->c
+      auto locs_bc = LocD(LocD::ALL, hf(src), hf(dst), locD::ALL);
+      for (auto l : locs_bc) {
+        Edge e(src, dst);
         delegate::call_async( *shared_pool, l, [e] { 
-#if DIFFERENT_RELATIONS
           localAssignedEdges_R2.push_back(e); 
-#else
-          localAssignedEdges_R1.push_back(e);
-#endif
         });
         edgesSent++;
       }
 
-      // z-x
-      auto locs_zx = Loc3d(sidelength, hf(to), Loc3d::ALL, hf(from));
-      for (auto l : locs_zx) {
-        Edge e(from, to);
+      // c->d
+      auto locs_cd = LocD(LocD::ALL, LocD::ALL, hf(src), hf(dst));
+      for (auto l : locs_cd) {
+        Edge e(src, dst);
         delegate::call_async( *shared_pool, l, [e] { 
-#if DIFFERENT_RELATIONS
           localAssignedEdges_R3.push_back(e); 
-#else
-          localAssignedEdges_R1.push_back(e);
-#endif
+        });
+        edgesSent++;
+      }
+
+      // d->a
+      auto locs_da = LocD(hf(dst), LocD::ALL, LocD::ALL, hf(src));
+      for (auto l : locs_da) {
+        Edge e(src, dst);
+        delegate::call_async( *shared_pool, l, [e] { 
+          localAssignedEdges_R4.push_back(e); 
         });
         edgesSent++;
       }
