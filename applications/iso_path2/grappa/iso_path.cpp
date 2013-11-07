@@ -37,17 +37,11 @@ static double reference_runtime;
 static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
-DEFINE_int64(scale, 3, "Graph500 scale (graph will have ~2^scale vertices)");
-DEFINE_int64(edgefactor, 1, "Approximate number of edges in graph will be 2*2^(scale)*edgefactor");
-DEFINE_int64(nbfs, 8, "Number of BFS traversals to do");
-
-DEFINE_string(bench, "bfs", "Specify what graph benchmark to execute.");
+//definitions for graph parameters
+DEFINE_int64(scale, 10, "Graph500 scale (graph will have ~2^scale vertices)");
+DEFINE_int64(edgefactor, 16, "Approximate number of edges in graph will be 2*2^(scale)*edgefactor");
 
 DEFINE_bool(verify, true, "Do verification. Note: `--noverify` is equivalent to `--verify=(false|no|0)`");
-
-DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-up.");
-DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
-
 
 //-----[ISOMORPHIC PATH ALGORITHM DEFINITION]-----//
 
@@ -85,7 +79,9 @@ int find_iso_paths(GlobalAddress<Graph<VertexP>> g, int64_t node, std::stack<int
   if (color == vcolor) {
     //if the length of the pattern to match is 1, and it matches, we're done
     if (pattern.size() == 1) {
+      #ifdef TRACE
       LOG(INFO) << "[PATH FOUND] Path ending at node: " << node;
+      #endif
       return 1; //end of path, return found 1 path
     }  
     else { //recursive case
@@ -157,9 +153,11 @@ std::stack<int64_t> generate_pattern(std::vector<int64_t> pattern) {
 int grappa_iso_paths(GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpattern) {
   //set the vertices to have color 1
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
+  
+  //set the colors of each node in the graph
+  //define a different coloring function and call it here to change graph color
   set_color2(g);
   //set_color2(g);
-  Graph<VertexP>::dump(g);
   
   //forall_local
   int64_t grappa_paths = 0;
@@ -302,6 +300,7 @@ void user_main(void * ignore) {
   LOG(INFO) << "[INFO] Grappa Isomorphic paths: " << grappa_paths;
   LOG(INFO) << "[INFO] Reference Isomorphic paths: " << ref_paths;
 
+  //check if the results for each traversal match
   if (grappa_paths != ref_paths) {
     LOG(INFO) << "[STATUS] Failure: Number of paths does not match.";
   }
@@ -326,6 +325,7 @@ void user_main(void * ignore) {
 
 //Main method
 int main(int argc, char** argv) {
+  //TODO: Add argument parsing
   Grappa_init(&argc, &argv);
   Grappa_activate();
 
