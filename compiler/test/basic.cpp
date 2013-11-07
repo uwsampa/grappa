@@ -9,15 +9,22 @@ int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
     
-    long x = 1;
+    long x = 1, y = 7;
     long global* xa = make_global(&x);
+    long global* ya = make_global(&y);
     
     long global* array = global_alloc<long>(10);
     
-    on_all_cores([xa,array]{
+    on_all_cores([=]{
       LOG(INFO) << gaddr(xa);
+      
       long y = *xa;
+      long z = *ya;
+      long w = *xa;
+      
       LOG(INFO) << "*xa = " << y;
+      CHECK(z == 7);
+      CHECK(y == w);
       
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {
