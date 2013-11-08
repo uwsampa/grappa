@@ -181,6 +181,7 @@ namespace Grappa {
         // , reset_count_(0)
         , delete_after_send_( false ) 
       {
+        CHECK( destination_ < cores() ) << "dest core out of bounds";
         DVLOG(9) << "construct " << this;
       }
 
