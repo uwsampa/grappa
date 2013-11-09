@@ -28,11 +28,12 @@ DECLARE_uint64( io_blocksize_mb );
 #define FNAME_LENGTH 256
 
 inline void array_dir_fname(char * result, const char * dirname, int64_t start, int64_t end) {
-  sprintf(result, "%s/block.%ld.%ld.gblk", dirname, start, end);
+  sprintf(result, "%s/block.%ld.%ld.gblk", dirname, (long)start, (long)end);
 }
 inline void array_dir_scan(const fs::path& p, int64_t * start, int64_t * end) {
   //VLOG(1) << p.stem().string();
-  sscanf(p.stem().c_str(), "block.%ld.%ld", start, end);
+  static_assert( sizeof(long) == sizeof(int64_t), "long must be 64 bits" );
+  sscanf(p.stem().c_str(), "block.%ld.%ld", (long*)start, (long*)end);
 }
 
 #ifdef SIGRTMIN
