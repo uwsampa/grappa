@@ -3,34 +3,34 @@
 #include <cstdint>
 #include <memory>
     
-class HypercubeIter {
+class HypercubeSliceIter {
   public:
-    HypercubeIter(std::vector<int64_t> iteration_box, const std::vector<int64_t>& shares, bool end);
-    // need to override the default copy constructor because
-    // pimpl needs to be copied
-    HypercubeIter(const HypercubeIter& toCopy);
-    ~HypercubeIter();
-    bool operator!= (const HypercubeIter& other) const;
-    const HypercubeIter& operator++();
+    HypercubeSliceIter(std::vector<int64_t> iteration_box, const std::vector<int64_t>& shares, bool end);
+    HypercubeSliceIter(const HypercubeSliceIter& toCopy);
+    ~HypercubeSliceIter();
+    bool operator!= (const HypercubeSliceIter& other) const;
+    const HypercubeSliceIter& operator++();
     int64_t operator*() const;
   private:
     class impl;
     std::unique_ptr<impl> pimpl;
 };
 
-class Hypercube {
+class HypercubeSlice {
   public:
-    Hypercube(const std::vector<int64_t>& shares, std::vector<int64_t> replicandIds);
-    ~Hypercube();
+    HypercubeSlice(const std::vector<int64_t>& shares, std::vector<int64_t> replicandIds);
+    HypercubeSlice(const HypercubeSlice& toCopy);
+    ~HypercubeSlice();
 
-    HypercubeIter begin();
-    HypercubeIter end();
+    HypercubeSliceIter begin();
+    HypercubeSliceIter end();
+    bool containsSerial(const int64_t x);
 
     // get the floor(cube root (x)), with warning for non integers
     static int64_t int_cbrt(int64_t x);
  
     // indicates all values in the dimension 
-    static const int64_t ALL = -1;
+    static const int64_t ALL;
   
   private:
     class impl;
@@ -39,12 +39,12 @@ class Hypercube {
 
 
 
-class HypercubeGenerator {
+class Hypercube {
   public:
-    HypercubeGenerator(std::vector<int64_t> shares);
-    ~HypercubeGenerator();
+    Hypercube(std::vector<int64_t> shares);
+    ~Hypercube();
 
-    Hypercube& gen( std::vector<int64_t> replicandIds );
+    HypercubeSlice& slice( std::vector<int64_t> replicandIds );
 
   private:
     class impl;
