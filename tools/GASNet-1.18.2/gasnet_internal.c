@@ -1577,7 +1577,7 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
       if (checktype == 1) strcpy(curlocstr,"\n   freed at: %s");
       else                strcpy(curlocstr,"\n   detected at: %s");
 
-      gasneti_fatalerror("%s\n   ptr="GASNETI_LADDRFMT"%s%s%s",
+      gasneti_fatalerror("%s\n   ptr=" GASNETI_LADDRFMT "%s%s%s",
            corruptstr,
            GASNETI_LADDRSTR(ptr), nbytesstr,
            (allocdesc!=NULL?allocdesc:""),

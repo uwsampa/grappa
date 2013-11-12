@@ -82,7 +82,7 @@ void user_main( int * args ) {
     // shared pool size 2^16
     Grappa::forall_global_public( 0, FLAGS_iterations-1, [A] ( int64_t i ) {
         uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
-        Grappa::delegate::increment_async( *Grappa::shared_pool, A + b, 1 );
+        Grappa::delegate::increment_async( A + b, 1 );
       } );
 
     double end = Grappa::walltime();

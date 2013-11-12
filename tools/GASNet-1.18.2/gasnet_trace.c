@@ -101,14 +101,14 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
   char * p = buf;
   int i, j=0;
   gasneti_memveclist_stats_t stats = gasnete_memveclist_stats((count), (list));
-  sprintf(p, "%i entries, totalsz=%i, bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+  sprintf(p, "%i entries, totalsz=%i, bounds=[" GASNETI_LADDRFMT "..." GASNETI_LADDRFMT "]\n"
              "list=[",
               (int)(count), (int)(stats.totalsz),
               GASNETI_LADDRSTR(stats.minaddr), GASNETI_LADDRSTR(stats.maxaddr));
   p += strlen(p);
   for (i=0; i < count; i++) {
     j++;
-    sprintf(p, "{"GASNETI_LADDRFMT",%5lu}", 
+    sprintf(p, "{" GASNETI_LADDRFMT ",%5lu}", 
       GASNETI_LADDRSTR(list[i].addr), (unsigned long)list[i].len);
     if (i < count-1) { 
       strcat(p, ", ");
@@ -153,7 +153,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   char * p = buf;
   int i,j=0;
   gasneti_addrlist_stats_t stats = gasnete_addrlist_stats((count), (list), (len));
-  sprintf(p, "%i entries, totalsz=%i, len=%i, bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+  sprintf(p, "%i entries, totalsz=%i, len=%i, bounds=[" GASNETI_LADDRFMT "..." GASNETI_LADDRFMT "]\n"
              "list=[",
               (int)(count), (int)((count)*(len)), (int)(len),
               GASNETI_LADDRSTR(stats.minaddr), GASNETI_LADDRSTR(stats.maxaddr));
@@ -238,11 +238,11 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   gasneti_format_strides(count_str, stridelevels+1, count);
   sprintf(buf,"(%i data bytes) node=%i stridelevels=%i count=%s\n"
               "dualcontiguity=%i nulldims=%i\n"
-              "dst: dstaddr="GASNETI_LADDRFMT" dststrides=%s\n"
-              "     extent=%i bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+              "dst: dstaddr=" GASNETI_LADDRFMT " dststrides=%s\n"
+              "     extent=%i bounds=[" GASNETI_LADDRFMT "..." GASNETI_LADDRFMT "]\n"
               "     contiguity=%i contigsz=%i contigsegments=%i\n"
-              "src: srcaddr="GASNETI_LADDRFMT" srcstrides=%s\n"
-              "     extent=%i bounds=["GASNETI_LADDRFMT"..."GASNETI_LADDRFMT"]\n"
+              "src: srcaddr=" GASNETI_LADDRFMT " srcstrides=%s\n"
+              "     extent=%i bounds=[" GASNETI_LADDRFMT "..." GASNETI_LADDRFMT "]\n"
               "     contiguity=%i contigsz=%i contigsegments=%i",
               (int)pstats->totalsz, (int)(node), (int)(stridelevels), count_str,
               (int)pstats->dualcontiguity, (int)pstats->nulldims,

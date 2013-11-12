@@ -125,21 +125,21 @@ extern void gasnetc_dump_base(void) {
 
     GASNETI_STATS_PRINTF(C,(" shm_flags= %i",(int)b->shm_flags));
   #else
-      GASNETI_STATS_PRINTF(C,(" galloc= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc)));
+      GASNETI_STATS_PRINTF(C,(" galloc= " GASNETI_LADDRFMT "",GASNETI_LADDRSTR(b->galloc)));
       GASNETI_STATS_PRINTF(C,(" galloc_size= %i",(int)b->galloc_size));
     #if 0
-      GASNETI_STATS_PRINTF(C,(" galloc_base= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc_base)));
+      GASNETI_STATS_PRINTF(C,(" galloc_base= " GASNETI_LADDRFMT "",GASNETI_LADDRSTR(b->galloc_base)));
     #elif defined(ELAN_VER_1_2)
-      GASNETI_STATS_PRINTF(C,(" galloc_mbase= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc_mbase)));
-      GASNETI_STATS_PRINTF(C,(" galloc_ebase= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc_ebase)));
+      GASNETI_STATS_PRINTF(C,(" galloc_mbase= " GASNETI_LADDRFMT "",GASNETI_LADDRSTR(b->galloc_mbase)));
+      GASNETI_STATS_PRINTF(C,(" galloc_ebase= " GASNETI_LADDRFMT "",GASNETI_LADDRSTR(b->galloc_ebase)));
     #else
-      GASNETI_STATS_PRINTF(C,(" gallocElan= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->gallocElan)));
+      GASNETI_STATS_PRINTF(C,(" gallocElan= " GASNETI_LADDRFMT "",GASNETI_LADDRSTR(b->gallocElan)));
       GASNETI_STATS_PRINTF(C,(" gallocElan_size= %i",(int)b->gallocElan_size));
     #endif
 
       GASNETI_STATS_PRINTF(C,(" shm_enable= %i",(int)b->shm_enable));
       GASNETI_STATS_PRINTF(C,(" shm_heapsize= %i",(int)b->shm_heapsize));
-      GASNETI_STATS_PRINTF(C,(" gallocShm= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->gallocShm)));
+      GASNETI_STATS_PRINTF(C,(" gallocShm= " GASNETI_LADDRFMT "",GASNETI_LADDRSTR(b->gallocShm)));
     #if 0
       GASNETI_STATS_PRINTF(C,(" gallocShm_size= %i",b->gallocShm_size));
     #endif
@@ -163,17 +163,17 @@ extern void gasnetc_dump_state(void) {
   GASNETI_STATS_PRINTF(C,(" attached= %i", s->attached));
   GASNETI_STATS_PRINTF(C,(" vp= %i", s->vp));
   GASNETI_STATS_PRINTF(C,(" nvp= %i", s->nvp));
-  GASNETI_STATS_PRINTF(C,(" ctx= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->ctx)));
-  GASNETI_STATS_PRINTF(C,(" estate= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->estate)));
-  GASNETI_STATS_PRINTF(C,(" cap= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->cap)));
+  GASNETI_STATS_PRINTF(C,(" ctx= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->ctx)));
+  GASNETI_STATS_PRINTF(C,(" estate= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->estate)));
+  GASNETI_STATS_PRINTF(C,(" cap= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->cap)));
 #ifdef ELAN_VER_1_2
-  GASNETI_STATS_PRINTF(C,(" main_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->main_base)));
-  GASNETI_STATS_PRINTF(C,(" elan_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->elan_base)));
+  GASNETI_STATS_PRINTF(C,(" main_base= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->main_base)));
+  GASNETI_STATS_PRINTF(C,(" elan_base= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->elan_base)));
   GASNETI_STATS_PRINTF(C,(" alloc_size= %i", (int)s->alloc_size));
 #else
-  GASNETI_STATS_PRINTF(C,(" alloc_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->alloc_base)));
+  GASNETI_STATS_PRINTF(C,(" alloc_base= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->alloc_base)));
   GASNETI_STATS_PRINTF(C,(" alloc_size= %i", (int)s->alloc_size));
-  GASNETI_STATS_PRINTF(C,(" allocElan_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->allocElan_base)));
+  GASNETI_STATS_PRINTF(C,(" allocElan_base= " GASNETI_LADDRFMT "", GASNETI_LADDRSTR(s->allocElan_base)));
   GASNETI_STATS_PRINTF(C,(" allocElan_size= %i", (int)s->allocElan_size));
 #endif
 

@@ -628,10 +628,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
               #else
 	        /* Remove any previous Main mappings */
 	        if (elan3_clearperm_main (CTX(), (caddr_t)pfrom, size) < 0) 
-		  gasneti_fatalerror("gasnet_attach failed elan3_clearperm_main pfrom main "GASNETI_LADDRFMT" (size 0x%08x) : %d : %s",
+		  gasneti_fatalerror("gasnet_attach failed elan3_clearperm_main pfrom main " GASNETI_LADDRFMT " (size 0x%08x) : %d : %s",
 			         GASNETI_LADDRSTR(pfrom), size, errno, strerror(errno));
 	        if (elan3_clearperm_main (CTX(), (caddr_t)pto, size) < 0)
-		  gasneti_fatalerror("gasnet_attach failed elan3_clearperm_main pto main "GASNETI_LADDRFMT" (size 0x%08x) : %d : %s",
+		  gasneti_fatalerror("gasnet_attach failed elan3_clearperm_main pto main " GASNETI_LADDRFMT " (size 0x%08x) : %d : %s",
 			         GASNETI_LADDRSTR(pto), size, errno, strerror(errno));
 	    
 	        /* Remove any previous Elan mappings */
@@ -642,7 +642,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 	      /* Create a new mapping - elan docs wrong: elan3_setperm() returns -1 on failure */
 	      if (elan3_setperm (CTX(), (caddr_t)pto, (E3_Addr)(uintptr_t)elanBase, size, ELAN_PERM_REMOTEALL) < 0)
-		  gasneti_fatalerror("gasnet_attach failed elan3_setperm main "GASNETI_LADDRFMT" to elan 0x%08x (size 0x%08x) : %d : %s",
+		  gasneti_fatalerror("gasnet_attach failed elan3_setperm main " GASNETI_LADDRFMT " to elan 0x%08x (size 0x%08x) : %d : %s",
 			         GASNETI_LADDRSTR(pto), (uint32_t)(uintptr_t)elanBase, size, errno, strerror(errno));
 
               pagesAvail -= numpages;

@@ -68,7 +68,7 @@ class PrefetchingThreadQueue {
         min = _min<uint64_t>( min, queues[i].length() );
         sum += queues[i].length();
       }
-      CHECK( max - min >= 0 );
+      CHECK( static_cast<int64_t>(max) - static_cast<int64_t>(min) >= 0 );
       CHECK( max - min <= 1 ) << "min=" << min << " max=" << max;
       CHECK( sum == len );
     }

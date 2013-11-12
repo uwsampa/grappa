@@ -101,7 +101,12 @@ class Worker {
  
   public: 
   inline intptr_t stack_remaining() {
+#ifdef __clang__
+    int64_t rsp = 0;
+    asm volatile("mov %%rsp, %0" : "=r"(rsp) );
+#else
     register long rsp asm("rsp");
+#endif
     int64_t remain = static_cast<int64_t>(rsp) - reinterpret_cast<int64_t>(this->base) - 4096;
     DCHECK_LT(remain, static_cast<int64_t>(STACK_SIZE)) << "rsp = " << reinterpret_cast<void*>(rsp) << ", base = " << base << ", STACK_SIZE = " << STACK_SIZE;
     DCHECK_GE(remain, 0) << "rsp = " << reinterpret_cast<void*>(rsp) << ", base = " << base << ", STACK_SIZE = " << STACK_SIZE;

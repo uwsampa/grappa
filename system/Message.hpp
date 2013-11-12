@@ -51,7 +51,7 @@ namespace Grappa {
     }
 
     virtual const char * typestr() {
-      return typename_of(*this);
+      return "Message()"; //typename_of(*this);
     }
 
     ///
@@ -201,7 +201,7 @@ namespace Grappa {
     }
 
     virtual const char * typestr() {
-      return typename_of(*this);
+      return "Message"; //typename_of(*this);
     }
 
     ///

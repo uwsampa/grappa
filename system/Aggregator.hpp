@@ -26,7 +26,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-
+#pragma GCC system_header
 #include <gasnet.h>
 
 #include "common.hpp"
