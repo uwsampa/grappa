@@ -195,7 +195,7 @@ public:
         return push_at;
       });
       DVLOG(2) << "response from request: push_at(" << push_at << ") (npush:" << npush << ")";
-      self->cache_with_wraparound<typename Incoherent<T>::WO>(push_at, npush, buffer);
+      self->template cache_with_wraparound<typename Incoherent<T>::WO>(push_at, npush, buffer);
       
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
@@ -211,7 +211,7 @@ public:
         return self->master.tail;
       });
       DVLOG(2) << "response from request: pop_at(" << pop_at << ") (npop:" << npop << ")";
-      self->cache_with_wraparound<typename Incoherent<T>::RO>(pop_at, npop, buffer);
+      self->template cache_with_wraparound<typename Incoherent<T>::RO>(pop_at, npop, buffer);
       
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
@@ -231,7 +231,7 @@ public:
         return self->master.head;
       });
       DVLOG(2) << "response from request: deq_at(" << deq_at << ") (ndeq:" << ndeq << ")";
-      self->cache_with_wraparound<typename Incoherent<T>::RO>(deq_at, ndeq, buffer);
+      self->template cache_with_wraparound<typename Incoherent<T>::RO>(deq_at, ndeq, buffer);
       
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }

@@ -27,9 +27,7 @@ extern Grappa_Timestamp Grappa_current_timestamp;
 static inline Grappa_Timestamp Grappa_tick() {
   Grappa_Timestamp old_timestamp = Grappa_current_timestamp; 
   static int64_t count = FLAGS_timestamp_tick_freq;
-  if( count-- > 0 ) {
-    Grappa_current_timestamp;
-  } else {
+  if( count-- <= 0 ) {
     Grappa_current_timestamp = rdtsc();
     count = FLAGS_timestamp_tick_freq;
   }

@@ -162,6 +162,7 @@ inline GrappaFileDesc Grappa_fopen(const char *const fname, const char *const mo
     return (GrappaFileDesc)fdesc;
   } else {
     fprintf(stderr, "File operation not implemented yet.\n");
+    return static_cast<GrappaFileDesc>(0);
   }
 }
 

@@ -446,7 +446,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 	/* (###) add code here to register table[i].fnptr 
 	   on index (gasnet_handler_t)newindex */
 	gasnetc_handler[newindex] = table[i].fnptr;
-	GASNETI_TRACE_PRINTF(C,("Registered handler "GASNETI_LADDRFMT" at index %d",
+	GASNETI_TRACE_PRINTF(C,("Registered handler " GASNETI_LADDRFMT " at index %d",
 				GASNETI_LADDRSTR(table[i].fnptr),newindex));
 
 	/* The check below for !table[i].index is redundant and present
@@ -866,7 +866,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     {
 	int i;
 	for (i = 0; i < gasneti_nodes; i++) {
-	    GASNETI_TRACE_PRINTF(C,("For node %d seginfo.addr = "GASNETI_LADDRFMT" seginfo.size = %lu",
+	    GASNETI_TRACE_PRINTF(C,("For node %d seginfo.addr = " GASNETI_LADDRFMT " seginfo.size = %lu",
 				    i,GASNETI_LADDRSTR(gasneti_seginfo[i].addr),
 				    (unsigned long)gasneti_seginfo[i].size));
 	}

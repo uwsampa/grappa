@@ -8,6 +8,11 @@
 #ifndef __ADDRESSING_HPP__
 #define __ADDRESSING_HPP__
 
+#ifdef __GRAPPA_CLANG__
+/// define 'global' pointer annotation
+#define grappa_global __attribute__((address_space(100)))
+#endif
+
 /// Global Addresses for Grappa
 ///
 ///
@@ -362,7 +367,15 @@ public:
     void * u = reinterpret_cast< void * >( storage_ );
     return u;
   }
-
+  
+#ifdef __GRAPPA_CLANG__
+  
+  operator T grappa_global* ( ) {
+    return reinterpret_cast< T grappa_global* >( storage_ );
+  }
+  
+#endif
+  
 };
 
 

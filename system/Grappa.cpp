@@ -289,12 +289,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     double shmmax_fraction = static_cast< double >( SHMMAX ) * FLAGS_global_heap_fraction;
     int64_t shmmax_adjusted_floor = static_cast< int64_t >( shmmax_fraction );
 
-    // seems to work better with salloc
-    char * nnodes_str = getenv("SLURM_JOB_NUM_NODES");
-    // if not, try the one that srun sets
-    if( NULL == nnodes_str ) nnodes_str = getenv("SLURM_NNODES");
-    int64_t nnode = atoi(nnodes_str);
-    int64_t ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
+    int64_t nnode = global_communicator.locales();
+    int64_t ppn = global_communicator.locale_cores();
+    
     int64_t bytes_per_proc = shmmax_adjusted_floor / ppn;
     // round down to page size so we don't ask for too much?
     bytes_per_proc &= ~( (1L << 12) - 1 );

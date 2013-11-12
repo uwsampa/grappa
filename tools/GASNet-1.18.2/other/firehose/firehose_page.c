@@ -982,7 +982,7 @@ fhi_ReleaseLocalRegionsList(int local_ref, firehose_region_t *reg,
 		end_addr = reg[i].addr + reg[i].len - 1;
 
 		GASNETI_TRACE_PRINTF(C, 
-		    ("Firehose ReleaseLocalRegions ("GASNETI_LADDRFMT", %d)",
+		    ("Firehose ReleaseLocalRegions (" GASNETI_LADDRFMT ", %d)",
 		    GASNETI_LADDRSTR(reg[i].addr), (int)reg[i].len));
 				
  		FH_FOREACH_BUCKET_REV(reg[i].addr, end_addr, bucket_addr) 
@@ -2807,7 +2807,7 @@ fh_acquire_remote_region(firehose_request_t *req,
 	notpinned = fhuni_TryAcquireRemoteRegion(req, &ccb, &new_r);
 
 	GASNETI_TRACE_PRINTF(C, 
-	    ("Firehose fh_acquire_remote_region %d ("GASNETI_LADDRFMT",%d) "
+	    ("Firehose fh_acquire_remote_region %d (" GASNETI_LADDRFMT ",%d) "
 	     "(%d buckets unpinned, flags=0x%x)",
 	     node, GASNETI_LADDRSTR(req->addr), (int) req->len,
 	     notpinned, req->flags));
@@ -2931,7 +2931,7 @@ fh_release_remote_region(firehose_request_t *request)
 	end_addr = request->addr + request->len - 1;
 
 	GASNETI_TRACE_PRINTF(C, ("Firehose release_remote_region("
-				 GASNETI_LADDRFMT", %d) "GASNETI_LADDRFMT,
+				 GASNETI_LADDRFMT", %d) " GASNETI_LADDRFMT ,
 				 GASNETI_LADDRSTR(request->addr),
 				 (int) request->len,
 				 GASNETI_LADDRSTR(request)));

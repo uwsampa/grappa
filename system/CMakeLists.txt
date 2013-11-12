@@ -21,7 +21,6 @@ set(SYSTEM_SOURCES
   Cache.cpp
   Collective.cpp
   Communicator.cpp
-  ContextSwitchRate_bench.cpp
   CurrentThread.cpp
   Delegate.cpp
   FlatCombiner.cpp
@@ -181,7 +180,9 @@ foreach(test_cpp ${TEST_SOURCES})
   
 endforeach()
 
-add_custom_target("check-all" DEPENDS ${GRAPPA_TESTS})
+add_custom_target(check-all DEPENDS ${GRAPPA_TESTS})
+set_property(TARGET check-all PROPERTY FOLDER "Tests")
+
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)

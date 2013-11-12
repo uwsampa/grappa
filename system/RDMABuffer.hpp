@@ -71,7 +71,7 @@ public:
   inline size_t get_max_size() { return BUFFER_SIZE - get_base_size(); }
 
   inline RDMABuffer * get_ack() { return reinterpret_cast< RDMABuffer * >( ack_ ); }
-  inline RDMABuffer * set_ack( RDMABuffer * ack ) { ack_ = reinterpret_cast< intptr_t >( ack ); }
+  inline void set_ack( RDMABuffer * ack ) { ack_ = reinterpret_cast< intptr_t >( ack ); }
   
   inline Core get_source() { return source_; }
   //inline void set_core( Core c ) { LOG(INFO) << this << " changed from " << core_ << " to " << c; core_ = c; }

@@ -98,8 +98,8 @@ inline T signextend(const T x)
 /// Base 2 log of 32-bit number.
 /// Modified from Stanford bit twiddling hacks.
 inline unsigned int log2( unsigned int v ) {
-  register unsigned int r; // result of log2(v) will go here
-  register unsigned int shift;
+  unsigned int r; // result of log2(v) will go here
+  unsigned int shift;
 
   r =     (v > 0xFFFF) << 4; v >>= r;
   shift = (v > 0xFF  ) << 3; v >>= shift; r |= shift;

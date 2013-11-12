@@ -217,8 +217,8 @@ GASNETI_BEGIN_EXTERNC
 /* Debug, tracing */
 #if GASNET_TRACE
   #define GASNETC_AMTRACE_ReplyLong(str) \
-     GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d "   \
-        "args=%d src="GASNETI_LADDRFMT" dst="GASNETI_LADDRFMT" len=%d", #str, "AMReplyLong",    \
+     GASNETI_TRACE_PRINTF(C,("%s%s\t%d token=" GASNETI_LADDRFMT " index=%d "   \
+        "args=%d src=" GASNETI_LADDRFMT " dst=" GASNETI_LADDRFMT " len=%d", #str, "AMReplyLong",    \
         dest, GASNETI_LADDRSTR(token), handler, numargs, GASNETI_LADDRSTR(source_addr), \
         GASNETI_LADDRSTR(dest_addr), (int)(nbytes)))
 #else

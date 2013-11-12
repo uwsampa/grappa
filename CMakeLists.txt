@@ -161,7 +161,8 @@ list(APPEND GRAPPA_ENV
 )
 
 
-add_definitions(-DSHMMAX=12884901888) # 12 GB
+add_definitions(-DSHMMAX=${SHMMAX})
+# add_definitions(-DSHMMAX=12884901888) # 12 GB
 # add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if(NOT APPLE)
@@ -177,15 +178,16 @@ endif()
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 
-macro(add_grappa_exe name )
-  add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
-  target_link_libraries(${name} Grappa)
-  target_link_libraries(${name} ${MPI_CXX_LIBRARIES})
-  target_link_libraries(${name} ${Boost_LIBRARIES})
+macro(add_grappa_exe target exe )
+  add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
+  set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
+  target_link_libraries(${target} Grappa)
+  target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
+  target_link_libraries(${target} ${Boost_LIBRARIES})
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
-  add_grappa_exe(${name} ${ARGN})
+  add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Applications") # For organization in Xcode project
 endmacro(add_grappa_application)
 
@@ -194,7 +196,7 @@ set(GRAPPA_TESTS "")
 macro(add_grappa_test name)
   get_filename_component(base ${name} NAME_WE) # name without extension
   
-  add_grappa_exe(${name} ${ARGN})
+  add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
   set_target_properties(${test} PROPERTIES
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
@@ -235,3 +237,7 @@ add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(system)
 add_subdirectory(tools)
+
+if(DEFINED LLVM_ROOT)
+  add_subdirectory(compiler)
+endif()

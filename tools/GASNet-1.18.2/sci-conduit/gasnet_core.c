@@ -356,7 +356,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
    */
    gasnetc_get_SegInfo (gasneti_seginfo, segsize, segbase); /* place all segment information into the table */
 
-   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
+   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase=" GASNETI_LADDRFMT "  segsize=%lu",
     GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
   /* ------------------------------------------------------------------------------------ */
 	/* create the environment for DMA transfers in SCI */

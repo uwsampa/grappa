@@ -159,9 +159,9 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
                          gasneti_current_loc);                                 \
     if_pf (_ptr == NULL || !segtest(_node,_ptr,_nbytes))                       \
       gasneti_fatalerror("Remote address out of range "                        \
-         "(node=%lu ptr="GASNETI_LADDRFMT" nbytes=%lu) at %s"                  \
-         "\n  clientsegment=("GASNETI_LADDRFMT"..."GASNETI_LADDRFMT")"         \
-         "\n    fullsegment=("GASNETI_LADDRFMT"..."GASNETI_LADDRFMT")",        \
+         "(node=%lu ptr=" GASNETI_LADDRFMT " nbytes=%lu) at %s"                  \
+         "\n  clientsegment=(" GASNETI_LADDRFMT "..." GASNETI_LADDRFMT ")"         \
+         "\n    fullsegment=(" GASNETI_LADDRFMT "..." GASNETI_LADDRFMT ")",        \
          (unsigned long)_node, GASNETI_LADDRSTR(_ptr), (unsigned long)_nbytes, \
          gasneti_current_loc,                                                  \
          GASNETI_LADDRSTR(gasneti_seginfo_client[_node].addr),                 \
