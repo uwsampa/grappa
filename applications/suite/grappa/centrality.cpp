@@ -69,9 +69,6 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
       graphint ccount = 0;
       graphint bufChild[kiters];
       
-      char pool_buf[2 * kiters * sizeof(delegate::write_msg_proxy<graphint>)];
-      MessagePool pool(pool_buf, sizeof(pool_buf));
-      
       for (int64_t k=0; k<kiters; k++) {
         graphint w = kfirst[k];
         graphint d = delegate::read(c.dist+w);
@@ -79,26 +76,15 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
         // If node has not been visited, set distance and push on Q (but only once)
         if (d < 0) {
           if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
-            delegate::write_async(pool, c.dist+w, d_phase);
+            delegate::write_async(c.dist+w, d_phase);
             Qbuf.push(w);
           }
           d = d_phase;
         }
         if (d == d_phase) {
-          delegate::increment_async(pool, c.sigma+w, sigmav);
+          delegate::increment_async(c.sigma+w, sigmav);
           bufChild[ccount++] = w;
         }
-        // graphint dw = delegate::call(c.dist+w, [w,d_phase](graphint* dw) -> graphint {
-        //   if (*dw < 0) {
-        //     *dw = d_phase;
-        //     Qbuf.push(w);
-        //   }
-        //   return *dw;
-        // });
-        // if (dw == d_phase) {
-        //   delegate::increment_async(pool, c.sigma+w, sigmav);
-        //   bufChild[ccount++] = w;
-        // }
       }
       // TODO: find out if it makes sense to buffer these
       graphint l = vStart + delegate::fetch_and_add(c.child_count+v, ccount);
@@ -123,9 +109,7 @@ void do_bfs_pop(graphint start, graphint end) {
     // async_parallel_for_hack(bfs_pop_children, myStart, myEnd-myStart, v);
     forall_localized_async(c.child+myStart, myEnd-myStart,
         [v](int64_t kstart, int64_t kiters, graphint * kchildren){
-      char pool_buf[sizeof(delegate::write_msg_proxy<double>)];
-      MessagePool pool(pool_buf, sizeof(pool_buf));
-      
+
       int64_t sigma_v = delegate::read(c.sigma+v);
 
       double sum = 0;
@@ -138,23 +122,21 @@ void do_bfs_pop(graphint start, graphint end) {
   
       DVLOG(4) << "v(" << v << ")[" << kstart << "," << kstart+kiters << "] sum: " << sum;
       // TODO: maybe shared pool so we don't have to block on sending message?
-      delegate::increment_async(pool, c.delta+v, sum);
+      delegate::increment_async(c.delta+v, sum);
     });
   });
   
   DVLOG(4) << "###################";
   // global_async_parallel_for_thresh(bc_add_delta, start, end-start, 1);
   forall_localized(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
-    char pool_buf[jiters * sizeof(delegate::write_msg_proxy<graphint>)];
-    MessagePool pool(pool_buf, sizeof(pool_buf));
-    
+
     for (int64_t j=0; j<jiters; j++) {
       const graphint v = cQ[j];
       
       double d = delegate::read(c.delta+v);
       DVLOG(4) << "updating " << v << " (" << jstart+j << ") <= " << d;
 
-      delegate::increment_async(pool, bc+v, d);
+      delegate::increment_async(bc+v, d);
     }
   });
 }
