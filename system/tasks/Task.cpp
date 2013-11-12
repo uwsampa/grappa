@@ -57,8 +57,10 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
   } else if ( FLAGS_load_balance.compare( "steal" ) == 0 ) {
     doSteal = true; doShare = false; doGQ = false;
   } else if ( FLAGS_load_balance.compare( "share" ) == 0 ) {
+    CHECK( false ) << "--load_balance=share currently unsupported; see tasks/StealQueue.hpp"
     doSteal = false; doShare = true; doGQ = false;
   } else if ( FLAGS_load_balance.compare( "gq" ) == 0 ) {
+    CHECK( false ) << "--load_balance=gq currently unsupported; see tasks/StealQueue.hpp"
     doSteal = false; doShare = false; doGQ = true;
   } else {
     CHECK( false ) << "load_balance=" << FLAGS_load_balance << "; must be {none, steal, share, gq}";
@@ -87,11 +89,11 @@ void TaskManager::activate () {
 }
 
 // GlobalQueue instantiations
-// template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
+/// template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
 // StealQueue instantiations
-// template void global_queue_pull<Task>( ChunkInfo<Task> * result );
-// template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
+/// template void global_queue_pull<Task>( ChunkInfo<Task> * result );
+/// template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
 template StealQueue<Task> StealQueue<Task>::steal_queue;
 
     
@@ -120,18 +122,18 @@ void TaskManager::push_public_task( Task t ) {
 
 inline void TaskManager::tryPushToGlobal() {
   // // push to global queue if local queue has grown large
-  // if ( doGQ && Grappa_global_queue_isInit() && gqPushLock ) {
-  //   gqPushLock = false;
-  //   uint64_t local_size = publicQ.depth();
-  //   DVLOG(3) << "Allowed to push gq: local size " << local_size;
-  //   if ( local_size >= FLAGS_global_queue_threshold ) {
-  //     DVLOG(3) << "Decided to push gq";
-  //     uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
-  //     bool push_success = publicQ.push_global( push_amount );
-  //     stats.record_globalq_push( push_amount, push_success );
-  //   }
-  //   gqPushLock = true;
-  // }
+  /// if ( doGQ && Grappa_global_queue_isInit() && gqPushLock ) {
+  ///   gqPushLock = false;
+  ///   uint64_t local_size = publicQ.depth();
+  ///   DVLOG(3) << "Allowed to push gq: local size " << local_size;
+  ///   if ( local_size >= FLAGS_global_queue_threshold ) {
+  ///     DVLOG(3) << "Decided to push gq";
+  ///     uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
+  ///     bool push_success = publicQ.push_global( push_amount );
+  ///     stats.record_globalq_push( push_amount, push_success );
+  ///   }
+  ///   gqPushLock = true;
+  /// }
 }
 
 /// Find an unstarted Task to execute.
@@ -161,23 +163,24 @@ bool TaskManager::getWork( Task * result ) {
 DEFINE_double( ws_coeff, 1.0f, "bias on work sharing probability" );
 inline void TaskManager::checkWorkShare() {
   // initiate load balancing with prob=1/publicQ.depth
-  if ( doShare && wshareLock ) {
-    wshareLock = false;
-    stats.record_workshare_test( );
-    uint64_t local_size = publicQ.depth();
-    double divisor = local_size/FLAGS_ws_coeff;
-    if (divisor==0) divisor = 1.0;
-    if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/divisor)) ) {
-      Node target = fast_rand()%Grappa_nodes();
-      if ( target == Grappa_mynode() ) target = (target+1)%Grappa_nodes(); // don't share with ourself
-      DVLOG(5) << "before share: " << publicQ;
-      uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
-      int64_t numChange = publicQ.workShare( target, amount );
-      DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
-      stats.record_workshare( numChange );
-    }
-    wshareLock = true;
-  }
+  /// //uncomment if workshare reimplemented
+  /// if ( doShare && wshareLock ) {
+  ///   wshareLock = false;
+  ///   stats.record_workshare_test( );
+  ///   uint64_t local_size = publicQ.depth();
+  ///   double divisor = local_size/FLAGS_ws_coeff;
+  ///   if (divisor==0) divisor = 1.0;
+  ///   if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/divisor)) ) {
+  ///     Node target = fast_rand()%Grappa_nodes();
+  ///     if ( target == Grappa_mynode() ) target = (target+1)%Grappa_nodes(); // don't share with ourself
+  ///     DVLOG(5) << "before share: " << publicQ;
+  ///     uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
+  ///     int64_t numChange = publicQ.workShare( target, amount );
+  ///     DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
+  ///     stats.record_workshare( numChange );
+  ///   }
+  ///   wshareLock = true;
+  /// }
 }
 
 /// Dequeue local unstarted Task if any exist.
