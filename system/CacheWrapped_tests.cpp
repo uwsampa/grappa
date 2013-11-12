@@ -10,7 +10,6 @@
 
 #include "Grappa.hpp"
 #include "Cache.hpp"
-#include "ForkJoin.hpp"
 
 /// This test suite tests the task cache wrappers defined in Cache.hpp.
 /// These functions wrap a task function pointer to take care of caching

@@ -694,8 +694,8 @@ void RDMAAggregator::draw_routing_graph() {
       // record when we last sent
       // TODO: should this go earlier? probably not.
       // TODO: should we tick here?
-      Grappa_tick();
-      locale_core->last_sent_ = Grappa_get_timestamp();
+      Grappa::tick();
+      locale_core->last_sent_ = Grappa::timestamp();
 
       // send done! loop!
       active_send_workers_--;

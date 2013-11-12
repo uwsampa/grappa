@@ -50,8 +50,8 @@ TaskingScheduler global_scheduler;
   , prev_stats_blob_ts( 0 )
     , stats( this )
 { 
-  Grappa_tick();
-  prev_ts = Grappa_get_timestamp();
+  Grappa::tick();
+  prev_ts = Grappa::timestamp();
 }
 
 /// Initialize with references to master Thread and a TaskManager.

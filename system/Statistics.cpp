@@ -77,36 +77,26 @@ namespace Grappa {
       StatisticList all;
       merge(all); // also flushes histogram logs
 
-      std::ostringstream legacy_stats;
-      legacy_reduce_stats_and_dump(legacy_stats);
-
-      print(out, all, legacy_stats.str());
+      print(out, all, "");
     }
 
     void merge_and_dump_to_file() {
       StatisticList all;
       merge(all); // also flushes histogram logs
 
-      std::ostringstream legacy_stats;
-      legacy_reduce_stats_and_dump(legacy_stats);
-      
       std::ofstream of( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-      print(of, all, legacy_stats.str());
+      print(of, all, "");
     }
     
     void dump_stats_blob() {
-      std::ostringstream legacy_stats;
-      legacy_dump_stats(legacy_stats);
-
       std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-      print( o, Grappa::impl::registered_stats(), legacy_stats.str());
+      print( o, Grappa::impl::registered_stats(), "");
     }
 
     void reset() {
       for (auto* stat : Grappa::impl::registered_stats()) {
         stat->reset();
       }
-      Grappa_reset_stats();
     }
     
     void reset_all_cores() {
@@ -143,7 +133,6 @@ namespace Grappa {
       for (auto* stat : Grappa::impl::registered_stats()) {
         stat->sample();
       }
-      legacy_profiling_sample();
     }
   }
 } // namespace Grappa

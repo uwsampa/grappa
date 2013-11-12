@@ -2,7 +2,6 @@
 #include "Addressing.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
-#include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
 #include "Collective.hpp"
 #include "GlobalTaskJoiner.hpp"

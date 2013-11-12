@@ -67,7 +67,7 @@ class IAStatistics {
 
   inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
     acquire_blocked++; 
-    int64_t current_time = Grappa_get_timestamp();
+    int64_t current_time = Grappa::timestamp();
     int64_t blocked_latency = current_time - start_time;
     int64_t wakeup_latency = current_time - network_time;
     acquire_blocked_ticks_total += blocked_latency;
@@ -83,7 +83,7 @@ class IAStatistics {
   }
 
   inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = Grappa_get_timestamp();
+    int64_t current_time = Grappa::timestamp();
     int64_t latency = current_time - start_time;
     acquire_network_ticks_total += latency;
     if( latency > acquire_network_ticks_max )
@@ -297,7 +297,7 @@ public:
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       if( !acquired_ ) {
-        start_time_ = Grappa_get_timestamp();
+        start_time_ = Grappa::timestamp();
       } else {
         start_time_ = 0;
       }
@@ -335,7 +335,7 @@ public:
         Grappa_wake( thread_ );
       }
       if( start_time_ != 0 ) {
-        network_time_ = Grappa_get_timestamp();
+        network_time_ = Grappa::timestamp();
         incoherent_acquirer_stats.record_network_latency( start_time_ );
       }
     }

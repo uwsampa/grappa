@@ -12,7 +12,6 @@
 #include "ParallelLoop.hpp"
 #include "tasks/DictOut.hpp"
 #include "Future.hpp"
-#include "ForkJoin.hpp"
 
 #ifdef GRAPPA_TRACE
 #include <TAU.h>

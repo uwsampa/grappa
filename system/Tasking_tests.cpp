@@ -9,7 +9,6 @@
 
 #include "Grappa.hpp"
 #include "Delegate.hpp"
-#include "ForkJoin.hpp"
 
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
 

@@ -185,7 +185,6 @@ typedef  long INT_TYPE2;
 #define MP_KEY_TYPE MPI_INT
 
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 
 Node comm_size;
 

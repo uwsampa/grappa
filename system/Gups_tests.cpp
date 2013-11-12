@@ -12,7 +12,6 @@
 #include <algorithm>
 
 #include <Grappa.hpp>
-#include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
 #include "GlobalTaskJoiner.hpp"
 #include "Array.hpp"

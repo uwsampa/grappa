@@ -21,7 +21,7 @@ CompletionEvent * final;
 CompletionEvent * task_barrier;
 CompletionEvent * task_signal;
         
-Grappa_Timestamp start_ts, end_ts;
+Grappa::Timestamp start_ts, end_ts;
 
 struct Cacheline {
   uint64_t val;
@@ -53,8 +53,8 @@ void user_main( void * args ) {
         myarray[i].val += 1;
       }
 
-        Grappa_tick();
-        start_ts = Grappa_get_timestamp();
+        Grappa::tick();
+        start_ts = Grappa::timestamp();
         
         task_signal->complete();
         final->complete();
@@ -66,8 +66,8 @@ void user_main( void * args ) {
       task_barrier->wait();
         task_signal->wait();
 
-        Grappa_tick();
-        end_ts = Grappa_get_timestamp();
+        Grappa::tick();
+        end_ts = Grappa::timestamp();
 
         final->complete();
         });

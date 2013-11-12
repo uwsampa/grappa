@@ -9,7 +9,9 @@
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
 #include "common.hpp"
-#include "GlobalQueue.hpp"
+
+// #include "GlobalQueue.hpp"
+
 #include "StealQueue.hpp"
 
 DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" );
@@ -84,15 +86,13 @@ void TaskManager::activate () {
   publicQ.activate( MAXQUEUEDEPTH );
 }
 
-
 // GlobalQueue instantiations
-template void global_queue_pull<Task>( ChunkInfo<Task> * result );
-template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
+// template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
 // StealQueue instantiations
+// template void global_queue_pull<Task>( ChunkInfo<Task> * result );
+// template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
 template StealQueue<Task> StealQueue<Task>::steal_queue;
-template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
-
 
     
 /// @return true if local shared queue has elements
@@ -119,19 +119,19 @@ void TaskManager::push_public_task( Task t ) {
 
 
 inline void TaskManager::tryPushToGlobal() {
-  // push to global queue if local queue has grown large
-  if ( doGQ && Grappa_global_queue_isInit() && gqPushLock ) {
-    gqPushLock = false;
-    uint64_t local_size = publicQ.depth();
-    DVLOG(3) << "Allowed to push gq: local size " << local_size;
-    if ( local_size >= FLAGS_global_queue_threshold ) {
-      DVLOG(3) << "Decided to push gq";
-      uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
-      bool push_success = publicQ.push_global( push_amount );
-      stats.record_globalq_push( push_amount, push_success );
-    }
-    gqPushLock = true;
-  }
+  // // push to global queue if local queue has grown large
+  // if ( doGQ && Grappa_global_queue_isInit() && gqPushLock ) {
+  //   gqPushLock = false;
+  //   uint64_t local_size = publicQ.depth();
+  //   DVLOG(3) << "Allowed to push gq: local size " << local_size;
+  //   if ( local_size >= FLAGS_global_queue_threshold ) {
+  //     DVLOG(3) << "Decided to push gq";
+  //     uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
+  //     bool push_success = publicQ.push_global( push_amount );
+  //     stats.record_globalq_push( push_amount, push_success );
+  //   }
+  //   gqPushLock = true;
+  // }
 }
 
 /// Find an unstarted Task to execute.
@@ -262,19 +262,19 @@ inline void TaskManager::checkPull() {
 
       GRAPPA_PROFILE_STOP( prof );
     }
-  } else if ( doGQ && Grappa_global_queue_isInit() ) {
-    if ( gqPullLock ) { 
-      // artificially limiting to 1 outstanding pull; for
-      // now we do want a small limit since pulls are
-      // blocking
-      gqPullLock = false;
-
-      stats.record_globalq_pull_start( );  // record the start separately because pull_global() may block CURRENT_THREAD indefinitely
-      uint64_t num_received = publicQ.pull_global(); 
-      stats.record_globalq_pull( num_received ); 
-
-      gqPullLock = true;
-    }
+  // } else if ( doGQ && Grappa_global_queue_isInit() ) {
+  //   if ( gqPullLock ) { 
+  //     // artificially limiting to 1 outstanding pull; for
+  //     // now we do want a small limit since pulls are
+  //     // blocking
+  //     gqPullLock = false;
+  // 
+  //     stats.record_globalq_pull_start( );  // record the start separately because pull_global() may block CURRENT_THREAD indefinitely
+  //     uint64_t num_received = publicQ.pull_global(); 
+  //     stats.record_globalq_pull( num_received ); 
+  // 
+  //     gqPullLock = true;
+  //   }
   }
 }
 

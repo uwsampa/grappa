@@ -5,23 +5,35 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#ifndef __DELEGATE_HPP__
-#define __DELEGATE_HPP__
-
+#pragma once
 
 #include "Grappa.hpp"
 #include "Message.hpp"
 #include "FullEmptyLocal.hpp"
 #include "Message.hpp"
 #include "ConditionVariable.hpp"
-#include "LegacyDelegate.hpp"
 #include "MessagePool.hpp"
 #include <type_traits>
 
 GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_short_circuits);
 
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_roundtrip_latency);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_network_latency);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_wakeup_latency);
+
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_targets);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_reads);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_read_targets);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_writes);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_write_targets);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_cmpswaps);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_cmpswap_targets);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_fetchadds);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_fetchadd_targets);
+
+
 
 namespace Grappa {
     /// @addtogroup Delegates
@@ -29,36 +41,49 @@ namespace Grappa {
     
   namespace impl {
     
+    inline void record_network_latency(int64_t start_time) {
+      auto latency = Grappa::timestamp() - start_time;
+      delegate_network_latency += latency;
+    }
+    
+    inline void record_wakeup_latency(int64_t start_time, int64_t network_time) {
+      auto current_time = Grappa::timestamp();
+      auto blocked_time = current_time - start_time;
+      auto wakeup_latency = current_time - network_time;
+      delegate_roundtrip_latency += blocked_time;
+      delegate_wakeup_latency += wakeup_latency;
+    }
+    
     /// Overloaded version for func with void return type.
     template <typename F>
     inline void call(Core dest, F func, void (F::*mf)() const) {
-      delegate_stats.count_op();
+      delegate_ops++;
       Core origin = Grappa::mycore();
     
       if (dest == origin) {
         // short-circuit if local
-        delegate_ops_short_circuited++;
+        delegate_short_circuits++;
         return func();
       } else {
         int64_t network_time = 0;
-        int64_t start_time = Grappa_get_timestamp();
+        int64_t start_time = Grappa::timestamp();
         FullEmpty<bool> result;
         send_message(dest, [&result, origin, func, &network_time, start_time] {
-          delegate_stats.count_op_am();
+          delegate_targets++;
         
           func();
         
           // TODO: replace with handler-safe send_message
           send_heap_message(origin, [&result, &network_time, start_time] {
-            network_time = Grappa_get_timestamp();
-            delegate_stats.record_network_latency(start_time);
+            network_time = Grappa::timestamp();
+            record_network_latency(start_time);
             result.writeXF(true);
           });
         }); // send message
       
         // ... and wait for the call to complete
         result.readFF();
-        delegate_stats.record_wakeup_latency(start_time, network_time);
+        record_wakeup_latency(start_time, network_time);
         return;
       }
     }
@@ -74,33 +99,34 @@ namespace Grappa {
       //   return a.get_result();
       // TODO: find a way to implement using async version that doesn't introduce overhead
     
-      delegate_stats.count_op();
+      delegate_ops++;
       using R = decltype(func());
       Core origin = Grappa::mycore();
-    
+      
       if (dest == origin) {
         // short-circuit if local
-        delegate_ops_short_circuited++;
+        delegate_targets++;
+        delegate_short_circuits++;
         return func();
       } else {
         FullEmpty<R> result;
         int64_t network_time = 0;
-        int64_t start_time = Grappa_get_timestamp();
+        int64_t start_time = Grappa::timestamp();
       
         send_message(dest, [&result, origin, func, &network_time, start_time] {
-          delegate_stats.count_op_am();
+          delegate_targets++;
           R val = func();
         
           // TODO: replace with handler-safe send_message
           send_heap_message(origin, [&result, val, &network_time, start_time] {
-            network_time = Grappa_get_timestamp();
-            delegate_stats.record_network_latency(start_time);
+            network_time = Grappa::timestamp();
+            record_network_latency(start_time);
             result.writeXF(val); // can't block in message, assumption is that result is already empty
           });
         }); // send message
         // ... and wait for the result
         R r = result.readFE();
-        delegate_stats.record_wakeup_latency(start_time, network_time);
+        record_wakeup_latency(start_time, network_time);
         return r;
       }
     }
@@ -135,10 +161,11 @@ namespace Grappa {
     template< typename M, typename F >
     inline auto call(Core dest, M mutex, F func) -> decltype(func(mutex())) {
       using R = decltype(func(mutex()));      
-      delegate_stats.count_op();
+      delegate_ops++;
       
       if (dest == mycore()) {
-        delegate_ops_short_circuited++;
+        delegate_targets++;
+        delegate_short_circuits++;
         // auto l = mutex();
         // lock(l);
         auto r = func(mutex());
@@ -154,6 +181,7 @@ namespace Grappa {
         };
       
         send_message(dest, [set_result,mutex,func] {
+          delegate_targets++;
           auto l = mutex();
           if (is_unlocked(l)) { // if lock is not held
             // lock(l);
@@ -180,34 +208,35 @@ namespace Grappa {
     /// is to use the Mutex version of delegate::call(Core,M,F).
     template <typename F>
     inline auto call_suspendable(Core dest, F func) -> decltype(func()) {
-      delegate_stats.count_op();
+      delegate_ops++;
       using R = decltype(func());
       Core origin = Grappa::mycore();
     
       if (dest == origin) {
-        delegate_ops_short_circuited++;
+        delegate_targets++;
+        delegate_short_circuits++;
         return func();
       } else {
         FullEmpty<R> result;
         int64_t network_time = 0;
-        int64_t start_time = Grappa_get_timestamp();
+        int64_t start_time = Grappa::timestamp();
       
         send_message(dest, [&result, origin, func, &network_time, start_time] {
-          delegate_stats.count_op_am();
+          delegate_targets++;
           
           privateTask([&result, origin, func, &network_time, start_time] {
             R val = func();
             // TODO: replace with handler-safe send_message
             send_heap_message(origin, [&result, val, &network_time, start_time] {
-              network_time = Grappa_get_timestamp();
-              delegate_stats.record_network_latency(start_time);
+              network_time = Grappa::timestamp();
+              record_network_latency(start_time);
               result.writeXF(val); // can't block in message, assumption is that result is already empty
             });
           });
         }); // send message
         // ... and wait for the result
         R r = result.readFE();
-        delegate_stats.record_wakeup_latency(start_time, network_time);
+        record_wakeup_latency(start_time, network_time);
         return r;
       }
     }
@@ -217,9 +246,9 @@ namespace Grappa {
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T >
     T read(GlobalAddress<T> target) {
-      delegate_stats.count_word_read();
+      delegate_reads++;
       return call(target.node(), [target]() -> T {
-        delegate_stats.count_word_read_am();
+        delegate_read_targets++;
         return *target.pointer();
       });
     }
@@ -228,10 +257,10 @@ namespace Grappa {
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T, typename U >
     void write(GlobalAddress<T> target, U value) {
-      delegate_stats.count_word_write();
+      delegate_writes++;
       // TODO: don't return any val, requires changes to `delegate::call()`.
       return call(target.node(), [target, value] {
-        delegate_stats.count_word_write_am();
+        delegate_write_targets++;
         *target.pointer() = value;
       });
     }
@@ -241,9 +270,9 @@ namespace Grappa {
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T, typename U >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
-      delegate_stats.count_word_fetch_add();
+      delegate_fetchadds++;
       return call(target.node(), [target, inc]() -> T {
-        delegate_stats.count_word_fetch_add_am();
+        delegate_fetchadd_targets++;
         T* p = target.pointer();
         T r = *p;
         *p += inc;
@@ -371,10 +400,10 @@ namespace Grappa {
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T, typename U, typename V >
     bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
-      delegate_stats.count_word_compare_swap();
+      delegate_cmpswaps++;
       return call(target.node(), [target, cmp_val, new_val]() -> bool {
         T * p = target.pointer();
-        delegate_stats.count_word_compare_swap_am();
+        delegate_cmpswap_targets++;
         if (cmp_val == *p) {
           *p = new_val;
           return true;
@@ -387,5 +416,3 @@ namespace Grappa {
     /// @}
   } // namespace delegate
 } // namespace Grappa
-
-#endif

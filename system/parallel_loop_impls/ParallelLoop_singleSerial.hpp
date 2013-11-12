@@ -9,7 +9,6 @@
 #define PARALLEL_LOOP_SINGLE_SERIAL_HPP
 
 #include "Grappa.hpp"
-#include "ForkJoin.hpp"
 #include "Cache.hpp"
 
 DECLARE_int64( parallel_loop_threshold );

@@ -363,8 +363,8 @@ public:
     polls_++;
   }
 
-  void record_flush( Grappa_Timestamp oldest_ts, Grappa_Timestamp newest_ts ) {
-    Grappa_Timestamp ts = Grappa_get_timestamp();
+  void record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts ) {
+    Grappa::Timestamp ts = Grappa::timestamp();
     oldest_wait_ticks_ += ts - oldest_ts;
     newest_wait_ticks_ += ts - newest_ts;
     flushes_++;
@@ -522,8 +522,8 @@ template< const int max_size_ >
 class AggregatorBuffer {
 private:
 public:
-  Grappa_Timestamp oldest_ts_;
-  Grappa_Timestamp newest_ts_;
+  Grappa::Timestamp oldest_ts_;
+  Grappa::Timestamp newest_ts_;
   int current_position_;
   char buffer_[ max_size_ ];
 
@@ -538,7 +538,7 @@ public:
 
   /// insert data into buffer. assumes it fits.
   inline void insert( const void * data, size_t size ) {
-    newest_ts_ = Grappa_get_timestamp();
+    newest_ts_ = Grappa::timestamp();
     if( current_position_ == 0 ) oldest_ts_ = newest_ts_;
     DCHECK ( fits( size ) );
     memcpy( &buffer_[ current_position_ ], data, size );
@@ -705,8 +705,8 @@ public:
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
     //return previous_timestamp_ + 1;
-    Grappa_tick();
-    return Grappa_get_timestamp();
+    Grappa::tick();
+    return Grappa::timestamp();
    }
 
   /// get delayed timestamp. 

@@ -9,8 +9,7 @@
 #define COLLECTIVE_HPP
 
 //#include "Grappa.hpp"
-//#include "ForkJoin.hpp"
-#include "common.hpp"
+//#include "common.hpp"
 #include "CompletionEvent.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"

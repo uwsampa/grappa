@@ -8,7 +8,6 @@
 #define PARALLEL_LOOP_SEMAPHORE_HPP
 
 #include "Grappa.hpp"
-#include "ForkJoin.hpp"
 #include "Cache.hpp"
 
 DECLARE_int64( parallel_loop_threshold );

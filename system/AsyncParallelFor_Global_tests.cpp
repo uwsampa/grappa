@@ -9,7 +9,6 @@
 
 #include "Grappa.hpp"
 #include "GlobalTaskJoiner.hpp"
-#include "ForkJoin.hpp"
 #include "AsyncParallelFor.hpp"
 #include "Delegate.hpp"
 #include "GlobalAllocator.hpp"

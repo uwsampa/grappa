@@ -14,7 +14,6 @@
 #include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "Tasking.hpp"
-#include "ForkJoin.hpp"
 #include "ParallelLoop.hpp"
 
 #include <sys/stat.h>

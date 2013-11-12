@@ -24,7 +24,6 @@ set(SYSTEM_SOURCES
   CurrentThread.cpp
   Delegate.cpp
   FlatCombiner.cpp
-  ForkJoin.cpp
   Future.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
@@ -32,7 +31,6 @@ set(SYSTEM_SOURCES
   GlobalHashSet.cpp
   GlobalMemory.cpp
   GlobalMemoryChunk.cpp
-  GlobalTaskJoiner.cpp
   GlobalVector.cpp
   Grappa.cpp
   HistogramStatistic.cpp
@@ -53,7 +51,6 @@ set(SYSTEM_SOURCES
   SummarizingStatistic.cpp
   ThreadQueue.cpp
   Timestamp.cpp
-  Uid.cpp
   Worker.cpp
   Addressing.hpp
   Aggregator.hpp
@@ -77,7 +74,6 @@ set(SYSTEM_SOURCES
   ExternalCountPayloadMessage.hpp
   FileIO.hpp
   FlatCombiner.hpp
-  ForkJoin.hpp
   FullEmpty.hpp
   FullEmptyLocal.hpp
   function_traits.hpp
@@ -89,13 +85,11 @@ set(SYSTEM_SOURCES
   GlobalHashSet.hpp
   GlobalMemory.hpp
   GlobalMemoryChunk.hpp
-  GlobalTaskJoiner.hpp
   GlobalVector.hpp
   Grappa.hpp
   HistogramStatistic.hpp
   IncoherentAcquirer.hpp
   IncoherentReleaser.hpp
-  LegacyDelegate.hpp
   LegacySignaler.hpp
   LocaleSharedMemory.hpp
   Message.hpp
@@ -133,20 +127,19 @@ set(SYSTEM_SOURCES
   Tasking.hpp
   ThreadQueue.hpp
   Timestamp.hpp
-  Uid.hpp
   Worker.hpp
   gasnet_helpers.h
   stack.h
   thread.h
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
-  tasks/GlobalQueue.hpp
+  # tasks/GlobalQueue.hpp
   tasks/Scheduler.hpp
   tasks/StealQueue.hpp
   tasks/Task.hpp
   tasks/TaskingScheduler.hpp
   tasks/BasicScheduler.cpp
-  tasks/GlobalQueue.cpp
+  # tasks/GlobalQueue.cpp
   tasks/StealQueue.cpp
   tasks/Task.cpp
   tasks/TaskingScheduler.cpp

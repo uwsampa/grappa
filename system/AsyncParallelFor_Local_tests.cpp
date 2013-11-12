@@ -8,7 +8,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Grappa.hpp"
-#include "ForkJoin.hpp"
 #include "AsyncParallelFor.hpp"
 
 BOOST_AUTO_TEST_SUITE( AsyncParallelFor_Local_tests );

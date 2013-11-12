@@ -1,7 +1,6 @@
 #include "../generator/utils.h"
 #include "common.h"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 
 static mrg_state prng_state;
 static tuple_graph tg;

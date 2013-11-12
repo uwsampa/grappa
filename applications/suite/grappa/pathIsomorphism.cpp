@@ -2,7 +2,6 @@
 // Brandon Holt
 #include "defs.hpp"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <Collective.hpp>
 
 //static GlobalAddress<graphint> eV;

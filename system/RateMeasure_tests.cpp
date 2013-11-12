@@ -11,7 +11,6 @@
 #include "Grappa.hpp"
 #include "Tasking.hpp"
 #include "Delegate.hpp"
-#include "ForkJoin.hpp"
 #include "common.hpp"
 
 // Tests to measure the delegate op rates

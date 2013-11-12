@@ -2,7 +2,6 @@
 #include <signal.h>
 #include <cstdlib>
 #include <Grappa.hpp>
-#include "ForkJoin.hpp"
 
 #include "Message.hpp"
 

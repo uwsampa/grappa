@@ -29,7 +29,7 @@
 
 #include "StateTimer.hpp"
 
-
+DECLARE_string(stats_blob_filename);
 
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches );
 
@@ -44,18 +44,11 @@ namespace Statistics { void sample_all(); }
 // forward-declare old aggregator flush
 bool idle_flush_aggregator();
 
-extern bool take_profiling_sample;
-void Grappa_dump_stats_blob();
-
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
 DECLARE_bool(flush_on_idle);
 DECLARE_bool(rdma_flush_on_idle);
 DECLARE_int64( stats_blob_ticks );
-
-
-//#include "Statistics.hpp"
-void Grappa_dump_stats_blob();
 
 namespace Grappa {
 
@@ -106,15 +99,15 @@ class TaskingScheduler : public Scheduler {
     task_worker_args * work_args;
 
     // STUB: replace with real periodic threads
-    Grappa_Timestamp previous_periodic_ts;
-  inline bool should_run_periodic( Grappa_Timestamp current_ts ) {
+    Grappa::Timestamp previous_periodic_ts;
+  inline bool should_run_periodic( Grappa::Timestamp current_ts ) {
     return current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks;
   }
 
-    Thread * periodicDequeue(Grappa_Timestamp current_ts) {
+    Thread * periodicDequeue(Grappa::Timestamp current_ts) {
       // // tick the timestap counter
-      // Grappa_tick();
-      // Grappa_Timestamp current_ts = Grappa_get_timestamp();
+      // Grappa::tick();
+      // Grappa::Timestamp current_ts = Grappa::timestamp();
 
       if( should_run_periodic( current_ts ) ) {
         return periodicQ.dequeue();
@@ -129,14 +122,14 @@ class TaskingScheduler : public Scheduler {
     /// make sure we don't context switch when we don't want to
     bool in_no_switch_region_;
 
-    Grappa_Timestamp prev_ts;
-    Grappa_Timestamp prev_stats_blob_ts;
+    Grappa::Timestamp prev_ts;
+    Grappa::Timestamp prev_stats_blob_ts;
     static const int64_t tick_scale = 1L; //(1L << 30);
 
     Thread * nextCoroutine ( bool isBlocking=true ) {
       scheduler_context_switches++;
 
-      Grappa_Timestamp current_ts = 0;
+      Grappa::Timestamp current_ts = 0;
 #ifdef VTRACE_FULL
       VT_TRACER("nextCoroutine");
 #endif
@@ -147,8 +140,8 @@ class TaskingScheduler : public Scheduler {
         ++stats.scheduler_count;
 
         // tick the timestap counter
-        Grappa_tick();
-        current_ts = Grappa_get_timestamp();
+        Grappa::tick();
+        current_ts = Grappa::timestamp();
 
         // maybe sample
         if( take_profiling_sample ) {
@@ -164,7 +157,10 @@ class TaskingScheduler : public Scheduler {
         if( ( global_communicator.mynode() == 0 ) &&
             ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
           prev_stats_blob_ts = current_ts;
-          Grappa_dump_stats_blob();
+          
+          std::ofstream f(FLAGS_stats_blob_filename);
+          Grappa::Statistics::print(f);
+          f.close();
         }
 
         // check for periodic tasks
@@ -440,8 +436,8 @@ class TaskingScheduler : public Scheduler {
     /// Put the Thread into the periodic queue
     void periodic( Thread * thr ) {
       periodicQ.enqueue( thr );
-      Grappa_tick();
-      previous_periodic_ts = Grappa_get_timestamp();
+      Grappa::tick();
+      previous_periodic_ts = Grappa::timestamp();
     }
 
     /// Print scheduler statistics
@@ -493,7 +489,7 @@ inline bool TaskingScheduler::thread_maybe_yield( ) {
   bool yielded = false;
 
   // tick the timestap counter
-  Grappa_Timestamp current_ts = Grappa_force_tick();
+  Grappa::Timestamp current_ts = Grappa::force_tick();
   
   if( should_run_periodic( current_ts ) ) {
     yielded = true;

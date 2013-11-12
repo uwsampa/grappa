@@ -26,12 +26,12 @@ class BasicScheduler : public Scheduler {
         threadid_t nextId;
         
         // STUB: replace with real periodic threads
-        Grappa_Timestamp previous_periodic_ts;
+        Grappa::Timestamp previous_periodic_ts;
         int periodctr;
         Thread * periodicDequeue() {
 	    // tick the timestap counter
-	    Grappa_tick();
-	    Grappa_Timestamp current_ts = Grappa_get_timestamp();
+	    Grappa::tick();
+	    Grappa::Timestamp current_ts = Grappa::timestamp();
 
 	    if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
                 return periodicQ.dequeue();

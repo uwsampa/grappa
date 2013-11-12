@@ -203,27 +203,6 @@ void Grappa_end_tasks( );
 /// Check initialized global queue
 bool Grappa_global_queue_isInit( );
 
-/// dump stats for this node
-void Grappa_dump_stats( std::ostream& oo = std::cout );
-/// dump stats for all nodes
-void Grappa_dump_stats_all_nodes();
-
-/// reset stats on this node
-void Grappa_reset_stats();
-/// reset stats on all nodes
-void Grappa_reset_stats_all_nodes();
-
-/// merge stats from all other nodes with this one and dump this node's stats
-void Grappa_merge_and_dump_stats( std::ostream& oo = std::cout );
-
-void Grappa_dump_task_series();
-
-void Grappa_dump_stats_blob();
-
-void legacy_dump_stats( std::ostream& oo );
-void legacy_reduce_stats_and_dump( std::ostream& oo );
-void legacy_profiling_sample();
-
 #include "Aggregator.hpp"
 
 /// Poll Grappa aggregation and communication layers.

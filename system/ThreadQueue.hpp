@@ -3,7 +3,7 @@
 #include "Worker.hpp"
 #include <limits>
 #include <glog/logging.h>
-
+#include <iostream>
 
 /// A queue of threads
 class ThreadQueue {

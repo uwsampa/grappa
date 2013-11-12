@@ -2,7 +2,6 @@
 #include <Addressing.hpp>
 #include <Message.hpp>
 #include <MessagePool.hpp>
-#include <ForkJoin.hpp>
 #include <Delegate.hpp>
 #include <AsyncDelegate.hpp>
 

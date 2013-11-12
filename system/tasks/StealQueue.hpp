@@ -66,21 +66,20 @@ namespace Grappa {
     template <typename T>
     struct ChunkInfo;
 
-    template <typename T>
-    void global_queue_pull( ChunkInfo<T> * result );
-    template <typename T>
-    bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
-
+    // template <typename T>
+    // void global_queue_pull( ChunkInfo<T> * result );
+    // template <typename T>
+    // bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
 
     // workshare AM args forward declaration 
     struct workShareRequest_args;
     struct workShareReply_args;
 
-    template <typename T>
-    struct pull_global_data_args {
-      GlobalAddress<Signaler> signal;
-      ChunkInfo<T> chunk;
-    };
+    // template <typename T>
+    // struct pull_global_data_args {
+    //   GlobalAddress<Signaler> signal;
+    //   ChunkInfo<T> chunk;
+    // };
   } // namespace impl
 
 
@@ -191,8 +190,8 @@ template <typename T>
       void workShareReplyGreater( int amountGiven, T * data );
 
       // global queue
-      void pull_global_data_request( pull_global_data_args<T> * args );
-      void pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size );
+      // void pull_global_data_request( pull_global_data_args<T> * args );
+      // void pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size );
 
       /* The number of elements that have been released
        * below <bottom> but not yet copied out. Reclaiming
@@ -212,8 +211,8 @@ template <typename T>
       static void workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
 
       // global queue dispatch
-      static void pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size );
-      static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
+      // static void pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size );
+      // static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
 
       /// Output stream of queue state
       std::ostream& dump ( std::ostream& o) const {
@@ -299,8 +298,8 @@ template <typename T>
       int64_t workShare( Node target, uint64_t amount );
 
       // global queue API
-      uint64_t pull_global();
-      bool push_global( uint64_t amount );
+      // uint64_t pull_global();
+      // bool push_global( uint64_t amount );
 
   };
 
@@ -407,7 +406,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
   
   FullEmpty<int64_t> result;
 //  int64_t network_time = 0;
-//  int64_t start_time = Grappa_get_timestamp();
+//  int64_t start_time = Grappa::timestamp();
 
   Grappa::Statistics::steal_queue_stats.record_steal_request(8+24);//FIXME: size
   /* Send steal request */
@@ -740,99 +739,99 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
 // Global queue interaction
 ///////////////////////////
 
-template <typename T>
-uint64_t StealQueue<T>::pull_global() {
-  ChunkInfo<T> data_ptr;
-  global_queue_pull<T>( &data_ptr );
-
-  Signaler signal;
-  pull_global_data_args<T> args;
-  args.signal = make_global( &signal );
-  args.chunk = data_ptr;
-  Grappa_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args ); // FIXME: call_on deprecated
-  size_t msg_size = Grappa_sizeof_message( &args );
-  Grappa::Statistics::steal_queue_stats.record_globalq_data_pull_request( msg_size, data_ptr.amount );
-  signal.wait();
-
-  return data_ptr.amount;
-}
-
-template <typename T>
-void StealQueue<T>::pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size ) {
-  steal_queue.pull_global_data_request( args );
-}
-
-template <typename T>
-void StealQueue<T>::pull_global_data_request( pull_global_data_args<T> * args ) {
-  CHECK( numPendingElements >= args->chunk.amount ) << "trying to take more than released number of elements";
-
-  T * chunk_base = args->chunk.base.pointer();
-  CHECK( chunk_base >= stack && chunk_base < stack+stackSize ) << "chunk base pointer falls outside of the stack range";
-
-  CHECK( chunk_base + args->chunk.amount <= stack+bottom ) << "chunk overlaps the local part of the stack";
-
-  Grappa_call_on_x( args->signal.node(), pull_global_data_reply_g_am, &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) ); // FIXME: call_on deprecated 
-  size_t msg_size = Grappa_sizeof_message( &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) );
-  Grappa::Statistics::steal_queue_stats.record_globalq_data_pull_reply( msg_size, args->chunk.amount );
-
-  numPendingElements -= args->chunk.amount;
-
-#if DEBUG
-  // 0 out the transfered elements (to detect errors)
-  memset( chunk_base, 0, args->chunk.amount*sizeof(T) );
-#endif
-
-  // in case all pending elements are now gone, try to reclaim space
-  reclaimSpace();
-}
-
-template <typename T>
-void StealQueue<T>::pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size ) {
-  steal_queue.pull_global_data_reply( signal, payload, payload_size );
-}
-
-template <typename T>
-void StealQueue<T>::pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size ) {
-  uint64_t num_elements = elements_size / sizeof(T);
-
-  CHECK( top + num_elements < stackSize ) << "pull_global_data reply: overflow (top:" << top << " stackSize:" << stackSize << " amt:" << num_elements << ")";
-
-  // TODO bottom better
-  memcpy( &stack[top], received_elements, elements_size );
-  top += num_elements;
-
-  // wake the thread that initiated the pull
-  signal->pointer()->signal();
-}
-
-template <typename T>
-bool StealQueue<T>::push_global( uint64_t amount ) {
-  CHECK( !pendingGlobalPush ) << "multiple outstanding pushes not allowed"; // due to reclaiming unaccepted elements
-  pendingGlobalPush = true;
-
-  // check the amount is legal
-  CHECK( amount <= depth() ) << "trying to release more elements than are in the queue";
-  CHECK( amount <= bufsize ) << "Only support single-packet transfers";
-
-  // release elements 
-  uint64_t orig_bottom = bottom;
-  bottom += amount;
-  numPendingElements += amount;
-
-  // push chunk information to the global queue.
-  // this is a blocking/yielding operation
-  bool accepted = global_queue_push<T>( make_global( &stack[orig_bottom] ), amount );
-
-  if ( !accepted ) {
-    // reclaim unaacepted elements
-    bottom = orig_bottom;
-    numPendingElements -= amount;
-  }
-
-  pendingGlobalPush = false;
-
-  return accepted;
-}
+// template <typename T>
+// uint64_t StealQueue<T>::pull_global() {
+//   ChunkInfo<T> data_ptr;
+//   global_queue_pull<T>( &data_ptr );
+// 
+//   Signaler signal;
+//   pull_global_data_args<T> args;
+//   args.signal = make_global( &signal );
+//   args.chunk = data_ptr;
+//   Grappa_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args ); // FIXME: call_on deprecated
+//   size_t msg_size = Grappa_sizeof_message( &args );
+//   Grappa::Statistics::steal_queue_stats.record_globalq_data_pull_request( msg_size, data_ptr.amount );
+//   signal.wait();
+// 
+//   return data_ptr.amount;
+// }
+// 
+// template <typename T>
+// void StealQueue<T>::pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size ) {
+//   steal_queue.pull_global_data_request( args );
+// }
+// 
+// template <typename T>
+// void StealQueue<T>::pull_global_data_request( pull_global_data_args<T> * args ) {
+//   CHECK( numPendingElements >= args->chunk.amount ) << "trying to take more than released number of elements";
+// 
+//   T * chunk_base = args->chunk.base.pointer();
+//   CHECK( chunk_base >= stack && chunk_base < stack+stackSize ) << "chunk base pointer falls outside of the stack range";
+// 
+//   CHECK( chunk_base + args->chunk.amount <= stack+bottom ) << "chunk overlaps the local part of the stack";
+// 
+//   Grappa_call_on_x( args->signal.node(), pull_global_data_reply_g_am, &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) ); // FIXME: call_on deprecated 
+//   size_t msg_size = Grappa_sizeof_message( &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) );
+//   Grappa::Statistics::steal_queue_stats.record_globalq_data_pull_reply( msg_size, args->chunk.amount );
+// 
+//   numPendingElements -= args->chunk.amount;
+// 
+// #if DEBUG
+//   // 0 out the transfered elements (to detect errors)
+//   memset( chunk_base, 0, args->chunk.amount*sizeof(T) );
+// #endif
+// 
+//   // in case all pending elements are now gone, try to reclaim space
+//   reclaimSpace();
+// }
+// 
+// template <typename T>
+// void StealQueue<T>::pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size ) {
+//   steal_queue.pull_global_data_reply( signal, payload, payload_size );
+// }
+// 
+// template <typename T>
+// void StealQueue<T>::pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size ) {
+//   uint64_t num_elements = elements_size / sizeof(T);
+// 
+//   CHECK( top + num_elements < stackSize ) << "pull_global_data reply: overflow (top:" << top << " stackSize:" << stackSize << " amt:" << num_elements << ")";
+// 
+//   // TODO bottom better
+//   memcpy( &stack[top], received_elements, elements_size );
+//   top += num_elements;
+// 
+//   // wake the thread that initiated the pull
+//   signal->pointer()->signal();
+// }
+// 
+// template <typename T>
+// bool StealQueue<T>::push_global( uint64_t amount ) {
+//   CHECK( !pendingGlobalPush ) << "multiple outstanding pushes not allowed"; // due to reclaiming unaccepted elements
+//   pendingGlobalPush = true;
+// 
+//   // check the amount is legal
+//   CHECK( amount <= depth() ) << "trying to release more elements than are in the queue";
+//   CHECK( amount <= bufsize ) << "Only support single-packet transfers";
+// 
+//   // release elements 
+//   uint64_t orig_bottom = bottom;
+//   bottom += amount;
+//   numPendingElements += amount;
+// 
+//   // push chunk information to the global queue.
+//   // this is a blocking/yielding operation
+//   bool accepted = global_queue_push<T>( make_global( &stack[orig_bottom] ), amount );
+// 
+//   if ( !accepted ) {
+//     // reclaim unaacepted elements
+//     bottom = orig_bottom;
+//     numPendingElements -= amount;
+//   }
+// 
+//   pendingGlobalPush = false;
+// 
+//   return accepted;
+// }
 
 // allocation of steal_queue instance
 template <typename T>

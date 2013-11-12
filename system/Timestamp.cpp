@@ -7,7 +7,11 @@
 
 #include "Timestamp.hpp"
 
-/// Holds snapshot of current timestamp returned when get_timestamp() is called
-Grappa_Timestamp Grappa_current_timestamp = 0;
+namespace Grappa {
+  namespace impl {
+    /// Holds snapshot of current timestamp returned when get_timestamp() is called
+    Grappa::Timestamp current_timestamp = 0;
+  }
+}
 
-DEFINE_uint64( timestamp_tick_freq, 1, "Interval (in number of calls to the scheduler) between updates to the current Timestamp" ); 
+DEFINE_uint64( timestamp_tick_freq, 1, "Interval (in number of calls to the scheduler) between updates to the current Grappa::Timestamp" ); 

@@ -3,7 +3,6 @@
 #include "Communicator.hpp"
 #include "PoolAllocator.hpp"
 #include "FullEmptyLocal.hpp"
-#include "LegacyDelegate.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 #include <type_traits>
@@ -12,7 +11,7 @@
 GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_writes);
 GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_increments);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_short_circuits);
 
 namespace Grappa {
   
@@ -28,19 +27,20 @@ namespace Grappa {
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename PoolType = impl::MessagePoolBase, typename F = decltype(nullptr)>
     inline void call_async(PoolType& pool, Core dest, F remote_work) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
-      delegate_stats.count_op();
+      delegate_ops++;
       delegate_async_ops++;
       Core origin = Grappa::mycore();
       
       if (dest == origin) {
         // short-circuit if local
-        delegate_ops_short_circuited++;
+        delegate_targets++;
+        delegate_short_circuits++;
         remote_work();
       } else {
         if (GCE) GCE->enroll();
         
         pool.send_message(dest, [origin, remote_work] {
-          delegate_stats.count_op_am();
+          delegate_targets++;
           remote_work();
           if (GCE) complete(make_global(GCE,origin));
         });
@@ -54,19 +54,20 @@ namespace Grappa {
     /// Use special Message pool heap (preferred over explicit pool version)
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
     inline void call_async(Core dest, F remote_work) {
-      delegate_stats.count_op();
+      delegate_ops++;
       delegate_async_ops++;
       Core origin = Grappa::mycore();
       
       if (dest == origin) {
         // short-circuit if local
-        delegate_ops_short_circuited++;
+        delegate_targets++;
+        delegate_short_circuits++;
         remote_work();
       } else {
         if (GCE) GCE->enroll();
         
         send_heap_message(dest, [origin, remote_work] {
-          delegate_stats.count_op_am();
+          delegate_targets++;
           remote_work();
           if (GCE) complete(make_global(GCE,origin));
         });
@@ -152,7 +153,7 @@ namespace Grappa {
       inline const R get() {
         // ... and wait for the result
         const R r = _result.readFF();
-        delegate_stats.record_wakeup_latency(start_time, network_time);
+        Grappa::impl::record_wakeup_latency(start_time, network_time);
         return r;
       }
       
@@ -161,24 +162,26 @@ namespace Grappa {
       void call_async(Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
         _result.reset();
-        delegate_stats.count_op();
+        delegate_ops++;
         delegate_async_ops++;
         Core origin = Grappa::mycore();
         
         if (dest == origin) {
           // short-circuit if local
+          delegate_targets++;
+          delegate_short_circuits++;
           fill(func());
         } else {
-          start_time = Grappa_get_timestamp();
+          start_time = Grappa::timestamp();
           
           send_heap_message(dest, [origin, func, this] {
-            delegate_stats.count_op_am();
+            delegate_targets++;
             R val = func();
             
             // TODO: replace with handler-safe send_message
             send_heap_message(origin, [val, this] {
-              this->network_time = Grappa_get_timestamp();
-              delegate_stats.record_network_latency(this->start_time);
+              this->network_time = Grappa::timestamp();
+              Grappa::impl::record_network_latency(this->start_time);
               this->fill(val);
             });
           }); // send message

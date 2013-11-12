@@ -3,7 +3,6 @@
 
 #include "defs.hpp"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <Collective.hpp>
 #include <iomanip>
 

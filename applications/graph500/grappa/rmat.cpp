@@ -4,7 +4,6 @@
 
 #include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
-#include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
 #include "rmat.h"

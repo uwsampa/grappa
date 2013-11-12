@@ -1,7 +1,6 @@
 #include "defs.hpp"
 #include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
-#include "ForkJoin.hpp"
 
 LOOP_FUNCTOR( func_set_seq, k, (( GlobalAddress<graphint>, base_addr)) ) {
   Incoherent<graphint>::WO c(base_addr+k, 1);
