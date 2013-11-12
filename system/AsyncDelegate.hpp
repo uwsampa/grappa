@@ -23,9 +23,37 @@ namespace Grappa {
     /// Do asynchronous generic delegate with `void` return type. Uses message pool to allocate
     /// the message. Enrolls with GCE so you can guarantee all have completed after a global
     /// GlobalCompletionEvent::wait() call.
+    ///
+    /// @deprecated Explicit pool version deprecated in favor of version that uses send_heap_message().
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename PoolType = impl::MessagePoolBase, typename F = decltype(nullptr)>
     inline void call_async(PoolType& pool, Core dest, F remote_work) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
+      delegate_stats.count_op();
+      delegate_async_ops++;
+      Core origin = Grappa::mycore();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        delegate_ops_short_circuited++;
+        remote_work();
+      } else {
+        if (GCE) GCE->enroll();
+        
+        pool.send_message(dest, [origin, remote_work] {
+          delegate_stats.count_op_am();
+          remote_work();
+          if (GCE) complete(make_global(GCE,origin));
+        });
+      }
+    }
+
+    /// Do asynchronous generic delegate with `void` return type. Uses message pool to allocate
+    /// the message. Enrolls with GCE so you can guarantee all have completed after a global
+    /// GlobalCompletionEvent::wait() call.
+    ///
+    /// Use special Message pool heap (preferred over explicit pool version)
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
+    inline void call_async(Core dest, F remote_work) {
       delegate_stats.count_op();
       delegate_async_ops++;
       Core origin = Grappa::mycore();
@@ -45,11 +73,6 @@ namespace Grappa {
       }
     }
 
-    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename PoolType = impl::MessagePoolBase, typename F = decltype(nullptr)>
-    inline void call_async(Core dest, F remote_work) {
-      call_async( *Grappa::shared_pool, dest, remote_work );
-    }
-
     
     /// Uses `call_async()` to write a value asynchronously.
     ///
@@ -64,10 +87,10 @@ namespace Grappa {
     ///     write_async(pool, array+i, i);
     ///   }
     /// @endcode
-    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr), typename PoolType = impl::MessagePoolBase >
-    inline void write_async(PoolType& pool, GlobalAddress<T> target, U value) {
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
+    inline void write_async(GlobalAddress<T> target, U value) {
       delegate_async_writes++;
-      delegate::call_async<GCE>(pool, target.core(), [target,value]{
+      delegate::call_async<GCE>(target.core(), [target,value]{
         (*target.pointer()) = value;
       });
     }
@@ -85,22 +108,15 @@ namespace Grappa {
       Message<func> msg;
     };
     
-    /// Uses `call_async()` to atomically increment a value asynchronously.
+    /// Uses `call_async()` to atomically increment a value asynchronously. (uses global Message pool)
     /// @see Grappa::delegate::write_async for example use.
-    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void, typename PoolType = impl::MessagePoolBase >
-    inline void increment_async(PoolType& pool, GlobalAddress<T> target, U increment) {
+    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void >
+    inline void increment_async(GlobalAddress<T> target, U increment) {
       delegate_async_increments++;
-      delegate::call_async<GCE>(pool, target.core(), [target,increment]{
+      delegate::call_async<GCE>(target.core(), [target,increment]{
         (*target.pointer()) += increment;
       });
     }
-
-    /// Overload Grappa::delegate::increment_async to use global message pool
-    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void, typename PoolType = impl::MessagePoolBase >
-    inline void increment_async(GlobalAddress<T> target, U increment) {
-      increment_async( *shared_pool, target, increment );
-    }
-
     
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
     /// The idea is to allocate storage for the result, issue the delegate request, and then
@@ -142,7 +158,7 @@ namespace Grappa {
       
       /// Call `func` on remote node, returning immediately.
       template <typename F>
-      void call_async(impl::MessagePoolBase& pool, Core dest, F func) {
+      void call_async(Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
         _result.reset();
         delegate_stats.count_op();
