@@ -69,14 +69,40 @@ std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
   return [dim](int64_t x) { return x % dim; };
 }
 
+int64_t fourth_root(int64_t x) {
+  // index pow 4
+  std::vector<int64_t> powers = {0, 1, 16, 81, 256, 625, 1296, 2401};
+  int64_t ind = powers.size() / 2;
+  int64_t hi = powers.size()-1;
+  int64_t lo = 0;
+  while(true) {
+    if (x == powers[ind]) {
+      return ind;
+    } else if (x > powers[ind]) {
+      int64_t next = (ind+hi)/2;
+      if (next - ind == 0) {
+        return ind;
+      }
+      lo = ind;
+      ind = next;
+    } else {
+      int64_t next = (ind+lo)/2;
+      hi = ind;
+      ind = next;
+    }
+  }
+}
+  
+
 void squares(GlobalAddress<Graph<Vertex>> g) {
   
   on_all_cores( [] { Grappa::Statistics::reset(); } );
 
-  // need to arrange the processors in 4d hypercube
-  // TODO pick side lengths
-  auto sidelength = 2;
-  CHECK( cores() >= 2*2*2*2 ) << "not enough cores";
+  // arrange the processors in 4d
+  auto sidelength = fourth_root(cores());
+  LOG(INFO) << "using " << sidelength*sidelength*sidelength*sidelength << " of " << cores() << " cores";
+  participating_cores = sidelength*sidelength*sidelength*sidelength;
+  
 
   double start, end;
   start = Grappa_walltime(); 
