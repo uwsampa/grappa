@@ -31,6 +31,7 @@ DEFINE_uint64( progressInterval, 5, "interval between progress updates" );
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, participating_cores, 0);
 
 // intermediate results counts
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir1_count, 0);
@@ -42,8 +43,8 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir6_count, 0);
 
 
 //outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, squares_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, squares_runtime, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, results_count, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, query_runtime, 0);
 
 double generation_time;
 double construction_time;
@@ -204,7 +205,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
                 ir6_count++;
                 if (R4.inNeighborhood(t, x)) {
                   emit( x,y,z,t );
-                  squares_count++;
+                  results_count++;
                 } // end select t.dst=x
               } // end over t
             } // end select y < z
@@ -216,7 +217,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
     LOG(INFO) << "counted " << count << " squares";
   });
   end = Grappa_walltime();
-  squares_runtime = end - start;
+  query_runtime = end - start;
   
   
   Grappa::Statistics::merge_and_print();
