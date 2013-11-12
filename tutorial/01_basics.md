@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
       std::cout << "Hello world from Core " << Grappa::mycore() << " of " << Grappa::cores()
                 << " (locale " << Grappa::mylocale() << ")"<< "\n";
     });
-    std::cout << "Exiting root task.\n"
+    std::cout << "Exiting root task.\n";
   });
   Grappa::finalize();
 }
@@ -79,3 +79,13 @@ Exiting root task.
 This should look familiar to the MPI programmer. The call to `on_all_cores()` spawns a task on each core and then suspends the calling task (the root task in this case) until all those tasks have completed. Therefore, we do not see the "Exiting" message until after all of the "Hello"s, though those may arrive in any order. 
 
 This also introduces the API for identifying cores. In Grappa, each core is a separate destination. The physical node on which a core resides is referred to as its "locale" (borrowed from Chapel's terminology). The next section will refer to these functions more when dealing with how memory is partitioned among cores.
+
+## Section 2: Addressing global memory
+This section will:
+
+- Describe global addressing, partitioning and the global heap
+- Introduce the notion of delegate operations
+- Introduce logging and command-line flag utilities
+
+### Global addresses
+Global addresses 
