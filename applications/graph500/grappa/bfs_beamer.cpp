@@ -153,13 +153,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   
   // setup globals on all nodes
   csr_graph& graph = *g;
-  on_all_cores([graph, _vlist, _bfs_tree, k2addr]{
-    if ( !bfs_counters_added ) {
-      bfs_counters_added = true;
-      Grappa_add_profiling_counter( &bfs_edge_visited.value(), "bfs_edge_visited", "bfsedges", true, 0 );
-      Grappa_add_profiling_counter( &bfs_vertex_visited.value(), "bfs_vertex_visited", "bfsverts", true, 0 );
-    }
-    
+  on_all_cores([graph, _vlist, _bfs_tree, k2addr]{    
     // setup globals
     vlist = _vlist;
     xoff = graph.xoff;
@@ -279,7 +273,15 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   Grappa_free(_vlist);
   
   // clean up bfs_tree depths
-  forall_local<bfs_tree_entry,convert_tree_entry>(_bfs_tree, NV);
+  forall_localized(_bfs_tree, NV, [](bfs_tree_entry& e){
+    int64_t * t = reinterpret_cast<int64_t*>(&e);
+    if (e.depth == -1) {
+      *t = -1;
+    } else { 
+      *t = e.parent;
+    }
+    CHECK( *t < nv) << "bfs_tree[" << make_linear(&e)-bfs_tree << "] = " << e.parent << " (depth=" << e.depth << ")";
+  });
 
   return t;
 }

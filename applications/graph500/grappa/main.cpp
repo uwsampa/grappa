@@ -68,11 +68,9 @@ static int64_t bfs_nedge[NBFS_max];
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+2*(k)+1)
 
-#define read Grappa_delegate_read_word
-
 inline bool has_adj(GlobalAddress<int64_t> xoff, int64_t i) {
-  int64_t xoi = read(XOFF(i));
-  int64_t xei = read(XENDOFF(i));
+  int64_t xoi = delegate::read(XOFF(i));
+  int64_t xei = delegate::read(XENDOFF(i));
   return xei-xoi != 0;
 }
 
@@ -212,7 +210,7 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   if (ckpt_nbfs == 0) {
     fprintf(stderr, "no bfs roots found in checkpoint, generating on the fly\n");
   } else if (ckpt_nbfs < NBFS) {
-    fprintf(stderr, "only %ld bfs roots found\n", ckpt_nbfs);
+    fprintf(stderr, "only %" PRId64 " bfs roots found\n", ckpt_nbfs);
     NBFS = ckpt_nbfs;
   }
 

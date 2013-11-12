@@ -206,7 +206,9 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
 
 ////////////////////////////////////////////////////////////////
 // Graph500 stats output
+#ifndef PRId64
 #define PRId64 "ld"
+#endif
 #define NSTAT 9
 #define PRINT_STATS(lbl, israte)					\
   do {									\

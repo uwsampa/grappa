@@ -112,8 +112,6 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   auto offsets = static_cast<GlobalAddress<range_t>>(xoff);
   
   forall_localized<&my_gce>(offsets, nv, [offsets,nv](int64_t s, int64_t n, range_t * x){
-    char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
-    MessagePool pool(buf, sizeof(buf));
     
     for (int i=0; i<n; i++) {
       int64_t index = make_linear(x+i)-offsets;
@@ -124,7 +122,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       
       auto val = x[i].start;
       auto offset = b.offset;
-      delegate::call_async<&my_gce>(pool, b.block, [offset,val] {
+      delegate::call_async<&my_gce>(b.block, [offset,val] {
         prefix_temp_base[offset] = val;
       });
     }
@@ -169,12 +167,8 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     }
     
     // put back into original array
-    forall_here(0, nlocal, [xoff,r](int64_t s, int64_t n){
-      char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
-      MessagePool pool(buf, sizeof(buf));
-      for (int64_t i=s; i<s+n; i++) {
-        delegate::write_async<&my_gce>(pool, xoff+2*(r.start+i), prefix_temp_base[i]);
-      }
+    forall_here(0, nlocal, [xoff,r](int64_t i){
+      delegate::write_async<&my_gce>(xoff+2*(r.start+i), prefix_temp_base[i]);
     });
     my_gce.complete();
     my_gce.wait();
@@ -195,22 +189,16 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // count occurrences of each vertex in edges
   VLOG(2) << "degree func";
   // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
-  forall_localized<&my_gce>(tg->edges, tg->nedge, [](int64_t s, int64_t n, packed_edge * edge) {
-    char _poolbuf[2*n*128];
-    MessagePool pool(_poolbuf, sizeof(_poolbuf));
-    
-    for (int64_t i=0; i<n; i++) {
-      packed_edge& cedge = edge[i];
-      if (cedge.v0 != cedge.v1) { //skip self-edges
-        delegate::increment_async<&my_gce>(pool, XOFF(cedge.v0), 1);
-        delegate::increment_async<&my_gce>(pool, XOFF(cedge.v1), 1);
-      }
+  forall_localized<&my_gce>(tg->edges, tg->nedge, [](int64_t i, packed_edge& edge) {
+    if (edge.v0 != edge.v1) { //skip self-edges
+      delegate::increment_async<&my_gce>(XOFF(edge.v0), 1);
+      delegate::increment_async<&my_gce>(XOFF(edge.v1), 1);
     }
   });
   
   VLOG(2) << "minvect func";
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
-  forall_localized<&my_gce>(xoff, g->nv, [](int64_t i, int64_t& vo) {
+  forall_localized<&my_gce>(xoff, g->nv, [](int64_t& vo) {
     if (vo < MINVECT_SIZE) { vo = MINVECT_SIZE; }
   });
   
@@ -222,7 +210,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   //initialize XENDOFF to be the same as XOFF
   auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
-  forall_localized<&my_gce>(xoffr, g->nv, [](int64_t i, range_t& o){
+  forall_localized<&my_gce>(xoffr, g->nv, [](range_t& o){
     o.end = o.start;
   });
   
@@ -248,42 +236,37 @@ i64cmp (const void *a, const void *b)
 }
 
 
-inline void scatter_edge(MessagePool& pool, GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
+inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
   int64_t where = delegate::fetch_and_add(XENDOFF(i), 1);
-  delegate::write_async<&my_gce>(pool, xadj+where, j);
+  delegate::write_async<&my_gce>(xadj+where, j);
   
   DVLOG(5) << "scattering [" << i << "] xendoff[i] " << XENDOFF(i) << " = " << j << " (where: " << where << ")";
 }
 
-static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
-  auto& graph = *g;
+static void gather_edges(const tuple_graph * const tg, csr_graph * g_ptr) {
+  auto& g = *g_ptr;
   VLOG(2) << "scatter edges";
   
-  forall_localized<&my_gce>(tg->edges, tg->nedge, [graph](int64_t s, int64_t n, packed_edge * e) {
-    char bp[2 * n * sizeof(delegate::write_msg_proxy<int64_t>)];
-    MessagePool pool(bp, sizeof(bp));
+  forall_localized<&my_gce>(tg->edges, tg->nedge, [g](packed_edge& e) {
+    int64_t i = e.v0, j = e.v1;
     
-    for (int k = 0; k < n; k++) {
-      int64_t i = e[k].v0, j = e[k].v1;
-      
-      if (i >= 0 && j >= 0 && i != j) {
-        scatter_edge(pool, graph.xoff, graph.xadj, i, j);
-        scatter_edge(pool, graph.xoff, graph.xadj, j, i);
-      }
+    if (i >= 0 && j >= 0 && i != j) {
+      scatter_edge(g.xoff, g.xadj, i, j);
+      scatter_edge(g.xoff, g.xadj, j, i);
     }
   });
   
   VLOG(2) << "pack_vtx_edges";
-  auto xoffr = static_cast<GlobalAddress<range_t>>(g->xoff);
-  forall_localized<&my_gce>(xoffr, g->nv, [graph](int64_t i, range_t& xi) {
+  auto xoffr = static_cast<GlobalAddress<range_t>>(g.xoff);
+  forall_localized<&my_gce>(xoffr, g.nv, [g](int64_t i, range_t& xi) {
     auto xoi = xi.start;
     auto xei = xi.end;
     
     if (xoi+1 >= xei) return;
 
     //int64_t * buf = new int64_t[xei-xoi];// (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
-    int64_t * buf = reinterpret_cast< int64_t* >( Grappa::locale_shared_memory.allocate_aligned( sizeof(int64_t) * (xei-xoi), 8 ) );
-    Incoherent<int64_t>::RW cadj(graph.xadj+xoi, xei-xoi, buf);
+    int64_t * buf = locale_alloc<int64_t>(xei-xoi);
+    Incoherent<int64_t>::RW cadj(g.xadj+xoi, xei-xoi, buf);
     cadj.block_until_acquired();
 
     // pass in the underlying buf, since qsort can't take a cache obj 
@@ -301,12 +284,12 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
     cadj.start_release(); // done writing to local xadj
 
     int64_t end;
-    auto xoff = graph.xoff;
+    auto xoff = g.xoff;
     Incoherent<int64_t>::WO cend(XENDOFF(i), 1, &end);
     *cend = xoi+kcur;
 
     cadj.block_until_released();
-    Grappa::locale_shared_memory.deallocate( buf );
+    locale_free(buf);
 
     // on scope: cend.block_until_released();
   });
@@ -318,7 +301,7 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
   VLOG(2) << "nv = " << nv;
   
   g->nv = nv;
-  g->xoff = Grappa_typed_malloc<int64_t>(2*nv+2);
+  g->xoff = global_alloc<int64_t>(2*nv+2);
   
   double time;
   VLOG(2) << "setup_deg_off...";

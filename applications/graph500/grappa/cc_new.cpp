@@ -192,7 +192,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   VLOG(0) << "cc_version: new";
   double t = walltime();
   
-  auto _g = Graph<>::transform_vertices<VertexCC>(in, [](long i, VertexCC& v){
+  auto _g = Graph<>::transform_vertices<VertexCC>(in, [](int64_t i, VertexCC& v){
     v.init(-i-1);
   });
   auto _component_edges = GlobalHashSet<Edge>::create(FLAGS_cc_hash_size);

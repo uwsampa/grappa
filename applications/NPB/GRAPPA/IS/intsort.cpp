@@ -311,7 +311,7 @@ void rank(int iteration) {
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async<&gce>(*shared_pool, destb.core(), [destb,v]{
+      delegate::call_async<&gce>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
@@ -412,13 +412,10 @@ void full_verify() {
   forall_localized<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
     auto key_ranks = b.key_ranks - (b_id<<BSHIFT);
     
-    // char msgbuf[Grappa::current_worker().stack_remaining()-8096];
-    MessagePool pool((1<<23)/(nbuckets/cores()));
-    
     for (int64_t i=0; i<b.size(); i++) {
       key_t k = b[i];
       CHECK_LT(key_ranks[k], nkeys);
-      delegate::write_async<&gce>(pool, sorted_keys+key_ranks[k], k);
+      delegate::write_async<&gce>(sorted_keys+key_ranks[k], k);
       key_ranks[k]++;
     }
   });

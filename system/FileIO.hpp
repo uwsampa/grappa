@@ -263,7 +263,7 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
 
   size_t nfiles = std::distance(fs::directory_iterator(dirname), fs::directory_iterator());
   
-  read_array_args<T> args[nfiles];
+  auto args = new read_array_args<T>[nfiles];
   
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 
@@ -297,6 +297,7 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   t = Grappa_walltime() - t;
   VLOG(1) << "read_array_time: " << t;
   VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
+  delete[] args;
 }
 } // namespace impl
 
