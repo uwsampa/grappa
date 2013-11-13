@@ -7,6 +7,7 @@
 #include "StatisticBase.hpp"
 #include "SimpleStatistic.hpp"
 #include "SummarizingStatistic.hpp"
+#include "CallbackStatistic.hpp"
 
 /// @addtogroup Utility
 /// @{
@@ -71,5 +72,13 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBa
 /// Declare a stat (defined in a separate .cpp file) so it can be used
 #define GRAPPA_DECLARE_STAT(type, name) \
   extern Grappa::type name;
+
+/// Declare a callback stat; as an instance variable
+#define GRAPPA_DECLARE_CALLBACK_STAT(type, name) \
+  extern Grappa::CallbackStatistic<type> name;
+
+/// Define a callback stat; in a constructor
+#define GRAPPA_DEFINE_CALLBACK_STAT(type, name, callback) \
+  CallbackState<type> name(#name, callback) 
 
 /// @}

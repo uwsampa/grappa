@@ -187,6 +187,7 @@ class TaskManager {
     /// 
     /// @return new output stream 
     std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const;
+ 
 
   public:
 
@@ -217,6 +218,9 @@ class TaskManager {
     /*TODO return value?*/ 
     template < typename A0, typename A1, typename A2 > 
       void spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 );
+
+    uint64_t numLocalPublicTasks() const;
+    uint64_t numLocalPrivateTasks() const;
 
     bool getWork ( Task * result );
 
