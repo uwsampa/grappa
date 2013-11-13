@@ -16,6 +16,7 @@
 #include "options.h"
 #include "graph.hpp"
 #include "verify.hpp"
+#include "simple_graphs.hpp"
 
 #include <stack>
 #include <vector>
@@ -38,8 +39,8 @@ static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
 //definitions for graph parameters
-DEFINE_int64(scale, 10, "Graph500 scale (graph will have ~2^scale vertices)");
-DEFINE_int64(edgefactor, 16, "Approximate number of edges in graph will be 2*2^(scale)*edgefactor");
+DEFINE_int64(scale, 4, "Graph500 scale (graph will have ~2^scale vertices)");
+DEFINE_int64(edgefactor, 3, "Approximate number of edges in graph will be 2*2^(scale)*edgefactor");
 
 DEFINE_bool(verify, true, "Do verification. Note: `--noverify` is equivalent to `--verify=(false|no|0)`");
 
@@ -226,7 +227,7 @@ int ref_iso_paths(GlobalAddress<Graph<>> generic_graph, std::vector<int64_t> vpa
   auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP & v) { v.parent(1); });
   //set_color(g);
   set_color2(g);
-  Graph<VertexP>::dump(g);
+  //Graph<VertexP>::dump(g);
   
   //generate a node copy of the pattern
   std::stack<int64_t> pattern;
@@ -267,18 +268,28 @@ void user_main(void * ignore) {
   
   // make raw graph edge tuples
   tuple_graph tg;
-  tg.edges = global_alloc<packed_edge>(desired_nedge);
   
   //call the kronecker graph generator to generate the test graph
   t = walltime();
-  make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-  generation_time = walltime() - t;
+  //tg.edges = global_alloc<packed_edge>(desired_nedge);
+  //make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+  //generation_time = walltime() - t;
   
+  //call the meshgrid graph generator
+  meshgrid_graph(&tg.nedge, &tg.edges, 100, 100);
+  
+  //call the balanced tree graph generator
+  //balanced_tree_graph(&tg.nedge, &tg.edges, 10, 2);
+  generation_time = walltime() - t;
+
   //create the graph from the tuple graph representation
   t = walltime();
   auto g = Graph<>::create(tg);
   construction_time = walltime() - t;
-  
+
+  Graph<>::dump(g);
+
+    
   int grappa_paths = 0;
   int ref_paths = 0;
 
@@ -304,12 +315,6 @@ void user_main(void * ignore) {
   if (grappa_paths != ref_paths) {
     LOG(INFO) << "[STATUS] Failure: Number of paths does not match.";
   }
-
-  //dump the graph if it's small enough
-  if (FLAGS_scale < 5) {
-    LOG(INFO) << "//-----[GRAPH EDGE LIST DUMP]-----//";
-    Graph<>::dump(g);
-  } 
 
   //clean up
   g->destroy();

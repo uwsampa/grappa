@@ -11,6 +11,8 @@ set(SOURCES
   verify.hpp
   verify.cpp
   ../prng.c
+  simple_graphs.hpp
+  simple_graphs.cpp
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
