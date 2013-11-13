@@ -26,6 +26,9 @@ int main(int argc, char* argv[]) {
       CHECK(z == 7);
       CHECK(y == w);
       
+      long i = (*xa)++;
+      CHECK(i >= 1);
+      
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {
           array[i] = i;

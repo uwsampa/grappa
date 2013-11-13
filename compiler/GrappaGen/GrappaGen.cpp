@@ -35,10 +35,12 @@ using namespace llvm;
 
 namespace {
   
-#define dump_var(dumpee) \
-    errs() << #dumpee << ": "; \
+#define dump_var_l(before, dumpee, after) \
+    errs() << before << #dumpee << ": "; \
     dumpee->dump(); \
-    errs() << "\n"
+    errs() << after
+
+#define dump_var(dumpee) dump_var_l("", dumpee, "\n")
   
   static const int GLOBAL_SPACE = 100;
   
@@ -120,7 +122,7 @@ namespace {
   struct GrappaGen : public FunctionPass {
     static char ID;
     
-    Constant *get_fn, *put_fn, *read_long_fn;
+    Constant *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn;
     
     Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
     
@@ -195,35 +197,92 @@ namespace {
       bool changed = false;
       // errs() << "processing fn: " << F.getName() << "\n";
       
-      std::vector<LoadInst*> global_loads;
-      std::vector<StoreInst*> global_stores;
+      std::multiset<LoadInst*> global_loads;
+      std::multiset<StoreInst*> global_stores;
+      
+      struct FetchAdd {
+        LoadInst *ld;
+        StoreInst *store;
+        Value *inc;
+      };
+      std::vector<FetchAdd> fetchadds;
       
       for (auto& bb : F) {
+        
+        // look for fetch_add opportunity
+        std::map<Value*,LoadInst*> target_lds;
+        std::map<Value*,Value*> target_increments;
+        
         for (auto& inst : bb) {
           switch ( inst.getOpcode() ) {
             
             case Instruction::Load: {
-              auto orig_ld = cast<LoadInst>(&inst);
-              if (orig_ld->getPointerAddressSpace() == GLOBAL_SPACE) {
-                global_loads.push_back(orig_ld);
+              auto& ld = *cast<LoadInst>(&inst);
+              if (ld.getPointerAddressSpace() == GLOBAL_SPACE) {
+                if (ld.getPointerOperand()->getType()->getPointerElementType() == i64_ty) {
+                  target_lds[ld.getPointerOperand()] = &ld;
+                  target_increments[&ld] = nullptr;
+                }
+                
+                global_loads.insert(&ld);
                 changed = true;
               }
               break;
             }
             
             case Instruction::Store: {
-              auto orig_store = cast<StoreInst>(&inst);
-              if (orig_store->getPointerAddressSpace() == GLOBAL_SPACE) {
-                global_stores.push_back(orig_store);
+              auto store = cast<StoreInst>(&inst);
+              if (store->getPointerAddressSpace() == GLOBAL_SPACE) {
+                
+                auto ptr = store->getPointerOperand();
+                if (target_lds.count(ptr) > 0) {
+                  errs() << "target_lds\n";
+                  auto ld = target_lds[ptr];
+                  auto inc = target_increments[ld];
+                  if (inc != nullptr) {
+                    errs() << "found fetch_add:\n";
+                    dump_var_l("  ", ptr, "");
+                    dump_var_l("  ", inc, "");
+                    dump_var_l("  ", store, "");
+                    dump_var_l("  ", ld, "");
+                    errs() << "\n";
+                    fetchadds.emplace_back( FetchAdd{ld, store, inc} );
+                    global_loads.erase(ld);
+                  } else {
+                    global_stores.insert(store);
+                  }
+                } else {
+                  global_stores.insert(store);
+                }
               }
               break;
             }
             
+            case Instruction::Add: {
+              auto& o = *cast<BinaryOperator>(&inst);
+              if (target_increments.count(o.getOperand(0))) {
+                target_increments[o.getOperand(0)] = o.getOperand(1);
+              } else if (target_increments.count(o.getOperand(1))) {
+                target_increments[o.getOperand(1)] = o.getOperand(0);
+              }
+              break;
+            }
           }
         }
       }
       
-      for (auto* inst : global_loads) { replaceWithRemoteLoad(inst); }
+      for (auto& fa : fetchadds) {
+        Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
+        auto f = CallInst::Create(fetchadd_i64_fn, args, "", fa.ld);
+        myReplaceInstWithInst(fa.ld, f);
+        // leave add instruction there (in case its result is used)
+        fa.store->removeFromParent();
+        ir_comment(f, "grappa.fetchadd", "");
+      }
+      
+      for (auto* inst : global_loads) {
+        replaceWithRemoteLoad(inst);
+      }
       for (auto* inst : global_stores) { replaceWithRemoteStore(inst); }
       
       return changed;
@@ -239,6 +298,7 @@ namespace {
       get_fn = getFunctionSafe(module, "grappa_get");
       put_fn = getFunctionSafe(module, "grappa_put");
       read_long_fn = getFunctionSafe(module, "grappa_read_long");
+      fetchadd_i64_fn = getFunctionSafe(module, "grappa_fetchadd_i64");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
