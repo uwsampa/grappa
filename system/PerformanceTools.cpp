@@ -80,6 +80,7 @@ int Grappa_profile_handler( void * arg ) {
 #ifdef STATS_BLOB
   return 0; // don't take profiling sample
 #endif
+  return 0;
 }
 
 void Grappa_reset_stats();

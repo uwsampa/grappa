@@ -255,8 +255,8 @@ extern void gasnetc_initbufs(void) {
   #endif
   if (tport_queue == NULL) gasneti_fatalerror("elan_gallocQueue() failed");
 
-  GASNETI_TRACE_PRINTF(D,("TPORT queue: main="GASNETI_LADDRFMT
-                                     "  elan="GASNETI_LADDRFMT,
+  GASNETI_TRACE_PRINTF(D,("TPORT queue: main=" GASNETI_LADDRFMT 
+                                     "  elan=" GASNETI_LADDRFMT ,
                                      GASNETI_LADDRSTR(tport_queue), 
                                      GASNETI_LADDRSTR(elan_main2elan(STATE(),tport_queue))));
 

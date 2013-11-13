@@ -356,7 +356,6 @@ namespace Grappa {
           result += inc;
           participant_count--;
           increment -= inc;   // for validation purposes (could just set to 0)
-          CHECK( increment >= 0 );
           if ( participant_count == 0 ) {
             CHECK( increment == 0 ) << "increment = " << increment << " even though all participants are done";
             set_ready();

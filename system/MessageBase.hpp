@@ -120,6 +120,7 @@ namespace Grappa {
       inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
         DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
         is_delivered_ = true;
+        return p + max_size;
       }
 
 
