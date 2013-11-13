@@ -96,7 +96,6 @@ void legacy_profiling_sample() {
   cache_stats.profiling_sample();
   incoherent_acquirer_stats.profiling_sample();
   incoherent_releaser_stats.profiling_sample();
-  Grappa::Statistics::steal_queue_stats.profiling_sample();
   // Grappa::Statistics::global_queue_stats.profiling_sample();
 
   // print user-registered stats
