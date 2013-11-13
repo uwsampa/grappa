@@ -18,5 +18,5 @@ set(SOURCES
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
 add_definitions(-Drestrict=__restrict__ -DGRAPH_GENERATOR_GRAPPA)
 
-add_grappa_application(iso_path.exe ${SOURCES} iso_path.cpp)
-target_link_libraries(iso_path.exe generator)
+add_grappa_application(isopath.exe ${SOURCES} isopath.cpp)
+target_link_libraries(isopath.exe generator)
