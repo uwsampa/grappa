@@ -25,7 +25,9 @@ namespace Grappa {
   template<typename T>
     class CallbackStatistic : public impl::StatisticBase {
       private:
-        std::function<T(void)> f_;
+        typedef T (*CallbackFn)(void);
+
+        CallbackFn f_;
 
         // to support imperative merging
         // this statistic goes into value mode
@@ -41,7 +43,7 @@ namespace Grappa {
 #endif
 
       public:
-    CallbackStatistic(const char * name, std::function<T(void)> f, bool reg_new = true): f_(f), is_merged_(false), impl::StatisticBase(name, reg_new) {
+    CallbackStatistic(const char * name, CallbackFn f, bool reg_new = true): f_(f), is_merged_(false), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (CallbackStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
