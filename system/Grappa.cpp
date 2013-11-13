@@ -259,7 +259,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
-
+  
+  CHECK( global_communicator.locale_cores() <= MAX_CORES_PER_LOCALE );
+  
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
