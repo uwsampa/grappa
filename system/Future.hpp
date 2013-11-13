@@ -265,7 +265,7 @@ class Future {
             DVLOG(4) << "Future(touch) FID "<< this->getId() << " address:"<< (void*)this;
             
             // start if not started
-            if ( Grappa_delegate_fetch_and_add_word( make_global(&started), 1 )==0 ) {
+            if ( Grappa::delegate::fetch_and_add( make_global(&started), 1 )==0 ) {
                 DVLOG(5) << CURRENT_THREAD->id << " gets to touch-go " << getId();
            
                 // call the user task

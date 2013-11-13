@@ -585,15 +585,15 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 ///   int amount;
 /// };
 /// 
-/// template <typename T>
-/// void StealQueue<T>::reclaimSpace() {
-///   // reclaim space if the queue is empty
-///   // and there is no pending transfer below 'bottom' (workshare or pending global q pull)
-///   if ( depth() == 0 && !pendingWorkShare && numPendingElements == 0 ) {
-///     DVLOG(5) << "reclaiming space top=" << top << ", bottom=" << bottom;
-///     mkEmpty();
-///   }
-/// }
+template <typename T>
+void StealQueue<T>::reclaimSpace() {
+  // reclaim space if the queue is empty
+  // and there is no pending transfer below 'bottom' (workshare or pending global q pull)
+  if ( depth() == 0 && !pendingWorkShare && numPendingElements == 0 ) {
+    DVLOG(5) << "reclaiming space top=" << top << ", bottom=" << bottom;
+    mkEmpty();
+  }
+}
 /// 
 /// template <typename T>
 /// void StealQueue<T>::workShareReplyFewer( int amountDenied ) {

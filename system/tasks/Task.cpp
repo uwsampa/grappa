@@ -57,10 +57,10 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
   } else if ( FLAGS_load_balance.compare( "steal" ) == 0 ) {
     doSteal = true; doShare = false; doGQ = false;
   } else if ( FLAGS_load_balance.compare( "share" ) == 0 ) {
-    CHECK( false ) << "--load_balance=share currently unsupported; see tasks/StealQueue.hpp"
+    CHECK( false ) << "--load_balance=share currently unsupported; see tasks/StealQueue.hpp";
     doSteal = false; doShare = true; doGQ = false;
   } else if ( FLAGS_load_balance.compare( "gq" ) == 0 ) {
-    CHECK( false ) << "--load_balance=gq currently unsupported; see tasks/StealQueue.hpp"
+    CHECK( false ) << "--load_balance=gq currently unsupported; see tasks/StealQueue.hpp";
     doSteal = false; doShare = false; doGQ = true;
   } else {
     CHECK( false ) << "load_balance=" << FLAGS_load_balance << "; must be {none, steal, share, gq}";
