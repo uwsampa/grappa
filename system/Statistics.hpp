@@ -79,6 +79,6 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBa
 
 /// Define a callback stat; in a constructor
 #define GRAPPA_DEFINE_CALLBACK_STAT(type, name, callback) \
-  CallbackStatistic<type> name(#name, callback) 
+  Grappa::CallbackStatistic<type> name(#name, callback) 
 
 /// @}

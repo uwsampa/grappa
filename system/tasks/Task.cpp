@@ -383,13 +383,6 @@ void TaskManager::finish() {
 
 
 /* metrics */
-void TaskManager::profiling_sample() {
-#ifdef VTRACE_SAMPLED
-  VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
-  VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, publicQ.depth() );
-#endif
-}
-
 
 void TaskManagerStatistics::record_successful_steal_session() {
   session_steal_successes_++;
