@@ -58,7 +58,7 @@ GRAPPA_DEFINE_CALLBACK_STAT(uint64_t, public_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPublicTasks();
     });
 
-GRAPPA_DEFINE_CALLBACK_STAT(uint64_t, private_queue_size, [this]() {
+GRAPPA_DEFINE_CALLBACK_STAT(uint64_t, private_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPrivateTasks();
     });
 
