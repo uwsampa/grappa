@@ -92,7 +92,6 @@ int64_t global_bytes_per_locale = 0;
 void legacy_profiling_sample() {
   global_aggregator.stats.profiling_sample();
   global_communicator.stats.profiling_sample();
-  global_task_manager.stats.profiling_sample();
   global_scheduler.stats.profiling_sample();
   cache_stats.profiling_sample();
   incoherent_acquirer_stats.profiling_sample();

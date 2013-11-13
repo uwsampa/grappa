@@ -23,6 +23,35 @@ DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of ta
 /// local queue for being part of global task pool
 #define publicQ StealQueue<Task>::steal_queue
 
+/* metrics */
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, single_steal_successes_, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, steal_amt_, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, single_steal_fails_, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, session_steal_successes_, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, session_steal_fails_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_successes_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_fails_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, releases_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, public_tasks_dequeued_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, private_tasks_dequeued_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, remote_private_tasks_spawned_,0);
+
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_pushes_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_push_attempts_,0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, globalq_elements_pushed_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_pulls_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_pull_attempts_,0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, globalq_elements_pulled_,0);
+
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, workshare_tests_,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, workshares_initiated_,0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_received_elements_,0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_pushed_elements_,0);
+
+// number of calls to sample() 
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t, sample_calls,0);
+
+
 
 namespace Grappa {
   namespace impl {
@@ -45,7 +74,6 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
   , gqPushLock( true )
   , gqPullLock( true )
   , nextVictimIndex( 0 )
-    , stats( this )
 {
 }
 
@@ -130,7 +158,7 @@ inline void TaskManager::tryPushToGlobal() {
   ///     DVLOG(3) << "Decided to push gq";
   ///     uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
   ///     bool push_success = publicQ.push_global( push_amount );
-  ///     stats.record_globalq_push( push_amount, push_success );
+  ///     record_globalq_push( push_amount, push_success );
   ///   }
   ///   gqPushLock = true;
   /// }
@@ -166,7 +194,7 @@ inline void TaskManager::checkWorkShare() {
   /// //uncomment if workshare reimplemented
   /// if ( doShare && wshareLock ) {
   ///   wshareLock = false;
-  ///   stats.record_workshare_test( );
+  ///   record_workshare_test( );
   ///   uint64_t local_size = publicQ.depth();
   ///   double divisor = local_size/FLAGS_ws_coeff;
   ///   if (divisor==0) divisor = 1.0;
@@ -177,7 +205,7 @@ inline void TaskManager::checkWorkShare() {
   ///     uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
   ///     int64_t numChange = publicQ.workShare( target, amount );
   ///     DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
-  ///     stats.record_workshare( numChange );
+  ///     record_workshare( numChange );
   ///   }
   ///   wshareLock = true;
   /// }
@@ -192,7 +220,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
   if ( privateHasEle() ) {
     *result = privateQ.front();
     privateQ.pop_front();
-    stats.record_private_task_dequeue();
+    record_private_task_dequeue();
     return true;
   } else {
     checkWorkShare();
@@ -201,7 +229,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
       DVLOG(5) << "consuming local task";
       *result = publicQ.peek();
       publicQ.pop( );
-      stats.record_public_task_dequeue();
+      record_public_task_dequeue();
       return true;
     } else {
       return false;
@@ -235,8 +263,8 @@ inline void TaskManager::checkPull() {
 
         goodSteal = publicQ.steal_locally(v, chunkSize);
 
-        if (goodSteal) { stats.record_successful_steal( goodSteal ); }
-        else { stats.record_failed_steal(); }
+        if (goodSteal) { record_successful_steal( goodSteal ); }
+        else { record_failed_steal(); }
       }
 
       // if finished because succeeded in stealing
@@ -244,14 +272,14 @@ inline void TaskManager::checkPull() {
         VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
           << " from Node" << victimId;
         VLOG(5) << *this; 
-        stats.record_successful_steal_session();
+        record_successful_steal_session();
 
         // publicQ should have had some elements in it
         // at some point after successful steal
       } else {
         VLOG(5) << CURRENT_THREAD << " failed to steal";
 
-        stats.record_failed_steal_session();
+        record_failed_steal_session();
 
       }
 
@@ -272,9 +300,9 @@ inline void TaskManager::checkPull() {
   //     // blocking
   //     gqPullLock = false;
   // 
-  //     stats.record_globalq_pull_start( );  // record the start separately because pull_global() may block CURRENT_THREAD indefinitely
+  //     record_globalq_pull_start( );  // record the start separately because pull_global() may block CURRENT_THREAD indefinitely
   //     uint64_t num_received = publicQ.pull_global(); 
-  //     stats.record_globalq_pull( num_received ); 
+  //     record_globalq_pull( num_received ); 
   // 
   //     gqPullLock = true;
   //   }
@@ -334,158 +362,6 @@ void TaskManager::signal_termination( ) {
 void TaskManager::finish() {
 }
 
-///
-/// Stats
-///
-
-/// Print statistics.
-void TaskManager::dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
-  stats.dump( o, terminator );
-}
-
-/// Print statistics in dictionary format.
-/// { name1:value1, name2:value2, ... }
-#include "DictOut.hpp"
-void TaskManager::TaskStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-  DictOut dout;
-  DICT_ADD(dout, session_steal_successes_);
-  DICT_ADD(dout, session_steal_fails_);
-  DICT_ADD(dout, single_steal_successes_);
-  DICT_ADD_STAT_TOTAL(dout, steal_amt_);
-  DICT_ADD(dout, single_steal_fails_);
-  DICT_ADD(dout, acquire_successes_);
-  DICT_ADD(dout, acquire_fails_);
-  DICT_ADD(dout, releases_);
-  DICT_ADD(dout, public_tasks_dequeued_);
-  DICT_ADD(dout, private_tasks_dequeued_);
-  DICT_ADD(dout, remote_private_tasks_spawned_);
-
-  DICT_ADD( dout, globalq_pushes_ );
-  DICT_ADD( dout, globalq_push_attempts_ );
-  DICT_ADD_STAT_TOTAL( dout, globalq_elements_pushed_ );
-  DICT_ADD( dout, globalq_pulls_ );
-  DICT_ADD( dout, globalq_pull_attempts_ );
-  DICT_ADD_STAT_TOTAL( dout, globalq_elements_pulled_ );
-
-  DICT_ADD( dout, workshare_tests_ );
-  DICT_ADD( dout, workshares_initiated_ );
-  DICT_ADD_STAT_TOTAL( dout, workshares_initiated_received_elements_ );
-  DICT_ADD_STAT_TOTAL( dout, workshares_initiated_pushed_elements_ );
-
-  o << "   \"TaskStatistics\": " << dout.toString() << terminator << std::endl;
-}
-
-void TaskManager::TaskStatistics::sample() {
-  GRAPPA_EVENT(privateQ_size_ev,       "privateQ size sample",  SAMPLE_RATE, task_manager, tm->privateQ.size());
-  GRAPPA_EVENT(publicQ_size_ev,  "publicQ size sample",  SAMPLE_RATE, task_manager, publicQ.depth());
-
-#ifdef VTRACE
-  //VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
-  //VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, tm->publicQ.depth() );
-#endif
-  //    sample_calls++;
-  //    /* todo: avgs */
-  //
-  //#ifdef GRAPPA_TRACE
-  //    if ((sample_calls % 1) == 0) {
-  //      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
-  //      TAU_REGISTER_EVENT(publicQ_size_ev, "publicQ size sample");
-  //      
-  //      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
-  //      TAU_EVENT(publicQ_size_ev, tm->publicQ size);
-  //    }
-  //#endif
-}
-
-/// Take a sample of statistics and other state.
-void TaskManager::TaskStatistics::profiling_sample() {
-#ifdef VTRACE_SAMPLED
-  VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
-  VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, publicQ.depth() );
-  VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
-  VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
-  VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
-  VT_COUNT_UNSIGNED_VAL( total_steal_tasks_vt_ev, steal_amt_.getTotal());
-  VT_COUNT_UNSIGNED_VAL( single_steal_fails_vt_ev, single_steal_fails_);
-  VT_COUNT_UNSIGNED_VAL( acquire_successes_vt_ev, acquire_successes_);
-  VT_COUNT_UNSIGNED_VAL( acquire_fails_vt_ev, acquire_fails_);
-  VT_COUNT_UNSIGNED_VAL( releases_vt_ev, releases_);
-  VT_COUNT_UNSIGNED_VAL( public_tasks_dequeued_vt_ev, public_tasks_dequeued_);
-  VT_COUNT_UNSIGNED_VAL( private_tasks_dequeued_vt_ev, private_tasks_dequeued_);
-  VT_COUNT_UNSIGNED_VAL( remote_private_tasks_spawned_vt_ev, remote_private_tasks_spawned_);
-
-  VT_COUNT_UNSIGNED_VAL( globalq_pushes_vt_ev, globalq_pushes_ );
-  VT_COUNT_UNSIGNED_VAL( globalq_push_attempts_vt_ev, globalq_push_attempts_ );
-  VT_COUNT_UNSIGNED_VAL( globalq_elements_pushed_vt_ev, globalq_elements_pushed_.getTotal() );
-  VT_COUNT_UNSIGNED_VAL( globalq_pulls_vt_ev, globalq_pulls_ );
-  VT_COUNT_UNSIGNED_VAL( globalq_pull_attempts_vt_ev, globalq_pull_attempts_ );
-  VT_COUNT_UNSIGNED_VAL( globalq_elements_pulled_vt_ev, globalq_elements_pulled_.getTotal() );
-
-  VT_COUNT_UNSIGNED_VAL( shares_initiated_vt_ev, workshares_initiated_ );
-  VT_COUNT_UNSIGNED_VAL( shares_received_elements_vt_ev, workshares_initiated_received_elements_.getTotal() );
-  VT_COUNT_UNSIGNED_VAL( shares_pushed_elements_vt_ev, workshares_initiated_pushed_elements_.getTotal() );
-#endif
-}
-
-void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * other) {
-  session_steal_successes_ += other->session_steal_successes_;
-  session_steal_fails_ += other->session_steal_fails_;
-  single_steal_successes_ += other->single_steal_successes_;
-  MERGE_STAT_TOTAL( steal_amt_, other );
-  single_steal_fails_ += other->single_steal_fails_;
-  acquire_successes_ += other->acquire_successes_;
-  acquire_fails_ += other->acquire_fails_;
-  releases_ += other->releases_;
-  public_tasks_dequeued_ += other->public_tasks_dequeued_;
-  private_tasks_dequeued_ += other->private_tasks_dequeued_;
-  remote_private_tasks_spawned_ += other->remote_private_tasks_spawned_;
-
-  globalq_pushes_                        += other->globalq_pushes_;
-  globalq_push_attempts_                 += other->globalq_push_attempts_;
-  MERGE_STAT_TOTAL( globalq_elements_pushed_, other );
-  globalq_pulls_                        += other->globalq_pulls_;
-  globalq_pull_attempts_                 += other->globalq_pull_attempts_;
-  MERGE_STAT_TOTAL( globalq_elements_pulled_, other );
-
-  workshare_tests_ += other->workshare_tests_;
-  workshares_initiated_ += other->workshares_initiated_;
-  MERGE_STAT_TOTAL( workshares_initiated_received_elements_, other );
-
-  MERGE_STAT_TOTAL( workshares_initiated_pushed_elements_, other );  
-}
-
-
-void TaskManager::reset_stats() {
-  stats.reset();
-}
-
-void TaskManager::TaskStatistics::reset() {
-  single_steal_successes_ =0;
-  steal_amt_.reset();
-  single_steal_fails_ =0;
-  session_steal_successes_ =0;
-  session_steal_fails_ =0;
-  acquire_successes_ =0;
-  acquire_fails_ =0;
-  releases_ =0;
-  public_tasks_dequeued_ =0;
-  private_tasks_dequeued_ =0;
-  remote_private_tasks_spawned_ =0;
-
-  globalq_pushes_ = 0;
-  globalq_push_attempts_ = 0;
-  globalq_elements_pushed_.reset();
-  globalq_pulls_ = 0;
-  globalq_pull_attempts_ = 0;
-  globalq_elements_pulled_.reset();
-
-  workshare_tests_ = 0;
-  workshares_initiated_ = 0;
-  workshares_initiated_received_elements_.reset();
-  workshares_initiated_pushed_elements_.reset();
-
-  sample_calls =0;
-}
 
 } // impl
 } // Grappa

@@ -20,6 +20,36 @@
 #endif
 
 
+/* metrics */
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, single_steal_successes_);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, steal_amt_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, single_steal_fails_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, session_steal_successes_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, session_steal_fails_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, acquire_successes_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, acquire_fails_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, releases_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, public_tasks_dequeued_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, private_tasks_dequeued_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, remote_private_tasks_spawned_);
+
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, globalq_pushes_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, globalq_push_attempts_);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, globalq_elements_pushed_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, globalq_pulls_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, globalq_pull_attempts_);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, globalq_elements_pulled_);
+
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, workshare_tests_);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, workshares_initiated_);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_received_elements_);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_pushed_elements_);
+
+// number of calls to sample() 
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, sample_calls);
+
+
+
 namespace Grappa {
   namespace impl {
 
@@ -178,106 +208,6 @@ class TaskManager {
     std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const;
 
   public:
-    class TaskStatistics {
-      private:
-        uint64_t single_steal_successes_;
-        TotalStatistic steal_amt_;
-        uint64_t single_steal_fails_;
-        uint64_t session_steal_successes_;
-        uint64_t session_steal_fails_;
-        uint64_t acquire_successes_;
-        uint64_t acquire_fails_;
-        uint64_t releases_;
-        uint64_t public_tasks_dequeued_;
-        uint64_t private_tasks_dequeued_;
-        uint64_t remote_private_tasks_spawned_;
-
-        uint64_t globalq_pushes_;
-        uint64_t globalq_push_attempts_;
-        TotalStatistic globalq_elements_pushed_;
-        uint64_t globalq_pulls_;
-        uint64_t globalq_pull_attempts_;
-        TotalStatistic globalq_elements_pulled_;
-
-        uint64_t workshare_tests_;
-        uint64_t workshares_initiated_;
-        TotalStatistic workshares_initiated_received_elements_;
-        TotalStatistic workshares_initiated_pushed_elements_;
-
-        // number of calls to sample() 
-        uint64_t sample_calls;
-
-#ifdef VTRACE_SAMPLED
-        unsigned task_manager_vt_grp;
-        unsigned privateQ_size_vt_ev;
-        unsigned publicQ_size_vt_ev;
-        unsigned session_steal_successes_vt_ev;
-        unsigned session_steal_fails_vt_ev;
-        unsigned single_steal_successes_vt_ev;
-        unsigned total_steal_tasks_vt_ev;
-        unsigned single_steal_fails_vt_ev;
-        unsigned acquire_successes_vt_ev;
-        unsigned acquire_fails_vt_ev;
-        unsigned releases_vt_ev;
-        unsigned public_tasks_dequeued_vt_ev;
-        unsigned private_tasks_dequeued_vt_ev;
-        unsigned remote_private_tasks_spawned_vt_ev;
-
-        unsigned globalq_pushes_vt_ev;
-        unsigned globalq_push_attempts_vt_ev;
-        unsigned globalq_elements_pushed_vt_ev;
-        unsigned globalq_pulls_vt_ev;
-        unsigned globalq_pull_attempts_vt_ev;
-        unsigned globalq_elements_pulled_vt_ev;
-
-        unsigned shares_initiated_vt_ev;
-        unsigned shares_received_elements_vt_ev;
-        unsigned shares_pushed_elements_vt_ev;
-#endif
-
-        TaskManager * tm;
-
-      public:
-        TaskStatistics() { } // only for declarations that will be copy-assigned to
-
-        TaskStatistics(TaskManager * task_manager)
-          : steal_amt_ ()
-            , globalq_elements_pushed_ ()
-            , workshares_initiated_received_elements_ ()
-            , workshares_initiated_pushed_elements_ ()
-#ifdef VTRACE_SAMPLED
-            , task_manager_vt_grp( VT_COUNT_GROUP_DEF( "Task manager" ) )
-              , privateQ_size_vt_ev( VT_COUNT_DEF( "privateQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , publicQ_size_vt_ev( VT_COUNT_DEF( "publicQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , session_steal_successes_vt_ev( VT_COUNT_DEF( "session_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , session_steal_fails_vt_ev( VT_COUNT_DEF( "session_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , single_steal_successes_vt_ev( VT_COUNT_DEF( "single_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , total_steal_tasks_vt_ev( VT_COUNT_DEF( "total_steal_tasks", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , single_steal_fails_vt_ev( VT_COUNT_DEF( "single_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , acquire_successes_vt_ev( VT_COUNT_DEF( "acquire_successes", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , acquire_fails_vt_ev( VT_COUNT_DEF( "acquire_fails", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , releases_vt_ev( VT_COUNT_DEF( "releases", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , public_tasks_dequeued_vt_ev( VT_COUNT_DEF( "public_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , private_tasks_dequeued_vt_ev( VT_COUNT_DEF( "private_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , remote_private_tasks_spawned_vt_ev ( VT_COUNT_DEF( "remote_private_tasks_spawned", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-
-              , globalq_pushes_vt_ev( VT_COUNT_DEF( "globalq pushes", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_push_attempts_vt_ev( VT_COUNT_DEF( "globalq push attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_elements_pushed_vt_ev( VT_COUNT_DEF( "globalq elements pushed", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_pulls_vt_ev( VT_COUNT_DEF( "globalq pulls", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_pull_attempts_vt_ev( VT_COUNT_DEF( "globalq pull attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_elements_pulled_vt_ev( VT_COUNT_DEF( "globalq elements pulled", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-
-              , shares_initiated_vt_ev( VT_COUNT_DEF( "workshares initiated", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , shares_received_elements_vt_ev( VT_COUNT_DEF( "workshares received elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , shares_pushed_elements_vt_ev( VT_COUNT_DEF( "workshares pushed elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-#endif
-
-              , tm( task_manager )
-              { reset(); }
-
-        void sample();
-        void profiling_sample();
 
         void record_successful_steal_session() {
           session_steal_successes_++;
@@ -289,7 +219,7 @@ class TaskManager {
 
         void record_successful_steal( int64_t amount ) {
           single_steal_successes_++;
-          steal_amt_.update( amount );
+          steal_amt_+= amount;
         }
 
         void record_failed_steal() {
@@ -319,7 +249,7 @@ class TaskManager {
         void record_globalq_push( uint64_t amount, bool success ) {
           globalq_push_attempts_ += 1;
           if (success) {
-            globalq_elements_pushed_.update(amount);
+            globalq_elements_pushed_ += amount;
             globalq_pushes_ += 1;
           }
         }
@@ -330,7 +260,7 @@ class TaskManager {
 
         void record_globalq_pull( uint64_t amount ) {
           if ( amount > 0 ) {
-            globalq_elements_pulled_.update(amount);
+            globalq_elements_pulled_ += amount;
             globalq_pulls_ += 1;
           }
         }
@@ -346,19 +276,11 @@ class TaskManager {
         void record_workshare( int64_t change ) {
           workshares_initiated_ += 1;
           if ( change < 0 ) {
-            workshares_initiated_pushed_elements_.update((-change));
+            workshares_initiated_pushed_elements_+= (-change);
           } else {
-            workshares_initiated_received_elements_.update( change );
+            workshares_initiated_received_elements_ += change;
           }
         }
-
-        void dump( std::ostream& o, const char * terminator );
-        void merge(const TaskStatistics * other);
-        void reset();
-    };
-
-    /// task statistics object
-    TaskStatistics stats;
 
     //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
     TaskManager();
@@ -392,10 +314,6 @@ class TaskManager {
     bool available ( ) const;
     bool local_available ( ) const;
 
-    void dump_stats( std::ostream& o, const char * terminator );
-    void dump_stats();
-    void merge_stats();
-    void reset_stats();
     void finish();
 
     friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
@@ -477,7 +395,6 @@ template < typename A0, typename A1, typename A2 >
 inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_front( newtask );
-  stats.record_remote_private_task_spawn();
   /// note from cbarrier implementation
   /*
    * local cancel cbarrier
