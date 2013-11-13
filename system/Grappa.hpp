@@ -52,8 +52,8 @@ extern Thread * master_thread;
 
 extern Node * node_neighbors;
 
-
 void Grappa_init( int * argc_p, char ** argv_p[], size_t size = -1 );
+
 void Grappa_activate();
 
 bool Grappa_done();
@@ -146,7 +146,7 @@ static inline void Grappa_barrier_commsafe() {
     }
 }
 
-void Grappa_barrier_suspending();
+GRAPPA_DEPRECATED void Grappa_barrier_suspending();
 
 
 

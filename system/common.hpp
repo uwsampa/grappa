@@ -26,6 +26,9 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
+/// Use to deprecate old APIs
+#define GRAPPA_DEPRECATED __attribute__((deprecated))
+
 namespace Grappa {
 
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
