@@ -123,7 +123,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
         auto& src_v = *(g->vs+sv).pointer();
         for (auto& ev : src_v.adj_iter()) {
           if (FLAGS_cas_flatten == false || combiner->not_done_before(g->vs+ev)) {
-            delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
+            delegate::call_async<&joiner>((g->vs+ev).core(), [sv,ev]{
               auto& end_v = *(g->vs+ev).pointer();
               if (end_v.parent() == -1) {
                 end_v.parent(sv);       // set as parent
