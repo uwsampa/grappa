@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -i
+#!/usr/bin/env ruby
 ##########################################################
 # Script that post-processes LLVM IR to help us debug it
 # 
