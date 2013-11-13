@@ -852,8 +852,8 @@ void RDMAAggregator::draw_routing_graph() {
       };
 
       // deaggregate messages to send
-      Grappa::Message< ReceiveBuffer > msgs[ Grappa::locale_cores() ];
-
+      Grappa::Message< ReceiveBuffer > msgs[ MAX_CORES_PER_LOCALE ];
+      
       // index array from buffer
       uint16_t * counts = buf->get_counts();
       char * current_buf = buf->get_payload();
@@ -872,7 +872,7 @@ void RDMAAggregator::draw_routing_graph() {
           msgs[locale_core]->size = counts[locale_core];
           //msgs[locale_core]->sequence_number = sequence_number;
           //msgs[locale_core]->buf_base = buf;
-
+          
           if( locale_core != Grappa::locale_mycore() ) {
             DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf 
                      << " enqueuing " << counts[locale_core] << " bytes to locale_core " << locale_core << " core " << locale_core + Grappa::mylocale() * Grappa::locale_cores() << " my locale_core " << Grappa::locale_mycore() << " my core " << Grappa::mycore();
@@ -1260,16 +1260,16 @@ void RDMAAggregator::draw_routing_graph() {
                  << " for locale " << locale << " core " << current_dest_core;
       }
 
-      if( aggregated_size >= 0 ) {
+      // if( aggregated_size >= 0 ) {
         DVLOG(4) << __func__ << "/" << sequence_number << ": " 
                  << "Ready to send buffer " << b << " size " << aggregated_size
                  << " to locale " << locale << " core " << dest_core;
-      } else {
-        DVLOG(4) << __func__ << "/" << sequence_number << ": " 
-               << "Nothing to send in buffer " << b << " size " << aggregated_size
-               << " to locale " << locale << " core " << dest_core;
-        break;
-      }
+      // } else {
+      //   DVLOG(4) << __func__ << "/" << sequence_number << ": " 
+      //          << "Nothing to send in buffer " << b << " size " << aggregated_size
+      //          << " to locale " << locale << " core " << dest_core;
+      //   break;
+      // }
 
       DVLOG(3) << __func__ << "/" << sequence_number << ": " << "Sending buffer " << b << " sequence " << sequence_number
                << " size " << aggregated_size

@@ -32,7 +32,9 @@
 
 #include "common.hpp"
 
+#pragma GCC system_header
 #include <gasnet.h>
+#pragma GCC system_header
 #include <gasnet_tools.h>
 #include "gasnet_helpers.h"
 
@@ -51,6 +53,8 @@ typedef int16_t Locale;
 
 /// @deprecated
 typedef Core Node;
+
+const static int16_t MAX_CORES_PER_LOCALE = 64;
 
 /// Maximum size of GASNet medium active message payload. 
 ///

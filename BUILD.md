@@ -39,8 +39,7 @@ The `configure` script is used to create "build/*" subdirectories and run CMake 
                                        Default: Make.
                                        Can specify multiple with commas.
         --mode=[Release]|Debug[,*]   Build mode. Default: Release (with debug symbols)
-        --cc=path/to/c/compiler      Use alternative C compiler.
-        --cxx=path/to/c++/compiler   Alternative C++ compiler (must match --cc choice)
+        --cc=path/to/c/compiler      Use alternative C compiler. (finds corresponding cxx)
 
 To build, after calling `configure`, change into the generated directory, and use the build tool selected (e.g. `make` for make), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
@@ -118,8 +117,7 @@ First, you must select the distcc proxy for gcc-4.7.2 that has been set up. If y
 
     cd <grappa root directory>
     rm -rf build/Make+Release
-    ./configure --gen=Make --mode=Release --cc=/sampa/share/distcc/gcc-4.7.2/bin/gcc --cxx=/sampa/share/distcc/gcc-4.7.2/bin/g++
-    cd build/Make+Release
+    ./configure --gen=Make --mode=Release --cc=/sampa/share/distcc/gcc-4.7.2/bin/gcc
 
 Before building, you must set up a Slurm allocation and launch distcc daemons. Best workflow is to launch 'make' with the slurm allocation, using our helper script:
 
@@ -128,9 +126,9 @@ Before building, you must set up a Slurm allocation and launch distcc daemons. B
     
     # or to control the allocation (such as number of nodes),
     # invoke the salloc job with make manually:
-    salloc -N8 bin/distcc.sh make -j
+    salloc -N8 bin/distcc.sh make -j <target>
 
-Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds:
+Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds or if distcc daemons are not loading correctly using the distcc_make option above.
 
     salloc -N8 <grappa-dir>/bin/distcc.sh bash --login
     cd build/Make+Release
@@ -139,15 +137,4 @@ Another alternative is to launch a shell to hold onto an allocation. This may be
     # whenever finished with builds, relinquish allocation:
     exit
 
-Or use the helper script:
-
-    # equivalent to 'salloc -N8 bin/distcc.sh bash --login'
-    bin/distcc_bash
-
-This will relinquish the Slurm job immediately after the command returns.
-
-**TODO:** come up with way to get distcc allocation without using a second shell (use sbatch to get a persistent job...)
-
-    sbatch --input=/dev/random bin/distcc.sh
-    # get nodelist somehow...
 

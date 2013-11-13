@@ -322,7 +322,7 @@
 	 * See gasnet_asm.h and bug 2149 for info. */
 	#define GASNETI_ASM_REGISTER_KEYWORD /* empty */
       #else
-	#define GASNETI_ASM_REGISTER_KEYWORD register
+	#define GASNETI_ASM_REGISTER_KEYWORD
       #endif
 
       #define _gasneti_atomic32_read(p)      ((p)->ctr)

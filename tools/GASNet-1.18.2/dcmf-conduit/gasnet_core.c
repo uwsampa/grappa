@@ -616,7 +616,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_attach_done = 1;
   gasnetc_bootstrapBarrier();
   
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete :"GASNETI_LADDRFMT" size: %lu", GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete :" GASNETI_LADDRFMT " size: %lu", GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
   
   gasneti_auxseg_attach(); /* provide auxseg */
 

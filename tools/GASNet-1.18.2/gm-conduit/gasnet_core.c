@@ -479,7 +479,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 
         #if GASNET_TRACE
 	for (i = 0; i < gasneti_nodes; i++)
-		GASNETI_TRACE_PRINTF(C, ("SEGINFO at %4d ("GASNETI_LADDRFMT", %d)", i,
+		GASNETI_TRACE_PRINTF(C, ("SEGINFO at %4d (" GASNETI_LADDRFMT ", %d)", i,
 		    GASNETI_LADDRSTR(gasneti_seginfo[i].addr), 
 		    (unsigned int) gasneti_seginfo[i].size) );
 	#endif

@@ -24,4 +24,5 @@ add_definitions(
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math")
 
 add_library(generator EXCLUDE_FROM_ALL ${SOURCES})
+set_property(TARGET generator PROPERTY FOLDER "Applications")
 add_dependencies(generator all-tools)
