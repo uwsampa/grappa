@@ -259,7 +259,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
-
+  
+  CHECK( global_communicator.locale_cores() <= MAX_CORES_PER_LOCALE );
+  
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
@@ -393,7 +395,7 @@ void Grappa_activate()
     size_t shpool_sz = FLAGS_shared_pool_max * FLAGS_shared_pool_size;
     double shpool_sz_gb = static_cast<double>(shpool_sz) / (1L<<30);
     size_t free_sz = Grappa::impl::locale_shared_memory.get_free_memory() / Grappa::locale_cores();
-    double free_sz_gb = free_sz / (1L<<30);
+    double free_sz_gb = static_cast<double>(free_sz) / (1L<<30);
     VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  rdma_aggregator: ??\n  shared_message_pool: " << shpool_sz << " (" << shpool_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
   }
   

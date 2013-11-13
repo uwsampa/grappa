@@ -16,8 +16,8 @@ project(Grappa)
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
 
-set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG")
+set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
@@ -123,31 +123,6 @@ if(Boost_FOUND)
   # sets Boost_LIBRARIES correctly
 endif()
 
-if(NOT Boost_FOUND)
-  # Download & build Boost
-  ExternalProject_Add(tool-boost
-    SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
-    PREFIX             ${EXTERN_BUILD_DIR}/boost
-    STAMP_DIR          ${EXTERN_STAMP_DIR}/boost
-    INSTALL_DIR        ${TOOLS_INSTALL_DIR}
-    URL "http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2"
-    # URL_MD5 dbc07ab0254df3dda6300fd737b3f264 
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND
-      ./bootstrap.sh 
-        --with-libraries=filesystem
-        --with-libraries=system
-        --with-libraries=test
-        --with-libraries=random
-        --prefix=<INSTALL_DIR>
-    BUILD_COMMAND
-      ./b2 install --link=static --variant=release --threading=single --runtime-link=static
-    INSTALL_COMMAND ""
-  )
-  set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
-  list(APPEND tool_list tool-boost)
-endif()
-
 ######################################
 # Gasnet
 ######################################
@@ -235,6 +210,19 @@ macro(add_grappa_test name)
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
   list(APPEND GRAPPA_TESTS "check-${base}")
 endmacro(add_grappa_test)
+
+####################
+# find igor scripts
+file(GLOB_RECURSE igor_scripts
+  RELATIVE ${CMAKE_SOURCE_DIR}
+  igor_*
+)
+foreach(script ${igor_scripts})
+  get_filename_component(out_dir "${script}" PATH)
+  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${out_dir})
+  execute_process(COMMAND ln -sf ${CMAKE_SOURCE_DIR}/${script} ${CMAKE_BINARY_DIR}/${script})
+endforeach()
+# message("igor scripts: ${igor_scripts}")
 
 
 # put Grappa system directory on include path for everything following this

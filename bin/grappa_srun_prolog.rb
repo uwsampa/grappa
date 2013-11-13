@@ -1,4 +1,8 @@
 #!/usr/bin/env ruby
+interactive = false
+if ARGV.size > 1 && ARGV[0] == "--"
+  interactive = true
+end
 
 ## in the future, emit a script to execute
 #if __FILE__ == $PROGRAM_NAME
@@ -84,3 +88,6 @@ ENV["OMPI_MCA_mpi_leave_pinned"] = "0"
 s = `ipcs -m | grep $USER | cut -d' '  -f1 | xargs -n1 -r ipcrm -M`
 s = `rm -f /dev/shm/GrappaLocaleSharedMemory`
 
+if interactive
+  exec ARGV[1..-1].join(' ')
+end
