@@ -91,21 +91,21 @@ static Task createTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
 
 class TaskManagerStatistics {
   public:
-    void record_successful_steal_session();
-    void record_failed_steal_session();
-    void record_successful_steal( int64_t amount );
-    void record_failed_steal();
-    void record_successful_acquire();
-    void record_failed_acquire();
-    void record_release();
-    void record_public_task_dequeue();
-    void record_private_task_dequeue();
-    void record_globalq_push( uint64_t amount, bool success );
-    void record_globalq_pull_start( );
-    void record_globalq_pull( uint64_t amount );
-    void record_workshare_test();
-    void record_remote_private_task_spawn();
-    void record_workshare( int64_t change );
+    static void record_successful_steal_session();
+    static void record_failed_steal_session();
+    static void record_successful_steal( int64_t amount );
+    static void record_failed_steal();
+    static void record_successful_acquire();
+    static void record_failed_acquire();
+    static void record_release();
+    static void record_public_task_dequeue();
+    static void record_private_task_dequeue();
+    static void record_globalq_push( uint64_t amount, bool success );
+    static void record_globalq_pull_start( );
+    static void record_globalq_pull( uint64_t amount );
+    static void record_workshare_test();
+    static void record_remote_private_task_spawn();
+    static void record_workshare( int64_t change );
 };
 
 /// Keeps track of tasks, pairing workers with tasks, and load balancing.

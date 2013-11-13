@@ -95,6 +95,7 @@ namespace Grappa {
   namespace impl {
 
   class StealStatistics {
+    public:
       /* encapsulate metrics */
       static void record_steal_reply( size_t msg_bytes ); 
       static void record_steal_request( size_t msg_bytes ); 
@@ -103,7 +104,7 @@ namespace Grappa {
       static void record_workshare_reply_nack( size_t msg_bytes );
       static void record_globalq_data_pull_reply( size_t msg_bytes, uint64_t amount );
       static void record_globalq_data_pull_request( size_t msg_bytes, uint64_t amount );
-  }
+  };
 
 
 

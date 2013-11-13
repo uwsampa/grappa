@@ -51,7 +51,7 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_received
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_pushed_elements_,0);
 
 // number of calls to sample() 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t, sample_calls,0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, sample_calls,0);
 
 
 

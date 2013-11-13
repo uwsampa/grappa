@@ -108,7 +108,6 @@ static void poller( Thread * me, void * args ) {
   StateTimer::enterState_communication();
   while( !Grappa_done() ) {
     global_scheduler.stats.sample();
-    global_task_manager.stats.sample();
 
     Grappa_poll();
     
