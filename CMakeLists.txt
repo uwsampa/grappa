@@ -219,7 +219,6 @@ file(GLOB_RECURSE igor_scripts
 )
 foreach(script ${igor_scripts})
   get_filename_component(out_dir "${script}" PATH)
-  message("-- out_dir: ${out_dir}")
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${out_dir})
   execute_process(COMMAND ln -sf ${CMAKE_SOURCE_DIR}/${script} ${CMAKE_BINARY_DIR}/${script})
 endforeach()
