@@ -15,7 +15,6 @@
 #include "timer.h"
 #include "options.h"
 #include "graph.hpp"
-#include "verify.hpp"
 #include "simple_graphs.hpp"
 
 #include <stack>

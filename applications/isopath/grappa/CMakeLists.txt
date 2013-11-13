@@ -5,11 +5,7 @@ set(SOURCES
   oned_csr.cpp
   options.h
   options.cpp
-  rmat.h
-  rmat.cpp
   timer.h
-  verify.hpp
-  verify.cpp
   ../prng.c
   simple_graphs.hpp
   simple_graphs.cpp
