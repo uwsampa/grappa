@@ -41,6 +41,12 @@ long grappa_read_long(long global* a) {
   return Grappa::delegate::read(gaddr(a));
 }
 
+extern "C"
+long grappa_fetchadd_i64(long global* a, long inc) {
+  return Grappa::delegate::fetch_and_add(gaddr(a), inc);
+}
+
+
 /// most basic way to read data from remote address (compiler generates these from global* accesses)
 extern "C"
 void grappa_get(void *addr, void global* src, size_t sz) {
