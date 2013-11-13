@@ -123,13 +123,12 @@ struct Graph {
         t = walltime();
     forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
       if (e.v0 > g->nv) { g->nv = e.v0; }
-      else if (e.v1 > g->nv) { g->nv = e.v1; }
+      if (e.v1 > g->nv) { g->nv = e.v1; }
     });
     on_all_cores([g]{
       g->nv = Grappa::allreduce<int64_t,collective_max>(g->nv) + 1;
     });
         VLOG(1) << "find_nv_time: " << walltime() - t;
-  
     auto vs = global_alloc<V>(g->nv);
     auto self = g;
     on_all_cores([g,vs]{

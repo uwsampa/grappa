@@ -13,7 +13,7 @@ using namespace Grappa;
  */
 void meshgrid_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple_edges, int n, int m)
 {
-  int nedges = 2 * (n * m) + m + n - 2;
+  int nedges = 2 * ((n-1) * (m-1)) + m + n - 2;
 
   //generates a mesh grid graph
   GlobalAddress<packed_edge> edges = global_alloc<packed_edge>(nedges);
@@ -28,12 +28,12 @@ void meshgrid_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple_edge
       if (row < n-1) {
 	//	write_edge(pe, n * row + col, (n + 1) * row + col); //write edge to South neighbor
        	delegate::call(edges+edge_index, [n, row, col](packed_edge *e) 
-		       {write_edge(e, n*row+col+1, n*(row+1)+col+1);});
+		       {write_edge(e, n*row+col, n*(row+1)+col);});
 	edge_index++;
       }
       if (col < m - 1) {
        	delegate::call(edges+edge_index, [n, row, col](packed_edge *e) 
-		       {write_edge(e, n*row+col+1, n*row+col+1+1);});
+		       {write_edge(e, n*row+col, n*row+col+1);});
 	edge_index++;
       }
     }
@@ -42,6 +42,9 @@ void meshgrid_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple_edge
   *tuple_edges = edges;
 }
 
+/* Generates a balanced tree with some number of levels and some number of branches per node
+ * Writes the edges to a tuple list and the number of edges to * num_edges
+ */
 void balanced_tree_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple_edges, int lvs, int branches) {
   int64_t nedges = 0;
   int64_t lv_edges = branches;
@@ -69,11 +72,14 @@ void balanced_tree_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple
     while(!prev.empty()) {
       vtx = prev.top();
       for (int j = 0; j < branches; j++) {
-	delegate::call(edges+edge_index, [vtx, next_vtx] (packed_edge *e) 
-		       {write_edge(e, vtx, next_vtx);});
+	delegate::call(edges+edge_index, [vtx, next_vtx] (packed_edge *e) { 
 	LOG(INFO) << "Wrote edge (" << vtx << "," << next_vtx << ")";
+
+		       write_edge(e, vtx, next_vtx);});
+	//LOG(INFO) << "Wrote edge (" << vtx << "," << next_vtx << ")";
 	next.push(next_vtx);
 	next_vtx++;
+	edge_index++;
       }
       prev.pop();
     }
@@ -83,6 +89,32 @@ void balanced_tree_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple
       next.pop();
     }
   }
+  for (int i = 0; i < nedges; i++) {
+    delegate::call(edges+i, [](packed_edge * e) {
+	LOG(INFO) << "G: e.v0: " << e->v0 << "e.v1: " << e->v1;
+      });
+  }
+  *tuple_edges = edges;
+}
 
+/* Generates a complete graph with the specified number of vertices
+ * Writes the edges to the list of packed edges *tuple_edges
+ */
+void complete_graph(int64_t * num_edges, GlobalAddress<packed_edge> * tuple_edges, int vertices) {
+  int64_t nedges = ((1 + vertices) * vertices) >> 1;
+  *num_edges = nedges;
+
+  GlobalAddress<packed_edge> edges = global_alloc<packed_edge>(nedges);
+  int64_t edge_index = 0;
+  
+  for (int i = 0; i < vertices; i++) {
+    for (int j = i; j < vertices; j++) {
+      if (i != j) {
+	delegate::call(edges+edge_index, [i, j] (packed_edge *e)
+		       {write_edge(e, i, j);});
+	edge_index++;
+      }
+    }
+  }
   *tuple_edges = edges;
 }

@@ -275,10 +275,17 @@ void user_main(void * ignore) {
   //generation_time = walltime() - t;
   
   //call the meshgrid graph generator
-  meshgrid_graph(&tg.nedge, &tg.edges, 100, 100);
+  meshgrid_graph(&tg.nedge, &tg.edges, 3, 3);
+
+  //complete_graph(&tg.nedge, &tg.edges, 25);
   
   //call the balanced tree graph generator
-  //balanced_tree_graph(&tg.nedge, &tg.edges, 10, 2);
+  //balanced_tree_graph(&tg.nedge, &tg.edges, 3, 2);
+  for (int i = 0; i < tg.nedge; i++) {
+    delegate::call(tg.edges+i, [](packed_edge * e) {
+	LOG(INFO) << "e.v0: " << e->v0 << "e.v1: " << e->v1;
+      });
+  }
   generation_time = walltime() - t;
 
   //create the graph from the tuple graph representation
@@ -286,14 +293,13 @@ void user_main(void * ignore) {
   auto g = Graph<>::create(tg);
   construction_time = walltime() - t;
 
-  Graph<>::dump(g);
-
+  //Graph<>::dump(g);
     
   int grappa_paths = 0;
   int ref_paths = 0;
 
   //define a search path pattern
-  std::vector<int64_t> path_pattern {1,1,1};
+  std::vector<int64_t> path_pattern {1,1,1,1,1,1};
 
   //run the isomorphics paths routine
   t = walltime();
@@ -302,7 +308,7 @@ void user_main(void * ignore) {
 
   //run the sequential reference version of isomorphic paths routine
   t = walltime();
-  ref_paths = ref_iso_paths(g, path_pattern);
+  //ref_paths = ref_iso_paths(g, path_pattern);
   reference_runtime = walltime() - t;
 
   //print statistics related to the executions
