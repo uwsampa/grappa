@@ -38,23 +38,25 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, globalq_data_pull_reply_num_e
 
 namespace Grappa {
 
+namespace impl {
 
-void StealQueue::record_steal_reply( size_t msg_bytes ) {
+
+void StealStatistics::record_steal_reply( size_t msg_bytes ) {
   stealq_reply_messages += 1;
   stealq_reply_total_bytes += msg_bytes;
 }
 
-void StealQueue::record_steal_request( size_t msg_bytes ) {
+void StealStatistics::record_steal_request( size_t msg_bytes ) {
   stealq_request_messages += 1;
   stealq_request_total_bytes += msg_bytes;
 }
 
-void StealQueue::record_workshare_request( size_t msg_bytes ) {
+void StealStatistics::record_workshare_request( size_t msg_bytes ) {
   workshare_request_messages += 1;
   workshare_request_total_bytes += msg_bytes;
 }
 
-void StealQueue::record_workshare_reply( size_t msg_bytes, bool isAccepted, int num_received, int num_denying, int num_sending ) {
+void StealStatistics::record_workshare_reply( size_t msg_bytes, bool isAccepted, int num_received, int num_denying, int num_sending ) {
   workshare_reply_messages += 1;
   workshare_reply_total_bytes += msg_bytes;
 
@@ -69,21 +71,21 @@ void StealQueue::record_workshare_reply( size_t msg_bytes, bool isAccepted, int 
   workshare_reply_elements_sent+=( num_sending );
 }
 
-void StealQueue::record_workshare_reply_nack( size_t msg_bytes ) {
+void StealStatistics::record_workshare_reply_nack( size_t msg_bytes ) {
   workshare_reply_messages += 1;
   workshare_reply_total_bytes += msg_bytes;
 
   workshare_reply_nacks += 1;
 }
 
-void StealQueue::record_globalq_data_pull_request( size_t msg_bytes, uint64_t amount ) {
+void StealStatistics::record_globalq_data_pull_request( size_t msg_bytes, uint64_t amount ) {
   globalq_data_pull_request_messages += 1;
   globalq_data_pull_request_total_bytes += msg_bytes;
 
   globalq_data_pull_request_num_elements+=amount ;
 }
 
-void StealQueue::record_globalq_data_pull_reply( size_t msg_bytes, uint64_t amount ) {
+void StealStatistics::record_globalq_data_pull_reply( size_t msg_bytes, uint64_t amount ) {
   globalq_data_pull_reply_messages += 1;
   globalq_data_pull_reply_total_bytes += msg_bytes;
 
@@ -91,4 +93,5 @@ void StealQueue::record_globalq_data_pull_reply( size_t msg_bytes, uint64_t amou
 }
 
 
+} // namespace impl
 } // namespace Grappa
