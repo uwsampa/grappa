@@ -13,42 +13,15 @@
 #include "MessagePool.hpp"
 #include "tasks/TaskingScheduler.hpp"
 
-#ifdef VTRACE
-#include <vt_user.h>
-#endif
-
 // forward declare for active message templates
 template< typename T >
 class IncoherentReleaser;
 
 /// Stats for IncoherentReleaser
 class IRStatistics {
-  private:
-    uint64_t release_ams;
-    uint64_t release_ams_bytes;
-#ifdef VTRACE_SAMPLED
-    unsigned ir_grp_vt;
-    unsigned release_ams_ev_vt;
-    unsigned release_ams_bytes_ev_vt;
-#endif
-
   public:
-    IRStatistics();
-    void reset();
-
-    inline void count_release_ams( uint64_t bytes ) {
-      release_ams++;
-      release_ams_bytes+=bytes;
-    }
-
-    void dump( std::ostream& o, const char * terminator );
-    void sample();
-    void profiling_sample();
-    void merge(const IRStatistics * other);
+    static void count_release_ams( uint64_t bytes );
 };
-
-extern IRStatistics incoherent_releaser_stats;
-
 
 /// IncoherentReleaser behavior for cache.
 template< typename T >
@@ -182,7 +155,7 @@ public:
 
       pool.send_message(args.request_address.core(),
         [args](void * payload, size_t payload_size) {
-          incoherent_releaser_stats.count_release_ams( payload_size );
+          IRStatistics::count_release_ams( payload_size );
           DVLOG(5) << "Thread " << CURRENT_THREAD
           << " received release request to " << args.request_address
           << " reply to " << args.reply_address;

@@ -94,8 +94,6 @@ void legacy_profiling_sample() {
   global_communicator.stats.profiling_sample();
   global_scheduler.stats.profiling_sample();
   cache_stats.profiling_sample();
-  incoherent_acquirer_stats.profiling_sample();
-  incoherent_releaser_stats.profiling_sample();
   // Grappa::Statistics::global_queue_stats.profiling_sample();
 
   // print user-registered stats

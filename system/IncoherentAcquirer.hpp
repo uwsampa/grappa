@@ -14,10 +14,6 @@
 #include "MessagePool.hpp"
 #include "tasks/TaskingScheduler.hpp"
 
-#ifdef VTRACE
-#include <vt_user.h>
-#endif
-
 // forward declare for active message templates
 template< typename T >
 class IncoherentAcquirer;
@@ -25,80 +21,12 @@ class IncoherentAcquirer;
 /// IncoherentAcquirer statistics
 class IAStatistics {
   private:
-  uint64_t acquire_ams;
-  uint64_t acquire_ams_bytes;
-  uint64_t acquire_blocked;
-  uint64_t acquire_blocked_ticks_total;
-  uint64_t acquire_network_ticks_total;
-  uint64_t acquire_wakeup_ticks_total;
-  uint64_t acquire_blocked_ticks_max;
-  uint64_t acquire_blocked_ticks_min;
-  uint64_t acquire_network_ticks_max;
-  uint64_t acquire_network_ticks_min;
-  uint64_t acquire_wakeup_ticks_max;
-  uint64_t acquire_wakeup_ticks_min;
-#ifdef VTRACE_SAMPLED
-  unsigned ia_grp_vt;
-  unsigned acquire_ams_ev_vt;
-  unsigned acquire_ams_bytes_ev_vt;
-  unsigned acquire_blocked_ev_vt;
-  unsigned acquire_blocked_ticks_total_ev_vt;
-  unsigned acquire_network_ticks_total_ev_vt;
-  unsigned acquire_wakeup_ticks_total_ev_vt;
-  unsigned acquire_blocked_ticks_max_ev_vt;
-  unsigned acquire_blocked_ticks_min_ev_vt;
-  unsigned acquire_wakeup_ticks_max_ev_vt;
-  unsigned acquire_wakeup_ticks_min_ev_vt;
-  unsigned acquire_network_ticks_max_ev_vt;
-  unsigned acquire_network_ticks_min_ev_vt;
-  unsigned average_latency_ev_vt;
-  unsigned average_network_latency_ev_vt;
-  unsigned average_wakeup_latency_ev_vt;
-#endif
+    static void count_acquire_ams( uint64_t bytes ) ;
 
-  public:
-    IAStatistics();
-    void reset();
+    static void record_wakeup_latency( int64_t start_time, int64_t network_time ) ; 
 
-    inline void count_acquire_ams( uint64_t bytes ) {
-      acquire_ams++;
-      acquire_ams_bytes+=bytes;
-    }
-
-  inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
-    acquire_blocked++; 
-    int64_t current_time = Grappa::timestamp();
-    int64_t blocked_latency = current_time - start_time;
-    int64_t wakeup_latency = current_time - network_time;
-    acquire_blocked_ticks_total += blocked_latency;
-    acquire_wakeup_ticks_total += wakeup_latency;
-    if( blocked_latency > acquire_blocked_ticks_max ) 
-      acquire_blocked_ticks_max = blocked_latency;
-    if( blocked_latency < acquire_blocked_ticks_min ) 
-      acquire_blocked_ticks_min = blocked_latency;
-    if( wakeup_latency > acquire_wakeup_ticks_max )
-      acquire_wakeup_ticks_max = wakeup_latency;
-    if( wakeup_latency < acquire_wakeup_ticks_min )
-      acquire_wakeup_ticks_min = wakeup_latency;
-  }
-
-  inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = Grappa::timestamp();
-    int64_t latency = current_time - start_time;
-    acquire_network_ticks_total += latency;
-    if( latency > acquire_network_ticks_max )
-      acquire_network_ticks_max = latency;
-    if( latency < acquire_network_ticks_min )
-      acquire_network_ticks_min = latency;
-  }
-
-    void dump( std::ostream& o, const char * terminator );
-    void sample();
-    void profiling_sample();
-    void merge(const IAStatistics * other);
+    static void record_network_latency( int64_t start_time ) ; 
 };
-
-extern IAStatistics incoherent_acquirer_stats;
 
 /// IncoherentAcquirer behavior for Cache.
 template< typename T >
@@ -243,7 +171,7 @@ public:
                << " from " << args.request_address;
 
       pool.send_message(args.request_address.core(), [args]{
-        incoherent_acquirer_stats.count_acquire_ams( args.request_bytes );
+        IAStatistics::count_acquire_ams( args.request_bytes );
         DVLOG(5) << "Thread " << CURRENT_THREAD
         << " received acquire request to " << args.request_address
         << " size " << args.request_bytes
@@ -314,7 +242,7 @@ public:
                  << " woke up for " << *request_address_ 
                  << " * " << *count_ ;
       }
-      incoherent_acquirer_stats.record_wakeup_latency( start_time_, network_time_ );
+      IAStatistics::record_wakeup_latency( start_time_, network_time_ );
     }
   }
 
@@ -336,7 +264,7 @@ public:
       }
       if( start_time_ != 0 ) {
         network_time_ = Grappa::timestamp();
-        incoherent_acquirer_stats.record_network_latency( start_time_ );
+        IAStatistics::record_network_latency( start_time_ );
       }
     }
   }
