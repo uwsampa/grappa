@@ -28,6 +28,10 @@ int main(int argc, char* argv[]) {
       
       long i = (*xa)++;
       CHECK(i >= 1);
+      LOG(INFO) << "i = " << i << ", *xa = " << *xa;
+      
+      long j = ++(*xa);
+      LOG(INFO) << "j = " << j;
       
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {

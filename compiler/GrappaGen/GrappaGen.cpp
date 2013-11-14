@@ -236,16 +236,9 @@ namespace {
                 
                 auto ptr = store->getPointerOperand();
                 if (target_lds.count(ptr) > 0) {
-                  errs() << "target_lds\n";
                   auto ld = target_lds[ptr];
                   auto inc = target_increments[ld];
                   if (inc != nullptr) {
-                    errs() << "found fetch_add:\n";
-                    dump_var_l("  ", ptr, "");
-                    dump_var_l("  ", inc, "");
-                    dump_var_l("  ", store, "");
-                    dump_var_l("  ", ld, "");
-                    errs() << "\n";
                     fetchadds.emplace_back( FetchAdd{ld, store, inc} );
                     global_loads.erase(ld);
                   } else {
@@ -272,10 +265,16 @@ namespace {
       }
       
       for (auto& fa : fetchadds) {
+        errs() << "fetch_add:\n";
+        dump_var_l("  ", fa.ld, "");
+        dump_var_l("  ", fa.inc, "");
+        dump_var_l("  ", fa.store, "");
+
         Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
         auto f = CallInst::Create(fetchadd_i64_fn, args, "", fa.ld);
         myReplaceInstWithInst(fa.ld, f);
         // leave add instruction there (in case its result is used)
+        fa.store->dropAllReferences();
         fa.store->removeFromParent();
         ir_comment(f, "grappa.fetchadd", "");
       }
