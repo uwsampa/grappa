@@ -80,21 +80,22 @@ This should look familiar to the MPI programmer. The call to `on_all_cores()` sp
 
 This also introduces the API for identifying cores. In Grappa, each core is a separate destination. The physical node on which a core resides is referred to as its "locale" (borrowed from Chapel's terminology). The next section will refer to these functions more when dealing with how memory is partitioned among cores.
 
-## Section 2: Addressing global memory
+## Section 2: Global memory
 In Grappa, all memory on all cores is addressable by any other core. This is done using the `GlobalAddress<T>` template class. In the spirit of other Partitioned Global Address Space (PGAS) languages and runtimes, Grappa provides mechanisms for easily distributing data across the various memories of nodes in a cluster.
 
 This section will:
 
 - Describe global addressing, partitioning and the global heap
-- Introduce the notion of delegate operations
-- Introduce logging and command-line flag utilities
+- Introduce the various ways of addressing and allocating global memory
 
-### Global addresses
+### Global Addresses & Allocators
 Global addresses fall into one of three different categories:
 
-- 2D addresses
-- Linear addresses
-- Symmetric addresses
+- **2D addresses**: can address any memory on a core, including memory on stacks of currently-executing tasks, or memory allocated using `malloc` or `new`
+- **Linear addresses**: cyclicly partitioned among cores, allocated from the global heap using `global_alloc<T>()`, freed with `global_free()`
+- **Symmetric addresses**: same address valid on all cores, allocated from the global heap using `symmetric_global_alloc<T>()`, freed with `global_free()`
+  
+Pretty much anywhere in the Grappa API that takes a GlobalAddress will work with any of these types (they are all the same class), but they will have different behavior in terms of how they map to cores.
 
 #### 2D Addresses
 
@@ -108,7 +109,7 @@ LOG(INFO) << "global address -- valid on core:" << g_count.core() << ", pointer:
 
 The call to `make_global()` creates a new global address with the given pointer to the `count` variable on this task's stack and encodes the core where it is valid (`Grappa::mycore()`) with it.
 
-#### Global heap & linear addresses
+#### Linear addresses
 A portion of each node's global memory is set aside specifically for the *global heap*. This amount is determined by the command-line flag `--global_heap_fraction` (which defaults to 0.5). Allocations from this heap are distributed in a block-cyclic round-robin fashion across cores. Each core has a region of memory set aside for the global heap, with a heap offset pointer specific for the core. To allocate from this heap, the following functions are used:
 
 - `GlobalAddress<T> Grappa::global_alloc<T>(size_t num_elements)`: allocates space for `num_elements` of size `T`, starting on some arbitrary core
@@ -182,3 +183,69 @@ int main(int argc, char *argv[]) {
 ```
 
 In this example, we want a copy of the Data struct on each core so tasks can access a local version no matter where they run. After calling `symmetric_global_alloc()` the structs have not been initialized, so we must call `init()` on each copy. Here we use the `->` operator overload for symmetric addresses to get the pointer to the local copy and call the method on it. Finally, we can now reference that allocated struct by just passing around the GlobalAddress to the symmetric allocation.
+
+## Section 3: Delegate operations
+One of the core tenets of Grappa's programming model is the idea of *delegating* remote memory accesses to the core that owns the memory. By ensuring that only one core ever accesses each piece of memory, we can provide strong atomicity guarantees to Grappa programs that even single-node multithreaded applications typically do not. It also allows us to more confidently play with the memory hierarchy to optimize for low-locality access by careful management of caches and pre-fetching. Finally, delegating work to where the data is provides several advantages: it allows work to be distributed evenly across the machine and in some cases minimizes communication, provided the data is laid out well.
+
+<!-- (leaving out details about cooperative scheduling) For one thing, this plays well with applications with low locality, as it allows work to be distributed evenly across the machine, provided the data is distributed well. It also plays a key role in providing a simple consistency model to programmers: due to Grappa's cooperative scheduling of tasks and communication within a core, atomicity is guaranteed between yield points (i.e. communication). -->
+
+If you want data that resides on another core, you will likely use a delegate operation of some sort to accomplish your work. Delegates send a request to another core and block the caller; eventually, the other core executes the request and sends a response which wakes the caller and may return a value. By blocking the caller and executing the delegate atomically, Grappa provides sequentially consistent access to distributed memory (more about this in some of our papers).
+
+The most basic unit of delegates is `call()`, which has a couple different forms for convenience:
+
+```cpp
+T call(Core dest, []() -> T { /* (on 'dest') */ })
+U call(GlobalAddress<T> gp, [](T *p) -> U { /* (on gp.core(), p = gp.pointer()) */ })
+```
+
+The provided lambda is executed on the specified core, blocking the caller. The return value of the lambda is returned to the caller when it is woken. The only restriction on code in the delegate is that is *must not suspend or yield to the scheduler*. This is to ensure the communication workers always make progress. An assertion will fail if this is violated. To accomplish blocking remotely, a delegate may spawn a task to do blocking work, (or for delegates that specifically need to block on a remote synchronization object, see another alternative form: `call(Core, Mutex, []{})`.
+
+Some simple helper delegates for common operations are provided; they are implemented using the above generic delegates.
+
+- `T read(GlobalAddress<T>)`: reads memory at that address
+- `void write(GlobalAddress<T>, T val)`: writes a value into memory at that address
+- `T fetch_and_add(GlobalAddress<T>, T inc)`: increments the value in memory and returns the previous value
+- `bool compare_and_swap(GlobalAddress<T>, T cmp, T val)`: if value is equal to `cmp`, sets it to `val` and returns `true`, else returns `false`
+
+The following example demonstrates using delegates to access memory in the global heap, distributed among all the cores.
+
+```cpp
+size_t N = 50;
+GlobalAddress<long> array = global_alloc<long>(N);
+
+// simple global write
+for (size_t i = 0; i < N; i++) {
+  delegate::write( array+i, i );
+}
+
+for (size_t i = 0; i < N; i += 10) {
+  // boring remote read
+  long value = delegate::read( array+i );
+  std::cout << "[" << i << "] = " << value;
+  
+  // do some arbitrary computation
+  double v = delegate::call(array+i, [](long *a){ return tan(*a); });
+  std::cout << ", tan = " << v << std::endl;
+}
+```
+
+
+```bash
+> make tutorial-delegates && bin/grappa_srun.rb --nnode=2 --ppn=2 -- tutorial/delegates.exe
+0: [0] = 0, tan = 0
+0: [10] = 10, tan = 0.648361
+0: [20] = 20, tan = 2.23716
+0: [30] = 30, tan = -6.40533
+0: [40] = 40, tan = -1.11721
+```
+
+This is still using the single root task to do all the work, so it is all still serial. The next section will cover how to spawn lots of parallel work efficiently.
+
+## Task spawning
+
+## Parallel loops
+
+## Bringing it all together: GUPS
+
+We will use a simple benchmark to illustrate the use of parallel loops and delegate operations.
+
