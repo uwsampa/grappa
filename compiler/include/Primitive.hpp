@@ -106,3 +106,36 @@ void grappa_put(void global* dest, void* src, size_t sz) {
     result.readFF();
   }
 }
+
+extern "C"
+void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t args_sz,
+               void* out, size_t out_sz) {
+  auto origin = Grappa::mycore();
+  
+  if (dst == origin) {
+    
+    fn(args, out);
+    
+  } else {
+    
+    Grappa::FullEmpty<void*> fe(out); fe.reset();
+    auto gfe = make_global(&fe);
+    
+    Grappa::send_heap_message(dst, [fn,out_sz,gfe](void* args, size_t args_sz){
+      
+      char out[out_sz];
+      fn(args, out);
+      
+      Grappa::send_heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
+        
+        auto r = gfe->readXX();
+        memcpy(r, out, out_sz);
+        gfe->writeEF(r);
+        
+      }, out, out_sz);
+      
+    }, args, args_sz);
+    
+    fe.readFF();
+  }
+}
