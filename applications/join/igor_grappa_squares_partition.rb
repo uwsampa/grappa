@@ -2,7 +2,7 @@
 require 'igor'
 
 # inherit parser, sbatch_flags
-load '../../igor_common.rb'
+load '../../../../util/igor_common.rb'
 
 def expand_flags(*names)
   names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
@@ -33,7 +33,7 @@ Igor do
   params.merge!(GFLAGS)
   
   command %Q[ %{tdir}/grappa_srun.rb
-    -- %{tdir}/squares_partition
+    -- %{tdir}/squares_partition.exe
     #{expand_flags(*GFLAGS.keys)}
   ].gsub(/\s+/,' ')
   
@@ -46,21 +46,23 @@ Igor do
   }
   
   run {
+    trial 4
     nnode 4
     ppn 4
     scale 14 
   } 
 
   run {
+    trial 4
     nnode 12
     ppn 7
     scale 16
   }
 
   # required measures
-  expect :squares_runtime
+  expect :query_runtime
  
-  $filtered = results{|t| t.select(:id, :nnode, :ppn, :scale, :run_at, :squares_runtime) }
+  $filtered = results{|t| t.select(:id, :nnode, :ppn, :scale, :run_at, :query_runtime, :results_count, :edges_transfered, :total_edges) }
     
   interact # enter interactive mode
 end
