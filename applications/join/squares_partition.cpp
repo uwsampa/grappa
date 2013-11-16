@@ -34,12 +34,20 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, participating_cores, 0);
 
 // intermediate results counts
+// only care about min, max, totals
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir1_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir2_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir3_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir4_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir5_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir6_count, 0);
+
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir1_final_count, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir2_final_count, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir3_final_count, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir4_final_count, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir5_final_count, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir6_final_count, 0);
 
 
 //outputs
@@ -92,6 +100,23 @@ int64_t fourth_root(int64_t x) {
     }
   }
 }
+
+//int64_t random_assignment(int64_t x) {
+//  std::random_device rd;
+//
+//  // Choose a random mean between 1 and 6
+//  std::default_random_engine e1(rd());
+//  const int64_t root1 = fourth_root(x);
+//  std::normal_distribution<> normal_dist1(root1, root1/1.25);
+//
+//  const int64_t share1 = std::round(max(1, normal_dist1(e1)));
+//  const int64_t left1 = x/share1;
+//  const int64_t root2 = std::round(cbrt(left));
+//  std::normal_distribution<> normal_dist2(root2, root2/1.25);
+//  const int64_t share2 = std::round(max(1, normal_dist2(e1)));
+//  const int64_t left2 =  left1/share2;
+//
+  
   
 
 void squares(GlobalAddress<Graph<Vertex>> g) {
@@ -119,7 +144,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
 
     for (auto& dest : v.adj_iter()) {
 
-      total_edges += 1;
+      total_edges += 4; // count 4 for 4 relations
       
       const int64_t src = i;
       const int64_t dst = dest;
@@ -241,10 +266,20 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
     } // end over x
 
     LOG(INFO) << "counted " << count << " squares";
+
+
+    // used to calculate max total over all cores
+    ir1_final_count=ir1_count;
+    ir2_final_count=ir2_count;
+    ir3_final_count=ir3_count;
+    ir4_final_count=ir4_count;
+    ir5_final_count=ir5_count;
+    ir6_final_count=ir6_count;
+
   });
   end = Grappa_walltime();
   query_runtime = end - start;
-  
+
   
   Grappa::Statistics::merge_and_print();
  
