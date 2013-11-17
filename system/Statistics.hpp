@@ -66,19 +66,12 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBa
 
 /// Define a new Grappa Statistic
 /// @param type: supported types include: int, unsigned int, int64_t, uint64_t, float, and double
-#define GRAPPA_DEFINE_STAT(type, name, initial_value) \
-  Grappa::type name(#name, initial_value)
+#define GRAPPA_DEFINE_STAT(type, name, arg1) \
+  Grappa::type name(#name, arg1)
 
 /// Declare a stat (defined in a separate .cpp file) so it can be used
 #define GRAPPA_DECLARE_STAT(type, name) \
   extern Grappa::type name;
 
-/// Declare a callback stat; as an instance variable
-#define GRAPPA_DECLARE_CALLBACK_STAT(type, name) \
-  extern Grappa::CallbackStatistic<type> name;
-
-/// Define a callback stat; in a constructor
-#define GRAPPA_DEFINE_CALLBACK_STAT(type, name, callback) \
-  Grappa::CallbackStatistic<type> name(#name, callback) 
 
 /// @}

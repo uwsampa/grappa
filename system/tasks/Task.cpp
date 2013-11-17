@@ -54,13 +54,14 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_pushed_e
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, sample_calls,0);
 
 // on-demand state
-GRAPPA_DEFINE_CALLBACK_STAT(uint64_t, public_queue_size, []() {
+GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, public_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPublicTasks();
     });
 
-GRAPPA_DEFINE_CALLBACK_STAT(uint64_t, private_queue_size, []() {
+GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, private_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPrivateTasks();
     });
+
 
 namespace Grappa {
   namespace impl {
