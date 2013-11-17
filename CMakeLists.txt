@@ -217,6 +217,8 @@ file(GLOB_RECURSE igor_scripts
   RELATIVE ${CMAKE_SOURCE_DIR}
   igor_*
 )
+string(REGEX REPLACE "build/[^;]+;?" "" igor_scripts "${igor_scripts}") # filter out build directory
+
 foreach(script ${igor_scripts})
   get_filename_component(out_dir "${script}" PATH)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${out_dir})
