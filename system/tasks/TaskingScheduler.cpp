@@ -21,7 +21,21 @@ DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before d
 
 DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_context_switches, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_count, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_samples, 0);
+
+// set in sample()
+GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, active_tasks_sampled, 0);
+GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, ready_tasks_sampled, 0);
+GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, idle_workers_sampled, 0);
+
+// ticks
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_polling_thread_ticks, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_ready_thread_ticks, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_idle_thread_ticks, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_idle_useful_thread_ticks, 0);
+
 
 namespace Grappa {
 
@@ -204,69 +218,63 @@ std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts ) {
 }
 
 
+
+
+/*
+ * TaskingSchedulerStatistics
+ *
+ */
+
+TaskingScheduler::TaskingSchedulerStatistics::TaskingSchedulerStatistics() { active_task_log = new short[16]; }  
+        
+TaskingScheduler::TaskingSchedulerStatistics::TaskingSchedulerStatistics( TaskingScheduler * scheduler )
+  : sched( scheduler ) 
+  , state_timers()
+    , prev_state( StateIdle )
+
+{
+  state_timers[ StatePoll ]  = &scheduler_polling_thread_ticks;
+  state_timers[ StateReady ] = &scheduler_ready_thread_ticks;
+  state_timers[ StateIdle ]  = &scheduler_idle_thread_ticks;
+  state_timers[ StateIdleUseful ] = &scheduler_idle_useful_thread_ticks;
+
+  active_task_log = new short[1L<<20];
+  reset();
+}
+        
+TaskingScheduler::TaskingSchedulerStatistics::~TaskingSchedulerStatistics() {
+// XXX: not copy-safe, so pointer can be invalid
+/* delete[] active_task_log; */
+}
+        
+void TaskingScheduler::TaskingSchedulerStatistics::reset() {
+  task_log_index = 0;
+}
+        
+void TaskingScheduler::TaskingSchedulerStatistics::print_active_task_log() {
+#ifdef DEBUG
+  if (task_log_index == 0) return;
+
+  std::stringstream ss;
+  for (int64_t i=0; i<task_log_index; i++) ss << active_task_log[i] << " ";
+  LOG(INFO) << "Active tasks log: " << ss.str();
+#endif
+}
+
 void TaskingScheduler::TaskingSchedulerStatistics::sample() {
-  task_calls++;
-  if (sched->num_active_tasks > max_active) max_active = sched->num_active_tasks;
-  avg_active = inc_avg(avg_active, task_calls, sched->num_active_tasks);
-  avg_ready = inc_avg(avg_ready, task_calls, sched->readyQ.length());
+  scheduler_samples++;
+  active_tasks_sampled += sched->num_active_tasks;
+  ready_tasks_sampled += sched->readyQ.length();
+  idle_workers_sampled += sched->num_idle;
+
 #ifdef DEBUG  
-  if ((task_calls % 1024) == 0) {
+  if ((scheduler_samples.value() % 1024) == 0) {
     active_task_log[task_log_index++] = sched->num_active_tasks;
   }
 #endif
 
-  GRAPPA_EVENT(active_tasks_out_ev, "Active tasks sample", SAMPLE_RATE, scheduler, sched->num_active_tasks);
-  GRAPPA_EVENT(num_idle_out_event, "Idle workers sample", SAMPLE_RATE, scheduler, sched->num_idle);
-  GRAPPA_EVENT(readyQ_size_ev, "readyQ size", SAMPLE_RATE, scheduler, sched->readyQ.length());
-
-#ifdef VTRACE
-  //VT_COUNT_UNSIGNED_VAL( active_tasks_out_ev_vt, sched->num_active_tasks);
-  //VT_COUNT_UNSIGNED_VAL(num_idle_out_ev_vt, sched->num_idle);
-  //VT_COUNT_UNSIGNED_VAL(readyQ_size_ev_vt, sched->readyQ.length());
-#endif
-
-  //#ifdef GRAPPA_TRACE
-  //    if ((task_calls % 1) == 0) {
-  //        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
-  //        TAU_REGISTER_EVENT(num_idle_out_event, "Idle workers sample");
-  //
-  //        TAU_EVENT(active_tasks_out_event, sched->num_active_tasks);
-  //        TAU_EVENT(num_idle_out_event, sched->num_idle);
-  //
-  //    }
-  //#endif
 }
 
-/// Take a profiling sample of scheduler stats and state.
-void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
-#ifdef VTRACE_SAMPLED
-  VT_COUNT_UNSIGNED_VAL( active_tasks_out_ev_vt, sched->num_active_tasks);
-  VT_COUNT_UNSIGNED_VAL(num_idle_out_ev_vt, sched->num_idle);
-  VT_COUNT_UNSIGNED_VAL(readyQ_size_ev_vt, sched->readyQ.length());
-#endif
-}
-
-/// Merge other statistics into this one.
-void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerStatistics * other) {
-  task_calls += other->task_calls;
-  // if *this has not been merged with others, then copy int timers to double timers
-  if (merged==1) {
-    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] = state_timers[i];
-  }
-  // if *other has not been merged with others, then use its int timers (double are invalid);
-  // otherwise use its double timers (int are unmerged)
-  if ( other->merged == 1 ) {
-    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers[i];
-  } else {
-    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers_d[i];
-  }
-  scheduler_count += other->scheduler_count;
-
-  merged+=other->merged;
-  max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
-  avg_active = inc_avg(avg_active, merged, other->avg_active);
-  avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
-}
 
 } // impl
 } // Grappa

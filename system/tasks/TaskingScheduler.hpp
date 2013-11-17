@@ -31,7 +31,8 @@
 
 DECLARE_string(stats_blob_filename);
 
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches );
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, scheduler_context_switches );
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, scheduler_count);
 
 
 
@@ -137,7 +138,7 @@ class TaskingScheduler : public Scheduler {
 
       do {
         Thread * result;
-        ++stats.scheduler_count;
+        scheduler_count++;
 
         // tick the timestap counter
         Grappa::tick();
@@ -167,7 +168,7 @@ class TaskingScheduler : public Scheduler {
         result = periodicDequeue(current_ts);
         if (result != NULL) {
           //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
           stats.prev_state = TaskingSchedulerStatistics::StatePoll;
           prev_ts = current_ts;
           return result;
@@ -178,7 +179,7 @@ class TaskingScheduler : public Scheduler {
         result = readyQ.dequeue();
         if (result != NULL) {
           //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
           stats.prev_state = TaskingSchedulerStatistics::StateReady;
           prev_ts = current_ts;
           return result;
@@ -190,7 +191,7 @@ class TaskingScheduler : public Scheduler {
           result = getWorker();
           if (result != NULL) {
             //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
-            stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+            *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
             stats.prev_state = TaskingSchedulerStatistics::StateReady;
             prev_ts = current_ts;
             return result;
@@ -199,7 +200,7 @@ class TaskingScheduler : public Scheduler {
 
         
         if (FLAGS_poll_on_idle) {
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
 
           if( FLAGS_rdma_flush_on_idle ) {
             Grappa::impl::idle_flush_rdma_aggregator();
@@ -214,7 +215,7 @@ class TaskingScheduler : public Scheduler {
 
           StateTimer::enterState_scheduler();
         } else {
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
           stats.prev_state = TaskingSchedulerStatistics::StateIdle;
           usleep(1);
         }
@@ -249,116 +250,29 @@ class TaskingScheduler : public Scheduler {
     /// Stats for the scheduler
     class TaskingSchedulerStatistics {
       private:
-        int64_t task_calls;
         int64_t task_log_index;
         short * active_task_log;
 
-        uint64_t max_active;
-        double avg_active;
-        double avg_ready;
-
-#ifdef VTRACE_SAMPLED
-        unsigned tasking_scheduler_grp_vt;
-        unsigned active_tasks_out_ev_vt;
-        unsigned num_idle_out_ev_vt;
-        unsigned readyQ_size_ev_vt;
-#endif
-
-
         TaskingScheduler * sched;
 
-        unsigned merged;
       public:
         enum State { StatePoll=0, StateReady=1, StateIdle=2, StateIdleUseful=3, StateLast=4 };
-        int64_t state_timers[ StateLast ];
-        double state_timers_d[ StateLast ];
+        SimpleStatistic<uint64_t> * state_timers[ StateLast ];
         State prev_state;
-        int64_t scheduler_count;
 
-        TaskingSchedulerStatistics() { active_task_log = new short[16]; }  // only for declarations that will be copy-assigned to
+        TaskingSchedulerStatistics();  // only for declarations that will be copy-assigned to
 
         /// Create new statistics tracking for scheduler
-        TaskingSchedulerStatistics( TaskingScheduler * scheduler )
-          : sched( scheduler ) 
-#ifdef VTRACE_SAMPLED
-            , tasking_scheduler_grp_vt( VT_COUNT_GROUP_DEF( "Tasking scheduler" ) )
-              , active_tasks_out_ev_vt( VT_COUNT_DEF( "Active workers", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
-              , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
-              , readyQ_size_ev_vt( VT_COUNT_DEF( "ReadyQ size", "workers", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
-#endif
-              , merged(1)
-              , state_timers()
-              , state_timers_d()
-              , prev_state( StateIdle )
-              , scheduler_count(0)
+        TaskingSchedulerStatistics( TaskingScheduler * scheduler );
+        
+        ~TaskingSchedulerStatistics();
 
-        {
-          for( int i = StatePoll; i < StateLast; ++i ) {
-            state_timers[ i ] = 0;
-            state_timers_d[ i ] = 0.0f;
-          }
-          active_task_log = new short[1L<<20];
-          reset();
-        }
-        ~TaskingSchedulerStatistics() {
-          // XXX: not copy-safe, so pointer can be invalid
-          /* delete[] active_task_log; */
-        }
+        void reset();
 
-        void reset() {
-          merged = 1;
-          task_calls = 0;
-          task_log_index = 0;
+        void print_active_task_log();
 
-          max_active = 0;
-          avg_active = 0.0;
-          avg_ready = 1.0;
-
-          for (int i=StatePoll; i<StateLast; i++) state_timers[i] = 0;
-          scheduler_count = 0;
-
-        }
-        void print_active_task_log() {
-#ifdef DEBUG
-          if (task_log_index == 0) return;
-
-          std::stringstream ss;
-          for (int64_t i=0; i<task_log_index; i++) ss << active_task_log[i] << " ";
-          LOG(INFO) << "Active tasks log: " << ss.str();
-#endif
-        }
-
-        void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-          if (merged==1) { // state_timers_d invalid
-            o << "   \"SchedulerStats\": { "
-              << "\"max_active\": " << max_active << ", "
-              << "\"avg_active\": " << avg_active << ", " 
-              << "\"avg_ready\": " << avg_ready
-              << ", \"scheduler_polling_thread_ticks\": " << state_timers[ StatePoll ]
-              << ", \"scheduler_ready_thread_ticks\": " << state_timers[ StateReady ]
-              << ", \"scheduler_idle_thread_ticks\": " << state_timers[ StateIdle ]
-              << ", \"scheduler_idle_useful_thread_ticks\": " << state_timers[ StateIdleUseful ]
-              << ", \"scheduler_count\": " << scheduler_count
-              << " }" << terminator << std::endl;
-          } else {
-            CHECK( merged > 1 );
-            o << "   \"SchedulerStats\": { "
-              << "\"max_active\": " << max_active << ", "
-              << "\"avg_active\": " << avg_active << ", " 
-              << "\"avg_ready\": " << avg_ready
-              << ", \"scheduler_polling_thread_ticks\": " << state_timers_d[ StatePoll ]
-              << ", \"scheduler_ready_thread_ticks\": " << state_timers_d[ StateReady ]
-              << ", \"scheduler_idle_thread_ticks\": " << state_timers_d[ StateIdle ]
-              << ", \"scheduler_idle_useful_thread_ticks\": " << state_timers_d[ StateIdleUseful ]
-              << ", \"scheduler_count\": " << scheduler_count
-              << " }" << terminator << std::endl;
-          }
-        }
-
+        /// Take a sample of the scheduler state
         void sample();
-        void profiling_sample();
-        void merge(const TaskingSchedulerStatistics * other); 
-
     };
 
     TaskingSchedulerStatistics stats;
@@ -439,13 +353,6 @@ class TaskingScheduler : public Scheduler {
       Grappa::tick();
       previous_periodic_ts = Grappa::timestamp();
     }
-
-    /// Print scheduler statistics
-    void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
-      stats.dump( o, terminator );
-    }
-
-    void merge_stats();
 
     /// Reset scheduler statistics
     void reset_stats() {
