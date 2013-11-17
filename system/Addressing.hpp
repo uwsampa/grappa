@@ -9,8 +9,9 @@
 #define __ADDRESSING_HPP__
 
 #ifdef __GRAPPA_CLANG__
+#define GLOBAL_SPACE 100
 /// define 'global' pointer annotation
-#define grappa_global __attribute__((address_space(100)))
+#define grappa_global __attribute__((address_space(GLOBAL_SPACE)))
 #endif
 
 /// Global Addresses for Grappa
@@ -72,6 +73,12 @@ static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 
+extern "C"
+struct GlobalAddressBase {
+  /// Storage for address
+  intptr_t storage_;
+};
+
 /// @addtogroup Memory
 /// @{
 
@@ -85,11 +92,8 @@ static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 ///
 /// Linear addresses are block cyclic across all the cores in the system.
 template< typename T >
-class GlobalAddress {
+class GlobalAddress : public GlobalAddressBase {
 private:
-
-  /// Storage for address
-  intptr_t storage_;
   //DISALLOW_COPY_AND_ASSIGN( GlobalAddress );
   template< typename U > friend std::ostream& operator<<( std::ostream& o, const GlobalAddress< U >& ga );
   //friend template< typename U > GlobalAddress< U > operator+( const GlobalAddress< U >& t, ptrdiff_t i );
@@ -123,7 +127,9 @@ private:
 public:
 
   /// Construct a global address, initialized to a null pointer
-  GlobalAddress( ) : storage_( 0 ) { }
+  GlobalAddress( ) { storage_ = 0; }
+  
+  GlobalAddress(GlobalAddressBase o) { storage_ = o.storage_; }
 
   /// Construct a 2D global address with an initial pointer and node.
   static GlobalAddress TwoDimensional( T * t, Node n = global_communicator.mynode() )

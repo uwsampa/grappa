@@ -5,6 +5,7 @@
 #include <Message.hpp>
 #include <string.h>
 #include <Delegate.hpp>
+#include <Array.hpp>
 
 #define global grappa_global
 
@@ -17,6 +18,7 @@ template< typename T >
 inline GlobalAddress<T> gaddr(T global* ptr) {
   return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(ptr));
 }
+
 //template <>
 //inline GlobalAddress<char> gaddr(void global* ptr) {
 //  return GlobalAddress<char>::Raw(reinterpret_cast<intptr_t>(ptr));
@@ -36,106 +38,121 @@ namespace Grappa {
 
 }
 
-extern "C"
-long grappa_read_long(long global* a) {
-  return Grappa::delegate::read(gaddr(a));
-}
-
-extern "C"
-long grappa_fetchadd_i64(long global* a, long inc) {
-  return Grappa::delegate::fetch_and_add(gaddr(a), inc);
-}
-
-
-/// most basic way to read data from remote address (compiler generates these from global* accesses)
-extern "C"
-void grappa_get(void *addr, void global* src, size_t sz) {
-  auto ga = gaddr(src);
-  auto origin = Grappa::mycore();
-  auto dest = ga.core();
+extern "C" {
   
-  if (dest == origin) {
-    
-    memcpy(addr, ga.pointer(), sz);
-    
-  } else {
-    
-    Grappa::FullEmpty<void*> result(addr); result.reset();
-    
-    auto g_result = make_global(&result);
-    
-    Grappa::send_heap_message(dest, [ga,sz,g_result]{
-      
-      Grappa::send_heap_message(g_result.core(), [g_result](void * payload, size_t psz){
-        
-        auto r = g_result.pointer();
-        auto dest_addr = r->readXX();
-        memcpy(dest_addr, payload, psz);
-        r->writeEF(dest_addr);
-        
-      }, ga.pointer(), sz);
-      
-    });
-    
-    result.readFF();
+  long grappa_read_long(long global* a) {
+    return Grappa::delegate::read(gaddr(a));
   }
-}
 
-/// most basic way to write data at remote address (compiler generates these from global* accesses)
-extern "C"
-void grappa_put(void global* dest, void* src, size_t sz) {
-  auto origin = Grappa::mycore();
-  
-  if (Grappa::core(dest) == origin) {
-    
-    memcpy(Grappa::pointer(dest), src, sz);
-    
-  } else {
-    
-    Grappa::FullEmpty<bool> result;
-    auto g_result = make_global(&result);
-    
-    Grappa::send_heap_message(Grappa::core(dest), [dest,sz,g_result](void * payload, size_t psz){
-      
-      memcpy(Grappa::pointer(dest), payload, sz);
-      
-      Grappa::send_heap_message(g_result.core(), [g_result]{ g_result->writeEF(true); });
-      
-    }, src, sz);
-    
-    result.readFF();
+  long grappa_fetchadd_i64(long global* a, long inc) {
+    return Grappa::delegate::fetch_and_add(gaddr(a), inc);
   }
-}
 
-extern "C"
-void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t args_sz,
-               void* out, size_t out_sz) {
-  auto origin = Grappa::mycore();
+  void* grappa_pointer(void global* a) { return Grappa::pointer(a); }
+  Core grappa_core(void global* a) { return Grappa::core(a); }
   
-  if (dst == origin) {
+  GlobalAddressBase grappa_make_wide(Core c, void* p) { return make_global(p, c); }
+  
+  void global* grappa_wide_to_global_void(GlobalAddressBase ga) {
+    return gptr(GlobalAddress<int8_t>(ga));
+  }
+  GlobalAddressBase grappa_global_to_wide_void(void global* ga) { return gaddr(ga); }
+  
+  void grappa_memset_void(GlobalAddressBase dst, char val, int64_t n) {
+    Grappa::memset(GlobalAddress<int8_t>(dst), val, n);
+  }
+  
+  void grappa_getput_void(GlobalAddressBase dst, GlobalAddressBase src, int64_t n) {
+    Grappa::memcpy(GlobalAddress<int8_t>(dst), GlobalAddress<int8_t>(src), n);
+  }
+  
+  /// most basic way to read data from remote address (compiler generates these from global* accesses)
+  void grappa_get(void *addr, void global* src, size_t sz) {
+    auto ga = gaddr(src);
+    auto origin = Grappa::mycore();
+    auto dest = ga.core();
     
-    fn(args, out);
-    
-  } else {
-    
-    Grappa::FullEmpty<void*> fe(out); fe.reset();
-    auto gfe = make_global(&fe);
-    
-    Grappa::send_heap_message(dst, [fn,out_sz,gfe](void* args, size_t args_sz){
+    if (dest == origin) {
       
-      char out[out_sz];
+      memcpy(addr, ga.pointer(), sz);
+      
+    } else {
+      
+      Grappa::FullEmpty<void*> result(addr); result.reset();
+      
+      auto g_result = make_global(&result);
+      
+      Grappa::send_heap_message(dest, [ga,sz,g_result]{
+        
+        Grappa::send_heap_message(g_result.core(), [g_result](void * payload, size_t psz){
+          
+          auto r = g_result.pointer();
+          auto dest_addr = r->readXX();
+          memcpy(dest_addr, payload, psz);
+          r->writeEF(dest_addr);
+          
+        }, ga.pointer(), sz);
+        
+      });
+      
+      result.readFF();
+    }
+  }
+
+  /// most basic way to write data at remote address (compiler generates these from global* accesses)
+  void grappa_put(void global* dest, void* src, size_t sz) {
+    auto origin = Grappa::mycore();
+    
+    if (Grappa::core(dest) == origin) {
+      
+      memcpy(Grappa::pointer(dest), src, sz);
+      
+    } else {
+      
+      Grappa::FullEmpty<bool> result;
+      auto g_result = make_global(&result);
+      
+      Grappa::send_heap_message(Grappa::core(dest), [dest,sz,g_result](void * payload, size_t psz){
+        
+        memcpy(Grappa::pointer(dest), payload, sz);
+        
+        Grappa::send_heap_message(g_result.core(), [g_result]{ g_result->writeEF(true); });
+        
+      }, src, sz);
+      
+      result.readFF();
+    }
+  }
+
+  void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t args_sz,
+                 void* out, size_t out_sz) {
+    auto origin = Grappa::mycore();
+    
+    if (dst == origin) {
+      
       fn(args, out);
       
-      Grappa::send_heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
-        
-        auto r = gfe->readXX();
-        memcpy(r, out, out_sz);
-        gfe->writeEF(r);
-        
-      }, out, out_sz);
+    } else {
       
-    }, args, args_sz);
-    
-    fe.readFF();
+      Grappa::FullEmpty<void*> fe(out); fe.reset();
+      auto gfe = make_global(&fe);
+      
+      Grappa::send_heap_message(dst, [fn,out_sz,gfe](void* args, size_t args_sz){
+        
+        char out[out_sz];
+        fn(args, out);
+        
+        Grappa::send_heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
+          
+          auto r = gfe->readXX();
+          memcpy(r, out, out_sz);
+          gfe->writeEF(r);
+          
+        }, out, out_sz);
+        
+      }, args, args_sz);
+      
+      fe.readFF();
+    }
   }
-}
+} // extern "C"
