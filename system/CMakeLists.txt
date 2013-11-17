@@ -19,6 +19,7 @@ set(SYSTEM_SOURCES
   AsyncParallelFor.cpp
   Barrier.cpp
   Cache.cpp
+  CallbackStatistic.cpp
   Collective.cpp
   Communicator.cpp
   CurrentThread.cpp
@@ -61,6 +62,8 @@ set(SYSTEM_SOURCES
   Barrier.hpp
   boost_helpers.hpp
   Cache.hpp
+  CallbackStatistic.hpp
+  CallbackStatisticImpl.hpp
   Collective.hpp
   common.hpp
   Communicator.hpp

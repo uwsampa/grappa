@@ -53,6 +53,14 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_pushed_e
 // number of calls to sample() 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, sample_calls,0);
 
+// on-demand state
+GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, public_queue_size, []() {
+    return Grappa::impl::global_task_manager.numLocalPublicTasks();
+    });
+
+GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, private_queue_size, []() {
+    return Grappa::impl::global_task_manager.numLocalPrivateTasks();
+    });
 
 
 namespace Grappa {
@@ -77,6 +85,7 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
   , gqPullLock( true )
   , nextVictimIndex( 0 )
 {
+    
 }
 
 
@@ -126,6 +135,13 @@ void TaskManager::activate () {
 /// template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
 template StealQueue<Task> StealQueue<Task>::steal_queue;
 
+uint64_t TaskManager::numLocalPublicTasks() const {
+  return publicQ.depth();
+}
+
+uint64_t TaskManager::numLocalPrivateTasks() const {
+  return privateQ.size();
+}
     
 /// @return true if local shared queue has elements
 bool TaskManager::publicHasEle() const {
@@ -368,6 +384,7 @@ void TaskManager::finish() {
 
 
 /* metrics */
+
 void TaskManagerStatistics::record_successful_steal_session() {
   session_steal_successes_++;
 }
