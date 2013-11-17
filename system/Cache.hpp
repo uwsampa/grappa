@@ -21,52 +21,13 @@
 
 /// stats for caches
 class CacheStatistics {
-  private:
-    uint64_t ro_acquires;
-    uint64_t wo_releases;
-    uint64_t rw_acquires;
-    uint64_t rw_releases;
-    uint64_t bytes_acquired;
-    uint64_t bytes_released;
-#ifdef VTRACE_SAMPLED
-    unsigned cache_grp_vt;
-    unsigned ro_acquires_ev_vt;
-    unsigned wo_releases_ev_vt;
-    unsigned rw_acquires_ev_vt;
-    unsigned rw_releases_ev_vt;
-    unsigned bytes_acquired_ev_vt;
-    unsigned bytes_released_ev_vt;
-#endif
-  
   public:
-    CacheStatistics();
-    void reset();
-    
-    inline void count_ro_acquire( uint64_t bytes ) { 
-      ro_acquires++;
-      bytes_acquired+=bytes;
-    }
-    inline void count_wo_release( uint64_t bytes ) { 
-      wo_releases++; 
-      bytes_released+=bytes;
-    }
-    inline void count_rw_acquire( uint64_t bytes) { 
-      rw_acquires++;
-      bytes_acquired+=bytes;
-    }
-    inline void count_rw_release( uint64_t bytes ) { 
-      rw_acquires++; 
-      bytes_released+=bytes;
-    }
-
-    void dump( std::ostream& o, const char * terminator );
-    void sample();
-    void profiling_sample();
-    void merge(const CacheStatistics * other);
+    static void count_ro_acquire( uint64_t bytes ) ; 
+    static void count_wo_release( uint64_t bytes ) ; 
+    static void count_rw_acquire( uint64_t bytes) ; 
+    static void count_rw_release( uint64_t bytes ) ; 
 };
 
-extern CacheStatistics cache_stats;
-    
 
 /// Allocator for cache local storage. If you pass in a pointer to a
 /// buffer you've allocated, it uses that. Otherwise, it allocates a
@@ -186,13 +147,13 @@ public:
 
   /// send acquire message
   void start_acquire( ) { 
-    cache_stats.count_ro_acquire( sizeof(T)*count_ );
+    CacheStatistics::count_ro_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
 
   /// block until acquire is completed
   void block_until_acquired() {
-    cache_stats.count_ro_acquire( sizeof(T)*count_ );
+    CacheStatistics::count_ro_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   
@@ -267,25 +228,25 @@ public:
 
   /// send acquire message
   void start_acquire( ) { 
-    cache_stats.count_rw_acquire( sizeof(T)*count_ );
+    CacheStatistics::count_rw_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
 
   /// block until acquire is completed
   void block_until_acquired() {
-    cache_stats.count_rw_acquire( sizeof(T)*count_ );
+    CacheStatistics::count_rw_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   
   /// send release message
   void start_release() { 
-    cache_stats.count_rw_release( sizeof(T)*count_ );
+    CacheStatistics::count_rw_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
 
   /// block until release is completed
   void block_until_released() {
-    cache_stats.count_rw_release( sizeof(T)*count_ );
+    CacheStatistics::count_rw_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
@@ -362,13 +323,13 @@ public:
 
   /// block until release is completed
   void start_release() { 
-    cache_stats.count_wo_release( sizeof(T)*count_ );
+    CacheStatistics::count_wo_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
 
   /// block until release is completed
   void block_until_released() {
-    cache_stats.count_wo_release( sizeof(T)*count_ );
+    CacheStatistics::count_wo_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
