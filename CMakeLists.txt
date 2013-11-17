@@ -11,6 +11,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 #   message(FATAL_ERROR "you must set CC & CXX environment variables!")
 # endif()
 
+set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
+
 project(Grappa)
 
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
