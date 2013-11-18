@@ -62,6 +62,7 @@ namespace {
     static char ID;
     
     ModulePass* global_to_wide_pass;
+    GlobalToWideInfo * wide_info;
     
     GrappaWrapper() : ModulePass(ID) { }
     ~GrappaWrapper() { }
@@ -73,7 +74,8 @@ namespace {
     virtual bool doInitialization(Module& module) {
       errs() << "initializing\n";
       
-      GlobalToWideInfo info;
+      wide_info = new GlobalToWideInfo();
+      auto& info = *wide_info;
       
       auto get_ty = [&module](StringRef name) {
         auto ty = module.getTypeByName(name);
@@ -105,9 +107,9 @@ namespace {
       ptr_info.globalToWideFn = get_fn("grappa_global_to_wide_void");
       ptr_info.wideToGlobalFn = get_fn("grappa_wide_to_global_void");
       
-      info.addrFn = ptr_info.addrFn = get_fn("grappa_pointer");
-      info.locFn = ptr_info.locFn = get_fn("grappa_core");
-      info.nodeFn = ptr_info.nodeFn = get_fn("grappa_core");
+      info.addrFn = ptr_info.addrFn = get_fn("grappa_wide_get_pointer");
+      info.nodeFn = ptr_info.locFn = get_fn("grappa_wide_get_core");
+      info.locFn = ptr_info.nodeFn = get_fn("grappa_wide_get_locale_core");
       info.makeFn = ptr_info.makeFn = get_fn("grappa_make_wide");
       
       auto voidTy = Type::getVoidTy(module.getContext());
