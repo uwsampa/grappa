@@ -89,8 +89,8 @@ int64_t global_bytes_per_locale = 0;
 
 
 /// Sample all stats for VampirTrace
+/// TODO: Deprecate and call sample_user elsewhere
 void legacy_profiling_sample() {
-  global_aggregator.stats.profiling_sample();
   // Grappa::Statistics::global_queue_stats.profiling_sample();
 
   // print user-registered stats

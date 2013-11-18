@@ -36,8 +36,8 @@
 #include "Timestamp.hpp"
 
 #include "StateTimer.hpp"
-#include "PerformanceTools.hpp"
 #include "StatisticsTools.hpp"
+#include "Statistics.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -163,331 +163,47 @@ public:
 };
 
 
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_messages_aggregated_);
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_bytes_aggregated_);
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_messages_deaggregated_);
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_bytes_deaggregated_);
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_bundles_received_);
+
 /// stats class for aggregator
 class AggregatorStatistics {
 private:
-  uint64_t messages_aggregated_;
-  uint64_t bytes_aggregated_;
-  uint64_t bytes_deaggregated_;
-  uint64_t messages_forwarded_;
-  uint64_t bytes_forwarded_;
-  uint64_t newest_wait_ticks_;
-  uint64_t oldest_wait_ticks_;
-  uint64_t polls_;
-  uint64_t flushes_;
-  uint64_t multiflushes_;
-  uint64_t timeouts_;
-  uint64_t idle_flushes_;
-  uint64_t capacity_flushes_;
-  uint64_t histogram_[16];
-  double start_;
-  uint64_t idle_poll_;
-  uint64_t idle_poll_useful_;
+  Grappa::SimpleStatistic<uint64_t> * histogram_[16];
     
-#ifdef VTRACE_SAMPLED
-  unsigned aggregator_vt_grp;
-  unsigned messages_aggregated_vt_ev;
-  unsigned bytes_aggregated_vt_ev;
-  unsigned messages_deaggregated_vt_ev;
-  unsigned bytes_deaggregated_vt_ev;
-  unsigned messages_forwarded_vt_ev;
-  unsigned bytes_forwarded_vt_ev;
-  unsigned newest_wait_ticks_vt_ev;
-  unsigned oldest_wait_ticks_vt_ev;
-  unsigned average_wait_vt_ev;
-  unsigned polls_vt_ev;
-  unsigned flushes_vt_ev;
-  unsigned multiflushes_vt_ev;
-  unsigned timeouts_vt_ev;
-  unsigned idle_flushes_vt_ev;
-  unsigned idle_poll_vt_ev;
-  unsigned idle_poll_useful_vt_ev;
-  unsigned capacity_flushes_vt_ev;
-  unsigned aggregator_0_to_255_bytes_vt_ev;
-  unsigned aggregator_256_to_511_bytes_vt_ev;
-  unsigned aggregator_512_to_767_bytes_vt_ev;
-  unsigned aggregator_768_to_1023_bytes_vt_ev;
-  unsigned aggregator_1024_to_1279_bytes_vt_ev;
-  unsigned aggregator_1280_to_1535_bytes_vt_ev;
-  unsigned aggregator_1536_to_1791_bytes_vt_ev;
-  unsigned aggregator_1792_to_2047_bytes_vt_ev;
-  unsigned aggregator_2048_to_2303_bytes_vt_ev;
-  unsigned aggregator_2304_to_2559_bytes_vt_ev;
-  unsigned aggregator_2560_to_2815_bytes_vt_ev;
-  unsigned aggregator_2816_to_3071_bytes_vt_ev;
-  unsigned aggregator_3072_to_3327_bytes_vt_ev;
-  unsigned aggregator_3328_to_3583_bytes_vt_ev;
-  unsigned aggregator_3584_to_3839_bytes_vt_ev;
-  unsigned aggregator_3840_to_4095_bytes_vt_ev;
-#endif
-
-
-  static std::string hist_labels[16];
-  
-  /// dump csv stats header 
-  /// TODO: remove. unused
-  std::ostream& header( std::ostream& o ) {
-    o << "AggregatorStatistics, header, time, messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, flushes, timeouts";
-    for (int i=0; i<16; i++) o << ", " << hist_labels[i];
-    return o;
-  }
-
-  /// dump csv stats data
-  /// TODO: remove. unused
-  std::ostream& data( std::ostream& o, double time) {
-    o << "AggregatorStatistics, data, " << time << ", ";
-    double messages_aggregated_per_second = messages_aggregated_ / time;
-    double bytes_aggregated_per_second = bytes_aggregated_ / time;
-    o << messages_aggregated_ << ", " 
-      << bytes_aggregated_ << ", "
-      << messages_aggregated_per_second << ", "
-      << bytes_aggregated_per_second << ", ";
-    o << flushes_ << ", " << timeouts_;
-    for( int i = 0; i < 16; ++i ) {
-      o << ", " << histogram_[ i ];
-    }
-    return o;
-  }
-  
-  /// dump stats as a ruby map
-  std::ostream& as_map( std::ostream& o, double time) {
-    double messages_aggregated_per_second = messages_aggregated_ / time;
-    double bytes_aggregated_per_second = bytes_aggregated_ / time;
-    
-    o << "   \"AggregatorStatistics\": {" ;
-    o << "\"time_aggregated\": " << time << ", "
-      << "\"messages_aggregated\": " << messages_aggregated_ << ", "
-      << "\"bytes_aggregated\": " << bytes_aggregated_ << ", "
-      << "\"messages_aggregated_per_second\": " << messages_aggregated_per_second << ", "
-      << "\"bytes_aggregated_per_second\": " << bytes_aggregated_per_second << ", "
-      << "\"newest_wait_ticks\": " << newest_wait_ticks_ << ", "
-      << "\"oldest_wait_ticks\": " << oldest_wait_ticks_ << ", "
-      << "\"average_wait_time\": " << (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) << ", "
-      << "\"polls\": " << polls_ << ", "
-      << "\"flushes\": " << flushes_ << ", "
-      << "\"multiflushes\": " << multiflushes_ << ", "
-      << "\"timeouts\": " << timeouts_ << ", "
-      << "\"idle_flushes\": " << idle_flushes_ << ", "
-      << "\"idle_poll\": " << idle_poll_ << ", "
-      << "\"idle_poll_useful\": " << idle_poll_useful_ << ", "
-      << "\"capacity_flushes\": " << capacity_flushes_;
-    for (int i=0; i<16; i++) {
-      o << ", " << hist_labels[i] << ": " << histogram_[i];
-    }
-    o << " }";
-    return o;
-  }
-  
-  /// number of ticks since start_
-  double time() {
-    double end = Grappa_walltime();
-    return end-start_;
-  }
-
 public:
-  // TODO these two are not yet implementing full interface
-  // and are public
-  uint64_t bundles_received_;
-  TotalStatistic bundle_bytes_received_;
-  uint64_t messages_deaggregated_;
 
-  AggregatorStatistics()
-    : histogram_()
-    , start_()
-#ifdef VTRACE_SAMPLED
-    , aggregator_vt_grp( VT_COUNT_GROUP_DEF( "Aggregator" ) )
-    , messages_aggregated_vt_ev( VT_COUNT_DEF( "Total messages aggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , bytes_aggregated_vt_ev( VT_COUNT_DEF( "Total bytes aggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , messages_deaggregated_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , bytes_deaggregated_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , messages_forwarded_vt_ev( VT_COUNT_DEF( "Total messages forwarded", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , bytes_forwarded_vt_ev( VT_COUNT_DEF( "Total bytes forwarded", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , newest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator newest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , oldest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator oldest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , average_wait_vt_ev( VT_COUNT_DEF( "Aggregator average wait time", "ticks", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , polls_vt_ev( VT_COUNT_DEF( "Aggregator polls", "polls", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , flushes_vt_ev( VT_COUNT_DEF( "Flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , multiflushes_vt_ev( VT_COUNT_DEF( "Nonzero timeout loops", "multiflushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , timeouts_vt_ev( VT_COUNT_DEF( "Timeouts", "timeouts", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , idle_flushes_vt_ev( VT_COUNT_DEF( "Idle flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , idle_poll_vt_ev( VT_COUNT_DEF( "Idle poll", "poll", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , idle_poll_useful_vt_ev( VT_COUNT_DEF( "Idle poll_useful", "poll_useful", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , capacity_flushes_vt_ev( VT_COUNT_DEF( "Capacity flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , aggregator_0_to_255_bytes_vt_ev(     VT_COUNT_DEF(     "Aggregated 0 to 255 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_256_to_511_bytes_vt_ev(   VT_COUNT_DEF(   "Aggregated 256 to 511 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_512_to_767_bytes_vt_ev(   VT_COUNT_DEF(   "Aggregated 512 to 767 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_768_to_1023_bytes_vt_ev(  VT_COUNT_DEF(  "Aggregated 768 to 1023 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_1024_to_1279_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1024 to 1279 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_1280_to_1535_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1280 to 1535 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_1536_to_1791_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1536 to 1791 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_1792_to_2047_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1792 to 2047 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_2048_to_2303_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2048 to 2303 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_2304_to_2559_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2304 to 2559 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_2560_to_2815_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2560 to 2815 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_2816_to_3071_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2816 to 3071 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_3072_to_3327_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3072 to 3327 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_3328_to_3583_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3328 to 3583 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_3584_to_3839_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3584 to 3839 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-    , aggregator_3840_to_4095_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3840 to 4095 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
-#endif
-  {
-    reset();
-  }
-  
-  void reset() {
-    messages_aggregated_ = 0;
-    bytes_aggregated_ = 0;
-    messages_deaggregated_ = 0;
-    bytes_deaggregated_ = 0;
-    messages_forwarded_ = 0;
-    bundles_received_ = 0;
-    bundle_bytes_received_.reset();
-    bytes_forwarded_ = 0;
-    newest_wait_ticks_ = 0;
-    oldest_wait_ticks_ = 0;
-    polls_ = 0;
-    flushes_ = 0;
-    multiflushes_ = 0;
-    timeouts_ = 0;
-    idle_flushes_ = 0;
-    idle_poll_ = 0;
-    idle_poll_useful_ = 0;
-    capacity_flushes_ = 0;
-    start_ = Grappa_walltime();
-    for( int i = 0; i < 16; ++i ) {
-      histogram_[i] = 0;
-    }
-  }
+  AggregatorStatistics();
 
-  void record_poll() {
-    polls_++;
-  }
+  void record_poll();
 
-  void record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts ) {
-    Grappa::Timestamp ts = Grappa::timestamp();
-    oldest_wait_ticks_ += ts - oldest_ts;
-    newest_wait_ticks_ += ts - newest_ts;
-    flushes_++;
-  }
+  void record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts );
+  void record_idle_flush();
+  void record_multiflush();
+  void record_timeout();
+  void record_idle_poll( bool useful );
+  void record_capacity_flush();
 
-  void record_idle_flush() {
-    idle_flushes_++;
-  }
-
-  void record_multiflush() {
-    multiflushes_++;
-  }
-
-  void record_timeout() {
-    timeouts_++;
-  }
-
-  void record_idle_poll( bool useful ) {
-    if ( useful ) idle_poll_useful_++;
-    else idle_poll_++;
-  }
-  
-  void record_capacity_flush() {
-    capacity_flushes_++;
-  }
-  
   void record_aggregation( size_t bytes ) {
-    messages_aggregated_++;
-    bytes_aggregated_ += bytes;
+    aggregator_messages_aggregated_++;
+    aggregator_bytes_aggregated_ += bytes;
 #ifdef GASNET_CONDUIT_IBV
-    histogram_[ (bytes >> 8) & 0xf ]++;
+    (*(histogram_[ (bytes >> 8) & 0xf ]))++;
 #endif
   }
 
   void record_deaggregation( size_t bytes ) {
-    ++messages_deaggregated_;
-    bytes_deaggregated_ += bytes;
+    ++aggregator_messages_deaggregated_;
+    aggregator_bytes_deaggregated_ += bytes;
   }
 
-  void record_forward( size_t bytes ) {
-    ++messages_forwarded_;
-    bytes_forwarded_ += bytes;
-  }
+  void record_forward( size_t bytes );
 
-  void record_receive_bundle( size_t bytes ) {
-    ++bundles_received_;
-    bundle_bytes_received_.update( bytes );
-  } 
+  void record_receive_bundle( size_t bytes );
 
-
-  void profiling_sample() {
-#ifdef VTRACE_SAMPLED
-    VT_COUNT_UNSIGNED_VAL( messages_aggregated_vt_ev, messages_aggregated_ );
-    VT_COUNT_UNSIGNED_VAL( bytes_aggregated_vt_ev, bytes_aggregated_ );
-    VT_COUNT_UNSIGNED_VAL( messages_deaggregated_vt_ev, messages_deaggregated_ );
-    VT_COUNT_UNSIGNED_VAL( bytes_deaggregated_vt_ev, bytes_deaggregated_ );
-    VT_COUNT_UNSIGNED_VAL( messages_forwarded_vt_ev, messages_forwarded_ );
-    VT_COUNT_UNSIGNED_VAL( bytes_forwarded_vt_ev, bytes_forwarded_ );
-    VT_COUNT_UNSIGNED_VAL( newest_wait_ticks_vt_ev, newest_wait_ticks_ );
-    VT_COUNT_UNSIGNED_VAL( oldest_wait_ticks_vt_ev, oldest_wait_ticks_ );
-    VT_COUNT_DOUBLE_VAL( average_wait_vt_ev, (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) );
-    VT_COUNT_UNSIGNED_VAL( polls_vt_ev, polls_ );
-    VT_COUNT_UNSIGNED_VAL( flushes_vt_ev, flushes_ );
-    VT_COUNT_UNSIGNED_VAL( multiflushes_vt_ev, multiflushes_ );
-    VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
-    VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
-    VT_COUNT_UNSIGNED_VAL( idle_poll_vt_ev, idle_poll_ );
-    VT_COUNT_UNSIGNED_VAL( idle_poll_useful_vt_ev, idle_poll_useful_ );
-    VT_COUNT_UNSIGNED_VAL( capacity_flushes_vt_ev, capacity_flushes_ );
-    
-#define calc_hist(bin,total) (total == 0) ? 0.0 : (double)bin/total
-
-    VT_COUNT_DOUBLE_VAL( aggregator_0_to_255_bytes_vt_ev,     calc_hist(histogram_[0] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_256_to_511_bytes_vt_ev,   calc_hist(histogram_[1] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_512_to_767_bytes_vt_ev,   calc_hist(histogram_[2] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_768_to_1023_bytes_vt_ev,  calc_hist(histogram_[3] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_1024_to_1279_bytes_vt_ev, calc_hist(histogram_[4] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_1280_to_1535_bytes_vt_ev, calc_hist(histogram_[5] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_1536_to_1791_bytes_vt_ev, calc_hist(histogram_[6] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_1792_to_2047_bytes_vt_ev, calc_hist(histogram_[7] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_2048_to_2303_bytes_vt_ev, calc_hist(histogram_[8] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_2304_to_2559_bytes_vt_ev, calc_hist(histogram_[9] , messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_2560_to_2815_bytes_vt_ev, calc_hist(histogram_[10], messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_2816_to_3071_bytes_vt_ev, calc_hist(histogram_[11], messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_3072_to_3327_bytes_vt_ev, calc_hist(histogram_[12], messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_3328_to_3583_bytes_vt_ev, calc_hist(histogram_[13], messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_3584_to_3839_bytes_vt_ev, calc_hist(histogram_[14], messages_aggregated_) );
-    VT_COUNT_DOUBLE_VAL( aggregator_3840_to_4095_bytes_vt_ev, calc_hist(histogram_[15], messages_aggregated_) );
-#undef calc_hist
-#endif
-  }
-
-  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-    dump_as_map( o, terminator );
-//    header( LOG(INFO) );
-//    data( LOG(INFO), time() );
-  }
-  void dump_as_map( std::ostream& o = std::cout, const char * terminator = "" ) {
-    as_map( o, time() );
-    o << terminator << std::endl;
-  }
-  
-  void merge(const AggregatorStatistics * other) {
-    messages_aggregated_ += other->messages_aggregated_;
-    bytes_aggregated_ += other->bytes_aggregated_;
-    messages_deaggregated_ += other->messages_deaggregated_;
-    bytes_deaggregated_ += other->bytes_deaggregated_;
-    messages_forwarded_ += other->messages_forwarded_;
-    bytes_forwarded_ += other->bytes_forwarded_;
-    newest_wait_ticks_ += other->newest_wait_ticks_;
-    oldest_wait_ticks_ += other->oldest_wait_ticks_;
-    polls_ += other->polls_;
-    flushes_ += other->flushes_;
-    multiflushes_ += other->multiflushes_;
-    timeouts_ += other->timeouts_;
-    idle_flushes_ += other->idle_flushes_;
-    idle_poll_ += other->idle_poll_;
-    idle_poll_useful_ += other->idle_poll_useful_;
-    capacity_flushes_ += other->capacity_flushes_;
-    for( int i = 0; i < 16; ++i ) {
-      histogram_[i] += other->histogram_[i];
-    }
-  }
 };
 
 /// Header for aggregated active messages.
@@ -646,16 +362,6 @@ public:
   /// Clean up aggregator before destruction.
   void finish();
 
-  /// Dump aggregator stats
-  void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
-    stats.dump_as_map( o, terminator );
-  }
-
-  /// Merge aggregator stats with stats from another core
-  void merge_stats();
-  /// Reset aggregator stats
-  void reset_stats() { stats.reset(); }
-
   /// route map lookup for hierarchical aggregation
   inline Node get_target_for_node( Node n ) const {
     return route_map_[ n ];
@@ -723,17 +429,17 @@ public:
 #endif
     stats.record_poll();
 
-    uint64_t beforePoll = stats.bundles_received_; 
+    uint64_t beforePoll = aggregator_bundles_received_; 
     global_communicator.poll();
-    uint64_t afterPoll = stats.bundles_received_;
+    uint64_t afterPoll = aggregator_bundles_received_;
     bool pollUseful = afterPoll > beforePoll;
 
 
     uint64_t ts = get_timestamp();
 
-    uint64_t beforeDeaggregate = stats.messages_deaggregated_;
+    uint64_t beforeDeaggregate = aggregator_messages_deaggregated_;
     deaggregate();
-    uint64_t afterDeaggregate = stats.messages_deaggregated_;
+    uint64_t afterDeaggregate = aggregator_messages_deaggregated_;
     bool deagUseful = afterDeaggregate > beforeDeaggregate;
     
     // timestamp overflows are silently ignored. 
