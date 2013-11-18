@@ -1,0 +1,4 @@
+#!/bin/bash
+clang_exe=$1
+
+lldb -- $clang_exe -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_LOCATION@ @GRAPPA_INCLUDES@ @GRAPPA_DEFINITIONS@ -O1 @CMAKE_CURRENT_SOURCE_DIR@/../test/basic.cpp -c -o @CMAKE_CURRENT_BINARY_DIR@/../test/basic.o

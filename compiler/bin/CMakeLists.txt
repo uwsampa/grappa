@@ -47,14 +47,13 @@ endforeach()
 #   COMMAND ""
 # )
 
-foreach(file "grappaclang" "grappaclang-no-opt")
+foreach(file "grappaclang" "grappaclang-no-opt" "grappaclang.lldb")
   configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/${file}.in"
     "${CMAKE_BINARY_DIR}/bin/${file}"
     @ONLY
   )
 endforeach()
-
 
 # symlink scripts into <BUILD_DIR>/bin (without extensions)
 foreach(file  ir_debug.rb)
