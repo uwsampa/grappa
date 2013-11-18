@@ -54,7 +54,7 @@ ExternalProject_Add( tool-gflags
   BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g CXXFLAGS=-stdlib=libstdc++ <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
 )
@@ -70,7 +70,7 @@ ExternalProject_Add( tool-glog
   BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
+  CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g CXXFLAGS=-stdlib=libstdc++ <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
   DEPENDS tool-gflags

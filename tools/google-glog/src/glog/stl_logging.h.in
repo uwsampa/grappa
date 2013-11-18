@@ -71,7 +71,10 @@
 #include <utility>
 #include <vector>
 
+#undef __GNUC__
+
 #ifdef __GNUC__
+# error shouldn't be here!
 # include <ext/hash_set>
 # include <ext/hash_map>
 # include <ext/slist>

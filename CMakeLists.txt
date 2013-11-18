@@ -11,6 +11,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 #   message(FATAL_ERROR "you must set CC & CXX environment variables!")
 # endif()
 
+set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
+
 project(Grappa)
 
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
@@ -217,6 +219,8 @@ file(GLOB_RECURSE igor_scripts
   RELATIVE ${CMAKE_SOURCE_DIR}
   igor_*
 )
+string(REGEX REPLACE "build/[^;]+;?" "" igor_scripts "${igor_scripts}") # filter out build directory
+
 foreach(script ${igor_scripts})
   get_filename_component(out_dir "${script}" PATH)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${out_dir})

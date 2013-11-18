@@ -78,6 +78,9 @@ config.h
 
 # CMake
 /build
+*.cmake
+CMakeFiles/
+CMakeCache.txt
 
 /scratch/*.cpp
 
