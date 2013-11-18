@@ -30,7 +30,13 @@ namespace Grappa {
           send_heap_message(combined_addr.node(), [combined_addr, s_value, &ce] {
               // for this simple SimpleStatistic, merging is as simple as accumulating the value
               SimpleStatistic<T>* combined_ptr = combined_addr.pointer();
-              combined_ptr->value_ += s_value;
+              if (combined_ptr->initf_ != NULL) {
+                // min
+                if (combined_ptr->value_ > s_value) combined_ptr->value_ = s_value;
+              } else {
+                //sum
+                combined_ptr->value_ += s_value;
+              }
               
               ce.complete();
             });

@@ -31,6 +31,7 @@
 #include <glog/logging.h>
 
 #include "common.hpp"
+#include "Statistics.hpp"
 
 #pragma GCC system_header
 #include <gasnet.h>
@@ -42,6 +43,9 @@
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
+
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, communicator_messages);
+GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, communicator_bytes);
 
 /// Common pointer type for active message handlers used by GASNet
 /// library. Actual handlers may have arguments.
@@ -98,168 +102,21 @@ class Communicator;
 /// Class for recording Communicator stats
 class CommunicatorStatistics {
 private:
-  uint64_t messages_;
-  uint64_t bytes_;
-  uint64_t histogram_[16];
-  double start_;
-
-#ifdef VTRACE_SAMPLED
-  unsigned communicator_vt_grp;
-  unsigned messages_vt_ev;
-  unsigned bytes_vt_ev;
-  unsigned communicator_0_to_255_bytes_vt_ev;
-  unsigned communicator_256_to_511_bytes_vt_ev;
-  unsigned communicator_512_to_767_bytes_vt_ev;
-  unsigned communicator_768_to_1023_bytes_vt_ev;
-  unsigned communicator_1024_to_1279_bytes_vt_ev;
-  unsigned communicator_1280_to_1535_bytes_vt_ev;
-  unsigned communicator_1536_to_1791_bytes_vt_ev;
-  unsigned communicator_1792_to_2047_bytes_vt_ev;
-  unsigned communicator_2048_to_2303_bytes_vt_ev;
-  unsigned communicator_2304_to_2559_bytes_vt_ev;
-  unsigned communicator_2560_to_2815_bytes_vt_ev;
-  unsigned communicator_2816_to_3071_bytes_vt_ev;
-  unsigned communicator_3072_to_3327_bytes_vt_ev;
-  unsigned communicator_3328_to_3583_bytes_vt_ev;
-  unsigned communicator_3584_to_3839_bytes_vt_ev;
-  unsigned communicator_3840_to_4095_bytes_vt_ev;
-#endif
-
-  static std::string hist_labels[16];
-
-  std::ostream& header( std::ostream& o ) {
-    o << "CommunicatorStatistics, header, time, messages, bytes, messages_per_second, bytes_per_second";
-    for (int i=0; i<16; i++) o << ", " << hist_labels[i];
-    return o;
-  }
-
-  std::ostream& data( std::ostream& o, double time ) {
-    o << "CommunicatorStatistics, data, " << time << ", ";
-    double messages_per_second = messages_ / time;
-    double bytes_per_second = bytes_ / time;
-    o << messages_ << ", " 
-      << bytes_ << ", "
-      << messages_per_second << ", "
-      << bytes_per_second;
-    for( int i = 0; i < 16; ++i ) {
-      o << ", " << histogram_[ i ];
-    }
-    return o;
-  }
-  
-  std::ostream& as_map( std::ostream& o, double time) {
-    double messages_per_second = messages_ / time;
-    double bytes_per_second = bytes_ / time;
-    o << "   \"CommunicatorStatistics\": {"
-      << "\"comm_time\": " << time
-      << ", \"messages\": " << messages_
-      << ", \"bytes\": " << bytes_
-      << ", \"messages_per_second\": " << messages_per_second
-      << ", \"bytes_per_second\": " << bytes_per_second;
-    for (int i=0; i<16; i++) o << ", " << hist_labels[i] << ": " << histogram_[i];
-    o << " }";
-    return o;
-  }
-  
-  double time() {
-    double end = Grappa_walltime();
-    return end-start_;
-  }
+  Grappa::SimpleStatistic<uint64_t> * histogram_[16];
 
 public:
-  CommunicatorStatistics()
-    : messages_(0)
-    , bytes_(0)
-    , histogram_()
-    , start_()
-#ifdef VTRACE_SAMPLED
-    , communicator_vt_grp( VT_COUNT_GROUP_DEF( "Communicator" ) )
-    , messages_vt_ev( VT_COUNT_DEF( "Total messages sent", "messages", VT_COUNT_TYPE_UNSIGNED, communicator_vt_grp ) )
-    , bytes_vt_ev( VT_COUNT_DEF( "Total bytes sent", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_vt_grp ) )
-    , communicator_0_to_255_bytes_vt_ev(     VT_COUNT_DEF(     "Raw 0 to 255 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_256_to_511_bytes_vt_ev(   VT_COUNT_DEF(   "Raw 256 to 511 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_512_to_767_bytes_vt_ev(   VT_COUNT_DEF(   "Raw 512 to 767 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_768_to_1023_bytes_vt_ev(  VT_COUNT_DEF(  "Raw 768 to 1023 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_1024_to_1279_bytes_vt_ev( VT_COUNT_DEF( "Raw 1024 to 1279 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_1280_to_1535_bytes_vt_ev( VT_COUNT_DEF( "Raw 1280 to 1535 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_1536_to_1791_bytes_vt_ev( VT_COUNT_DEF( "Raw 1536 to 1791 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_1792_to_2047_bytes_vt_ev( VT_COUNT_DEF( "Raw 1792 to 2047 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_2048_to_2303_bytes_vt_ev( VT_COUNT_DEF( "Raw 2048 to 2303 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_2304_to_2559_bytes_vt_ev( VT_COUNT_DEF( "Raw 2304 to 2559 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_2560_to_2815_bytes_vt_ev( VT_COUNT_DEF( "Raw 2560 to 2815 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_2816_to_3071_bytes_vt_ev( VT_COUNT_DEF( "Raw 2816 to 3071 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_3072_to_3327_bytes_vt_ev( VT_COUNT_DEF( "Raw 3072 to 3327 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_3328_to_3583_bytes_vt_ev( VT_COUNT_DEF( "Raw 3328 to 3583 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_3584_to_3839_bytes_vt_ev( VT_COUNT_DEF( "Raw 3584 to 3839 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-    , communicator_3840_to_4095_bytes_vt_ev( VT_COUNT_DEF( "Raw 3840 to 4095 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
-#endif
-  { 
-    reset();
-  }
+  CommunicatorStatistics();
   
-  void reset() {
-    messages_ = 0;
-    bytes_ = 0;
-    start_ = Grappa_walltime();
-    for( int i = 0; i < 16; ++i ) {
-      histogram_[i] = 0;
-    }
-  }
+  void reset_clock();
 
-  void reset_clock() {
-    start_ = Grappa_walltime();
-  }
-
+  // inlined
   void record_message( size_t bytes ) {
-    messages_++;
-    bytes_ += bytes;
+    communicator_messages++;
+    communicator_bytes+=bytes;
 #ifdef GASNET_CONDUIT_IBV
     if( bytes > 4095 ) bytes = 4095;
-    histogram_[ (bytes >> 8) & 0xf ]++;
+    (*(histogram_[ (bytes >> 8) & 0xf ]))++;
 #endif
-  }
-
-  void profiling_sample() {
-#ifdef VTRACE_SAMPLED
-#define calc_hist(bin,total) (total == 0) ? 0.0 : (double)bin/total
-    VT_COUNT_UNSIGNED_VAL( messages_vt_ev, messages_ );
-    VT_COUNT_UNSIGNED_VAL( bytes_vt_ev, bytes_ );
-    VT_COUNT_DOUBLE_VAL( communicator_0_to_255_bytes_vt_ev,     calc_hist(histogram_[0] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_256_to_511_bytes_vt_ev,   calc_hist(histogram_[1] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_512_to_767_bytes_vt_ev,   calc_hist(histogram_[2] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_768_to_1023_bytes_vt_ev,  calc_hist(histogram_[3] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_1024_to_1279_bytes_vt_ev, calc_hist(histogram_[4] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_1280_to_1535_bytes_vt_ev, calc_hist(histogram_[5] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_1536_to_1791_bytes_vt_ev, calc_hist(histogram_[6] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_1792_to_2047_bytes_vt_ev, calc_hist(histogram_[7] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_2048_to_2303_bytes_vt_ev, calc_hist(histogram_[8] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_2304_to_2559_bytes_vt_ev, calc_hist(histogram_[9] , messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_2560_to_2815_bytes_vt_ev, calc_hist(histogram_[10], messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_2816_to_3071_bytes_vt_ev, calc_hist(histogram_[11], messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_3072_to_3327_bytes_vt_ev, calc_hist(histogram_[12], messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_3328_to_3583_bytes_vt_ev, calc_hist(histogram_[13], messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_3584_to_3839_bytes_vt_ev, calc_hist(histogram_[14], messages_) );
-    VT_COUNT_DOUBLE_VAL( communicator_3840_to_4095_bytes_vt_ev, calc_hist(histogram_[15], messages_) );
-#undef calc_hist
-#endif
-  }
-
-  void dump_csv() {
-    header(LOG(INFO));
-    data(LOG(INFO), time());
-  }
-  
-  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-    as_map(o, time());
-    o << terminator << std::endl;
-  }
-  
-  void merge(const CommunicatorStatistics * other) {
-    messages_ += other->messages_;
-    bytes_ += other->bytes_;
-    for (int i=0; i<16; i++) histogram_[i] += other->histogram_[i];
-    // pick earlier start time of the two
-    start_ = MIN(start_, other->start_);
   }
 };
 
@@ -357,12 +214,6 @@ public:
   void activate();
 
   void finish( int retval = 0 );
-
-  void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) { 
-    stats.dump( o, terminator );
-  }
-  void merge_stats();
-  void reset_stats() { stats.reset(); }
 
   /// Get id of this node
   inline Node mynode() const { 

@@ -12,6 +12,8 @@
 #include <gperftools/profiler.h>
 #endif
 
+#include <functional>
+
 
 namespace Grappa {
   /// @addtogroup Utility
@@ -22,8 +24,10 @@ namespace Grappa {
   template<typename T>
   class SimpleStatistic : public impl::StatisticBase {
   protected:
+    typedef std::function<T(void)> InitFn;
     T initial_value;
     T value_;
+    InitFn initf_;
     
 #ifdef VTRACE_SAMPLED
     unsigned vt_counter;
@@ -35,7 +39,20 @@ namespace Grappa {
   public:
     
     SimpleStatistic(const char * name, T initial_value, bool reg_new = true):
-        initial_value(initial_value), value_(initial_value), impl::StatisticBase(name, reg_new) {
+        initial_value(initial_value), value_(initial_value), initf_(NULL), impl::StatisticBase(name, reg_new) {
+#ifdef VTRACE_SAMPLED
+        if (SimpleStatistic::vt_type == -1) {
+          LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
+        } else {
+          vt_counter = VT_COUNT_DEF(name, name, SimpleStatistic::vt_type, VT_COUNT_DEFGROUP);
+        }
+#endif
+    }
+   
+   // reset using function 
+   // IMPORTANT: currently, this forces the merge to do a min instead of a sum
+    SimpleStatistic(const char * name, InitFn initf, bool reg_new = true):
+        initial_value(initial_value), value_(initf()), initf_(initf), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (SimpleStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
@@ -51,7 +68,11 @@ namespace Grappa {
     }
     
     virtual void reset() {
-      value_ = initial_value;
+      if (initf_ != NULL) {
+        value_ = initf_();
+      } else {
+        value_ = initial_value;
+      }
     }
     
     virtual void sample() {
