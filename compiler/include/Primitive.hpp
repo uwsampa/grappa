@@ -139,3 +139,23 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
     fe.readFF();
   }
 }
+
+struct delegate_fetch_add_args {
+  long global* addr;
+  long increment;
+};
+struct delegate_fetch_add_out {
+  long before_val;
+};
+
+void delegate_fetch_add(void *args_v, void *out_v) {
+  auto *args = static_cast<delegate_fetch_add_args*>(args_v);
+  auto *out = static_cast<delegate_fetch_add_out*>(out_v);
+  long *p = Grappa::pointer(args->addr);
+  out->before_val = *p;
+  *p += args->increment;
+}
+
+void example() {
+  
+}

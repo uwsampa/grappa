@@ -98,15 +98,6 @@ namespace {
     Old->eraseFromParent();
   }
   
-  Constant* getFunctionSafe(Module& module, const char* fn_name) {
-    auto fn = module.getFunction(fn_name);
-    if (!fn) {
-      llvm::errs() << "unable to find " << fn_name << "\n";
-      abort();
-    }
-    return fn;
-  }
-  
   template< typename T >
   void ir_comment(T* target, StringRef label, const Twine& text) {
     auto& ctx = target->getContext();
@@ -122,7 +113,7 @@ namespace {
   struct GrappaGen : public FunctionPass {
     static char ID;
     
-    Constant *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn;
+    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn;
     
     Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
     
@@ -204,6 +195,7 @@ namespace {
         LoadInst *ld;
         StoreInst *store;
         Value *inc;
+        Instruction *op;
       };
       std::vector<FetchAdd> fetchadds;
       
@@ -212,6 +204,7 @@ namespace {
         // look for fetch_add opportunity
         std::map<Value*,LoadInst*> target_lds;
         std::map<Value*,Value*> target_increments;
+        std::map<Value*,Instruction*> operand_to_inst;
         
         for (auto& inst : bb) {
           switch ( inst.getOpcode() ) {
@@ -239,7 +232,7 @@ namespace {
                   auto ld = target_lds[ptr];
                   auto inc = target_increments[ld];
                   if (inc != nullptr) {
-                    fetchadds.emplace_back( FetchAdd{ld, store, inc} );
+                    fetchadds.emplace_back( FetchAdd{ld, store, inc, operand_to_inst[inc]} );
                     global_loads.erase(ld);
                   } else {
                     global_stores.insert(store);
@@ -253,11 +246,18 @@ namespace {
             
             case Instruction::Add: {
               auto& o = *cast<BinaryOperator>(&inst);
+              Value *target, *inc;
               if (target_increments.count(o.getOperand(0))) {
-                target_increments[o.getOperand(0)] = o.getOperand(1);
+                target = o.getOperand(0);
+                inc = o.getOperand(1);
               } else if (target_increments.count(o.getOperand(1))) {
-                target_increments[o.getOperand(1)] = o.getOperand(0);
+                target = o.getOperand(1);
+                inc = o.getOperand(0);
+              } else {
+                target = inc = nullptr;
               }
+              target_increments[target] = inc;
+              operand_to_inst[inc] = &o;
               break;
             }
           }
@@ -267,9 +267,13 @@ namespace {
       for (auto& fa : fetchadds) {
         errs() << "fetch_add:\n";
         dump_var_l("  ", fa.ld, "");
-        dump_var_l("  ", fa.inc, "");
+        dump_var_l("  ", fa.op, "");
         dump_var_l("  ", fa.store, "");
-
+        
+        Type *param_types[] = { void_ptr_ty, void_ptr_ty };
+        auto fn_ty = FunctionType::get(void_ty, param_types, false);
+        auto fn = Function::Create(fn_ty, GlobalValue::LinkageTypes::InternalLinkage);
+        
         Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
         auto f = CallInst::Create(fetchadd_i64_fn, args, "", fa.ld);
         myReplaceInstWithInst(fa.ld, f);
@@ -290,14 +294,20 @@ namespace {
     virtual bool doInitialization(Module& module) {
       errs() << "initializing\n";
       
-      // for (auto& f : module.getFunctionList()) {
-      //   llvm::errs() << "---"; f.dump();
-      // }
+      auto getFunction = [&module](StringRef name) {
+        auto fn = module.getFunction(name);
+        if (!fn) {
+          llvm::errs() << "unable to find " << name << "\n";
+          abort();
+        }
+        return fn;
+      };
       
-      get_fn = getFunctionSafe(module, "grappa_get");
-      put_fn = getFunctionSafe(module, "grappa_put");
-      read_long_fn = getFunctionSafe(module, "grappa_read_long");
-      fetchadd_i64_fn = getFunctionSafe(module, "grappa_fetchadd_i64");
+      get_fn = getFunction("grappa_get");
+      put_fn = getFunction("grappa_put");
+      read_long_fn = getFunction("grappa_read_long");
+      fetchadd_i64_fn = getFunction("grappa_fetchadd_i64");
+      call_on_fn = getFunction("grappa_on");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
