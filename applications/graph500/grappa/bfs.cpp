@@ -12,8 +12,6 @@
 
 using namespace Grappa;
 
-GRAPPA_DEFINE_EVENT_GROUP(bfs);
-
 static PushBuffer<int64_t> vlist_buf;
 
 static GlobalAddress<int64_t> vlist;

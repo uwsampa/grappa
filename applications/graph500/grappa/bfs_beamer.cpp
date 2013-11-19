@@ -16,8 +16,6 @@ using namespace Grappa;
 //#include <boost/unordered_set.hpp>
 #include <boost/dynamic_bitset.hpp>
 
-GRAPPA_DEFINE_EVENT_GROUP(bfs);
-
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
 

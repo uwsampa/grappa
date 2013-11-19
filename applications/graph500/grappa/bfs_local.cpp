@@ -17,8 +17,6 @@ using namespace Grappa;
 //#include <boost/unordered_set.hpp>
 //#include <boost/dynamic_bitset.hpp>
 
-GRAPPA_DEFINE_EVENT_GROUP(bfs);
-
 
 //#define read      Grappa_delegate_read_word
 //#define write     Grappa_delegate_write_word

@@ -8,47 +8,17 @@
 /// Collection of utilities for monitoring performance
 #pragma once
 
-#ifdef GRAPPA_TRACE
-#include <TAU.h>
-#endif
-
 #include "CurrentThread.hpp"
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-
-// need to define these when tau is disabled
-// because for some reason they are not even blank defined,
-// unlike other Tau api calls
-#ifndef GRAPPA_TRACE
-    #define TAU_DB_DUMP_PREFIX_TASK( a, b )
-#endif
-
+#ifdef GRAPPA_TRACE
 DECLARE_bool(record_grappa_events);
+#endif
 
 /// Macros to trace events with Tau
 
 #define SAMPLE_RATE (1<<4)
-
-#define GRAPPA_DEFINE_EVENT_GROUP(group) \
-  DEFINE_bool( record_##group, true, "Enable tracing of events in group.")
-
-#define GRAPPA_DECLARE_EVENT_GROUP(group) \
-  DECLARE_bool( record_##group )
-
-#ifdef GRAPPA_TRACE
-#define GRAPPA_EVENT(name, text, frequency, group, val) \
-  static uint64_t name##_calls = 0; \
-  name##_calls++; \
-  if (FLAGS_##record_##group && (FLAGS_record_grappa_events) && (name##_calls % frequency == 0)) { \
-    TAU_REGISTER_EVENT(name, text); \
-    TAU_EVENT(name, val); \
-  } \
-  do {} while (0)
-#else
-#define GRAPPA_EVENT(name, text, frequency, group, val) do {} while (0)
-#endif
-
 
 // These are specifically meant to profile the current (or a given) grappa thread
 #ifdef GRAPPA_TRACE

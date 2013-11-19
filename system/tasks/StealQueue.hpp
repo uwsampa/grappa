@@ -381,10 +381,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     steal_queue.bottom = victimBottom + stealAmt;
 
 
-    GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
-#ifdef VTRACE
-    //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
-#endif
+    //GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
 
     T* victimStackBase = steal_queue.stack;
     T* victimStealStart = victimStackBase + victimBottom;
@@ -406,7 +403,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
       CHECK( stealAmt * sizeof(T) == payload_size ) << "steal amount in bytes != payload size";
       T * stolen_work = static_cast<T*>( payload );
 
-      GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, stealAmt);
+      //GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, stealAmt);
 
 #ifdef VTRACE
       //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );

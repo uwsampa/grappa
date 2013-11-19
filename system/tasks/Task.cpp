@@ -68,7 +68,6 @@ namespace Grappa {
 
 TaskManager global_task_manager;
 
-GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 //DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
 /// Create an uninitialized TaskManager

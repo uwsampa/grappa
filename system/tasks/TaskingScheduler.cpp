@@ -10,8 +10,6 @@
 #include <gflags/gflags.h>
 #include "../PerformanceTools.hpp"
 
-GRAPPA_DEFINE_EVENT_GROUP(scheduler);
-
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 20000, "number of ticks to wait before polling periodic queue");
 

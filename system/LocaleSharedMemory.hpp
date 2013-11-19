@@ -32,7 +32,6 @@ private:
   void destroy();
 
   friend class RDMAAggregator;
-  friend class coro;
 
 public: // TODO: fix Gups
   boost::interprocess::fixed_managed_shared_memory segment;
