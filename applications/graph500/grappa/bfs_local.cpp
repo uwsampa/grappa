@@ -5,8 +5,6 @@
 #include <Delegate.hpp>
 #include <PerformanceTools.hpp>
 #include <GlobalAllocator.hpp>
-#include <GlobalTaskJoiner.hpp>
-#include <AsyncParallelFor.hpp>
 #include <PushBuffer.hpp>
 #include <Collective.hpp>
 #include <Array.hpp>

@@ -23,7 +23,6 @@
 #include "Collective.hpp"
 #include "Delegate.hpp"
 #include "AsyncDelegate.hpp"
-#include "GlobalTaskJoiner.hpp"
 #include <Array.hpp>
 #include "GlobalCompletionEvent.hpp"
 #include "LocaleSharedMemory.hpp"

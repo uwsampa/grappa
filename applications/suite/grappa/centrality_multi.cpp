@@ -9,7 +9,6 @@
 #include <Collective.hpp>
 #include <common.hpp>
 #include <Cache.hpp>
-#include <GlobalTaskJoiner.hpp>
 #include <PushBuffer.hpp>
 #include <Array.hpp>
 #include <Statistics.hpp>

@@ -4,7 +4,6 @@
 #include "Delegate.hpp"
 #include "GlobalAllocator.hpp"
 #include "Collective.hpp"
-#include "GlobalTaskJoiner.hpp"
 #include "PerformanceTools.hpp"
 #include <ParallelLoop.hpp>
 #include <Array.hpp>

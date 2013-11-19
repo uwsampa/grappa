@@ -24,7 +24,6 @@
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <Cache.hpp>
-#include <GlobalTaskJoiner.hpp>
 #include <Collective.hpp>
 #include <Delegate.hpp>
 #include <FileIO.hpp>

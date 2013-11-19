@@ -13,7 +13,6 @@
 
 #include <Grappa.hpp>
 #include "GlobalAllocator.hpp"
-#include "GlobalTaskJoiner.hpp"
 #include "Array.hpp"
 #include "Message.hpp"
 #include "CompletionEvent.hpp"

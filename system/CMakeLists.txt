@@ -16,7 +16,6 @@ set(SYSTEM_SOURCES
   Aggregator.cpp
   Allocator.cpp
   AsyncDelegate.cpp
-  AsyncParallelFor.cpp
   Barrier.cpp
   Cache.cpp
   CallbackStatistic.cpp
@@ -58,7 +57,6 @@ set(SYSTEM_SOURCES
   Allocator.hpp
   Array.hpp
   AsyncDelegate.hpp
-  AsyncParallelFor.hpp
   Barrier.hpp
   boost_helpers.hpp
   Cache.hpp

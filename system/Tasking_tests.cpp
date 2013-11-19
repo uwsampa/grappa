@@ -95,6 +95,7 @@ void user_main( void* args )
     joiner.registerTask();
     Grappa_privateTask(&task2_f, i, &sa);
   }
+  
   joiner.wait();
 
   BOOST_MESSAGE( "user main is exiting" );

@@ -8,8 +8,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include <Grappa.hpp>
-#include <GlobalTaskJoiner.hpp>
-#include <AsyncParallelFor.hpp>
 
 #include <Delegate.hpp>
 #define read Grappa_delegate_read_word

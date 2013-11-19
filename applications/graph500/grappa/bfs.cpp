@@ -4,8 +4,6 @@
 #include "PerformanceTools.hpp"
 #include "GlobalAllocator.hpp"
 #include "timer.h"
-#include "GlobalTaskJoiner.hpp"
-#include "AsyncParallelFor.hpp"
 #include "PushBuffer.hpp"
 #include <Collective.hpp>
 #include <Array.hpp>

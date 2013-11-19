@@ -9,7 +9,6 @@
 #include <Collective.hpp>
 #include <common.hpp>
 #include <Cache.hpp>
-#include <GlobalTaskJoiner.hpp>
 #include <PushBuffer.hpp>
 #include <Array.hpp>
 #include <Statistics.hpp>
@@ -56,7 +55,6 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
  
     nedge_traversed += vend - vstart;
     DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
-    // async_parallel_for_hack(bfs_push_visit_neighbor, vstart, vend-vstart, v);
     forall_localized_async(g.endVertex+vstart, vend-vstart,
                     [v](int64_t kstart, int64_t kiters, int64_t * kfirst) {
       DVLOG(3) << "neighbors " << v << ": " << kstart << " -> " << kstart+kiters;
@@ -95,7 +93,6 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
 }
 
 void do_bfs_pop(graphint start, graphint end) {
-  // global_async_parallel_for_thresh(bfs_pop_vertex, start, end-start, 1);
   forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
     // TODO: overlap reads
     graphint myStart = delegate::read(g.edgeStart+v);
@@ -105,7 +102,6 @@ void do_bfs_pop(graphint start, graphint end) {
     DVLOG(4) << "pop " << v << " (" << i << ")";
     
     // pop children
-    // async_parallel_for_hack(bfs_pop_children, myStart, myEnd-myStart, v);
     forall_localized_async(c.child+myStart, myEnd-myStart,
         [v](int64_t kstart, int64_t kiters, graphint * kchildren){
 
@@ -126,7 +122,6 @@ void do_bfs_pop(graphint start, graphint end) {
   });
   
   DVLOG(4) << "###################";
-  // global_async_parallel_for_thresh(bc_add_delta, start, end-start, 1);
   forall_localized(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
 
     for (int64_t j=0; j<jiters; j++) {
