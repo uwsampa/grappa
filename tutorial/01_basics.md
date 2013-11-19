@@ -241,9 +241,43 @@ for (size_t i = 0; i < N; i += 10) {
 
 This is still using the single root task to do all the work, so it is all still serial. The next section will cover how to spawn lots of parallel work efficiently.
 
-## Task spawning
+## Tasking
+**Be aware:** Terminology about threading is very overloaded; everyone means something different when talking about them. In Grappa, we try to avoid using the term "thread". Instead, we have *tasks* which are a (typically small) unit of work and *workers* which execute tasks. This is explained in more detail in this section.
 
-## Parallel loops
+The most basic unit of parallelism in Grappa is the *task*. A *task* is a unit of work that has some state and some code to run; this is typically specified using a C++11 *lambda*, but can also be specified with a more traditional C++ *functor* (a class with `operator()` overloaded). Tasks are not run immediately after they are created; instead, they go on a queue of un-started tasks.
+
+*Workers* are lightweight user-level threads that are *cooperatively scheduled* (sometimes also known as *fibers*), which means that they run uninterrupted on a core until they choose to *yield* or *suspend*. A worker takes an un-started task off the queue, executes it to completion, suspending or yielding as the task specifies. When the task finishes (returns from the lambda/functor), the worker goes off to find another task to execute.
+
+### Individual spawns
+Tasks are spawned onto one of two queues: the *private* queue, which resides on a particular core, restricting the task to only run on that same core it was spawned; or the *public* queue, allowing the task to be automatically load-balanced to another core (until it is started on a worker, at which time it is no longer movable). The two functions to do the these spawns are:
+
+- `privateTask([/*capture state*/]{ /* task code */ })`: spawn task to run only on the same core; because it is executed locally, state can be captured by reference if desired
+- `publicTask([/*capture state*/]{ /* task code */ })`: spawn a task that may be executed on another core
+
+### Task synchronization
+Tasks can currently be synchronized with ("joined") in a couple different ways.
+
+We will cover synchronization more fully in a later section. Tasks may use any of the synchronization primitives directly, but here we will demonstrate just one way: using a `CompletionEvent`. Remember that the Grappa program terminates when the "run" task completes, so if that task does not block on spawned tasks completing, then they may not execute.
+
+```cpp
+run([]{
+  
+  CompletionEvent joiner;
+  
+  publicTask(&joiner, []{
+    LOG(INFO) << "public task ran on " << mycore();
+  });
+  
+  privateTask(&joiner, []{
+    LOG(INFO) << "private task ran on " << mycore();
+  });
+  
+  joiner.wait();  
+});
+```
+
+
+### Parallel loops
 
 ## Bringing it all together: GUPS
 
