@@ -39,8 +39,6 @@
 
 #define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b)
 
-GRAPPA_DECLARE_EVENT_GROUP(scheduler);
-
 // Load balancing parameter
 DECLARE_int32( chunk_size );
 

@@ -12,9 +12,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#ifdef GRAPPA_TRACE
 DECLARE_bool(record_grappa_events);
-#endif
 
 /// Macros to trace events with Tau
 
