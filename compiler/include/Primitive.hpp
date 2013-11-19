@@ -37,6 +37,9 @@ namespace Grappa {
 }
 
 extern "C"
+Core grappa_get_core(void global* g) { return Grappa::core(g); }
+
+extern "C"
 long grappa_read_long(long global* a) {
   return Grappa::delegate::read(gaddr(a));
 }
