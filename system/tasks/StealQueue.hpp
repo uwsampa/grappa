@@ -23,7 +23,6 @@
 
 // Grappa
 #include "../Addressing.hpp"
-#include "../LegacySignaler.hpp"
 #include "../FullEmptyLocal.hpp"
 #include "../LocaleSharedMemory.hpp"
 
@@ -56,9 +55,6 @@ typedef int16_t Node;
 
 /// Forward declare for steal_locally
 class Worker;
-
-/// Forward declare for global queue
-class Signaler;
 
 /*
  * Implementor note:

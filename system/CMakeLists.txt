@@ -36,7 +36,6 @@ set(SYSTEM_SOURCES
   HistogramStatistic.cpp
   IncoherentAcquirer.cpp
   IncoherentReleaser.cpp
-  LegacySignaler.cpp
   LocaleSharedMemory.cpp
   MessageBase.cpp
   MessagePool.cpp
@@ -91,7 +90,6 @@ set(SYSTEM_SOURCES
   HistogramStatistic.hpp
   IncoherentAcquirer.hpp
   IncoherentReleaser.hpp
-  LegacySignaler.hpp
   LocaleSharedMemory.hpp
   Message.hpp
   MessageBase.hpp

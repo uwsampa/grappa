@@ -7,7 +7,6 @@
 #include "../GlobalAllocator.hpp"
 #include "../Delegate.hpp"
 #include "../Cache.hpp"
-#include "../LegacySignaler.hpp"
 #include "../Descriptor.hpp"
 
 #define CAPACITY_PER_NODE (1L<<19)
