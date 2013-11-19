@@ -136,11 +136,6 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
   auto& graph = *g;
   
   on_all_cores([_vlist,graph,_bfs_tree,k2addr,root]{
-    if ( !bfs_counters_added ) {
-      bfs_counters_added = true;
-      Grappa_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
-      Grappa_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
-    }
     
     // setup globals
     vlist = _vlist;

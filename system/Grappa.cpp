@@ -87,16 +87,6 @@ int64_t global_bytes_per_locale = 0;
 }
 }
 
-
-/// Sample all stats for VampirTrace
-/// TODO: Deprecate and call sample_user elsewhere
-void legacy_profiling_sample() {
-  // Grappa::Statistics::global_queue_stats.profiling_sample();
-
-  // print user-registered stats
-  Grappa_profiling_sample_user();
-}
-
 /// Body of the polling thread.
 static void poller( Thread * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
