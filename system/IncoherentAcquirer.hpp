@@ -20,12 +20,10 @@ class IncoherentAcquirer;
 
 /// IncoherentAcquirer statistics
 class IAStatistics {
-  private:
-    static void count_acquire_ams( uint64_t bytes ) ;
-
-    static void record_wakeup_latency( int64_t start_time, int64_t network_time ) ; 
-
-    static void record_network_latency( int64_t start_time ) ; 
+public:
+  static void count_acquire_ams( uint64_t bytes ) ;
+  static void record_wakeup_latency( int64_t start_time, int64_t network_time ) ; 
+  static void record_network_latency( int64_t start_time ) ; 
 };
 
 /// IncoherentAcquirer behavior for Cache.

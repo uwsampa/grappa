@@ -18,8 +18,6 @@ set(BFS_VARIANTS
   bfs
   bfs_local
   bfs_beamer
-  bfs_nosteal
-  bfs_steal_phases
 )
 
 # make separate build targets for each BFS variant
