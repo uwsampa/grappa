@@ -121,6 +121,41 @@ namespace {
     
     GrappaGen() : FunctionPass(ID) { }
     
+    
+    void constructDelegateFunction(const SetVector<Value*>& inputs, const SetVector<Value*>& outputs, BasicBlock* inblock, Module* mod) {
+      
+      SmallVector<Type*, 8> in_types, out_types;
+      for (auto& p : inputs) { in_types.push_back(p->getType()); }
+      for (auto& p : outputs) { out_types.push_back(p->getType()); }
+      
+      auto in_struct = StructType::get(mod->getContext(), in_types);
+      auto out_struct = StructType::get(mod->getContext(), out_types);
+      
+      auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty });
+      auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + inblock->getName(), mod);
+      
+      auto insertion_pt = new_fn->begin()->getTerminator();
+      auto& ctx = mod->getContext();
+      
+      auto i32_ty = Type::getInt32Ty(ctx);
+      auto i32_0 = Constant::getNullValue(i32_ty);
+      auto i32_num = [=](int v) { return ConstantInt::get(i32_ty, v); };
+      
+      std::map<Value*,Value*> arg_map; // mapping between old input/outputs and new ones
+      
+      Function::arg_iterator argi = new_fn->arg_begin();
+      
+      auto in_arg = argi++;
+      for (unsigned i = 0; i < inputs.size(); i++) {
+        auto in = inputs[i];
+        auto gep = GetElementPtrInst::Create(in_arg, (Value*[]){ i32_0, i32_num(i) }, "gep_" + in->getName(), insertion_pt);
+        auto in_val = new LoadInst(gep, "ldgep_" + in->getName(), insertion_pt);
+        arg_map[in] = in_val;
+      }
+
+
+    }
+    
     void replaceWithRemoteLoad(LoadInst *orig_ld) {
       outs() << "global get:"; orig_ld->dump();
       outs() << "  uses: " << orig_ld->getNumUses() << "\n";
@@ -446,7 +481,7 @@ namespace {
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
       void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
-      void_ty = Type::getInt8Ty(module.getContext());
+      void_ty = Type::getVoidTy(module.getContext());
       
       // module = &m;
       // auto int_ty = m.getTypeByName("int");
