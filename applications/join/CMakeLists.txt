@@ -27,6 +27,7 @@ set(QUERIES
   triangles_partition
   squares_partition
   twohop
+  squares
 )
 
 set(TEST_SOURCES
