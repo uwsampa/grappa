@@ -247,27 +247,27 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
         ir1_count++; // count(R1)
         auto& yadj = R2.neighbors(y);
         ir2_count+=yadj.size(); // count(R1xR2)
-        if (xadj.size() < yadj.size()) {            
-          ir3_count+=yadj.size(); // count(sel(R1xR2))
+//        if (xadj.size() < yadj.size()) {            
+//          ir3_count+=yadj.size(); // count(sel(R1xR2))
           for (auto z : yadj) {
             auto& zadj = R3.neighbors(y);
             ir4_count+=zadj.size(); // count(sel(R1xR2)xR3)
-            if (yadj.size() < zadj.size()) {
-              ir5_count+=zadj.size(); // count(sel(sel(R1xR2)xR3))
+//            if (yadj.size() < zadj.size()) {
+//              ir5_count+=zadj.size(); // count(sel(sel(R1xR2)xR3))
               for (auto t : zadj) {
                 auto tadjsize = R4.nadj(t);
                 ir6_count+=tadjsize; // count(sel(sel(R1xR2)xR3)xR4)
-                if (zadj.size() < tadjsize) {
-                  ir7_count+=tadjsize; // count(sel(sel(sel(R1xR2)xR3)xR4))
+//                if (zadj.size() < tadjsize) {
+//                  ir7_count+=tadjsize; // count(sel(sel(sel(R1xR2)xR3)xR4))
                   if (R4.inNeighborhood(t, x)) {
                     emit( x,y,z,t );
                     results_count++;  // count(sel(sel(sel(R1dxR2)xR3)xR4)xR1s)
                   } // end select t.dst=x
-                } // end select z < t
+//                } // end select z < t
               } // end over t
-            } // end select y < z
+//            } // end select y < z
           } // end over z
-        } // end select x < y
+//        } // end select x < y
       } // end over y
     } // end over x
 
