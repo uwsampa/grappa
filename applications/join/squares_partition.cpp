@@ -7,6 +7,7 @@
 #include <Delegate.hpp>
 #include <Grappa.hpp>
 #include "local_graph.hpp"
+#include "relation_IO.hpp"
 #include "Hypercube.hpp"
 
 
@@ -28,6 +29,9 @@ using namespace Grappa;
 DEFINE_uint64( scale, 7, "Graph will have ~ 2^scale vertices" );
 DEFINE_uint64( edgefactor, 16, "Median degree; graph will have ~ 2*edgefactor*2^scale edges" );
 DEFINE_uint64( progressInterval, 5, "interval between progress updates" );
+
+DEFINE_string( fin, "", "Tuple file input" );
+DEFINE_uint64( finNumTuples, 0, "Number of tuples in file input" );
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
@@ -301,17 +305,22 @@ void user_main( int * ignore ) {
 	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
   
   LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
-  
-  // make raw graph edge tuples
+
   tuple_graph tg;
-  tg.edges = global_alloc<packed_edge>(desired_nedge);
-  
-  LOG(INFO) << "graph generation...";
-  t = walltime();
-  make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-  generation_time = walltime() - t;
-  LOG(INFO) << "graph_generation: " << generation_time;
-  
+
+  if (FLAGS_fin.compare("") != 0) {
+    tg = readTuples( FLAGS_fin, FLAGS_finNumTuples );
+  } else {
+    // make raw graph edge tuples
+    tg.edges = global_alloc<packed_edge>(desired_nedge);
+
+    LOG(INFO) << "graph generation...";
+    t = walltime();
+    make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+    generation_time = walltime() - t;
+    LOG(INFO) << "graph_generation: " << generation_time;
+  }
+
   LOG(INFO) << "graph construction...";
   t = walltime();
   auto g = Graph<Vertex>::create(tg);
