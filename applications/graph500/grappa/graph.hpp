@@ -111,7 +111,7 @@ struct Graph {
   }
   
   // Constructor
-  static GlobalAddress<Graph> create(tuple_graph& tg) {
+  static GlobalAddress<Graph> create(const tuple_graph& tg) {
     double t;
     auto g = symmetric_global_alloc<Graph<V>>();
   
