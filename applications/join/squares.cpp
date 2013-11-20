@@ -32,13 +32,13 @@
 // command line parameters
 
 // file input
-DEFINE_string( fin, "", "Input file relation" );
-DEFINE_uint64( file_num_tuples, 0, "Number of lines in file" );
+//DEFINE_string( fin, "", "Input file relation" );
+//DEFINE_uint64( file_num_tuples, 0, "Number of lines in file" );
 
 // generating input data
 DEFINE_uint64( scale, 7, "Log of number of vertices" );
 DEFINE_uint64( edgefactor, 16, "Median degree to try to generate" );
-DEFINE_bool( undirected, false, "Generated graph implies undirected edges" );
+//DEFINE_bool( undirected, false, "Generated graph implies undirected edges" );
 
 DEFINE_bool( print, false, "Print results" );
 
@@ -49,6 +49,9 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir1_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir2_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir3_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir4_count, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir5_count, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir6_count, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir7_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, results_count, 0);
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<double>, index_runtime, 0);
@@ -165,11 +168,13 @@ void squares( tuple_graph e1,
   forall_localized( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
   forall_here_async<&impl::local_gce>( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
   for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
+    ir1_count++; // count(E1)
     auto b_ind = a.local_adj[i];
     auto b_ptr = E2_index->vs + b_ind;
     // lookup b vertex
     remotePrivateTask<&impl::local_gce>(b_ptr.core(), [ai,b_ptr] {
       auto b = *(b_ptr.pointer());
+      ir2_count += b.nadj; // count(E1xE2)
       // forall neighbors of b
       forall_here_async<&impl::local_gce>( 0, b.nadj, [ai,b](int64_t start, int64_t iters) {
       for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
@@ -178,6 +183,7 @@ void squares( tuple_graph e1,
         // lookup c vertex
         remotePrivateTask<&impl::local_gce>(c_ptr.core(), [ai,b,c_ptr] {
           auto c = *(c_ptr.pointer());
+          ir4_count += b.nadj; // count(E1xE2xE3)
           // forall neighbors of c
           forall_here_async<&impl::local_gce>( 0, c.nadj, [ai,b,c](int64_t start, int64_t iters) {
           for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
@@ -187,6 +193,7 @@ void squares( tuple_graph e1,
             remotePrivateTask<&impl::local_gce>(d_ptr.core(), [ai,b,c,d_ptr] {
               auto d = *(d_ptr.pointer());
               // forall neighbors of d
+              ir6_count += d.nadj; // count(E1xE2xE3xE4)
               forall_here_async<&impl::local_gce>( 0, d.nadj, [ai,b,c,d](int64_t start, int64_t iters) {
               for ( int64_t i=start; i<start+iters; i++ ) { //forall_here_async serialized 
                 auto aprime = d.local_adj[i];
