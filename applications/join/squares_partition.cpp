@@ -155,6 +155,8 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
       const int64_t src = i;
       const int64_t dst = dest;
 
+      VLOG(5) << "replicating edge " << src << "," << dst;
+
       // a->b
       auto locs_ab = h.slice( {hf(src), hf(dst), HypercubeSlice::ALL, HypercubeSlice::ALL} );
       for (auto l : locs_ab) {
@@ -323,11 +325,11 @@ void user_main( int * ignore ) {
 
   LOG(INFO) << "graph construction...";
   t = walltime();
-  auto g = Graph<Vertex>::create(tg);
+  auto g = Graph<Vertex>::create(tg, /*directed=*/true); 
   construction_time = walltime() - t;
   LOG(INFO) << "construction_time: " << construction_time;
 
-  LOG(INFO) << "num edges: " << g->nadj * 3; /* 3 b/c three copies*/
+  LOG(INFO) << "num edges: " << g->nadj * 4; /* 4 b/c three copies*/
 
   LOG(INFO) << "query start...";
   squares(g);

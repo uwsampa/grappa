@@ -111,7 +111,7 @@ struct Graph {
   }
   
   // Constructor
-  static GlobalAddress<Graph> create(const tuple_graph& tg) {
+  static GlobalAddress<Graph> create(const tuple_graph& tg, bool directed = false) {
     double t;
     auto g = symmetric_global_alloc<Graph<V>>();
   
@@ -147,19 +147,20 @@ struct Graph {
   #endif
     });
                                                               t = walltime();
-    forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    // count the outgoing/undirected edges per vertex
+    forall_localized(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       CHECK_LT(e.v0, g->nv); CHECK_LT(e.v1, g->nv);
   #ifdef SMALL_GRAPH
       // g->scratch[e.v0]++;
-      // g->scratch[e.v1]++;
+      // if (!directed) g->scratch[e.v1]++;
       __sync_fetch_and_add(g->scratch+e.v0, 1);
-      __sync_fetch_and_add(g->scratch+e.v1, 1);
+      if (!directed) __sync_fetch_and_add(g->scratch+e.v1, 1);
   #else    
       auto count = [](GlobalAddress<V> v){
         delegate::call_async(v.core(), [v]{ v->local_sz++; });
       };
       count(g->vs+e.v0);
-      count(g->vs+e.v1);
+      if (!directed) count(g->vs+e.v1);
   #endif
     });
     VLOG(1) << "count_time: " << walltime() - t;
@@ -195,7 +196,7 @@ struct Graph {
     VLOG(3) << "after adj allocs";
   
     // scatter
-    forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    forall_localized(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       auto scatter = [g](int64_t vi, int64_t adj) {
         auto vaddr = g->vs+vi;
         delegate::call_async(vaddr.core(), [vaddr,adj]{
@@ -204,7 +205,7 @@ struct Graph {
         });
       };
       scatter(e.v0, e.v1);
-      scatter(e.v1, e.v0);
+      if (!directed) scatter(e.v1, e.v0);
     });
     VLOG(3) << "after scatter, nv = " << g->nv;
   
