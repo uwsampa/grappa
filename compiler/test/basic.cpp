@@ -5,9 +5,41 @@
 
 using namespace Grappa;
 
+void do_work(void *i, void *o) {
+  auto gaa = reinterpret_cast<long global**>(i);
+  auto po = reinterpret_cast<long*>(o);
+  
+  LOG(INFO) << "ga: " << gaddr(*gaa);
+  LOG(INFO) << "po: " << po;
+  
+  auto p = pointer(*gaa);
+  
+  LOG(INFO) << "p: " << p;
+  
+  *po = *p;
+  *p += 1;
+}
+
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
+    
+    long alpha = 7;
+    long global* g_alpha = make_global(&alpha);
+    
+    on_all_cores([=]{
+      
+      LOG(INFO) << gaddr(g_alpha);
+
+      if (mycore() == 1) {
+        long global* ga = g_alpha;
+        long r = -1;
+        grappa_on(0, do_work, &ga, sizeof(ga), &r, sizeof(r));
+        
+        CHECK_EQ(r, 7);
+      }
+    });
+    CHECK_EQ(alpha, 8);
     
     long x = 1, y = 7;
     long global* xa = make_global(&x);

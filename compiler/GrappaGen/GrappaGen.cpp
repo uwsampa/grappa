@@ -18,7 +18,9 @@
 #include <llvm/PassManager.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+
 #include <llvm/Transforms/Utils/CodeExtractor.h>
+//#include "MyCodeExtractor.h"
 
 #include <sstream>
 #include <set>
@@ -113,7 +115,7 @@ namespace {
   struct GrappaGen : public FunctionPass {
     static char ID;
     
-    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn;
+    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn, *get_pointer_fn;
     
     Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
     
@@ -268,50 +270,34 @@ namespace {
         
         fa.ld->getPointerOperand()->setName("gptr");
         
-        
-        errs() << "-- meta\n";
-        
-//        for (unsigned i=0; i < meta->getNumOperands(); i++) {
-//          auto m = meta->getOperand(i);
-//          errs() << "  " << *m;
-//        }
-//        errs() << "\n";
-        
-//        auto removeMetadata = [](Instruction *inst) {
-//          SmallVector<std::pair<unsigned,MDNode*>,8> meta;
-//          inst->getAllMetadata(meta);
-////          errs() << "-- meta:\n";
-//          for (auto m : meta) {
-////            errs() << "  " << m.first << ": " << *m.second
-////                   << "    (fn-local: " << m.second->isFunctionLocal() << ")\n";
-//            inst->setMetadata(m.first, nullptr);
-//          }
-////          errs() << "\n";
-//        };
-//        
-//        removeMetadata(fa.ld);
-//        removeMetadata(fa.op);
-//        removeMetadata(fa.store);
-        
         BasicBlock* block = fa.ld->getParent();
         assert( block == fa.op->getParent() && block == fa.store->getParent() );
         
-        auto biter = block->begin();
-        while (&*biter != fa.ld) biter++;
+        auto find_in_bb = [](BasicBlock *bb, Value *v) {
+          for (auto it = bb->begin(), end = bb->end(); it != end; it++) {
+            if (&*it == v) return it;
+          }
+          return bb->end();
+        };
         
-        auto delegate_blk = block->splitBasicBlock(biter, "grappa.delegate");
+        auto ld_gptr = fa.ld->getPointerOperand();
         
-        auto diter = delegate_blk->begin();
-        while (&*diter != fa.store) diter++;
-        diter++;
-        auto post_blk = delegate_blk->splitBasicBlock(diter, "delegate.post");
+        // split basic block into pre-delegate (block), delegate_blk, and post_blk
+        auto load_loc = find_in_bb(block, fa.ld);
+        auto delegate_blk = block->splitBasicBlock(load_loc, "grappa.delegate");
+        
+        auto store_loc = find_in_bb(delegate_blk, fa.store);
+        auto post_blk = delegate_blk->splitBasicBlock(++store_loc, "delegate.post");
+        
+        // get type of load inst
+        auto ld_ty = dyn_cast<PointerType>(ld_gptr->getType())->getElementType()->getPointerTo();
         
         errs() << "\n-- pre block:\n" << *block;
         errs() << "\n-- delegate block:\n" << *delegate_blk;
         errs() << "\n-- post block:\n" << *post_blk;
         
-        // TODO: generalize this to remove anything with function-local refs
-        // or even better: repair function-local refs
+        // remove debug call that was holding onto references to insts moved to other fn
+        // TODO: generalize this to remove anything with function-local refs (or even better: repair function-local refs)
         for (BasicBlock::iterator i = post_blk->begin(); i != post_blk->end(); ) {
           auto inst = i++;
           if (auto c = dyn_cast<CallInst>(inst)) {
@@ -325,19 +311,17 @@ namespace {
         CodeExtractor ex(delegate_blk, struct_args);
         SetVector<Value*> ins, outs;
         ex.findInputsOutputs(ins, outs);
+        errs() << "\nins:"; for (auto v : ins) errs() << "\n  " << *v; errs() << "\n";
+        errs() << "outs:"; for (auto v : outs) errs() << "\n  " << *v; errs() << "\n";
         assert( ins.size()  == 1 );
         assert( outs.size() == 1 );
-        errs() << "\nins:\n"; for (auto v : ins) errs() << "  " << *v; errs() << "\n";
-        errs() << "outs:\n"; for (auto v : outs) errs() << "  " << *v; errs() << "\n";
         
         auto delegate_fn = ex.extractCodeRegion();
         errs() << "\n--------\ndelegate: " << *delegate_fn;
         
-        errs() <<"\n-----------\nblock:\n" << *block;
-        
         auto prepost = block->getNextNode();
-        errs() << "\n---------\nprepost: " << *prepost;
         
+        // find call to extracted function created by CodeExtrator
         CallInst *delegate_call;
         for (auto& i : *prepost) {
           if (auto call = dyn_cast<CallInst>(&i)) {
@@ -347,9 +331,30 @@ namespace {
             }
           }
         }
-        
         assert( delegate_call->getNumArgOperands() == 2 );
         
+        errs() <<"\n-----------\nblock:\n" << *block;
+        errs() << "\n---------\nprepost: " << *prepost;
+
+        // first load global pointer from pointer-to-pointer
+//        auto arg_input = delegate_call->getArgOperand(0);
+//        errs() << "arg_input: " << *arg_input << "\n  type: " << *arg_input->getType() << "\n";
+        auto arg_ptr = fa.ld->getPointerOperand();
+        auto arg_ptrptr = new BitCastInst(arg_ptr, arg_ptr->getType()->getPointerTo(), "", fa.ld);
+        auto ld_input = new LoadInst(arg_ptrptr, "", fa.ld);
+        
+        auto vptr = CallInst::Create(get_pointer_fn, (Value*[]){
+          new BitCastInst(ld_input, void_gptr_ty, "", fa.ld),
+        }, "", fa.ld);
+        
+        auto ptr = new BitCastInst(vptr, ld_ty, "", fa.ld);
+        
+        fa.ld->setOperand(fa.ld->getPointerOperandIndex(), ptr);
+        fa.store->setOperand(fa.store->getPointerOperandIndex(), ptr);
+        
+        errs() << "\n--------\ndelegate <fixed up>: " << *delegate_fn;
+        
+        // get size (in bytes) of the value pointed-to as a ConstantInt*
         auto get_size_bytes = [this](Value *p) {
           assert( p->getType()->isPointerTy() );
           auto p_ty = p->getType()->getPointerElementType();
@@ -360,8 +365,6 @@ namespace {
           return const_int;
         };
         
-//        auto arg_in = delegate_call->getArgOperand(0);
-        
         errs() << "@@@@@@\ndelegate_call: ";
         for (unsigned i=0; i< delegate_call->getNumOperands(); i++) {
           errs() << "  " << *delegate_call->getOperand(i) << "\n";
@@ -370,7 +373,15 @@ namespace {
         
         auto gptr = delegate_call->getOperand(0);
         
+//        Value *arg_in; // has to be pointer to the arg
+//        if (auto gptrptr = dyn_cast<LoadInst>(gptr)) {
+//          arg_in = gptrptr->getPointerOperand();
+//        } else {
+//          arg_in = nullptr;
+//          assert(false && "need to implement alloca");
+//        }
         auto arg_in = gptr;
+        
         auto arg_in_sz = get_size_bytes(arg_in);
         auto arg_out = delegate_call->getOperand(1);
         auto arg_out_sz = get_size_bytes(arg_out);
@@ -430,6 +441,7 @@ namespace {
       fetchadd_i64_fn = getFunction("grappa_fetchadd_i64");
       call_on_fn = getFunction("grappa_on");
       get_core_fn = getFunction("grappa_get_core");
+      get_pointer_fn = getFunction("grappa_get_pointer");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);

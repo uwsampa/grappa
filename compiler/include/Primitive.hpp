@@ -40,6 +40,9 @@ extern "C"
 Core grappa_get_core(void global* g) { return Grappa::core(g); }
 
 extern "C"
+void* grappa_get_pointer(void global* g) { return Grappa::pointer(g); }
+
+extern "C"
 long grappa_read_long(long global* a) {
   return Grappa::delegate::read(gaddr(a));
 }
@@ -116,7 +119,7 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
   auto origin = Grappa::mycore();
   
   if (dst == origin) {
-    
+    VLOG(0) << "short-circuit";
     fn(args, out);
     
   } else {

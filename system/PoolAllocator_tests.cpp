@@ -110,10 +110,9 @@ static int test_async_x;
 
 void test_async_delegate() {
   BOOST_MESSAGE("Test Async delegates");
-  MessagePool pool(2048);
   
   delegate::Promise<bool> a;
-  a.call_async(pool, 1, []()->bool {
+  a.call_async( 1, []()->bool {
     test_async_x = 7;
     BOOST_MESSAGE( "x = " << test_async_x );
     return true;
@@ -122,14 +121,8 @@ void test_async_delegate() {
   BOOST_CHECK_EQUAL(a.get(), true);
   BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 7);
   
-  BOOST_MESSAGE("Testing reuse...");
-  
-  pool.block_until_all_sent();
-  
-  BOOST_CHECK_EQUAL(pool.remaining(), 2048);
-  
   delegate::Promise<bool> b;
-  b.call_async(pool, 1, []()->bool {
+  b.call_async( 1, []()->bool {
     test_async_x = 8;
     return true;
   });
@@ -167,12 +160,26 @@ void test_overrun() {
   BOOST_CHECK_EQUAL(y.readFF(), 1);
 }
 
+void test_heap_payload_message() {
+  FullEmpty<bool> fe; auto fea = make_global(&fe);
+  long x = 7;
+  send_heap_message(1, [fea](void* payload, size_t psz){
+    CHECK(psz == sizeof(long));
+    auto xa = reinterpret_cast<long*>(payload);
+    CHECK(*xa == 7);
+    
+    send_heap_message(fea.core(), [fea]{ fea->writeEF(true); });
+  }, &x, sizeof(x));
+  fea->readFF();
+}
+
 void user_main(void* ignore) {
   test_pool1();
   test_pool2();
   test_pool_external();
   test_async_delegate();
   test_overrun();
+  test_heap_payload_message();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
