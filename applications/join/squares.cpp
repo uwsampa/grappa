@@ -10,13 +10,13 @@
 #include "Tuple.hpp"
 #include "relation_IO.hpp"
 
-// graph500/
+// graph includes
+#include "../graph500/grappa/graph.hpp"
 #include "../graph500/generator/make_graph.h"
 #include "../graph500/generator/utils.h"
-#include "../graph500/grappa/timer.h"
-#include "../graph500/grappa/common.h"
-#include "../graph500/grappa/oned_csr.h" // just for other graph gen stuff besides tuple->csr
 #include "../graph500/prng.h"
+
+#include "../graph500/grappa/graph.hpp"
 
 
 // Grappa includes
@@ -27,6 +27,7 @@
 #include <GlobalCompletionEvent.hpp>
 #include <AsyncDelegate.hpp>
 #include <Statistics.hpp>
+#include <FullEmpty.hpp>
 
 // command line parameters
 
@@ -41,7 +42,6 @@ DEFINE_bool( undirected, false, "Generated graph implies undirected edges" );
 
 DEFINE_bool( print, false, "Print results" );
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
 
 // outputs
 GRAPPA_DEFINE_STAT(SimpleStatistic<double>, query_runtime, 0);
@@ -86,66 +86,68 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem, 
 }
 
 
-void squares( tuple_graph& e1, 
-              tuple_graph& e2,
-              tuple_graph& e3,
-              tuple_graph& e4 ) {
+GlobalAddress<Graph<Vertex>> E1_index, E2_index, E3_index, E4_index;
+
+void squares( tuple_graph e1, 
+              tuple_graph e2,
+              tuple_graph e3,
+              tuple_graph e4 ) {
 
   
   on_all_cores( [] { Grappa::Statistics::reset(); } );
     
   // scan tuples and hash join col 1
   VLOG(1) << "Scan tuples, creating index on subject";
-
-  GlobalAddress<Graph> E1_index, E2_index, E3_index, E4_index;
   
   double start, end;
   start = Grappa_walltime();
 
+
   // TODO: building this graph is not necessary for forward nested loop join (just need untimed filtering tuples phase)
-  FullEmpty<GlobalAddress<Graph>> f1();
+  FullEmpty<GlobalAddress<Graph<Vertex>>> f1;
   privateTask( [&f1,e1] {
-//    forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
-//      int64_t key = t.columns[0];
-//      E1_table.insert( key, t );
-//    });
     f1.writeXF( Graph<Vertex>::create(e1) );
-  }
+  });
+// TODO: the create() calls should be in parallel but,
+// create() uses allreduce, which currently requires a static var :(
+// Fix with a symmetric alloc in allreduce
+  auto l_E1_index = f1.readFE();
   
-  FullEmpty<int> f2();
+  FullEmpty<GlobalAddress<Graph<Vertex>>> f2;
   privateTask( [&f2,e2] {
-//    forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
-//      int64_t key = t.columns[0];
-//      E2_table.insert( key, t );
-//    });
     f2.writeXF( Graph<Vertex>::create(e2) );
-  }
+  });
+  auto l_E2_index = f2.readFE();
   
-  FullEmpty<int> f3();
+  FullEmpty<GlobalAddress<Graph<Vertex>>> f3;
   privateTask( [&f3,e3] {
-//    forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
-//      int64_t key = t.columns[0];
-//      E3_table.insert( key, t );
-//    });
     f3.writeXF( Graph<Vertex>::create(e3) );
-  }
+  });
+  auto l_E3_index = f3.readFE();
   
-  FullEmpty<int> f4();
+  FullEmpty<GlobalAddress<Graph<Vertex>>> f4;
   privateTask( [&f4,e4] {
-//    forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
-//      int64_t key = t.columns[0];
-//      E4_table.insert( key, t );
-//    });
     f4.writeXF( Graph<Vertex>::create(e4) );
-  }
-  E1_index = f1.readFE();
-  E2_index = f2.readFE();
-  E3_index = f3.readFE();
-  E4_index = f4.readFE();
+  });
+  auto l_E4_index = f4.readFE();
+
+  //auto l_E1_index = f1.readFE();
+  //auto l_E2_index = f2.readFE();
+  //auto l_E3_index = f3.readFE();
+  //auto l_E4_index = f4.readFE();
+
+  // broadcast index addresses to all cores
+  on_all_cores([=] {
+    E1_index = l_E1_index;
+    E2_index = l_E2_index;
+    E3_index = l_E3_index;
+    E4_index = l_E4_index;
+  });
+
 
   end = Grappa_walltime();
   
-  VLOG(1) << "insertions: " << (e1.nedges+e2.nedges+e3.nedges+e4.nedges)/(end-start) << " per sec";
+  VLOG(1) << "insertions: " << (e1.nedge+e2.nedge+e3.nedge+e4.nedge)/(end-start) << " per sec";
   index_runtime = end - start;
 
 #if DEBUG
@@ -161,30 +163,34 @@ void squares( tuple_graph& e1,
 
   // the forall_localized(forall(...)) here is really just a scan of the E1 edge relation
   forall_localized( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
-  forall_here_async( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
+  forall_here_async<&impl::local_gce>( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
   for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
     auto b_ind = a.local_adj[i];
     auto b_ptr = E2_index->vs + b_ind;
     // lookup b vertex
-    delegate::call_async(b_ptr.core(), [ai,b_ptr] {
+    remotePrivateTask<&impl::local_gce>(b_ptr.core(), [ai,b_ptr] {
       auto b = *(b_ptr.pointer());
-      forall_here_async( 0, b.nadj, [ai,b](int64_t start, int64_t iters) {
+      // forall neighbors of b
+      forall_here_async<&impl::local_gce>( 0, b.nadj, [ai,b](int64_t start, int64_t iters) {
       for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
         auto c_ind = b.local_adj[i];
         auto c_ptr = E3_index->vs + c_ind;
         // lookup c vertex
-        delegate::call_async(c_ptr.core(), [ai,b,c_ptr] {
+        remotePrivateTask<&impl::local_gce>(c_ptr.core(), [ai,b,c_ptr] {
           auto c = *(c_ptr.pointer());
-          forall_here_async( 0, c.nadj, [ai,b,c](int64_t start, int64_t iters) {
+          // forall neighbors of c
+          forall_here_async<&impl::local_gce>( 0, c.nadj, [ai,b,c](int64_t start, int64_t iters) {
           for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto d_ind = c.local_adj[i];
             auto d_ptr = E4_index->vs + d_ind;
             // lookup d vertex
-            delegate::call_async(d_ptr.core(), [ai,b,c,d_ptr] {
+            remotePrivateTask<&impl::local_gce>(d_ptr.core(), [ai,b,c,d_ptr] {
               auto d = *(d_ptr.pointer());
-              forall_here_async( 0, d.nadj, [a,b,c,d](int64_t start, int64_t iters) {
+              // forall neighbors of d
+              forall_here_async<&impl::local_gce>( 0, d.nadj, [ai,b,c,d](int64_t start, int64_t iters) {
               for ( int64_t i=start; i<start+iters; i++ ) { //forall_here_async serialized 
                 auto aprime = d.local_adj[i];
+                // check if the a's match
                 if ( aprime == ai ) {
                   results_count++;
                 }
@@ -206,6 +212,11 @@ void squares( tuple_graph& e1,
 }
 
 void user_main( int * ignore ) {
+	
+  int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
+	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
+  
+  LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
 
   // make raw graph edge tuples
   double t;
@@ -214,7 +225,7 @@ void user_main( int * ignore ) {
   LOG(INFO) << "graph generation...";
   t = walltime();
   make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-  generation_time = walltime() - t;
+  double generation_time = walltime() - t;
   LOG(INFO) << "graph_generation: " << generation_time;
 
   squares( tg, tg, tg, tg );
