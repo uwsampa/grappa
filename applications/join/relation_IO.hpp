@@ -3,12 +3,17 @@
 
 #include <string>
 #include <fstream>
+#include <string>
+#include <sstream>
 #include <vector>
+//#include <regex>
 
 #include <Grappa.hpp>
 #include <Cache.hpp>
 #include <ParallelLoop.hpp>
 #include "Tuple.hpp"
+
+#include "../graph500/grappa/graph.hpp"
 
 
 
@@ -27,7 +32,10 @@ std::vector<std::string> split(const std::string &s, char delim) {
   return split(s, delim, elems);
 }
 
-
+/// Read tuples of format
+/// src dst
+/// 
+/// create as array of Tuple
 void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples ) {
   std::ifstream testfile(fn);
   CHECK( testfile.is_open() );
@@ -55,5 +63,63 @@ void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples
   CHECK( fin == numTuples );
   testfile.close();
 }
+
+
+/// Read tuples of format
+/// src dst
+/// 
+/// create as tuple_graph
+tuple_graph readTuples( std::string fn, int64_t numTuples ) {
+  std::ifstream testfile(fn, std::ifstream::in);
+  CHECK( testfile.is_open() );
+
+  // shared by the local tasks reading the file
+  int64_t fin = 0;
+
+  auto edges = Grappa::global_alloc<packed_edge>(numTuples);
+ 
+  // token delimiter  
+//  std::regex rgx("\\s+");
+
+  // synchronous IO with asynchronous write
+  Grappa::forall_here_async<&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+    std::string line;
+    for (int ignore=s; ignore<s+n; ignore++) {
+      CHECK( testfile.good() );
+      std::getline( testfile, line );
+
+      // parse and create the edge
+      // c++11 but NOT SUPPORTED/broken in gcc4.7.2
+//      std::regex_token_iterator<std::string::iterator> iter(line.begin(), line.end(),
+//                                     rgx, -1); // -1 = matches as splitters
+//      auto src = std::stoi(*iter); iter++;
+//      auto dst = std::stoi(*iter);
+      std::stringstream ss(line);
+      std::string buf;
+      ss >> buf; 
+      auto src = std::stoi(buf);
+      ss >> buf;
+      auto dst = std::stoi(buf);
+      
+      VLOG(5) << src << "->" << dst;
+      packed_edge pe;
+      write_edge(&pe, src, dst);
+
+      // write edge to location
+      int myindex = fin++;
+      Grappa::delegate::write_async(edges+myindex, pe);
+    }
+  });
+  Grappa::impl::local_gce.wait();
+
+
+  CHECK( fin == numTuples );
+  testfile.close();
+
+  tuple_graph tg { edges, numTuples };
+  return tg;
+}
+
+
 
 #endif // RELATIONIO_HPP
