@@ -41,6 +41,7 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir3_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir4_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir5_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir6_count, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir7_count, 0);
 
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir1_final_count, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir2_final_count, 0);
@@ -48,6 +49,7 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir3_final_count, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir4_final_count, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir5_final_count, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir6_final_count, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir7_final_count, 0);
 
 
 //outputs
@@ -239,25 +241,29 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
                // EVAR: implementation of triangle count
     int64_t i=0;
     for (auto xy : R1.vertices()) {
-      ir1_count++;
       int64_t x = xy.first;
       auto& xadj = xy.second;
       for (auto y : xadj) {
-        ir2_count++;
+        ir1_count++; // count(R1)
         auto& yadj = R2.neighbors(y);
+        ir2_count+=yadj.size(); // count(R1xR2)
         if (xadj.size() < yadj.size()) {            
-          ir3_count++;
+          ir3_count+=yadj.size(); // count(sel(R1xR2))
           for (auto z : yadj) {
-            ir4_count++;
             auto& zadj = R3.neighbors(y);
+            ir4_count+=zadj.size(); // count(sel(R1xR2)xR3)
             if (yadj.size() < zadj.size()) {
-              ir5_count++;
+              ir5_count+=zadj.size(); // count(sel(sel(R1xR2)xR3))
               for (auto t : zadj) {
-                ir6_count++;
-                if (R4.inNeighborhood(t, x)) {
-                  emit( x,y,z,t );
-                  results_count++;
-                } // end select t.dst=x
+                auto tadjsize = R4.nadj(t);
+                ir6_count+=tadjsize; // count(sel(sel(R1xR2)xR3)xR4)
+                if (zadj.size() < tadjsize) {
+                  ir7_count+=tadjsize; // count(sel(sel(sel(R1xR2)xR3)xR4))
+                  if (R4.inNeighborhood(t, x)) {
+                    emit( x,y,z,t );
+                    results_count++;  // count(sel(sel(sel(R1dxR2)xR3)xR4)xR1s)
+                  } // end select t.dst=x
+                } // end select z < t
               } // end over t
             } // end select y < z
           } // end over z
@@ -275,6 +281,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
     ir4_final_count=ir4_count;
     ir5_final_count=ir5_count;
     ir6_final_count=ir6_count;
+    ir7_final_count=ir7_count;
 
   });
   end = Grappa_walltime();
