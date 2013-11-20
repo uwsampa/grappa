@@ -48,26 +48,26 @@ Igor do
     algorithm 'partition-1-step'
   }
   
-  run {
-    trial 1,2,3
-    nnode 4
-    ppn 4
-    scale 14,15
-    edgefactor 4, 16
-  } 
-
-  run {
-    trial 1,2,3
-    nnode 12
-    ppn 7
-    scale 14,15
-    edgefactor 4, 16
-  }
+#  run {
+#    trial 1
+#    nnode 4
+#    ppn 4
+#    scale 16
+#    edgefactor 4,10,16
+#  } 
+#
+#  run {
+#    trial 1
+#    nnode 12
+#    ppn 7
+#    scale 16
+#    edgefactor 4,16
+#  }
 
   # required measures
   expect :query_runtime
  
-  $filtered = results{|t| t.select(:nnode, :ppn, :scale, :run_at, :query_runtime, :ir4_final_count_max, :ir4_final_count_min, :results_count, :edges_transfered/:total_edges) }
+  $filtered = results{|t| t.select(:nnode, :ppn, :scale, :edgefactor, :query_runtime, :ir5_final_count_max/(:ir5_final_count_min+1), :ir6_count, (:ir2_count+:ir4_count+:ir6_count)/:query_runtime, :edges_transfered/:total_edges, :total_edges) }
     
   interact # enter interactive mode
 end
