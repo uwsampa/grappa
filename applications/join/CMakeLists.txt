@@ -49,24 +49,21 @@ set(TEST_SOURCES
   Hypercube_tests.cpp
 )
   
-foreach(query ${QUERIES_IND})
-  include_directories(${INCLUDE_DIRS})
+include_directories(${INCLUDE_DIRS})
 
+
+foreach(query ${QUERIES_IND})
   add_grappa_application(${query}.exe ${SOURCES} ${query}.cpp)
   target_link_libraries(${query}.exe generator)
 endforeach()
 
 foreach(query ${QUERIES_MAIN})
-  include_directories(${INCLUDE_DIRS})
-
   add_grappa_application(${query}.exe ${SOURCES} ${QUERIES_SOURCES} ${query}.cpp)
   target_link_libraries(${query}.exe generator)
 endforeach()
 
 
 foreach(test_cpp ${TEST_SOURCES})
-  include_directories(${INCLUDE_DIRS})
-
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
   add_grappa_test(${test} ${SOURCES} ${test_cpp})
