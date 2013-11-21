@@ -48,7 +48,7 @@ ExternalProject_Add( tool-gasnet
 # URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
 
 if(APPLE)
-  set(APPLE_CXX_FLAGS CXXFLAG=-stdlib=libstdc++)
+  set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
 
 ExternalProject_Add( tool-gflags
