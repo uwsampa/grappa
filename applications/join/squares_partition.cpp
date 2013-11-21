@@ -71,6 +71,19 @@ void emit(int64_t x, int64_t y, int64_t z, int64_t t) {
   count++;
 }
 
+#include <sstream>
+#include <string>
+std::string resultStr(std::vector<int64_t> v, int64_t size=-1) {
+  std::stringstream ss;
+  ss << "{ ";
+  for (auto i : v) {
+    ss << i << " ";
+  }
+  ss << "}";
+  if (size!=-1) ss << " size:" << size;
+  return ss.str();
+}
+
 
 std::vector<Edge> localAssignedEdges_R1;
 std::vector<Edge> localAssignedEdges_R2;
@@ -163,6 +176,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
         Edge e(src, dst);
         delegate::call_async( l, [e] { 
           localAssignedEdges_R1.push_back(e); 
+          VLOG(5) << "received " << e << " as a->b";
         });
         edgesSent++;
       }
@@ -173,6 +187,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
         Edge e(src, dst);
         delegate::call_async( l, [e] { 
           localAssignedEdges_R2.push_back(e); 
+          VLOG(5) << "received " << e << " as b->c";
         });
         edgesSent++;
       }
@@ -183,6 +198,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
         Edge e(src, dst);
         delegate::call_async( l, [e] { 
           localAssignedEdges_R3.push_back(e); 
+          VLOG(5) << "received " << e << " as c->d";
         });
         edgesSent++;
       }
@@ -193,6 +209,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
         Edge e(src, dst);
         delegate::call_async( l, [e] { 
           localAssignedEdges_R4.push_back(e); 
+          VLOG(5) << "received " << e << " as d->a";
         });
         edgesSent++;
       }
@@ -220,7 +237,7 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
     for (auto e : localAssignedEdges_R1) { R1_dedup.insert( e ); }
     for (auto e : localAssignedEdges_R2) { R2_dedup.insert( e ); }
     for (auto e : localAssignedEdges_R3) { R3_dedup.insert( e ); }
-    for (auto e : localAssignedEdges_R3) { R4_dedup.insert( e ); }
+    for (auto e : localAssignedEdges_R4) { R4_dedup.insert( e ); }
     
     LOG(INFO) << "after dedup (" << R1_dedup.size() << ", " << R2_dedup.size() << ", " << R3_dedup.size() << ", " << R4_dedup.size() << ") edges";
 
@@ -252,21 +269,26 @@ void squares(GlobalAddress<Graph<Vertex>> g) {
       for (auto y : xadj) {
         ir1_count++; // count(R1)
         auto& yadj = R2.neighbors(y);
+        VLOG(5) << "ir1: " << resultStr({x, y}, yadj.size());
         ir2_count+=yadj.size(); // count(R1xR2)
 //        if (xadj.size() < yadj.size()) {            
 //          ir3_count+=yadj.size(); // count(sel(R1xR2))
           for (auto z : yadj) {
-            auto& zadj = R3.neighbors(y);
+            auto& zadj = R3.neighbors(z);
+            VLOG(5) << "ir3: " << resultStr({x, y, z}, zadj.size());
             ir4_count+=zadj.size(); // count(sel(R1xR2)xR3)
 //            if (yadj.size() < zadj.size()) {
 //              ir5_count+=zadj.size(); // count(sel(sel(R1xR2)xR3))
               for (auto t : zadj) {
                 auto tadjsize = R4.nadj(t);
+                VLOG(5) << "ir5: " << resultStr({x, y, z, t}, tadjsize);
                 ir6_count+=tadjsize; // count(sel(sel(R1xR2)xR3)xR4)
 //                if (zadj.size() < tadjsize) {
 //                  ir7_count+=tadjsize; // count(sel(sel(sel(R1xR2)xR3)xR4))
+                  VLOG(5) << "ir7: " << resultStr({x, y, z, t});
                   if (R4.inNeighborhood(t, x)) {
                     emit( x,y,z,t );
+                    VLOG(5) << "result: " << resultStr({x, y, z, t});
                     results_count++;  // count(sel(sel(sel(R1dxR2)xR3)xR4)xR1s)
                   } // end select t.dst=x
 //                } // end select z < t
