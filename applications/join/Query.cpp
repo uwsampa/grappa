@@ -15,12 +15,12 @@
 #include "squares_partition.hpp"
 
 // graph gen
-#include "../graph500/generator/make_graph.h"
-#include "../graph500/generator/utils.h"
-#include "../graph500/grappa/timer.h"
-#include "../graph500/grappa/common.h"
-#include "../graph500/grappa/graph.hpp"
-#include "../graph500/prng.h"
+#include "generator/make_graph.h"
+#include "generator/utils.h"
+#include "grappa/timer.h"
+#include "grappa/common.h"
+#include "grappa/graph.hpp"
+#include "prng.h"
 
 
 // input data options

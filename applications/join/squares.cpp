@@ -7,7 +7,7 @@
 
 
 // graph includes
-#include "../graph500/grappa/graph.hpp"
+#include "grappa/graph.hpp"
 
 #include "squares.hpp"
 

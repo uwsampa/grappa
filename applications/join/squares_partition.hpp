@@ -1,6 +1,6 @@
 #pragma once
 #include "Query.hpp"
-#include "../graph500/grappa/graph.hpp"
+#include "grappa/graph.hpp"
 
 class SquarePartition4way: public Query {
   private:

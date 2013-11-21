@@ -13,7 +13,7 @@
 #include <ParallelLoop.hpp>
 #include "Tuple.hpp"
 
-#include "../graph500/grappa/graph.hpp"
+#include "grappa/graph.hpp"
 
 
 

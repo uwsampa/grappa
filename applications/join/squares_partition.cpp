@@ -13,7 +13,7 @@
 
 
 // graph includes
-#include "../graph500/grappa/graph.hpp"
+#include "grappa/graph.hpp"
 
 using namespace Grappa;
 

@@ -14,9 +14,9 @@ extern "C" {
 #endif
 
 // graph includes
-#include "../graph500/generator/make_graph.h"
-#include "../graph500/generator/utils.h"
-#include "../graph500/prng.h"
+#include "generator/make_graph.h"
+#include "generator/utils.h"
+#include "prng.h"
 
 #include "../graph500/grappa/graph.hpp"
 

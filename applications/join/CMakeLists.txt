@@ -17,6 +17,10 @@ set(SOURCES
   "${APP_BFS}/graph.hpp"
   "${APP_BFS}/graph.cpp"
 )
+set(INCLUDE_DIRS
+  "${APP_GRAPH500}"
+)
+
 #TODO: encapsulate graph500/grappa sources
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
@@ -44,21 +48,25 @@ set(TEST_SOURCES
   Local_graph_tests.cpp
   Hypercube_tests.cpp
 )
-
+  
 foreach(query ${QUERIES_IND})
-  #not including headers because sources use explicit path
+  include_directories(${INCLUDE_DIRS})
+
   add_grappa_application(${query}.exe ${SOURCES} ${query}.cpp)
   target_link_libraries(${query}.exe generator)
 endforeach()
 
 foreach(query ${QUERIES_MAIN})
-  #not including headers because sources use explicit path
+  include_directories(${INCLUDE_DIRS})
+
   add_grappa_application(${query}.exe ${SOURCES} ${QUERIES_SOURCES} ${query}.cpp)
   target_link_libraries(${query}.exe generator)
 endforeach()
 
 
 foreach(test_cpp ${TEST_SOURCES})
+  include_directories(${INCLUDE_DIRS})
+
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
   add_grappa_test(${test} ${SOURCES} ${test_cpp})

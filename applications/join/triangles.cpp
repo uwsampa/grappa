@@ -11,12 +11,12 @@
 #include "relation_io.hpp"
 
 // graph500/
-#include "../graph500/generator/make_graph.h"
-#include "../graph500/generator/utils.h"
-#include "../graph500/grappa/timer.h"
-#include "../graph500/grappa/common.h"
-#include "../graph500/grappa/oned_csr.h" // just for other graph gen stuff besides tuple->csr
-#include "../graph500/prng.h"
+#include "generator/make_graph.h"
+#include "generator/utils.h"
+#include "grappa/timer.h"
+#include "grappa/common.h"
+#include "grappa/oned_csr.h" // just for other graph gen stuff besides tuple->csr
+#include "prng.h"
 
 
 // Grappa includes
