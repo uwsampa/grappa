@@ -6,7 +6,7 @@ set(SOURCES
   "${APP_GRAPH500}/prng.c"
   Tuple.hpp
   Tuple.cpp
-  relation_IO.hpp
+  relation_io.hpp
   DHT.hpp
   Hypercube.hpp
   Hypercube.cpp
@@ -22,12 +22,22 @@ set(SOURCES
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
 add_definitions(-Drestrict=__restrict__ -DGRAPH_GENERATOR_GRAPPA)
 
-set(QUERIES
+set(QUERIES_MAIN
+  Query
+)
+
+set(QUERIES_IND 
   triangles
   triangles_partition
-  squares_partition
   twohop
-  squares
+)
+
+set(QUERIES_SOURCES
+  squares.cpp
+  squares.hpp
+  squares_partition.cpp
+  squares_partition.hpp
+  Query.hpp
 )
 
 set(TEST_SOURCES
@@ -35,9 +45,15 @@ set(TEST_SOURCES
   Hypercube_tests.cpp
 )
 
-foreach(query ${QUERIES})
+foreach(query ${QUERIES_IND})
   #not including headers because sources use explicit path
   add_grappa_application(${query}.exe ${SOURCES} ${query}.cpp)
+  target_link_libraries(${query}.exe generator)
+endforeach()
+
+foreach(query ${QUERIES_MAIN})
+  #not including headers because sources use explicit path
+  add_grappa_application(${query}.exe ${SOURCES} ${QUERIES_SOURCES} ${query}.cpp)
   target_link_libraries(${query}.exe generator)
 endforeach()
 

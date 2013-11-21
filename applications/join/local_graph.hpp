@@ -21,6 +21,9 @@ struct Edge {
   // for construction by sets
   Edge() : src(-1), dst(-1) {}
 };
+std::ostream& operator<<(std::ostream& o, const Edge& e) {
+  return o << "("<<e.src<<","<<e.dst<<")";
+}
 
 bool operator==(const Edge& e1, const Edge& e2) {
   return e1.src==e2.src && e1.dst==e2.dst;
@@ -39,7 +42,9 @@ class LocalAdjListGraph {
     LocalAdjListGraph(std::vector<Edge>& edges) : adjs() {
       // assume that the vertex ids are not compressed
       
+      DVLOG(5) << "local construction: ";
       for (auto e : edges) {
+        DVLOG(5) << "  " << e;
         auto& val = adjs[e.src];
         val.push_back(e.dst);
       }
@@ -48,7 +53,9 @@ class LocalAdjListGraph {
     LocalAdjListGraph(std::unordered_set<Edge, Edge_hasher>& edges) : adjs() {
       // assume that the vertex ids are not compressed
       
+      DVLOG(5) << "local construction: ";
       for (auto e : edges) {
+        DVLOG(5) << "  " << e;
         auto& val = adjs[e.src];
         val.push_back(e.dst);
       }
@@ -71,7 +78,9 @@ class LocalMapGraph {
     LocalMapGraph (std::vector<Edge>& edges) : adjs() {
       // assume that the vertex ids are not compressed
 
+      DVLOG(5) << "local construction: ";
       for (auto e : edges) {
+        DVLOG(5) << "  " << e;
         auto& val = adjs[e.src];
         val.insert(e.dst);
       }
@@ -80,7 +89,9 @@ class LocalMapGraph {
     LocalMapGraph (std::unordered_set<Edge, Edge_hasher>& edges) : adjs() {
       // assume that the vertex ids are not compressed
 
+      DVLOG(5) << "local construction: ";
       for (auto e : edges) {
+        DVLOG(5) << "  " << e;
         auto& val = adjs[e.src];
         val.insert(e.dst);
       }
