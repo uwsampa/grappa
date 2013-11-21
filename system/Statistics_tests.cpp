@@ -30,6 +30,8 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<int>, baz, 0);
 
 GRAPPA_DEFINE_STAT(HistogramStatistic, rand_msg, 0);
 
+GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, maz, 0);
+
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
@@ -76,6 +78,11 @@ void user_main(void * args) {
     }
   });
 #endif
+
+  on_all_cores([] {
+      maz.add( (Grappa::mycore()+Grappa::cores()-1)%Grappa::cores() );
+      maz.add( 1 );
+  });
 
   call_on_all_cores([]{ Grappa_stop_profiling(); });
   Statistics::merge_and_print();

@@ -188,5 +188,26 @@ namespace Grappa {
     
     /// @}
   } // namespace delegate
+
+
+
+  /*
+   * Grappa utilities enabled
+   * by async delegate
+   */
+
+  /// Synchronizing remote private task spawn. Automatically enrolls task with GlobalCompletionEvent and
+  /// sends `complete`  message when done (if GCE is non-null).
+  template<GlobalCompletionEvent * GCE, typename TF>
+  inline void remotePrivateTask(Core dest, TF tf) {
+    if (GCE) GCE->enroll();
+    Core origin = mycore();
+    delegate::call_async<GCE>(dest, [origin,tf] {
+      privateTask([origin,tf] {
+        tf();
+        if (GCE) complete(make_global(GCE,origin));
+      });
+    });
+  }
   
 } // namespace Grappa
