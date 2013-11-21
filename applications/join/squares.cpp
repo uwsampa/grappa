@@ -8,7 +8,7 @@
 
 // util includes
 #include "Tuple.hpp"
-#include "relation_IO.hpp"
+#include "relation_io.hpp"
 
 // graph includes
 #include "../graph500/grappa/graph.hpp"
