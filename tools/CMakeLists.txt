@@ -59,8 +59,7 @@ ExternalProject_Add( tool-gflags
   BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g
-    ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
 )
