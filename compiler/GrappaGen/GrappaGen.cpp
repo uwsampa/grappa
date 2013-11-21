@@ -16,8 +16,10 @@
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/PassManager.h>
+#include <llvm/Support/CFG.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <llvm/IR/DataLayout.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"
@@ -112,8 +114,26 @@ namespace {
     target->setMetadata(label, dloc.getAsMDNode(ctx));
   }
   
+  ConstantInt* get_size_const(Value *p) {
+    assert( p->getType()->isPointerTy() );
+    auto p_ty = p->getType()->getPointerElementType();
+    assert( p_ty->getScalarSizeInBits() % 8 == 0 );
+    errs() << "p_ty: " << *p_ty << ", sz = " << p_ty->getScalarSizeInBits() << "\n";
+    auto sz_val = p_ty->getScalarSizeInBits() / 8;
+    auto const_int = ConstantInt::get(Type::getInt64Ty(p->getContext()), sz_val);
+    assert( const_int != NULL );
+    return const_int;
+  }
+  
   struct GrappaGen : public FunctionPass {
     static char ID;
+    
+    struct FetchAdd {
+      LoadInst *ld;
+      StoreInst *store;
+      Value *inc;
+      Instruction *op;
+    };
     
     Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn, *get_pointer_fn;
     
@@ -122,49 +142,356 @@ namespace {
     GrappaGen() : FunctionPass(ID) { }
     
     
-    void constructDelegateFunction(const SetVector<Value*>& inputs, const SetVector<Value*>& outputs, BasicBlock* inblock, Module* mod) {
+    void replaceFetchAdd(FetchAdd& fa) {
+      errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
       
+      fa.ld->getPointerOperand()->setName("gptr");
+      
+      BasicBlock* block = fa.ld->getParent();
+      assert( block == fa.op->getParent() && block == fa.store->getParent() );
+      
+      auto find_in_bb = [](BasicBlock *bb, Value *v) {
+        for (auto it = bb->begin(), end = bb->end(); it != end; it++) {
+          if (&*it == v) return it;
+        }
+        return bb->end();
+      };
+      
+      auto ld_gptr = fa.ld->getPointerOperand();
+      
+      // split basic block into pre-delegate (block), delegate_blk, and post_blk
+      auto load_loc = find_in_bb(block, fa.ld);
+      auto delegate_blk = block->splitBasicBlock(load_loc, "grappa.delegate");
+      
+      auto store_loc = find_in_bb(delegate_blk, fa.store);
+      auto post_blk = delegate_blk->splitBasicBlock(++store_loc, "delegate.post");
+      
+      // get type of load inst
+      auto ld_ty = dyn_cast<PointerType>(ld_gptr->getType())->getElementType()->getPointerTo();
+      
+      errs() << "\n-- pre block:\n" << *block;
+      errs() << "\n-- delegate block:\n" << *delegate_blk;
+      errs() << "\n-- post block:\n" << *post_blk;
+      
+      // remove debug call that was holding onto references to insts moved to other fn
+      // TODO: generalize this to remove anything with function-local refs (or even better: repair function-local refs)
+      for (BasicBlock::iterator i = post_blk->begin(); i != post_blk->end(); ) {
+        auto inst = i++;
+        if (auto c = dyn_cast<CallInst>(inst)) {
+          if (c->getCalledFunction()->getName() == "llvm.dbg.value") {
+            c->eraseFromParent();
+          }
+        }
+      }
+      
+      auto struct_args = false;
+      CodeExtractor ex(delegate_blk, struct_args);
+      SetVector<Value*> ins, outs;
+      ex.findInputsOutputs(ins, outs);
+      errs() << "\nins:"; for (auto v : ins) errs() << "\n  " << *v; errs() << "\n";
+      errs() << "outs:"; for (auto v : outs) errs() << "\n  " << *v; errs() << "\n";
+      assert( ins.size()  == 1 );
+      assert( outs.size() == 1 );
+      
+      auto delegate_fn = ex.extractCodeRegion();
+      errs() << "\n--------\ndelegate: " << *delegate_fn;
+      
+      auto prepost = block->getNextNode();
+      
+      // find call to extracted function created by CodeExtrator
+      CallInst *delegate_call;
+      for (auto& i : *prepost) {
+        if (auto call = dyn_cast<CallInst>(&i)) {
+          if (call->getCalledFunction() == delegate_fn) {
+            delegate_call = call;
+            break;
+          }
+        }
+      }
+      assert( delegate_call->getNumArgOperands() == 2 );
+      
+      errs() <<"\n-----------\nblock:\n" << *block;
+      errs() << "\n---------\nprepost: " << *prepost;
+      
+      // first load global pointer from pointer-to-pointer
+      //        auto arg_input = delegate_call->getArgOperand(0);
+      //        errs() << "arg_input: " << *arg_input << "\n  type: " << *arg_input->getType() << "\n";
+      auto arg_ptr = fa.ld->getPointerOperand();
+      auto arg_ptrptr = new BitCastInst(arg_ptr, arg_ptr->getType()->getPointerTo(), "", fa.ld);
+      auto ld_input = new LoadInst(arg_ptrptr, "", fa.ld);
+      
+      auto vptr = CallInst::Create(get_pointer_fn, (Value*[]){
+        new BitCastInst(ld_input, void_gptr_ty, "", fa.ld),
+      }, "", fa.ld);
+      
+      auto ptr = new BitCastInst(vptr, ld_ty, "", fa.ld);
+      
+      fa.ld->setOperand(fa.ld->getPointerOperandIndex(), ptr);
+      fa.store->setOperand(fa.store->getPointerOperandIndex(), ptr);
+      
+      errs() << "\n--------\ndelegate <fixed up>: " << *delegate_fn;
+      
+      // get size (in bytes) of the value pointed-to as a ConstantInt*
+      auto get_size_bytes = [this](Value *p) {
+        assert( p->getType()->isPointerTy() );
+        auto p_ty = p->getType()->getPointerElementType();
+        assert( p_ty->getScalarSizeInBits() % 8 == 0 );
+        auto sz_val = p_ty->getScalarSizeInBits() / 8;
+        auto const_int = ConstantInt::get(i64_ty, sz_val);
+        assert( const_int != NULL );
+        return const_int;
+      };
+      
+      errs() << "@@@@@@\ndelegate_call: ";
+      for (unsigned i=0; i< delegate_call->getNumOperands(); i++) {
+        errs() << "  " << *delegate_call->getOperand(i) << "\n";
+      }
+      errs() << "\n";
+      
+      auto gptr = delegate_call->getOperand(0);
+      
+      //        Value *arg_in; // has to be pointer to the arg
+      //        if (auto gptrptr = dyn_cast<LoadInst>(gptr)) {
+      //          arg_in = gptrptr->getPointerOperand();
+      //        } else {
+      //          arg_in = nullptr;
+      //          assert(false && "need to implement alloca");
+      //        }
+      auto arg_in = gptr;
+      
+      auto arg_in_sz = get_size_bytes(arg_in);
+      auto arg_out = delegate_call->getOperand(1);
+      auto arg_out_sz = get_size_bytes(arg_out);
+      
+      //        Value *get_core_args = { fa.ld->getPointerOperand() };
+      //        auto target_core = CallInst::Create(get_core_fn, get_core_args, "", delegate_call);
+      auto target_core = CallInst::Create(get_core_fn, (Value*[]){
+        new BitCastInst(gptr, void_gptr_ty, "", delegate_call)
+      }, "", delegate_call);
+      
+      auto on_fn_ty = call_on_fn->getFunctionType()->getParamType(1);
+      
+      auto new_call = CallInst::Create(call_on_fn, (Value*[]){
+        target_core,
+        new BitCastInst(delegate_fn, on_fn_ty, "", delegate_call),
+        new BitCastInst(arg_in, void_ptr_ty, "", delegate_call),
+        arg_in_sz,
+        new BitCastInst(arg_out, void_ptr_ty, "", delegate_call),
+        arg_out_sz
+      }, "", delegate_call);
+      delegate_call->eraseFromParent();
+      
+      errs() << "-- prepost now: " << *prepost;
+      
+    }
+    
+    void specializeFetchAdd(FetchAdd& fa) {
+      Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
+      auto f = CallInst::Create(fetchadd_i64_fn, args, "", fa.ld);
+      myReplaceInstWithInst(fa.ld, f);
+      // leave add instruction there (in case its result is used)
+      fa.store->dropAllReferences();
+      fa.store->removeFromParent();
+      ir_comment(f, "grappa.fetchadd", "");
+    }
+    
+    
+    Function* constructDelegateFunction(Value *gptr, BasicBlock* inblock, Module* mod) {
+      // just use code extractor to compute inputs & outputs (for now)
+      CodeExtractor extractor(inblock);
+      SetVector<Value*> inputs, outputs;
+      extractor.findInputsOutputs(inputs, outputs);
+      
+      errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
+      errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
+      
+      auto layout = new DataLayout(mod);
+      
+      // create struct types for inputs & outputs
       SmallVector<Type*, 8> in_types, out_types;
-      for (auto& p : inputs) { in_types.push_back(p->getType()); }
+      for (auto& p : inputs)  {  in_types.push_back(p->getType()); }
       for (auto& p : outputs) { out_types.push_back(p->getType()); }
       
-      auto in_struct = StructType::get(mod->getContext(), in_types);
-      auto out_struct = StructType::get(mod->getContext(), out_types);
+      auto in_struct_ty = StructType::get(mod->getContext(), in_types);
+      auto out_struct_ty = StructType::get(mod->getContext(), out_types);
       
-      auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty });
+      // create function shell
+      auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
+      errs() << "delegate fn ty: " << *new_fn_ty << "\n";
       auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + inblock->getName(), mod);
       
-      auto insertion_pt = new_fn->begin()->getTerminator();
       auto& ctx = mod->getContext();
+      
+      auto entrybb = BasicBlock::Create(ctx, "d.entry", new_fn);
       
       auto i32_ty = Type::getInt32Ty(ctx);
       auto i32_0 = Constant::getNullValue(i32_ty);
       auto i32_num = [=](int v) { return ConstantInt::get(i32_ty, v); };
+      auto i64_num = [=](int v) { return ConstantInt::get(i64_ty, v); };
       
-      std::map<Value*,Value*> arg_map; // mapping between old input/outputs and new ones
+      ValueToValueMapTy arg_map;
       
       Function::arg_iterator argi = new_fn->arg_begin();
+      auto in_arg_ = argi++;
+      auto out_arg_ = argi++;
       
-      auto in_arg = argi++;
-      for (unsigned i = 0; i < inputs.size(); i++) {
-        auto in = inputs[i];
-        auto gep = GetElementPtrInst::Create(in_arg, (Value*[]){ i32_0, i32_num(i) }, "gep_" + in->getName(), insertion_pt);
-        auto in_val = new LoadInst(gep, "ldgep_" + in->getName(), insertion_pt);
-        arg_map[in] = in_val;
+      auto in_arg = new BitCastInst(in_arg_, in_struct_ty->getPointerTo(), "", entrybb);
+      auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "", entrybb);
+      
+      Instruction* insertion_pt = entrybb->end();
+      
+      auto struct_elt_ptr = [&](Value *struct_ptr, int idx, const Twine& name, Instruction *insert_before) {
+        return GetElementPtrInst::Create(struct_ptr, (Value*[]){ i32_0, i32_num(idx) }, name, insert_before);
+      };
+      
+      for (int i = 0; i < inputs.size(); i++) {
+        auto v = inputs[i];
+        auto gep = struct_elt_ptr(in_arg, i, v->getName(), insertion_pt);
+        auto in_val = new LoadInst(gep, "d.in." + v->getName(), insertion_pt);
+        arg_map[v] = in_val;
       }
 
+//      for (int i = 0; i < outputs.size(); i++) {
+//        auto v = outputs[i];
+//        auto ep = struct_elt_ptr(out_arg, i, "d.out." + v->getName(), insertion_pt);
+////        arg_map[v] = ep;
+//      }
+      
+      // copy delegate block into new fn & remap values to use args
+//      auto newbb = CloneBasicBlock(inblock, arg_map, "d.blk." + inblock->getName(), new_fn);
+      
+      auto old_fn = inblock->getParent();
 
+      auto retbb = BasicBlock::Create(ctx, "ret." + inblock->getName(), new_fn);
+      
+      // return from end of created block
+      auto newret = ReturnInst::Create(ctx, nullptr, retbb);
+      
+      // store outputs before return
+      for (int i = 0; i < outputs.size(); i++) {
+        auto v = outputs[i];
+        auto ep = struct_elt_ptr(out_arg, i, "d.out.gep." + v->getName(), newret);
+        new StoreInst(v, ep, false, newret);
+      }
+      
+      //////////////
+      // emit call
+      
+      assert(inblock->getTerminator()->getNumSuccessors() == 1);
+      
+      auto prevbb = inblock->getUniquePredecessor();
+      assert(prevbb != nullptr);
+      
+      auto nextbb = inblock->getTerminator()->getSuccessor(0);
+      
+      // create new bb to replace old block and call
+      auto callbb = BasicBlock::Create(inblock->getContext(), "d.call.blk", old_fn, inblock);
+      
+      prevbb->getTerminator()->replaceUsesOfWith(inblock, callbb);
+      BranchInst::Create(nextbb, callbb);
+      
+      // hook inblock into new fn
+      inblock->moveBefore(retbb);
+      inblock->getTerminator()->replaceUsesOfWith(nextbb, retbb);
+      // jump from entrybb to inblock
+      BranchInst::Create(inblock, entrybb);
+
+      errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
+      
+      auto call_pt = callbb->getTerminator();
+      
+      // allocate space for in/out structs near top of function
+      auto in_struct_alloca = new AllocaInst(in_struct_ty, 0, "d.in_struct", old_fn->begin()->begin());
+      auto out_struct_alloca = new AllocaInst(out_struct_ty, 0, "d.out_struct", old_fn->begin()->begin());
+      
+      // copy inputs into struct
+      for (int i = 0; i < inputs.size(); i++) {
+        auto v = inputs[i];
+        auto gep = struct_elt_ptr(in_struct_alloca, i, "dc.in", call_pt);
+        new StoreInst(v, gep, false, call_pt);
+      }
+      
+      auto target_core = CallInst::Create(get_core_fn, (Value*[]){
+        new BitCastInst(gptr, void_gptr_ty, "", call_pt)
+      }, "", call_pt);
+      
+      auto new_call = CallInst::Create(call_on_fn, (Value*[]){
+        target_core,
+        new_fn,
+        new BitCastInst(in_struct_alloca, void_ptr_ty, "", call_pt),
+        i64_num(layout->getTypeAllocSize(in_struct_ty)),
+        new BitCastInst(out_struct_alloca, void_ptr_ty, "", call_pt),
+        i64_num(layout->getTypeAllocSize(out_struct_ty))
+      }, "", call_pt);
+      
+      // load outputs
+      for (int i = 0; i < outputs.size(); i++) {
+        auto v = outputs[i];
+        auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out." + v->getName(), call_pt);
+        auto ld = new LoadInst(gep, "d.call.out." + v->getName(), call_pt);
+        
+        errs() << "replacing:\n" << *v << "\nwith:\n" << *ld;
+        v->replaceAllUsesWith(ld);
+        
+//        for (auto uit = v->use_begin(), uend = v->use_end(); uit != uend; uit++) {
+//          uit->replaceUsesOfWith(v, ld);
+//        }
+      }
+      
+      errs() << "--------------\nredone outer fn entry: " << old_fn->getEntryBlock();
+      errs() << "\n-------\nprevbb: " << *prevbb;
+      errs() << "\n-------\ncallbb: " << *callbb;
+      errs() << "\n-------\nnextbb: " << *nextbb;
+      errs() << "--------------\n";
+
+      
+      return new_fn;
+    }
+    
+    
+    void replaceFetchAddWithGenericDelegate(FetchAdd& fa, Module* mod) {
+      errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
+      
+      fa.ld->getPointerOperand()->setName("gptr");
+      
+      BasicBlock* block = fa.ld->getParent();
+      assert( block == fa.op->getParent() && block == fa.store->getParent() );
+      
+      auto find_in_bb = [](BasicBlock *bb, Value *v) {
+        for (auto it = bb->begin(), end = bb->end(); it != end; it++) {
+          if (&*it == v) return it;
+        }
+        return bb->end();
+      };
+      
+      auto ld_gptr = fa.ld->getPointerOperand();
+      
+      // split basic block into pre-delegate (block), delegate_blk, and post_blk
+      auto load_loc = find_in_bb(block, fa.ld);
+      auto delegate_blk = block->splitBasicBlock(load_loc, "fa");
+      
+      auto store_loc = find_in_bb(delegate_blk, fa.store);
+      auto post_blk = delegate_blk->splitBasicBlock(++store_loc, "delegate.post");
+      
+      // get type of load inst
+      auto ld_ty = dyn_cast<PointerType>(ld_gptr->getType())->getElementType()->getPointerTo();
+      
+      errs() << "\n-- pre block:\n" << *block;
+      errs() << "\n-- delegate block:\n" << *delegate_blk;
+      errs() << "\n-- post block:\n" << *post_blk;
+      errs() << "---------------------\n";
+      constructDelegateFunction(ld_gptr, delegate_blk, mod);
     }
     
     void replaceWithRemoteLoad(LoadInst *orig_ld) {
-      outs() << "global get:"; orig_ld->dump();
-      outs() << "  uses: " << orig_ld->getNumUses() << "\n";
+      errs() << "global get:"; orig_ld->dump();
+      errs() << "  uses: " << orig_ld->getNumUses() << "\n";
       orig_ld->getOperandUse(0);
       auto ty = orig_ld->getType();
       auto gptr = orig_ld->getPointerOperand();
       
       if (ty == i64_ty) {
-        outs() << "  specializing -- grappa_read_long()\n";
+        errs() << "  specializing -- grappa_read_long()\n";
         Value *args[] = {
           gptr
         };
@@ -195,7 +522,7 @@ namespace {
     }
 
     void replaceWithRemoteStore(StoreInst *orig) {
-      outs() << "global put:"; orig->dump();
+      errs() << "global put:"; orig->dump();
       
       auto gptr = orig->getPointerOperand();
       auto val = orig->getValueOperand();
@@ -227,12 +554,6 @@ namespace {
       std::multiset<LoadInst*> global_loads;
       std::multiset<StoreInst*> global_stores;
       
-      struct FetchAdd {
-        LoadInst *ld;
-        StoreInst *store;
-        Value *inc;
-        Instruction *op;
-      };
       std::vector<FetchAdd> fetchadds;
       
       for (auto& bb : F) {
@@ -301,153 +622,7 @@ namespace {
       }
       
       for (auto& fa : fetchadds) {
-        errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
-        
-        fa.ld->getPointerOperand()->setName("gptr");
-        
-        BasicBlock* block = fa.ld->getParent();
-        assert( block == fa.op->getParent() && block == fa.store->getParent() );
-        
-        auto find_in_bb = [](BasicBlock *bb, Value *v) {
-          for (auto it = bb->begin(), end = bb->end(); it != end; it++) {
-            if (&*it == v) return it;
-          }
-          return bb->end();
-        };
-        
-        auto ld_gptr = fa.ld->getPointerOperand();
-        
-        // split basic block into pre-delegate (block), delegate_blk, and post_blk
-        auto load_loc = find_in_bb(block, fa.ld);
-        auto delegate_blk = block->splitBasicBlock(load_loc, "grappa.delegate");
-        
-        auto store_loc = find_in_bb(delegate_blk, fa.store);
-        auto post_blk = delegate_blk->splitBasicBlock(++store_loc, "delegate.post");
-        
-        // get type of load inst
-        auto ld_ty = dyn_cast<PointerType>(ld_gptr->getType())->getElementType()->getPointerTo();
-        
-        errs() << "\n-- pre block:\n" << *block;
-        errs() << "\n-- delegate block:\n" << *delegate_blk;
-        errs() << "\n-- post block:\n" << *post_blk;
-        
-        // remove debug call that was holding onto references to insts moved to other fn
-        // TODO: generalize this to remove anything with function-local refs (or even better: repair function-local refs)
-        for (BasicBlock::iterator i = post_blk->begin(); i != post_blk->end(); ) {
-          auto inst = i++;
-          if (auto c = dyn_cast<CallInst>(inst)) {
-            if (c->getCalledFunction()->getName() == "llvm.dbg.value") {
-              c->eraseFromParent();
-            }
-          }
-        }
-        
-        auto struct_args = false;
-        CodeExtractor ex(delegate_blk, struct_args);
-        SetVector<Value*> ins, outs;
-        ex.findInputsOutputs(ins, outs);
-        errs() << "\nins:"; for (auto v : ins) errs() << "\n  " << *v; errs() << "\n";
-        errs() << "outs:"; for (auto v : outs) errs() << "\n  " << *v; errs() << "\n";
-        assert( ins.size()  == 1 );
-        assert( outs.size() == 1 );
-        
-        auto delegate_fn = ex.extractCodeRegion();
-        errs() << "\n--------\ndelegate: " << *delegate_fn;
-        
-        auto prepost = block->getNextNode();
-        
-        // find call to extracted function created by CodeExtrator
-        CallInst *delegate_call;
-        for (auto& i : *prepost) {
-          if (auto call = dyn_cast<CallInst>(&i)) {
-            if (call->getCalledFunction() == delegate_fn) {
-              delegate_call = call;
-              break;
-            }
-          }
-        }
-        assert( delegate_call->getNumArgOperands() == 2 );
-        
-        errs() <<"\n-----------\nblock:\n" << *block;
-        errs() << "\n---------\nprepost: " << *prepost;
-
-        // first load global pointer from pointer-to-pointer
-//        auto arg_input = delegate_call->getArgOperand(0);
-//        errs() << "arg_input: " << *arg_input << "\n  type: " << *arg_input->getType() << "\n";
-        auto arg_ptr = fa.ld->getPointerOperand();
-        auto arg_ptrptr = new BitCastInst(arg_ptr, arg_ptr->getType()->getPointerTo(), "", fa.ld);
-        auto ld_input = new LoadInst(arg_ptrptr, "", fa.ld);
-        
-        auto vptr = CallInst::Create(get_pointer_fn, (Value*[]){
-          new BitCastInst(ld_input, void_gptr_ty, "", fa.ld),
-        }, "", fa.ld);
-        
-        auto ptr = new BitCastInst(vptr, ld_ty, "", fa.ld);
-        
-        fa.ld->setOperand(fa.ld->getPointerOperandIndex(), ptr);
-        fa.store->setOperand(fa.store->getPointerOperandIndex(), ptr);
-        
-        errs() << "\n--------\ndelegate <fixed up>: " << *delegate_fn;
-        
-        // get size (in bytes) of the value pointed-to as a ConstantInt*
-        auto get_size_bytes = [this](Value *p) {
-          assert( p->getType()->isPointerTy() );
-          auto p_ty = p->getType()->getPointerElementType();
-          assert( p_ty->getScalarSizeInBits() % 8 == 0 );
-          auto sz_val = p_ty->getScalarSizeInBits() / 8;
-          auto const_int = ConstantInt::get(i64_ty, sz_val);
-          assert( const_int != NULL );
-          return const_int;
-        };
-        
-        errs() << "@@@@@@\ndelegate_call: ";
-        for (unsigned i=0; i< delegate_call->getNumOperands(); i++) {
-          errs() << "  " << *delegate_call->getOperand(i) << "\n";
-        }
-        errs() << "\n";
-        
-        auto gptr = delegate_call->getOperand(0);
-        
-//        Value *arg_in; // has to be pointer to the arg
-//        if (auto gptrptr = dyn_cast<LoadInst>(gptr)) {
-//          arg_in = gptrptr->getPointerOperand();
-//        } else {
-//          arg_in = nullptr;
-//          assert(false && "need to implement alloca");
-//        }
-        auto arg_in = gptr;
-        
-        auto arg_in_sz = get_size_bytes(arg_in);
-        auto arg_out = delegate_call->getOperand(1);
-        auto arg_out_sz = get_size_bytes(arg_out);
-        
-//        Value *get_core_args = { fa.ld->getPointerOperand() };
-//        auto target_core = CallInst::Create(get_core_fn, get_core_args, "", delegate_call);
-        auto target_core = CallInst::Create(get_core_fn, (Value*[]){
-          new BitCastInst(gptr, void_gptr_ty, "", delegate_call)
-        }, "", delegate_call);
-
-        auto on_fn_ty = call_on_fn->getFunctionType()->getParamType(1);
-        
-        auto new_call = CallInst::Create(call_on_fn, (Value*[]){
-          target_core,
-          new BitCastInst(delegate_fn, on_fn_ty, "", delegate_call),
-          new BitCastInst(arg_in, void_ptr_ty, "", delegate_call),
-          arg_in_sz,
-          new BitCastInst(arg_out, void_ptr_ty, "", delegate_call),
-          arg_out_sz
-        }, "", delegate_call);
-        delegate_call->eraseFromParent();
-        
-        errs() << "-- prepost now: " << *prepost;
-        
-//        Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
-//        auto f = CallInst::Create(fetchadd_i64_fn, args, "", fa.ld);
-//        myReplaceInstWithInst(fa.ld, f);
-//        // leave add instruction there (in case its result is used)
-//        fa.store->dropAllReferences();
-//        fa.store->removeFromParent();
-//        ir_comment(f, "grappa.fetchadd", "");
+        replaceFetchAddWithGenericDelegate(fa, F.getParent());
       }
       
       for (auto* inst : global_loads) {
