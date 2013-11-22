@@ -69,7 +69,6 @@ set(SYSTEM_SOURCES
   CountingSemaphoreLocal.hpp
   CurrentThread.hpp
   Delegate.hpp
-  Descriptor.hpp
   ExternalCountPayloadMessage.hpp
   FileIO.hpp
   FlatCombiner.hpp
