@@ -33,7 +33,7 @@ namespace Grappa {
   inline T global* globalize( T* t, Core n = Grappa::mycore() ) {
     return gptr(make_global(t, n));
   }
-
+  
 }
 
 extern "C"
@@ -124,7 +124,7 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
   auto origin = Grappa::mycore();
   
   if (dst == origin) {
-    VLOG(0) << "short-circuit";
+    VLOG(5) << "short-circuit";
     fn(args, out);
     
   } else {
@@ -134,16 +134,18 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
     
     Grappa::send_heap_message(dst, [fn,out_sz,gfe](void* args, size_t args_sz){
       
-      char out[out_sz];
+      auto out = Grappa::locale_alloc<int8_t>(out_sz);
       fn(args, out);
       
-      Grappa::send_heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
+      auto msg = Grappa::heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
         
         auto r = gfe->readXX();
         memcpy(r, out, out_sz);
         gfe->writeEF(r);
         
       }, out, out_sz);
+      msg->delete_payload_after_send();
+      msg->enqueue();
       
     }, args, args_sz);
     
