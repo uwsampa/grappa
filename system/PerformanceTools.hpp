@@ -79,9 +79,6 @@ class GrappaProfiler {
 void dump_all_task_profiles();
 
 
-// include profiler groups
-#include "ProfilerGroups.hpp"
-
 
 void Grappa_set_profiler_argv0( char * argv0 );
 
