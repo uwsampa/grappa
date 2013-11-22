@@ -134,6 +134,8 @@ namespace {
     
     Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn, *get_pointer_fn;
     
+    Function *myprint_i64;
+    
     Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
     
     DominatorTree *DT;
@@ -767,6 +769,8 @@ namespace {
       call_on_fn = getFunction("grappa_on");
       get_core_fn = getFunction("grappa_get_core");
       get_pointer_fn = getFunction("grappa_get_pointer");
+      
+      myprint_i64 = getFunction("myprint_i64");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
