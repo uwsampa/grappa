@@ -233,9 +233,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 #endif
 
-  // initialize Tau profiling groups
-  generate_profile_groups();
-
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
 

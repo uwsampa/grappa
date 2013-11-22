@@ -41,7 +41,6 @@ set(SYSTEM_SOURCES
   MessagePool.cpp
   ParallelLoop.cpp
   PerformanceTools.cpp
-  ProfilerGroups.cpp
   RDMAAggregator.cpp
   SharedMessagePool.cpp
   SimpleStatistic.cpp
@@ -98,11 +97,8 @@ set(SYSTEM_SOURCES
   MutableHeap.hpp
   Mutex.hpp
   ParallelLoop.hpp
-  ParallelLoop_future.hpp
   PerformanceTools.hpp
   PoolAllocator.hpp
-  ProfilerConfig.hpp
-  ProfilerGroups.hpp
   PushBuffer.hpp
   RDMAAggregator.hpp
   RDMABuffer.hpp
@@ -129,7 +125,6 @@ set(SYSTEM_SOURCES
   Worker.hpp
   gasnet_helpers.h
   stack.h
-  thread.h
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
   # tasks/GlobalQueue.hpp
