@@ -56,6 +56,12 @@ namespace {
     return false;
   }
   
+  PointerType* dyn_cast_gptr(Type* ty) {
+    PointerType *pt = dyn_cast<PointerType>(ty);
+    if (pt && pt->getAddressSpace() == GLOBAL_SPACE) return pt;
+    else return nullptr;
+  }
+  
   //////////////////////////////////////
   /// From llvmGlobalToWide.cpp
   AllocaInst* makeAlloca(llvm::Type* type,
@@ -352,7 +358,21 @@ namespace {
         
         errs() << "in_val: " << *in_val << " (parent:" << in_val->getParent()->getName() << ", fn:" << in_val->getParent()->getParent()->getName() << ")\n";
         
-        clone_map[v] = in_val;
+        Value *final_in = in_val;
+        
+        // if it's a global pointer, get local address for it
+        if (auto in_gptr_ty = dyn_cast_gptr(in_val->getType())) {
+          auto ptr_ty = in_gptr_ty->getElementType()->getPointerTo();
+          auto bc = new BitCastInst(in_val, void_gptr_ty, "getptr.bc", entrybb);
+          auto vptr = CallInst::Create(get_pointer_fn, (Value*[]){ bc }, "getptr", entrybb);
+          auto ptr = new BitCastInst(vptr, ptr_ty, "localptr", entrybb);
+          final_in = ptr;
+        }
+        
+        clone_map[v] = final_in;
+        
+        // get type of load inst
+
         
 //        std::vector<User*> Users(v->use_begin(), v->use_end());
 //        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
@@ -448,6 +468,7 @@ namespace {
         i64_num(layout->getTypeAllocSize(out_struct_ty))
       }, "", call_pt);
       
+      // use clone_map to remap values in new function
       for (auto& bb : *new_fn) {
         for (auto& inst : bb) {
           for (int i = 0; i < inst.getNumOperands(); i++) {
@@ -459,21 +480,6 @@ namespace {
         }
       }
 
-//      for (auto& e : arg_map) {
-//        auto v = e.first;
-//        auto in_val = e.second;
-//        
-//        errs() << "replacing input:\n" << *v << "\nwith:\n" << *in_val << "\nin:\n";
-//        std::vector<User*> Users(v->use_begin(), v->use_end());
-//        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
-//          Instruction *inst = cast<Instruction>(Users[u]);
-//          errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ")\n";
-//          if (inst->getParent()->getParent() == new_fn) {
-//            inst->replaceUsesOfWith(v, in_val);
-//          }
-//        }
-//      }
-      
       // load outputs
       for (int i = 0; i < outputs.size(); i++) {
         auto v = outputs[i];
@@ -581,9 +587,6 @@ namespace {
       
       auto store_loc = find_in_bb(delegate_blk, fa.store);
       auto post_blk = delegate_blk->splitBasicBlock(++store_loc, "delegate.post");
-      
-      // get type of load inst
-      auto ld_ty = dyn_cast<PointerType>(ld_gptr->getType())->getElementType()->getPointerTo();
       
       errs() << "\n-- pre block:\n" << *block;
       errs() << "\n-- delegate block:\n" << *delegate_blk;
