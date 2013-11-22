@@ -381,29 +381,7 @@ namespace {
         }
         
         clone_map[v] = final_in;
-        
-        // get type of load inst
-
-        
-//        std::vector<User*> Users(v->use_begin(), v->use_end());
-//        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
-//          Instruction *inst = cast<Instruction>(Users[u]);
-//          errs() << "replacing:\n" << *v << "\nwith:\n" << *in_val << "\nin:\n" << *inst << "\n";
-////          assert(inst->getParent()->getParent() == new_fn);
-//        }
-
-//        for (auto& inst : *inblock) {
-//          inst.replaceUsesOfWith(v, in_val);
-//        }
-
       }
-      
-//      for (int i = 0; i < outputs.size(); i++) {
-//        auto v = outputs[i];
-//        auto ep = struct_elt_ptr(out_arg, i, "d.out." + v->getName(), insertion_pt);
-////        arg_map[v] = ep;
-//      }
-      
       
       auto old_fn = inblock->getParent();
 
