@@ -336,7 +336,7 @@ namespace {
       
       auto entrybb = BasicBlock::Create(ctx, "d.entry", new_fn);
       
-      auto i64_num = [=](int v) { return ConstantInt::get(i64_ty, v); };
+      auto i64_num = [=](long v) { return ConstantInt::get(i64_ty, v); };
       
       ValueToValueMapTy clone_map;
 //      std::map<Value*,Value*> arg_map;
@@ -345,6 +345,9 @@ namespace {
       auto in_arg_ = argi++;
       auto out_arg_ = argi++;
       
+      errs() << "in_arg_:" << *in_arg_ << "\n";
+      errs() << "@bh out_arg_:" << *out_arg_ << "\n";
+      
       auto in_arg = new BitCastInst(in_arg_, in_struct_ty->getPointerTo(), "bc.in", entrybb);
       auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "bc.out", entrybb);
       
@@ -352,6 +355,12 @@ namespace {
       auto newbb = CloneBasicBlock(inblock, clone_map, ".clone", new_fn);
       
       std::map<Value*,Value*> remaps;
+      
+      for (int i = 0; i < outputs.size(); i++) {
+        auto v = outputs[i];
+        auto ge = struct_elt_ptr(out_arg, i, "out.clr", entrybb);
+        new StoreInst(Constant::getNullValue(v->getType()), ge, false, entrybb);
+      }
       
       for (int i = 0; i < inputs.size(); i++) {
         auto v = inputs[i];
@@ -408,7 +417,7 @@ namespace {
         assert(clone_map.count(outputs[i]) > 0);
         auto v = clone_map[outputs[i]];
         auto ep = struct_elt_ptr(out_arg, i, "d.out.gep." + v->getName(), newret);
-        new StoreInst(v, ep, false, newret);
+        new StoreInst(v, ep, true, newret);
       }
       
       //////////////
@@ -456,7 +465,17 @@ namespace {
         auto gep = struct_elt_ptr(in_struct_alloca, i, "dc.in", call_pt);
         new StoreInst(v, gep, false, call_pt);
       }
-      
+
+      //////////////////////////////
+      // for debug:
+      // init out struct to 0
+      for (int i = 0; i < outputs.size(); i++) {
+        auto v = outputs[i];
+        auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out.dbg", call_pt);
+        new StoreInst(Constant::getNullValue(v->getType()), gep, false, call_pt);
+      }
+      //////////////////////////////
+
       auto target_core = CallInst::Create(get_core_fn, (Value*[]){
         new BitCastInst(gptr, void_gptr_ty, "", call_pt)
       }, "", call_pt);
@@ -547,7 +566,7 @@ namespace {
 //      errs() << "----------------\nouter_fn:\n" << *old_fn << "-----------------------\n";
 //      errs() << "--------------\nredone outer fn entry: " << old_fn->getEntryBlock();
 //      errs() << "\n-------\nprevbb: " << *prevbb;
-//      errs() << "\n-------\ncallbb: " << *callbb;
+      errs() << "\n-------\ncallbb: " << *callbb;
 //      errs() << "\n-------\nnextbb: " << *nextbb;
 //      errs() << "--------------\n";
 

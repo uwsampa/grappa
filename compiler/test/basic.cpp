@@ -60,10 +60,15 @@ int main(int argc, char* argv[]) {
       
       long i = (*xa)++;
       CHECK(i >= 1);
+      auto dxa = delegate::read(gaddr(xa));
+      LOG(INFO) << "dxa = " << dxa;
+      CHECK(dxa >= 2 || dxa <= 4);
+      CHECK_LT(i, 4);
       LOG(INFO) << "i = " << i << ", *xa = " << *xa;
       
       long j = ++(*xa);
       LOG(INFO) << "j = " << j;
+      CHECK_LE(j, 6);
       
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {
