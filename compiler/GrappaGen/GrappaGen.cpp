@@ -20,6 +20,8 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/IR/DataLayout.h>
+#include <llvm/Analysis/Dominators.h>
+#include <llvm/Analysis/DomPrinter.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"
@@ -42,7 +44,7 @@ namespace {
 #define dump_var_l(before, dumpee, after) \
     errs() << before << #dumpee << ": "; \
     dumpee->dump(); \
-    errs() << after
+    errs() << afterDT
 
 #define dump_var(dumpee) dump_var_l("", dumpee, "\n")
   
@@ -114,17 +116,6 @@ namespace {
     target->setMetadata(label, dloc.getAsMDNode(ctx));
   }
   
-  ConstantInt* get_size_const(Value *p) {
-    assert( p->getType()->isPointerTy() );
-    auto p_ty = p->getType()->getPointerElementType();
-    assert( p_ty->getScalarSizeInBits() % 8 == 0 );
-    errs() << "p_ty: " << *p_ty << ", sz = " << p_ty->getScalarSizeInBits() << "\n";
-    auto sz_val = p_ty->getScalarSizeInBits() / 8;
-    auto const_int = ConstantInt::get(Type::getInt64Ty(p->getContext()), sz_val);
-    assert( const_int != NULL );
-    return const_int;
-  }
-  
   struct GrappaGen : public FunctionPass {
     static char ID;
     
@@ -138,6 +129,8 @@ namespace {
     Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn, *get_pointer_fn;
     
     Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
+    
+    DominatorTree *DT;
     
     GrappaGen() : FunctionPass(ID) { }
     
@@ -296,6 +289,17 @@ namespace {
     }
     
     
+    template< typename InsertType >
+    GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
+                                      InsertType* insert) {
+      auto i32_ty = Type::getInt32Ty(insert->getContext());
+      return GetElementPtrInst::Create(struct_ptr, (Value*[]){
+        Constant::getNullValue(i32_ty),
+        ConstantInt::get(i32_ty, idx)
+      }, name, insert);
+    };
+
+    
     Function* constructDelegateFunction(Value *gptr, BasicBlock* inblock, Module* mod) {
       // just use code extractor to compute inputs & outputs (for now)
       CodeExtractor extractor(inblock);
@@ -324,41 +328,51 @@ namespace {
       
       auto entrybb = BasicBlock::Create(ctx, "d.entry", new_fn);
       
-      auto i32_ty = Type::getInt32Ty(ctx);
-      auto i32_0 = Constant::getNullValue(i32_ty);
-      auto i32_num = [=](int v) { return ConstantInt::get(i32_ty, v); };
       auto i64_num = [=](int v) { return ConstantInt::get(i64_ty, v); };
       
-      ValueToValueMapTy arg_map;
+      ValueToValueMapTy clone_map;
+//      std::map<Value*,Value*> arg_map;
       
       Function::arg_iterator argi = new_fn->arg_begin();
       auto in_arg_ = argi++;
       auto out_arg_ = argi++;
       
-      auto in_arg = new BitCastInst(in_arg_, in_struct_ty->getPointerTo(), "", entrybb);
-      auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "", entrybb);
+      auto in_arg = new BitCastInst(in_arg_, in_struct_ty->getPointerTo(), "bc.in", entrybb);
+      auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "bc.out", entrybb);
       
-      Instruction* insertion_pt = entrybb->end();
+      // copy delegate block into new fn & remap values to use args
+      auto newbb = CloneBasicBlock(inblock, clone_map, ".clone", new_fn);
       
-      auto struct_elt_ptr = [&](Value *struct_ptr, int idx, const Twine& name, Instruction *insert_before) {
-        return GetElementPtrInst::Create(struct_ptr, (Value*[]){ i32_0, i32_num(idx) }, name, insert_before);
-      };
+      std::map<Value*,Value*> remaps;
       
       for (int i = 0; i < inputs.size(); i++) {
         auto v = inputs[i];
-        auto gep = struct_elt_ptr(in_arg, i, v->getName(), insertion_pt);
-        auto in_val = new LoadInst(gep, "d.in." + v->getName(), insertion_pt);
-        arg_map[v] = in_val;
-      }
+        auto gep = struct_elt_ptr(in_arg, i, "d.ge.in." + v->getName(), entrybb);
+        auto in_val = new LoadInst(gep, "d.in." + v->getName(), entrybb);
+        
+        errs() << "in_val: " << *in_val << " (parent:" << in_val->getParent()->getName() << ", fn:" << in_val->getParent()->getParent()->getName() << ")\n";
+        
+        clone_map[v] = in_val;
+        
+//        std::vector<User*> Users(v->use_begin(), v->use_end());
+//        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
+//          Instruction *inst = cast<Instruction>(Users[u]);
+//          errs() << "replacing:\n" << *v << "\nwith:\n" << *in_val << "\nin:\n" << *inst << "\n";
+////          assert(inst->getParent()->getParent() == new_fn);
+//        }
 
+//        for (auto& inst : *inblock) {
+//          inst.replaceUsesOfWith(v, in_val);
+//        }
+
+      }
+      
 //      for (int i = 0; i < outputs.size(); i++) {
 //        auto v = outputs[i];
 //        auto ep = struct_elt_ptr(out_arg, i, "d.out." + v->getName(), insertion_pt);
 ////        arg_map[v] = ep;
 //      }
       
-      // copy delegate block into new fn & remap values to use args
-//      auto newbb = CloneBasicBlock(inblock, arg_map, "d.blk." + inblock->getName(), new_fn);
       
       auto old_fn = inblock->getParent();
 
@@ -369,7 +383,8 @@ namespace {
       
       // store outputs before return
       for (int i = 0; i < outputs.size(); i++) {
-        auto v = outputs[i];
+        assert(clone_map.count(outputs[i]) > 0);
+        auto v = clone_map[outputs[i]];
         auto ep = struct_elt_ptr(out_arg, i, "d.out.gep." + v->getName(), newret);
         new StoreInst(v, ep, false, newret);
       }
@@ -384,6 +399,17 @@ namespace {
       
       auto nextbb = inblock->getTerminator()->getSuccessor(0);
       
+      // FIXME: this is a hack to get rid of the bad uses of debug info in successor
+//      for (BasicBlock::iterator i = nextbb->begin(); i != nextbb->end(); ) {
+//        auto inst = i++;
+//        if (auto c = dyn_cast<CallInst>(inst)) {
+//          if (c->getCalledFunction()->getName() == "llvm.dbg.value") {
+//            c->eraseFromParent();
+//          }
+//        }
+//      }
+
+      
       // create new bb to replace old block and call
       auto callbb = BasicBlock::Create(inblock->getContext(), "d.call.blk", old_fn, inblock);
       
@@ -391,12 +417,10 @@ namespace {
       BranchInst::Create(nextbb, callbb);
       
       // hook inblock into new fn
-      inblock->moveBefore(retbb);
-      inblock->getTerminator()->replaceUsesOfWith(nextbb, retbb);
+//      inblock->moveBefore(retbb);
+      newbb->getTerminator()->replaceUsesOfWith(nextbb, retbb);
       // jump from entrybb to inblock
-      BranchInst::Create(inblock, entrybb);
-
-      errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
+      BranchInst::Create(newbb, entrybb);
       
       auto call_pt = callbb->getTerminator();
       
@@ -424,26 +448,111 @@ namespace {
         i64_num(layout->getTypeAllocSize(out_struct_ty))
       }, "", call_pt);
       
+      for (auto& bb : *new_fn) {
+        for (auto& inst : bb) {
+          for (int i = 0; i < inst.getNumOperands(); i++) {
+            auto o = inst.getOperand(i);
+            if (clone_map.count(o) > 0) {
+              inst.setOperand(i, clone_map[o]);
+            }
+          }
+        }
+      }
+
+//      for (auto& e : arg_map) {
+//        auto v = e.first;
+//        auto in_val = e.second;
+//        
+//        errs() << "replacing input:\n" << *v << "\nwith:\n" << *in_val << "\nin:\n";
+//        std::vector<User*> Users(v->use_begin(), v->use_end());
+//        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
+//          Instruction *inst = cast<Instruction>(Users[u]);
+//          errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ")\n";
+//          if (inst->getParent()->getParent() == new_fn) {
+//            inst->replaceUsesOfWith(v, in_val);
+//          }
+//        }
+//      }
+      
       // load outputs
       for (int i = 0; i < outputs.size(); i++) {
         auto v = outputs[i];
         auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out." + v->getName(), call_pt);
         auto ld = new LoadInst(gep, "d.call.out." + v->getName(), call_pt);
         
-        errs() << "replacing:\n" << *v << "\nwith:\n" << *ld;
-        v->replaceAllUsesWith(ld);
+        errs() << "replacing output:\n" << *v << "\nwith:\n" << *ld << "\nin:\n";
+        std::vector<User*> Users(v->use_begin(), v->use_end());
+        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
+          Instruction *inst = cast<Instruction>(Users[u]);
+          errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ") ";
+          if (inst->getParent()->getParent() != new_fn) {
+            inst->replaceUsesOfWith(v, ld);
+            errs() << " !!";
+          } else {
+            errs() << " ??";
+          }
+          errs() << "\n";
+        }
+//        
+//        for (auto u = v->use_begin(), end = v->use_end(); u != end; ++u) {
+//          if (auto inst = dyn_cast<Instruction>(*u)) {
+//            if (inst->getParent()->getParent() != new_fn) {
+//              errs() << "replacing:\n" << *v << "\nwith:\n" << *ld << "\nin: " << *inst << "\n";
+//              inst->replaceUsesOfWith(v, ld);
+//            }
+//          }
+//        }
+//        errs() << "replacing:\n" << *v << "\nwith:\n" << *ld;
+//        v->replaceAllUsesWith(ld);
         
 //        for (auto uit = v->use_begin(), uend = v->use_end(); uit != uend; uit++) {
 //          uit->replaceUsesOfWith(v, ld);
 //        }
       }
       
-      errs() << "--------------\nredone outer fn entry: " << old_fn->getEntryBlock();
-      errs() << "\n-------\nprevbb: " << *prevbb;
-      errs() << "\n-------\ncallbb: " << *callbb;
-      errs() << "\n-------\nnextbb: " << *nextbb;
-      errs() << "--------------\n";
+      errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
+      
+      errs() << "@bh inblock preds:\n";
+      for (auto p = pred_begin(inblock), pe = pred_end(inblock); p != pe; ++p) {
+        errs() << (*p)->getName() << "\n";
+      }
 
+      inblock->eraseFromParent();
+//      for (auto i = inblock->rbegin(); i != inblock->rend(); ) {
+//        auto inst = i--;
+//        errs() << "@bh uses -- inst: " << *inst << "\n";
+//        for (auto u = inst->use_begin(), eu = inst->use_end(); u != eu; u++ ) {
+//          errs() << **u << " -- ";
+//          if (auto inst = dyn_cast<Instruction>(*u)) {
+//            errs() << inst->getParent()->getName() << "\n";
+//          } else {
+//            errs() << "not an inst!?!\n";
+//          }
+//        }
+//        errs() << "^^^^^^^^^^^\n";
+//        
+//        inst->eraseFromParent();
+//      }
+      
+      errs() << "\n";
+      
+//      errs() << "----------------\nouter_fn:\n" << *old_fn << "-----------------------\n";
+//      errs() << "--------------\nredone outer fn entry: " << old_fn->getEntryBlock();
+//      errs() << "\n-------\nprevbb: " << *prevbb;
+//      errs() << "\n-------\ncallbb: " << *callbb;
+//      errs() << "\n-------\nnextbb: " << *nextbb;
+//      errs() << "--------------\n";
+
+      DT->runOnFunction(*new_fn);
+      
+      errs() << "dominates: " << DT->dominates(entrybb, newbb) << "\n";
+      
+      DT->dump();
+      
+      for (auto in : inputs) {
+        auto v = dyn_cast<Instruction>(clone_map[in]);
+        errs() << "@bh " << *v << " (parent: " << v->getParent()->getName() << ", fn: " << v->getParent()->getParent()->getName() << ")\n";
+      }
       
       return new_fn;
     }
@@ -544,10 +653,13 @@ namespace {
       // substitue original instruction for the new last one (call to 'grappa_put')
       myReplaceInstWithInst(orig, put);
       ir_comment(put, "grappa.put", "");
+      errs() << "\n";
       
     }
     
     virtual bool runOnFunction(Function &F) {
+      DT = &getAnalysis<DominatorTree>();
+
       bool changed = false;
       // errs() << "processing fn: " << F.getName() << "\n";
       
@@ -629,7 +741,7 @@ namespace {
         replaceWithRemoteLoad(inst);
       }
       for (auto* inst : global_stores) { replaceWithRemoteStore(inst); }
-      
+
       return changed;
     }
     
@@ -661,11 +773,16 @@ namespace {
       // module = &m;
       // auto int_ty = m.getTypeByName("int");
       // delegate_read_fn = m.getOrInsertFunction("delegate_read_int", int_ty, );
+      
       return false;
     }
     
     virtual bool doFinalization(Module &M) {
       return true;
+    }
+    
+    virtual void getAnalysisUsage(AnalysisUsage& AU) const {
+      AU.addRequired<DominatorTree>();
     }
     
     ~GrappaGen() {
