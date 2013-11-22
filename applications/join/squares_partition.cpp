@@ -24,8 +24,6 @@ using namespace Grappa;
 
 
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
-
 
 uint64_t count = 0;
 uint64_t edgesSent = 0;

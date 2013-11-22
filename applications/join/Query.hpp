@@ -35,5 +35,8 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, participating_cores);
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, edges_transfered);
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, total_edges);
+
+
 
 std::string resultStr(std::vector<int64_t> v, int64_t size=-1);

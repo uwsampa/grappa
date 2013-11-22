@@ -1,3 +1,7 @@
+#
+# DEPRECATED: use cmake instead (see CMakeLists.txt)
+#
+
 GRAPPA_HOME?=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
 # check if autodetect GRAPPA_HOME is consistent
 AUTO_HOME=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')

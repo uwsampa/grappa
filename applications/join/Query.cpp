@@ -60,6 +60,9 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<double>, query_runtime, 0);
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
 
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
+
+
 // calculated parameters
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, participating_cores, 0);
 
