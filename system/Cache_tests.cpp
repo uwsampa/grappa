@@ -121,7 +121,7 @@ void user_main( int * args )
   {
     const size_t array_size = 128;
     LOG(INFO) << "Mallocing " << array_size << " words";
-    GlobalAddress< int64_t > array = Grappa_typed_malloc< int64_t >( array_size );
+    GlobalAddress< int64_t > array = Grappa::global_alloc< int64_t >( array_size );
     
     // write indices properly
     LOG(INFO) << "writing indices";
@@ -302,7 +302,7 @@ void user_main( int * args )
     // make sure non-word-multiple cache objects don't fail
     BOOST_MESSAGE( "brandonm bug direct tests" );
     LOG(INFO) << "brandonm bug direct tests";
-    GlobalAddress< BrandonM > brandonmx_addr = Grappa_typed_malloc< BrandonM >( 5 );
+    GlobalAddress< BrandonM > brandonmx_addr = Grappa::global_alloc< BrandonM >( 5 );
     // BOOST_MESSAGE( "brandonmx address is " << brandonmx_addr );
     // LOG(INFO) << "brandonmx address is " << brandonmx_addr;
 
@@ -330,9 +330,9 @@ void user_main( int * args )
     brandonmx3.block_until_acquired();
     brandonmx3.block_until_released();
 
-    Grappa_free( brandonmx_addr );
+    Grappa::global_free( brandonmx_addr );
 
-    Grappa_free( array );
+    Grappa::global_free( array );
   }
 
   {

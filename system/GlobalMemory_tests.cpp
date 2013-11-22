@@ -20,7 +20,7 @@ BOOST_AUTO_TEST_SUITE( GlobalMemory_tests );
 void user_main( void * args ) 
 {
   size_t N = 128;
-  GlobalAddress<int64_t> data = Grappa_typed_malloc<int64_t>(N);
+  GlobalAddress<int64_t> data = Grappa::global_alloc<int64_t>(N);
   
   for (size_t i=0; i<N; i++) {
     BOOST_MESSAGE( "Writing " << i << " to " << data+i );
@@ -33,7 +33,7 @@ void user_main( void * args )
     BOOST_CHECK_EQUAL(i, *c);
   }
 
-  Grappa_free(data);
+  Grappa::global_free(data);
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

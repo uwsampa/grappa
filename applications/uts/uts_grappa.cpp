@@ -456,14 +456,14 @@ void user_main ( user_main_args * args ) {
           +(sizeof(int64_t)*FLAGS_vertices_size)
           +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION << " GB";
 
-  GlobalAddress<vertex_t> Vertex_l = Grappa_typed_malloc<vertex_t>( FLAGS_vertices_size); 
-  GlobalAddress<int64_t> Child_l =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size);
+  GlobalAddress<vertex_t> Vertex_l = Grappa::global_alloc<vertex_t>( FLAGS_vertices_size); 
+  GlobalAddress<int64_t> Child_l =  Grappa::global_alloc<int64_t>( FLAGS_vertices_size);
   VLOG(2) << "Vertex = " << Vertex_l;
   VLOG(2) << "Child = " << Child_l;
 
   // allocate space for uts::Nodes just for the tree creation
   GlobalAddress<uts::Node> Tree_Nodes_l;
-  Tree_Nodes_l = Grappa_typed_malloc<uts::Node>( FLAGS_vertices_size );
+  Tree_Nodes_l = Grappa::global_alloc<uts::Node>( FLAGS_vertices_size );
   VLOG(2) << "Tree_Nodes = " << Tree_Nodes_l;
 
   // initialization on each node
@@ -533,7 +533,7 @@ void user_main ( user_main_args * args ) {
   LOG(INFO) << "Total generated: " << r_gen.size;
 
   // only needed for generation
-  Grappa_free( Tree_Nodes );
+  Grappa::global_free( Tree_Nodes );
 
   // show tree stats 
   counter_t maxTreeDepth = r_gen.maxdepth;
@@ -563,7 +563,7 @@ void user_main ( user_main_args * args ) {
   }
 
 
-  // TODO Payload =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size );
+  // TODO Payload =  Grappa::global_alloc<int64_t>( FLAGS_vertices_size );
   // on_all_cores([Payload_addr] {
   //  Payload = Payload_addr;
   // });
@@ -602,9 +602,9 @@ void user_main ( user_main_args * args ) {
   r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
 
 
-  Grappa_free( Vertex );
-  Grappa_free( Child );
-  //TODO Grappa_free( Payload );
+  Grappa::global_free( Vertex );
+  Grappa::global_free( Child );
+  //TODO Grappa::global_free( Payload );
 
   if ( !FLAGS_human_output )  {
     LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;

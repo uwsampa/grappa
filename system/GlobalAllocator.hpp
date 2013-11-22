@@ -161,19 +161,6 @@ inline GlobalAddress<void> Grappa_malloc(size_t size_bytes) {
   return static_cast<GlobalAddress<void>>(Grappa::global_alloc<char>(size_bytes));
 }
 
-/// Free memory allocated from global shared heap.
-template< typename T >
-inline void Grappa_free(GlobalAddress<T> address) {
-  Grappa::global_free<T>(address);
-}
-
-
-/// Allocate count T's worth of bytes from global shared heap.
-template< typename T >
-inline GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
-  return Grappa::global_alloc<T>(count);
-}
-
 /// @}
 
 #endif

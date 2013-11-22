@@ -128,7 +128,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   
   // build bfs tree for each root
   for (int64_t i=0; i < NBFS; i++) {
-    GlobalAddress<int64_t> bfs_tree = Grappa_typed_malloc<int64_t>(g->nv);
+    GlobalAddress<int64_t> bfs_tree = Grappa::global_alloc<int64_t>(g->nv);
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
@@ -157,7 +157,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
       VLOG(1) << "bfs_time[" << i << "] = " << bfs_time[i];
     }
     
-    TIME(t, Grappa_free(bfs_tree));
+    TIME(t, Grappa::global_free(bfs_tree));
     VLOG(1) << "Free bfs_tree time: " << t;
   }
 }
@@ -189,9 +189,9 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fread(&ckpt_nbfs, sizeof(ckpt_nbfs), 1, fin);
   CHECK(ckpt_nbfs <= NBFS_max);
 
-  tg->edges = Grappa_typed_malloc<packed_edge>(tg->nedge);
-  g->xoff = Grappa_typed_malloc<int64_t>(2*g->nv+2);
-  g->xadjstore = Grappa_typed_malloc<int64_t>(g->nadj);
+  tg->edges = Grappa::global_alloc<packed_edge>(tg->nedge);
+  g->xoff = Grappa::global_alloc<int64_t>(2*g->nv+2);
+  g->xadjstore = Grappa::global_alloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
   GrappaFile gfin(fname, false);
@@ -346,7 +346,7 @@ static void user_main(int * args) {
   
 //  free_graph_data_structure();
   
-  Grappa_free(tg.edges);
+  Grappa::global_free(tg.edges);
   
   /* Print results. */
   output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, NBFS, bfs_time, bfs_nedge);

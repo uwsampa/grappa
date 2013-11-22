@@ -62,7 +62,7 @@ struct bucket_t {
   uint64_t * v;
   size_t nelems;
   size_t maxelems;
-  bucket_t(): v(NULL), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
+  bucket_t(): v(NULL), nelems(0) {}
   ~bucket_t() { delete [] v; }
   void reserve(size_t nelems) {
     maxelems = nelems;
@@ -141,7 +141,7 @@ int ui64cmp(const void * a, const void * b) {
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
   double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
-  GlobalAddress<bucket_t> bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
+  GlobalAddress<bucket_t> bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
 
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
@@ -276,9 +276,9 @@ void user_main(void* ignore) {
   //LOG(INFO) << "iobufsize_mb = " << (double)BUFSIZE/(1L<<20);
   LOG(INFO) << "block_size = " << block_size;
 
-  GlobalAddress<uint64_t> array = Grappa_typed_malloc<uint64_t>(nelems);
+  GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>(nelems);
 
-  char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%ld.%ld", scale, log2maxkey);
+  char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%d.%d", scale, log2maxkey);
   GrappaFile f(dirname, true);
 
   if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {

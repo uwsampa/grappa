@@ -81,7 +81,7 @@ GlobalCompletionEvent ckpt_gce;
 
 static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, GrappaFile gfin, GlobalAddress<int64_t> edgeStart, GlobalAddress<range_t> xoffr, int64_t nv) {
   
-  auto xadj = Grappa_typed_malloc<int64_t>(nadj);
+  auto xadj = Grappa::global_alloc<int64_t>(nadj);
   Grappa_read_array(gfin, xadj, nadj);
   
   // call_on_all_cores([]{ shared_pool.reset(); });
@@ -149,7 +149,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   fprintf(stderr, "warning: skipping edgelist\n");
   fseek(fin, nedge * 2*sizeof(int64_t), SEEK_CUR);
 
-  GlobalAddress<int64_t> xoff = Grappa_typed_malloc<int64_t>(2*nv+2);
+  GlobalAddress<int64_t> xoff = Grappa::global_alloc<int64_t>(2*nv+2);
 
   double tt = timer();
   
@@ -226,7 +226,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
       //}
     //}
   //}
-  Grappa_free(xoff);
+  Grappa::global_free(xoff);
   tt = timer() - tt; VLOG(1) << "endVertex time: " << tt;
 
   tt = timer();
@@ -384,7 +384,7 @@ static void user_main(void* ignore) {
   if (do_centrality) {
     printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
     
-    GlobalAddress<double> bc = Grappa_typed_malloc<double>(numVertices);
+    GlobalAddress<double> bc = Grappa::global_alloc<double>(numVertices);
     
     double avgbc;
     int64_t total_nedge;

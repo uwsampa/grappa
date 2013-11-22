@@ -65,7 +65,7 @@ void validate(GlobalAddress<int64_t> A, size_t n) {
 void user_main( int * args ) {
 
   // allocate array
-  GlobalAddress<int64_t> A = Grappa_typed_malloc<int64_t>(FLAGS_sizeA);
+  GlobalAddress<int64_t> A = Grappa::global_alloc<int64_t>(FLAGS_sizeA);
 
   do {
 

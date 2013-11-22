@@ -27,7 +27,7 @@ const size_t N = (1L<<24);
 const size_t nbuf = 1L<<22;
 
 void user_main( void * ignore ) {
-  array = Grappa_typed_malloc<int64_t>(N);
+  array = Grappa::global_alloc<int64_t>(N);
   int64_t * buf = new int64_t[nbuf];
   
   double t, comm_time, local_time;

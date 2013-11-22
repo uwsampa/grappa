@@ -24,7 +24,7 @@ void user_main( void * ignore ) {
     GlobalAddress< int64_t > a = Grappa_malloc( 1 );
     LOG(INFO) << "got pointer " << a.pointer();
 
-    GlobalAddress< int64_t > b = Grappa_typed_malloc< int64_t >( 1 );
+    GlobalAddress< int64_t > b = Grappa::global_alloc< int64_t >( 1 );
     LOG(INFO) << "got pointer " << b.pointer();
 
     GlobalAddress< int64_t > c = Grappa_malloc( 8 );
@@ -41,16 +41,16 @@ void user_main( void * ignore ) {
     }
 
     LOG(INFO) << "freeing pointer " << c.pointer();
-    Grappa_free( c );
+    Grappa::global_free( c );
 
     LOG(INFO) << "freeing pointer " << a.pointer();
-    Grappa_free( a );
+    Grappa::global_free( a );
 
     LOG(INFO) << "freeing pointer " << d.pointer();
-    Grappa_free( d );
+    Grappa::global_free( d );
 
     LOG(INFO) << "freeing pointer " << b.pointer();
-    Grappa_free( b );
+    Grappa::global_free( b );
 
     if( Grappa::mycore() == 0 ) {
       BOOST_CHECK_EQUAL( global_allocator->total_bytes_in_use(), 0 );

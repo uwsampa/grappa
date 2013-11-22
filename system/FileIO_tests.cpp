@@ -50,7 +50,7 @@ void test_single_read() {
   fclose(fout);
 
   // do file io using asynchronous POSIX/suspending IO
-  array = Grappa_typed_malloc<int64_t>(N);
+  array = Grappa::global_alloc<int64_t>(N);
   Grappa_memset_local(array, (int64_t)0, N);
 
   const size_t nbuf = BUFSIZE/sizeof(int64_t);
@@ -72,7 +72,7 @@ void test_single_read() {
   }
 
   // clean up
-  Grappa_free(array);
+  Grappa::global_free(array);
   if (remove(fname)) { fprintf(stderr, "Error removing file: %s.\n", fname); }
 }
 
@@ -89,7 +89,7 @@ void test_read_save_array(bool asDirectory) {
   GrappaFile f(fname, asDirectory);
 
   // do file io using asynchronous POSIX/suspending IO
-  array = Grappa_typed_malloc<int64_t>(NN);
+  array = Grappa::global_alloc<int64_t>(NN);
 
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(int64_t);
 
@@ -117,7 +117,7 @@ void test_read_save_array(bool asDirectory) {
   }
 
   // clean up
-  Grappa_free(array);
+  Grappa::global_free(array);
   if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 

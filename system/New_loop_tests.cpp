@@ -167,7 +167,7 @@ void test_forall_localized() {
   BOOST_MESSAGE("Testing forall_localized..."); VLOG(1) << "testing forall_localized";
   const int64_t N = 100;
   
-  auto array = Grappa_typed_malloc<int64_t>(N);
+  auto array = Grappa::global_alloc<int64_t>(N);
   
   forall_localized(array, N, [](int64_t i, int64_t& e) {
     e = 1;

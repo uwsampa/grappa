@@ -111,7 +111,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
   LOG_FIRST_N(INFO,1) << "bfs_version: 'localized'";
   
   int64_t NV = g->nv;
-  GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
+  GlobalAddress<int64_t> _vlist = Grappa::global_alloc<int64_t>(NV);
   DVLOG(1) << "make_bfs_tree(" << root << ")";
 #ifdef VTRACE 
   if (marker == -1) marker = VT_MARKER_DEF("bfs_level", VT_MARKER_TYPE_HINT);
@@ -220,7 +220,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
 //  VLOG(1) << "cmp_swaps_shorted: " << cmp_swaps_shorted;
 //  VLOG(1) << "cmp_swaps_total: " << cmp_swaps_total;
 
-  Grappa_free(_vlist);
+  Grappa::global_free(_vlist);
   
   return t;
 }

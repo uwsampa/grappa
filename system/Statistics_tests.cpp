@@ -67,7 +67,7 @@ void user_main(void * args) {
 #ifdef HISTOGRAM_SAMPLED
   VLOG(1) << "testing histogram sampling";
   int64_t N = 1<<20;  
-  auto xs = Grappa_typed_malloc<int64_t>(N);
+  auto xs = Grappa::global_alloc<int64_t>(N);
   forall_localized(xs, N, [N](int64_t i, int64_t& x) { x = rand() % N; });
   
   on_all_cores([xs,N]{

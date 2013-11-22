@@ -44,15 +44,15 @@ static void compute_edge_range(int rank, int size, int64_t M, int64_t* start_idx
 #ifndef GRAPH_GENERATOR_MPI
 
 #ifdef _GRAPPA
-#include <GlobalAllocator.hpp> // Grappa_typed_malloc
+#include <GlobalAllocator.hpp> // Grappa::global_alloc
 void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, graphedges * gedges) {	
 	/* Spread the two 64-bit numbers into five nonzero values in the correct
 	 * range. */
 	uint_fast32_t seed[5];
 	make_mrg_seed(userseed1, userseed2, seed);
 	
-  gedges->startVertex = Grappa_typed_malloc<graphint>( M );
-  gedges->endVertex   = Grappa_typed_malloc<graphint>( M );
+  gedges->startVertex = Grappa::global_alloc<graphint>( M );
+  gedges->endVertex   = Grappa::global_alloc<graphint>( M );
   gedges->numEdges = M;
 	
 	generate_kronecker_range(seed, log_numverts, 0, M, gedges->startVertex, gedges->endVertex);

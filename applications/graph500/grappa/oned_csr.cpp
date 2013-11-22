@@ -217,7 +217,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   g->nadj = accum+MINVECT_SIZE;
   
-  g->xadjstore = Grappa_typed_malloc<int64_t>(accum + MINVECT_SIZE);
+  g->xadjstore = Grappa::global_alloc<int64_t>(accum + MINVECT_SIZE);
   g->xadj = g->xadjstore+MINVECT_SIZE; // cheat and permit xadj[-1] to work
   
   Grappa::memset(g->xadjstore, (int64_t)0, accum+MINVECT_SIZE);
@@ -315,7 +315,7 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
 }
 
 void free_oned_csr_graph(csr_graph* const g) {
-  Grappa_free(g->xoff);
-  Grappa_free(g->xadjstore);
+  Grappa::global_free(g->xoff);
+  Grappa::global_free(g->xadjstore);
 }
 

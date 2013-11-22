@@ -157,7 +157,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     // current pagerank vector: initialize to random values on [0,1]
     vector v;
     v.length = m.nv;
-    v.a = Grappa_typed_malloc<element_pair>(v.length);
+    v.a = Grappa::global_alloc<element_pair>(v.length);
     on_all_cores( [] { srand(0); } );
     forall_localized( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
       ele.vp[V] = ((double)rand()/RAND_MAX); //[0,1]
@@ -233,7 +233,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   LOG(INFO) << "ended with delta = " << delta;
   
   // free the extra vector
-  Grappa_free( v.a );
+  Grappa::global_free( v.a );
 
   // return pagerank
   pagerank_result res;
@@ -287,7 +287,7 @@ void user_main( int * ignore ) {
 
   // add weights to the csr graph
   weighted_csr_graph g( unweighted_g );
-  g.adjweight = Grappa_typed_malloc<double>(g.nadj);
+  g.adjweight = Grappa::global_alloc<double>(g.nadj);
   forall_localized( g.adjweight, g.nadj, [](int64_t i, double& w) {
     // TODO random
     w = 0.2f;

@@ -128,7 +128,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   
   
   int64_t NV = g->nv;
-  GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
+  GlobalAddress<int64_t> _vlist = Grappa::global_alloc<int64_t>(NV);
   GlobalAddress<bfs_tree_entry> _bfs_tree = (GlobalAddress<bfs_tree_entry>)in_bfs_tree;
  
 #ifdef VTRACE 
@@ -266,7 +266,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   }
   t = timer() - t;
   GRAPPA_TRACE_END("top_down");
-  Grappa_free(_vlist);
+  Grappa::global_free(_vlist);
   
   // clean up bfs_tree depths
   forall_localized(_bfs_tree, NV, [](bfs_tree_entry& e){

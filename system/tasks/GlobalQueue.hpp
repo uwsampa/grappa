@@ -148,7 +148,7 @@ class GlobalQueue {
       if ( isMaster() ) {
         capacity = (CAPACITY_PER_NODE) * Grappa_nodes();
         DVLOG(5) << "GlobalQueue capacity: " << capacity;
-        queueBase = Grappa_typed_malloc< QueueEntry<T> > ( capacity );
+        queueBase = Grappa::global_alloc< QueueEntry<T> > ( capacity );
         // TODO could give option just to malloc here, but would be
         // bad for HOME_NODE's memory usage unless chunksize is very large
       }

@@ -74,19 +74,19 @@ void user_main( int * ignore ) {
 
   // add weights to the csr graph
   weighted_csr_graph g( unweighted_g );
-  g.adjweight = Grappa_typed_malloc<double>(g.nadj);
+  g.adjweight = Grappa::global_alloc<double>(g.nadj);
   forall_local<double,random_weights>(g.adjweight, g.nadj);
 
   VLOG(1) << "Allocating src vector";
   vector vec;
   vec.length = N;
-  vec.a = Grappa_typed_malloc<double>(N);
+  vec.a = Grappa::global_alloc<double>(N);
   Grappa_memset(vec.a, 1.0f/N, N);
 
   VLOG(1) << "Allocating dest vector";
   vector target;
   target.length = N;
-  target.a = Grappa_typed_malloc<double>(N);
+  target.a = Grappa::global_alloc<double>(N);
   Grappa_memset(target.a, 0.0f, N);
 
   //matrix_out( &g, std::cout, false );

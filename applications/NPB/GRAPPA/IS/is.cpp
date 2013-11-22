@@ -975,7 +975,7 @@ void user_main(void * ignore)
         return;
     }
 
-    key_array = Grappa_typed_malloc<int>(TOTAL_KEYS);
+    key_array = Grappa::global_alloc<int>(TOTAL_KEYS);
 
 #ifdef  TIMING_ENABLED 
     for( i=1; i<=T_LAST; i++ ) timer_clear( i );

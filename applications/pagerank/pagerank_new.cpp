@@ -233,7 +233,7 @@ pagerank_result pagerank( GlobalAddress<Graph<WeightedAdjVertex>> g, double d, d
   LOG(INFO) << "ended with delta = " << delta;
   
   // free the extra vector
-  Grappa_free( v.a );
+  Grappa::global_free( v.a );
 
   // return pagerank
   pagerank_result res;

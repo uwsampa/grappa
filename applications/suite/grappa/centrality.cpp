@@ -168,14 +168,14 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   
   graphint QHead[100 * SCALE];
   
-  c.delta       = Grappa_typed_malloc<double>  (g_in->numVertices);
-  c.dist        = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  c.Q           = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  c.sigma       = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  c.marks       = Grappa_typed_malloc<graphint>(g_in->numVertices+2);
-  c.child       = Grappa_typed_malloc<graphint>(g_in->numEdges);
-  c.child_count = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);
+  c.delta       = Grappa::global_alloc<double>  (g_in->numVertices);
+  c.dist        = Grappa::global_alloc<graphint>(g_in->numVertices);
+  c.Q           = Grappa::global_alloc<graphint>(g_in->numVertices);
+  c.sigma       = Grappa::global_alloc<graphint>(g_in->numVertices);
+  c.marks       = Grappa::global_alloc<graphint>(g_in->numVertices+2);
+  c.child       = Grappa::global_alloc<graphint>(g_in->numEdges);
+  c.child_count = Grappa::global_alloc<graphint>(g_in->numVertices);
+  if (!computeAllVertices) c.explored = Grappa::global_alloc<graphint>(g_in->numVertices);
   c.Qnext       = make_global(&Qnext);
   
   double t; t = timer();
@@ -288,14 +288,14 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   
   VLOG(1) << "centrality rngtime = " << rngtime;
   
-  Grappa_free(c.delta);
-  Grappa_free(c.dist);
-  Grappa_free(c.Q);
-  Grappa_free(c.sigma);
-  Grappa_free(c.marks);
-  Grappa_free(c.child);
-  Grappa_free(c.child_count);
-  Grappa_free(c.explored);
+  Grappa::global_free(c.delta);
+  Grappa::global_free(c.dist);
+  Grappa::global_free(c.Q);
+  Grappa::global_free(c.sigma);
+  Grappa::global_free(c.marks);
+  Grappa::global_free(c.child);
+  Grappa::global_free(c.child_count);
+  Grappa::global_free(c.explored);
   
   double bc_total = 0;
   Core origin = mycore();

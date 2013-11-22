@@ -43,7 +43,7 @@ static void compute_edge_range(int rank, int size, int64_t M, int64_t* start_idx
 #ifndef GRAPH_GENERATOR_MPI
 
 #ifdef _GRAPPA
-#include <GlobalAllocator.hpp> // Grappa_typed_malloc
+#include <GlobalAllocator.hpp> // Grappa::global_alloc
 void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
 	/* Add restrict to input pointers. */
 	int64_t* /*restrict*/ nedges_ptr = nedges_ptr_in;   // XXX: restrict keyword causing 'unexpected initilizer'
@@ -56,7 +56,7 @@ void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userse
 	make_mrg_seed(userseed1, userseed2, seed);
 	
 	*nedges_ptr = M;
-  GlobalAddress<packed_edge> edges = Grappa_typed_malloc<packed_edge>( M );
+  GlobalAddress<packed_edge> edges = Grappa::global_alloc<packed_edge>( M );
 	*result_ptr = edges;
 	
 	generate_kronecker_range(seed, log_numverts, 0, M, edges);

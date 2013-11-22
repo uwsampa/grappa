@@ -406,7 +406,7 @@ void rank(int iteration) {
 
 void full_verify() {
   VLOG(1) << "starting verify...";
-  auto sorted_keys = Grappa_typed_malloc<key_t>(nkeys);
+  auto sorted_keys = Grappa::global_alloc<key_t>(nkeys);
   Grappa::memset(sorted_keys, -1, nkeys);
   
   forall_localized<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
@@ -446,10 +446,10 @@ void user_main(void * ignore) {
       return;
   }
 
-  auto _key_array = Grappa_typed_malloc<key_t>(nkeys);
+  auto _key_array = Grappa::global_alloc<key_t>(nkeys);
 
   // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
-  auto _bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
+  auto _bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
 
   generation_time = Grappa_walltime();
 

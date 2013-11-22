@@ -214,7 +214,7 @@ static void disable_tau() {
 double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_num_roots,
     /* outputs: */ double * avg_centrality = NULL, int64_t * total_nedge = NULL) {
 
-  c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);  
+  c.explored = Grappa::global_alloc<graphint>(g_in->numVertices);  
   
   DVLOG(2) << graph_str(g_in);
   
@@ -389,7 +389,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
     locale_free(c.marks);
   });
   
-  Grappa_free(c.explored);
+  Grappa::global_free(c.explored);
   
   double bc_total = 0;
   Core origin = mycore();

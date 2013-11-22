@@ -327,7 +327,7 @@ void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems
 	
   double t = Grappa_walltime();
 
-  on_all_cores([dirname,array,nelems]{
+  Grappa::on_all_cores([dirname,array,nelems]{
     range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
     char fname[FNAME_LENGTH]; array_dir_fname(fname, dirname, r.start, r.end);
     std::fstream fo(fname, std::ios::out | std::ios::binary);
