@@ -58,7 +58,7 @@ namespace Grappa {
       return f_();
     }
 
-    bool start_merging() {
+    void start_merging() {
       merging_value_ = 0;
       is_merged_ = true;
     }

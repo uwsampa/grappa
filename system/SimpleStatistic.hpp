@@ -52,7 +52,7 @@ namespace Grappa {
    // reset using function 
    // IMPORTANT: currently, this forces the merge to do a min instead of a sum
     SimpleStatistic(const char * name, InitFn initf, bool reg_new = true):
-        initial_value(initial_value), value_(initf()), initf_(initf), impl::StatisticBase(name, reg_new) {
+        value_(initf()), initf_(initf), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (SimpleStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
