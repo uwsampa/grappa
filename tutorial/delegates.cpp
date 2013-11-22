@@ -18,15 +18,17 @@ int main(int argc, char *argv[]) {
     
     // simple global write
     for (size_t i = 0; i < N; i++) {
+      // array[i] = i
       delegate::write( array+i, i );
     }
     
     for (size_t i = 0; i < N; i += 10) {
-      // boring remote read
+      // simple remote read
+      // value = array[i]
       long value = delegate::read( array+i );
       std::cout << "[" << i << "] = " << value;
       
-      // do some arbitrary computation
+      // do some arbitrary computation on the core that owns `array+i`
       double v = delegate::call(array+i, [](long *a){ return tan(*a); });
       std::cout << ", tan = " << v << std::endl;
     }
