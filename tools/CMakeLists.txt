@@ -46,6 +46,11 @@ ExternalProject_Add( tool-gasnet
 
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
 # URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
+
+if(APPLE)
+  set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
+endif()
+
 ExternalProject_Add( tool-gflags
   URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
   SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
@@ -54,7 +59,7 @@ ExternalProject_Add( tool-gflags
   BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g CXXFLAGS=-stdlib=libstdc++ <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
 )
@@ -70,7 +75,7 @@ ExternalProject_Add( tool-glog
   BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-  CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g CXXFLAGS=-stdlib=libstdc++ <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
+  CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
   DEPENDS tool-gflags
