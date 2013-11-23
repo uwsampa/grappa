@@ -65,25 +65,16 @@ TEST(int_max) {
 }
   
 
-void user_main(void * args) {
-  BOOST_CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
-
-  RUNTEST(int_add);
-  RUNTEST(int_add_more);
-  RUNTEST(int_max);
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    BOOST_CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-	       &(boost::unit_test::framework::master_test_suite().argv)
-	       );
-
-  Grappa_activate();
-
-  Grappa_run_user_main( &user_main, (void*)NULL );
-
-  Grappa_finish( 0 );
+    RUNTEST(int_add);
+    RUNTEST(int_add_more);
+    RUNTEST(int_max);
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
