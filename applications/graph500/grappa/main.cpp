@@ -300,7 +300,7 @@ int main(int argc, char* argv[]) {
   /* Parse arguments. */
   get_options(argc, argv);
   
-  Grappa::run({
+  Grappa::run([]{
     double t = timer();
   
     tuple_graph tg;

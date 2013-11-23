@@ -118,7 +118,7 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
 
 int main(int argc, char* argv[]) {
   Grappa::init(&argc, &argv);
-  Grappa::run({
+  Grappa::run([]{
     double t, start_time;
     start_time = walltime();
   

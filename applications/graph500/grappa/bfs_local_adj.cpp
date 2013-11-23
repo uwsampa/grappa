@@ -80,7 +80,6 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   } else {
     LOG_FIRST_N(INFO,1) << "bfs_version: 'grappa_adj'";
   }
-  GRAPPA_TRACER("make_bfs_tree()");
   
   call_on_all_cores([g_in,_bfs_tree]{
     g = g_in;
