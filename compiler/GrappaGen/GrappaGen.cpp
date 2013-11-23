@@ -26,6 +26,8 @@
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"
 
+#include "DelegateExtractor.hpp"
+
 #include <sstream>
 #include <set>
 #include <map>
@@ -47,20 +49,6 @@ namespace {
     errs() << afterDT
 
 #define dump_var(dumpee) dump_var_l("", dumpee, "\n")
-  
-  static const int GLOBAL_SPACE = 100;
-  
-  bool isaGlobalPointer(Type* type) {
-    PointerType* pt = dyn_cast<PointerType>(type);
-    if( pt && pt->getAddressSpace() == GLOBAL_SPACE ) return true;
-    return false;
-  }
-  
-  PointerType* dyn_cast_gptr(Type* ty) {
-    PointerType *pt = dyn_cast<PointerType>(ty);
-    if (pt && pt->getAddressSpace() == GLOBAL_SPACE) return pt;
-    else return nullptr;
-  }
   
   //////////////////////////////////////
   /// From llvmGlobalToWide.cpp
@@ -131,6 +119,8 @@ namespace {
       Value *inc;
       Instruction *op;
     };
+    
+    GlobalPtrInfo ginfo;
     
     Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn, *get_pointer_fn;
     
@@ -297,272 +287,6 @@ namespace {
     }
     
     
-    template< typename InsertType >
-    GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
-                                      InsertType* insert) {
-      auto i32_ty = Type::getInt32Ty(insert->getContext());
-      return GetElementPtrInst::Create(struct_ptr, (Value*[]){
-        Constant::getNullValue(i32_ty),
-        ConstantInt::get(i32_ty, idx)
-      }, name, insert);
-    };
-
-    
-    Function* constructDelegateFunction(Value *gptr, BasicBlock* inblock, Module* mod) {
-      // just use code extractor to compute inputs & outputs (for now)
-      CodeExtractor extractor(inblock);
-      SetVector<Value*> inputs, outputs;
-      extractor.findInputsOutputs(inputs, outputs);
-      
-      errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
-      errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
-      
-      auto layout = new DataLayout(mod);
-      
-      // create struct types for inputs & outputs
-      SmallVector<Type*, 8> in_types, out_types;
-      for (auto& p : inputs)  {  in_types.push_back(p->getType()); }
-      for (auto& p : outputs) { out_types.push_back(p->getType()); }
-      
-      auto in_struct_ty = StructType::get(mod->getContext(), in_types);
-      auto out_struct_ty = StructType::get(mod->getContext(), out_types);
-      
-      // create function shell
-      auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
-      errs() << "delegate fn ty: " << *new_fn_ty << "\n";
-      auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + inblock->getName(), mod);
-      
-      auto& ctx = mod->getContext();
-      
-      auto entrybb = BasicBlock::Create(ctx, "d.entry", new_fn);
-      
-      auto i64_num = [=](long v) { return ConstantInt::get(i64_ty, v); };
-      
-      ValueToValueMapTy clone_map;
-//      std::map<Value*,Value*> arg_map;
-      
-      Function::arg_iterator argi = new_fn->arg_begin();
-      auto in_arg_ = argi++;
-      auto out_arg_ = argi++;
-      
-      errs() << "in_arg_:" << *in_arg_ << "\n";
-      errs() << "@bh out_arg_:" << *out_arg_ << "\n";
-      
-      auto in_arg = new BitCastInst(in_arg_, in_struct_ty->getPointerTo(), "bc.in", entrybb);
-      auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "bc.out", entrybb);
-      
-      // copy delegate block into new fn & remap values to use args
-      auto newbb = CloneBasicBlock(inblock, clone_map, ".clone", new_fn);
-      
-      std::map<Value*,Value*> remaps;
-      
-      for (int i = 0; i < outputs.size(); i++) {
-        auto v = outputs[i];
-        auto ge = struct_elt_ptr(out_arg, i, "out.clr", entrybb);
-        new StoreInst(Constant::getNullValue(v->getType()), ge, false, entrybb);
-      }
-      
-      for (int i = 0; i < inputs.size(); i++) {
-        auto v = inputs[i];
-        auto gep = struct_elt_ptr(in_arg, i, "d.ge.in." + v->getName(), entrybb);
-        auto in_val = new LoadInst(gep, "d.in." + v->getName(), entrybb);
-        
-        errs() << "in_val: " << *in_val << " (parent:" << in_val->getParent()->getName() << ", fn:" << in_val->getParent()->getParent()->getName() << ")\n";
-        
-        Value *final_in = in_val;
-        
-        // if it's a global pointer, get local address for it
-        if (auto in_gptr_ty = dyn_cast_gptr(in_val->getType())) {
-          auto ptr_ty = in_gptr_ty->getElementType()->getPointerTo();
-          auto bc = new BitCastInst(in_val, void_gptr_ty, "getptr.bc", entrybb);
-          auto vptr = CallInst::Create(get_pointer_fn, (Value*[]){ bc }, "getptr", entrybb);
-          auto ptr = new BitCastInst(vptr, ptr_ty, "localptr", entrybb);
-          final_in = ptr;
-        }
-        
-        clone_map[v] = final_in;
-      }
-      
-      auto old_fn = inblock->getParent();
-
-      auto retbb = BasicBlock::Create(ctx, "ret." + inblock->getName(), new_fn);
-      
-      // return from end of created block
-      auto newret = ReturnInst::Create(ctx, nullptr, retbb);
-      
-      // store outputs before return
-      for (int i = 0; i < outputs.size(); i++) {
-        assert(clone_map.count(outputs[i]) > 0);
-        auto v = clone_map[outputs[i]];
-        auto ep = struct_elt_ptr(out_arg, i, "d.out.gep." + v->getName(), newret);
-        new StoreInst(v, ep, true, newret);
-      }
-      
-      //////////////
-      // emit call
-      
-      assert(inblock->getTerminator()->getNumSuccessors() == 1);
-      
-      auto prevbb = inblock->getUniquePredecessor();
-      assert(prevbb != nullptr);
-      
-      auto nextbb = inblock->getTerminator()->getSuccessor(0);
-      
-      // FIXME: this is a hack to get rid of the bad uses of debug info in successor
-//      for (BasicBlock::iterator i = nextbb->begin(); i != nextbb->end(); ) {
-//        auto inst = i++;
-//        if (auto c = dyn_cast<CallInst>(inst)) {
-//          if (c->getCalledFunction()->getName() == "llvm.dbg.value") {
-//            c->eraseFromParent();
-//          }
-//        }
-//      }
-
-      
-      // create new bb to replace old block and call
-      auto callbb = BasicBlock::Create(inblock->getContext(), "d.call.blk", old_fn, inblock);
-      
-      prevbb->getTerminator()->replaceUsesOfWith(inblock, callbb);
-      BranchInst::Create(nextbb, callbb);
-      
-      // hook inblock into new fn
-//      inblock->moveBefore(retbb);
-      newbb->getTerminator()->replaceUsesOfWith(nextbb, retbb);
-      // jump from entrybb to inblock
-      BranchInst::Create(newbb, entrybb);
-      
-      auto call_pt = callbb->getTerminator();
-      
-      // allocate space for in/out structs near top of function
-      auto in_struct_alloca = new AllocaInst(in_struct_ty, 0, "d.in_struct", old_fn->begin()->begin());
-      auto out_struct_alloca = new AllocaInst(out_struct_ty, 0, "d.out_struct", old_fn->begin()->begin());
-      
-      // copy inputs into struct
-      for (int i = 0; i < inputs.size(); i++) {
-        auto v = inputs[i];
-        auto gep = struct_elt_ptr(in_struct_alloca, i, "dc.in", call_pt);
-        new StoreInst(v, gep, false, call_pt);
-      }
-
-      //////////////////////////////
-      // for debug:
-      // init out struct to 0
-      for (int i = 0; i < outputs.size(); i++) {
-        auto v = outputs[i];
-        auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out.dbg", call_pt);
-        new StoreInst(Constant::getNullValue(v->getType()), gep, false, call_pt);
-      }
-      //////////////////////////////
-
-      auto target_core = CallInst::Create(get_core_fn, (Value*[]){
-        new BitCastInst(gptr, void_gptr_ty, "", call_pt)
-      }, "", call_pt);
-      
-      auto new_call = CallInst::Create(call_on_fn, (Value*[]){
-        target_core,
-        new_fn,
-        new BitCastInst(in_struct_alloca, void_ptr_ty, "", call_pt),
-        i64_num(layout->getTypeAllocSize(in_struct_ty)),
-        new BitCastInst(out_struct_alloca, void_ptr_ty, "", call_pt),
-        i64_num(layout->getTypeAllocSize(out_struct_ty))
-      }, "", call_pt);
-      
-      // use clone_map to remap values in new function
-      for (auto& bb : *new_fn) {
-        for (auto& inst : bb) {
-          for (int i = 0; i < inst.getNumOperands(); i++) {
-            auto o = inst.getOperand(i);
-            if (clone_map.count(o) > 0) {
-              inst.setOperand(i, clone_map[o]);
-            }
-          }
-        }
-      }
-
-      // load outputs
-      for (int i = 0; i < outputs.size(); i++) {
-        auto v = outputs[i];
-        auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out." + v->getName(), call_pt);
-        auto ld = new LoadInst(gep, "d.call.out." + v->getName(), call_pt);
-        
-        errs() << "replacing output:\n" << *v << "\nwith:\n" << *ld << "\nin:\n";
-        std::vector<User*> Users(v->use_begin(), v->use_end());
-        for (unsigned u = 0, e = Users.size(); u != e; ++u) {
-          Instruction *inst = cast<Instruction>(Users[u]);
-          errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ") ";
-          if (inst->getParent()->getParent() != new_fn) {
-            inst->replaceUsesOfWith(v, ld);
-            errs() << " !!";
-          } else {
-            errs() << " ??";
-          }
-          errs() << "\n";
-        }
-//        
-//        for (auto u = v->use_begin(), end = v->use_end(); u != end; ++u) {
-//          if (auto inst = dyn_cast<Instruction>(*u)) {
-//            if (inst->getParent()->getParent() != new_fn) {
-//              errs() << "replacing:\n" << *v << "\nwith:\n" << *ld << "\nin: " << *inst << "\n";
-//              inst->replaceUsesOfWith(v, ld);
-//            }
-//          }
-//        }
-//        errs() << "replacing:\n" << *v << "\nwith:\n" << *ld;
-//        v->replaceAllUsesWith(ld);
-        
-//        for (auto uit = v->use_begin(), uend = v->use_end(); uit != uend; uit++) {
-//          uit->replaceUsesOfWith(v, ld);
-//        }
-      }
-      
-      errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
-      
-      errs() << "@bh inblock preds:\n";
-      for (auto p = pred_begin(inblock), pe = pred_end(inblock); p != pe; ++p) {
-        errs() << (*p)->getName() << "\n";
-      }
-
-      inblock->eraseFromParent();
-//      for (auto i = inblock->rbegin(); i != inblock->rend(); ) {
-//        auto inst = i--;
-//        errs() << "@bh uses -- inst: " << *inst << "\n";
-//        for (auto u = inst->use_begin(), eu = inst->use_end(); u != eu; u++ ) {
-//          errs() << **u << " -- ";
-//          if (auto inst = dyn_cast<Instruction>(*u)) {
-//            errs() << inst->getParent()->getName() << "\n";
-//          } else {
-//            errs() << "not an inst!?!\n";
-//          }
-//        }
-//        errs() << "^^^^^^^^^^^\n";
-//        
-//        inst->eraseFromParent();
-//      }
-      
-      errs() << "\n";
-      
-//      errs() << "----------------\nouter_fn:\n" << *old_fn << "-----------------------\n";
-//      errs() << "--------------\nredone outer fn entry: " << old_fn->getEntryBlock();
-//      errs() << "\n-------\nprevbb: " << *prevbb;
-      errs() << "\n-------\ncallbb: " << *callbb;
-//      errs() << "\n-------\nnextbb: " << *nextbb;
-//      errs() << "--------------\n";
-
-      DT->runOnFunction(*new_fn);
-      
-      errs() << "dominates: " << DT->dominates(entrybb, newbb) << "\n";
-      
-      DT->dump();
-      
-      for (auto in : inputs) {
-        auto v = dyn_cast<Instruction>(clone_map[in]);
-        errs() << "@bh " << *v << " (parent: " << v->getParent()->getName() << ", fn: " << v->getParent()->getParent()->getName() << ")\n";
-      }
-      
-      return new_fn;
-    }
-    
-    
     void replaceFetchAddWithGenericDelegate(FetchAdd& fa, Module* mod) {
       errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
       
@@ -591,7 +315,9 @@ namespace {
       errs() << "\n-- delegate block:\n" << *delegate_blk;
       errs() << "\n-- post block:\n" << *post_blk;
       errs() << "---------------------\n";
-      constructDelegateFunction(ld_gptr, delegate_blk, mod);
+      
+      DelegateExtractor dex(delegate_blk, *mod, ginfo);
+      dex.constructDelegateFunction(ld_gptr);
     }
     
     void replaceWithRemoteLoad(LoadInst *orig_ld) {
@@ -681,23 +407,19 @@ namespace {
           switch ( inst.getOpcode() ) {
             
             case Instruction::Load: {
-              auto& ld = *cast<LoadInst>(&inst);
-              if (ld.getPointerAddressSpace() == GLOBAL_SPACE) {
-                if (ld.getPointerOperand()->getType()->getPointerElementType() == i64_ty) {
-                  target_lds[ld.getPointerOperand()] = &ld;
-                  target_increments[&ld] = nullptr;
+              if (auto ld = dyn_cast_global<LoadInst>(&inst)) {
+                if (ld->getPointerOperand()->getType()->getPointerElementType() == i64_ty) {
+                  target_lds[ld->getPointerOperand()] = ld;
+                  target_increments[ld] = nullptr;
                 }
-                
-                global_loads.insert(&ld);
+                global_loads.insert(ld);
                 changed = true;
               }
               break;
             }
             
             case Instruction::Store: {
-              auto store = cast<StoreInst>(&inst);
-              if (store->getPointerAddressSpace() == GLOBAL_SPACE) {
-                
+              if (auto store = dyn_cast_global<StoreInst>(&inst)) {
                 auto ptr = store->getPointerOperand();
                 if (target_lds.count(ptr) > 0) {
                   auto ld = target_lds[ptr];
@@ -742,8 +464,11 @@ namespace {
       for (auto* inst : global_loads) {
         replaceWithRemoteLoad(inst);
       }
-      for (auto* inst : global_stores) { replaceWithRemoteStore(inst); }
-
+      
+      for (auto* inst : global_stores) {
+        replaceWithRemoteStore(inst);
+      }
+      
       return changed;
     }
     
@@ -763,15 +488,15 @@ namespace {
       put_fn = getFunction("grappa_put");
       read_long_fn = getFunction("grappa_read_long");
       fetchadd_i64_fn = getFunction("grappa_fetchadd_i64");
-      call_on_fn = getFunction("grappa_on");
-      get_core_fn = getFunction("grappa_get_core");
-      get_pointer_fn = getFunction("grappa_get_pointer");
+      ginfo.call_on_fn = call_on_fn = getFunction("grappa_on");
+      ginfo.get_core_fn = get_core_fn = getFunction("grappa_get_core");
+      ginfo.get_pointer_fn = get_pointer_fn = getFunction("grappa_get_pointer");
       
       myprint_i64 = getFunction("myprint_i64");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
-      void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
+      void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GlobalPtrInfo::SPACE);
       void_ty = Type::getVoidTy(module.getContext());
       
       // module = &m;
