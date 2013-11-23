@@ -33,70 +33,56 @@ Cacheline myarray[MAX_ARRAY_SIZE];
 
 BOOST_AUTO_TEST_SUITE( ContextSwitchLatency_tests );
 
-void user_main( void * args ) {
-  srand((unsigned int)Grappa::walltime());
-  
-  final = new CompletionEvent(2);
-  task_barrier = new CompletionEvent(2);
-  task_signal = new CompletionEvent(1);
-
-  BOOST_CHECK( Grappa_nodes() == 1 );
-  BOOST_CHECK( FLAGS_lines <= MAX_ARRAY_SIZE );
-    privateTask( [] {
-
-      // wait for all to start (to hack scheduler yield)
-      task_barrier->complete();
-      task_barrier->wait();
-
-      // blow out cache
-      for ( uint64_t i=0; i<FLAGS_lines; i++ ) {
-        myarray[i].val += 1;
-      }
-
-        Grappa::tick();
-        start_ts = Grappa::timestamp();
-        
-        task_signal->complete();
-        final->complete();
-        });
-
-    privateTask( [] {
-      // wait for all to start (to hack scheduler yield)
-      task_barrier->complete();
-      task_barrier->wait();
-        task_signal->wait();
-
-        Grappa::tick();
-        end_ts = Grappa::timestamp();
-
-        final->complete();
-        });
-
-    final->wait();
-
-      BOOST_MESSAGE( "ticks = " << end_ts << " - " << start_ts << " = " << end_ts-start_ts );
-      BOOST_MESSAGE( "time = " << ((double)(end_ts-start_ts)) / Grappa::tick_rate );
-
-
-  BOOST_MESSAGE( "user main is exiting" );
-}
-
-
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    srand((unsigned int)Grappa::walltime());
+  
+    final = new CompletionEvent(2);
+    task_barrier = new CompletionEvent(2);
+    task_signal = new CompletionEvent(1);
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
+    BOOST_CHECK( Grappa_nodes() == 1 );
+    BOOST_CHECK( FLAGS_lines <= MAX_ARRAY_SIZE );
+      privateTask( [] {
 
-  Grappa_activate();
+        // wait for all to start (to hack scheduler yield)
+        task_barrier->complete();
+        task_barrier->wait();
 
-  DVLOG(1) << "Spawning user main Thread....";
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  VLOG(5) << "run_user_main returned";
-  CHECK( Grappa_done() );
+        // blow out cache
+        for ( uint64_t i=0; i<FLAGS_lines; i++ ) {
+          myarray[i].val += 1;
+        }
 
-  Grappa_finish( 0 );
+          Grappa::tick();
+          start_ts = Grappa::timestamp();
+        
+          task_signal->complete();
+          final->complete();
+          });
+
+      privateTask( [] {
+        // wait for all to start (to hack scheduler yield)
+        task_barrier->complete();
+        task_barrier->wait();
+          task_signal->wait();
+
+          Grappa::tick();
+          end_ts = Grappa::timestamp();
+
+          final->complete();
+          });
+
+      final->wait();
+
+        BOOST_MESSAGE( "ticks = " << end_ts << " - " << start_ts << " = " << end_ts-start_ts );
+        BOOST_MESSAGE( "time = " << ((double)(end_ts-start_ts)) / Grappa::tick_rate );
+
+
+    BOOST_MESSAGE( "user main is exiting" );
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
-

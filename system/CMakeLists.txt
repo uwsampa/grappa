@@ -24,7 +24,6 @@ set(SYSTEM_SOURCES
   CurrentThread.cpp
   Delegate.cpp
   FlatCombiner.cpp
-  Future.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
   GlobalHashMap.cpp
@@ -75,7 +74,6 @@ set(SYSTEM_SOURCES
   FullEmpty.hpp
   FullEmptyLocal.hpp
   function_traits.hpp
-  Future.hpp
   GlobalAllocator.hpp
   GlobalCompletionEvent.hpp
   GlobalCounter.hpp
@@ -154,6 +152,8 @@ add_library(Grappa
 )
 target_link_libraries(Grappa ${GRAPPA_LIBS})
 add_dependencies(Grappa all-tools)
+
+add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
 # create targets for each test
 foreach(test_cpp ${TEST_SOURCES})  
