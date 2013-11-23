@@ -79,10 +79,10 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
 
 GlobalCompletionEvent ckpt_gce;
 
-static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, GrappaFile gfin, GlobalAddress<int64_t> edgeStart, GlobalAddress<range_t> xoffr, int64_t nv) {
+static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, Grappa::File gfin, GlobalAddress<int64_t> edgeStart, GlobalAddress<range_t> xoffr, int64_t nv) {
   
   auto xadj = Grappa::global_alloc<int64_t>(nadj);
-  Grappa_read_array(gfin, xadj, nadj);
+  Grappa::read_array(gfin, xadj, nadj);
   
   // call_on_all_cores([]{ shared_pool.reset(); });
   
@@ -153,10 +153,10 @@ bool checkpoint_in(graphedges * ge, graph * g) {
 
   double tt = timer();
   
-  GrappaFile gfin(fname, false);
+  Grappa::File gfin(fname, false);
   gfin.offset = 4*sizeof(int64_t)+2*sizeof(int64_t)*nedge;
   
-  Grappa_read_array(gfin, xoff, 2*nv);
+  Grappa::read_array(gfin, xoff, 2*nv);
   tt = timer() - tt; VLOG(1) << "xoff time: " << tt;
   VLOG(1) << "actual_nadj (read_array): " << actual_nadj;
 

@@ -62,8 +62,6 @@ static Thread * barrier_thread = NULL;
 Thread * master_thread;
 static Thread * user_main_thr;
 
-IODescriptor * aio_completed_stack;
-
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
@@ -78,13 +76,16 @@ HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
 namespace Grappa {
-namespace impl {
+  // defined here so FileIO.hpp doesn't need a .cpp
+  IODescriptor * aio_completed_stack;
+  
+  namespace impl {
 
-int64_t global_memory_size_bytes = 0;
-int64_t global_bytes_per_core = 0;
-int64_t global_bytes_per_locale = 0;
+    int64_t global_memory_size_bytes = 0;
+    int64_t global_bytes_per_core = 0;
+    int64_t global_bytes_per_locale = 0;
 
-}
+  }
 }
 
 /// Body of the polling thread.
@@ -226,7 +227,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 #ifdef AIO_SIGNAL
   struct sigaction aio_sa;
   aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
-  aio_sa.sa_sigaction = Grappa_handle_aio;
+  aio_sa.sa_sigaction = Grappa::impl::handle_async_io;
   if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
     fprintf(stderr, "Error setting up async io signal handler.\n");
     exit(1);

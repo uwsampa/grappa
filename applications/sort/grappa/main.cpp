@@ -284,7 +284,7 @@ int main(int argc, char* argv[]) {
     GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>(nelems);
 
     char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%d.%d", scale, log2maxkey);
-    GrappaFile f(dirname, true);
+    Grappa::File f(dirname, true);
 
     if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
       LOG(INFO) << "generating...";
@@ -303,12 +303,12 @@ int main(int argc, char* argv[]) {
     if (write_to_disk || (read_from_disk && !fs::exists(dirname))) {
       if (fs::exists(dirname)) fs::remove_all(dirname);
 
-      Grappa_save_array(f, true, array, nelems);
+      Grappa::save_array(f, true, array, nelems);
     }
 
     if (read_from_disk) {
       Grappa::memset(array, (uint64_t)0, nelems);
-      Grappa_read_array(f, array, nelems);
+      Grappa::read_array(f, array, nelems);
       //print_array("read array", array, nelems);
     }
 

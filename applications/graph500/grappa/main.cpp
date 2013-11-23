@@ -194,14 +194,14 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   g->xadjstore = Grappa::global_alloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
-  GrappaFile gfin(fname, false);
+  Grappa::File gfin(fname, false);
   gfin.offset = 4*sizeof(int64_t);
 
-  Grappa_read_array(gfin, tg->edges, tg->nedge);
+  Grappa::read_array(gfin, tg->edges, tg->nedge);
   
-  Grappa_read_array(gfin, g->xoff, 2*g->nv+2);
+  Grappa::read_array(gfin, g->xoff, 2*g->nv+2);
 
-  Grappa_read_array(gfin, g->xadjstore, g->nadj);
+  Grappa::read_array(gfin, g->xadjstore, g->nadj);
   
   fseek(fin, gfin.offset, SEEK_SET);
   fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
