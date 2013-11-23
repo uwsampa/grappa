@@ -60,11 +60,11 @@ GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, aggregator_bundle_bytes_rece
 /* Not currently useful because Communicator.cpp has one *//*
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregator_start_time, []() {
     // initialization value
-    return Grappa_walltime();
+    return Grappa::walltime();
     });
 GRAPPA_DEFINE_STAT( CallbackStatistic<double>, aggregator_end_time, []() {
     // sampling value
-    return Grappa_walltime();
+    return Grappa::walltime();
     });
     */
 

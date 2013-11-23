@@ -56,14 +56,11 @@ inline double walltime(void) {
 
 } // namespace Grappa
 
-// Legacy
-inline double Grappa_walltime(void) { return Grappa::walltime(); }
-
 #define GRAPPA_TIME(var, block) \
    	do { \
-		double _tmptime = Grappa_walltime(); \
+		double _tmptime = Grappa::walltime(); \
 		block \
-		var = Grappa_walltime()-_tmptime; \
+		var = Grappa::walltime()-_tmptime; \
 	} while(0)
 
 #define GRAPPA_TIMER(var) \

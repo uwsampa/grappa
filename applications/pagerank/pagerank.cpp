@@ -146,7 +146,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   double time;
 
   // setup
-  double init_start = Grappa_walltime();
+  double init_start = Grappa::walltime();
     
     LOG(INFO) << "Calculate dM";
     calculate_dM( m, d );
@@ -180,14 +180,14 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
         damp_vector_val = dv;
         });
 
-  double init_end = Grappa_walltime();
+  double init_end = Grappa::walltime();
   init_pagerank_time += (init_end-init_start);
     
   double delta = 1.0f; // initialize to +inf delta
   uint64_t iter = 0;
   while( delta > epsilon ) {
     double istart, iend;
-    istart = Grappa_walltime();
+    istart = Grappa::walltime();
 
     LOG(INFO) << "starting iter " << iter << ", delta = " << delta;
 
@@ -225,7 +225,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     );
     norm_and_diff_time += time;
 
-    iend = Grappa_walltime();
+    iend = Grappa::walltime();
     iterations_time += (iend-istart);
     LOG(INFO) << "-->done (time " << iend-istart <<")";
   }

@@ -150,7 +150,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   }
 #endif
 
-  sort_time = Grappa_walltime();
+  sort_time = Grappa::walltime();
 
   // initialize globals and histogram counts
   // { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
@@ -162,7 +162,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     }
   });
 
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // do local bucket counts
   // forall_local<uint64_t,histogram>(array, nelems);
@@ -171,9 +171,9 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     counts[b]++;
   });
 
-  histogram_time = Grappa_walltime() - t;
+  histogram_time = Grappa::walltime() - t;
   LOG(INFO) << "histogram_time: " << histogram_time;
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // allreduce everyone's counts & compute global offsets (prefix sum)
   // { aggregate_counts f; fork_join_custom(&f); }
@@ -191,7 +191,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     }
   });
   
-  allreduce_time = Grappa_walltime() - t;
+  allreduce_time = Grappa::walltime() - t;
   LOG(INFO) << "allreduce_time: " << allreduce_time;
 
   // allocate space in buckets
@@ -204,7 +204,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   });
   
   VLOG(3) << "scattering...";
-      t = Grappa_walltime();
+      t = Grappa::walltime();
 
   // scatter into buckets
   // forall_local<uint64_t,scatter>(array, nelems);
@@ -223,9 +223,9 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     }
   });
     
-  scatter_time = Grappa_walltime() - t;
+  scatter_time = Grappa::walltime() - t;
   LOG(INFO) << "scatter_time: " << scatter_time;
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // sort buckets locally
   // forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
@@ -235,9 +235,9 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     qsort(&bucket[0], bucket.size(), sizeof(uint64_t), &ui64cmp);
   });
 
-  local_sort_scatter_time = Grappa_walltime() - t;
+  local_sort_scatter_time = Grappa::walltime() - t;
   LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;  
-  t = Grappa_walltime(); 
+  t = Grappa::walltime(); 
   
   // redistribute buckets back into global array  
   // forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
@@ -256,10 +256,10 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     VLOG(3) << "bucket[" << b << "] release successful";
   });
   
-  put_back_time = Grappa_walltime() - t;
+  put_back_time = Grappa::walltime() - t;
   LOG(INFO) << "put_back_time: " << put_back_time;
   
-  sort_time = Grappa_walltime() - sort_time;
+  sort_time = Grappa::walltime() - sort_time;
   LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
@@ -283,13 +283,13 @@ void user_main(void* ignore) {
 
   if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
     LOG(INFO) << "generating...";
-    t = Grappa_walltime();
+    t = Grappa::walltime();
 
     // fill vector with random 64-bit integers
     // forall_local<uint64_t,set_random>(array, nelems);
     forall_localized(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
 
-    rand_time = Grappa_walltime() - t;
+    rand_time = Grappa::walltime() - t;
     LOG(INFO) << "fill_random_time: " << rand_time;
 
     //print_array("generated array", array, nelems);

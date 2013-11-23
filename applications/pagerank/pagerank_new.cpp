@@ -225,7 +225,7 @@ pagerank_result pagerank( GlobalAddress<Graph<WeightedAdjVertex>> g, double d, d
     );
     norm_and_diff_time += time;
 
-    iend = Grappa_walltime();
+    iend = Grappa::walltime();
     iterations_time += (iend-istart);
     LOG(INFO) << "-->done (time " << iend-istart <<")";
   }

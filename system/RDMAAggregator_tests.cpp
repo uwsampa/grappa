@@ -161,7 +161,7 @@ void user_main( void * args ) {
 
     Grappa::PayloadMessage< F > m[ msgs ];
       
-    double start = Grappa_walltime();
+    double start = Grappa::walltime();
     
     for( int j = 0; j < iters; ++j ) {
       //LOG(INFO) << "Iter " << j;
@@ -179,7 +179,7 @@ void user_main( void * args ) {
     //      Grappa::impl::global_rdma_aggregator.flush( 1 );
     //Grappa::wait( &cv );
     
-    double time = Grappa_walltime() - start;
+    double time = Grappa::walltime() - start;
     size_t size = m[0].size();
     LOG(INFO) << time << " seconds, message size " << size << "; Throughput: " 
               << (double) iters * msgs / time << " iters/s, "
@@ -221,7 +221,7 @@ void user_main( void * args ) {
       }
     };
     
-    double start = Grappa_walltime();
+    double start = Grappa::walltime();
 
     Grappa::on_all_cores( [expected_messages_per_core, sent_messages_per_core] {
         Grappa_start_profiling();
@@ -311,7 +311,7 @@ void user_main( void * args ) {
         Grappa_stop_profiling();
       } );
 
-    double time = Grappa_walltime() - start;
+    double time = Grappa::walltime() - start;
     local_messages_per_locale = expected_messages_per_locale;
     local_messages_time = time;
     local_messages_rate_per_locale = expected_messages_per_locale / time;
@@ -415,7 +415,7 @@ void user_main( void * args ) {
 
       {
         Grappa_start_profiling();
-        double start = Grappa_walltime();
+        double start = Grappa::walltime();
 
         {
           // serialize
@@ -423,7 +423,7 @@ void user_main( void * args ) {
           Grappa::impl::global_rdma_aggregator.aggregate_to_buffer( &buf[0], &first, sizeof_messages, &count);
         }
       
-        double time = Grappa_walltime() - start;
+        double time = Grappa::walltime() - start;
         Grappa_stop_profiling();
         serialized_messages_per_locale = expected_messages_per_locale;
         serialized_messages_time = time;
@@ -432,14 +432,14 @@ void user_main( void * args ) {
 
       {
         Grappa_start_profiling();
-        double start = Grappa_walltime();
+        double start = Grappa::walltime();
 
         {
           // deserialize
           Grappa::impl::global_rdma_aggregator.deaggregate_buffer( &buf[0], sizeof_messages );
         }
       
-        double time = Grappa_walltime() - start;
+        double time = Grappa::walltime() - start;
         Grappa_stop_profiling();
         deserialized_messages_per_locale = expected_messages_per_locale;
         deserialized_messages_time = time;
@@ -468,7 +468,7 @@ void user_main( void * args ) {
     };
 
 
-    double start = Grappa_walltime();
+    double start = Grappa::walltime();
 
     // first test: single sending core, single receiving core. the sending core is responsible for aggregation.
     Grappa::on_all_cores( [] {
@@ -532,7 +532,7 @@ void user_main( void * args ) {
               }
 
               LOG(INFO) << "Now generating messages";              
-              double send_start = Grappa_walltime();
+              double send_start = Grappa::walltime();
               
               // send messages
               for( int i = 0; i < sent_messages_per_core; ++i ) {
@@ -553,7 +553,7 @@ void user_main( void * args ) {
               }
               
 
-              double send_end = Grappa_walltime() - send_start;
+              double send_end = Grappa::walltime() - send_start;
               enqueued_messages_rate_per_core = sent_messages_per_core / send_end;
 
               if( FLAGS_disable_sending ) {
@@ -598,7 +598,7 @@ void user_main( void * args ) {
 
       });
 
-    double time = Grappa_walltime() - start;
+    double time = Grappa::walltime() - start;
     aggregated_messages_per_locale = FLAGS_iterations_per_core;
     aggregated_messages_time = time;
     aggregated_messages_rate_per_locale = FLAGS_iterations_per_core / time;
@@ -633,7 +633,7 @@ void user_main( void * args ) {
               << expected_messages_per_core << " per core and " 
               << expected_messages_per_locale << " per locale.";
 
-    double start = Grappa_walltime();
+    double start = Grappa::walltime();
     
     Grappa::on_all_cores( [sent_messages_per_core, expected_messages_per_core, expected_messages_per_locale] {
 			    
@@ -756,7 +756,7 @@ void user_main( void * args ) {
         CHECK_EQ( local_count, expected_messages_per_core ) << "Remote message distribution";
       } );
 
-    double time = Grappa_walltime() - start;
+    double time = Grappa::walltime() - start;
     remote_distributed_messages_per_locale = expected_messages_per_locale;
     remote_distributed_messages_time = time;
     remote_distributed_messages_rate_per_locale = expected_messages_per_locale / time;

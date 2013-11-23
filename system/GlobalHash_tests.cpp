@@ -68,7 +68,7 @@ template< Exp EXP,
           CompletionEvent* CE = &impl::local_ce,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
 double test_insert_throughput(GlobalAddress<GlobalHashMap<K,V>> ha) {
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
 
   forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
     auto k = next_random<long>() % FLAGS_max_key;
@@ -80,7 +80,7 @@ double test_insert_throughput(GlobalAddress<GlobalHashMap<K,V>> ha) {
     }
   });
   
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   return t;
 }
 

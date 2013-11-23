@@ -52,7 +52,7 @@ bool running;
 
 
 void user_main( void * args ) {
-  srand((unsigned int)Grappa_walltime());
+  srand((unsigned int)Grappa::walltime());
 
   // must have enough threads because they all join a barrier
   CHECK( FLAGS_num_test_workers < FLAGS_num_starting_workers );
@@ -82,7 +82,7 @@ void user_main( void * args ) {
             // first task to exit the local barrier will start the timer
             if ( !running ) {
               Grappa::Statistics::reset();
-              start = Grappa_walltime();
+              start = Grappa::walltime();
               running = true;
             }
 
@@ -97,7 +97,7 @@ void user_main( void * args ) {
         
         LOG(INFO) << ( "waiting" );
         final->wait();
-        end = Grappa_walltime();
+        end = Grappa::walltime();
         double runtime = end-start;
         LOG(INFO) << "took time " << runtime;
 
@@ -161,7 +161,7 @@ void user_main( void * args ) {
               // no messages are sent between cores in the
               // timed portion
               Grappa::Statistics::reset();
-              start = Grappa_walltime();
+              start = Grappa::walltime();
               running = true;
             }
 
@@ -190,7 +190,7 @@ void user_main( void * args ) {
         
         LOG(INFO) << ( "waiting" );
         final->wait();
-        end = Grappa_walltime();
+        end = Grappa::walltime();
         double runtime = end-start;
         LOG(INFO) << "took time " << runtime;
 
@@ -233,7 +233,7 @@ void user_main( void * args ) {
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
       values8 = new uint64_t[FLAGS_num_starting_workers];
 
-      double start = Grappa_walltime();
+      double start = Grappa::walltime();
 
       for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
         privateTask( [t] {
@@ -251,7 +251,7 @@ void user_main( void * args ) {
       }
 
       final->wait();
-      double end = Grappa_walltime();
+      double end = Grappa::walltime();
 
       double runtime = end-start;
       LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
@@ -264,7 +264,7 @@ void user_main( void * args ) {
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
       values16 = new SixteenBytes[FLAGS_num_starting_workers];
 
-      double start = Grappa_walltime();
+      double start = Grappa::walltime();
 
       for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
         privateTask( [t] {
@@ -283,7 +283,7 @@ void user_main( void * args ) {
       }
 
       final->wait();
-      double end = Grappa_walltime();
+      double end = Grappa::walltime();
 
       double runtime = end-start;
       LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
@@ -296,7 +296,7 @@ void user_main( void * args ) {
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
       values8 = new uint64_t[FLAGS_num_starting_workers];
 
-      double start = Grappa_walltime();
+      double start = Grappa::walltime();
 
       for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
         privateTask( [t] {
@@ -319,7 +319,7 @@ void user_main( void * args ) {
       }
 
       final->wait();
-      double end = Grappa_walltime();
+      double end = Grappa::walltime();
 
       LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
 
@@ -334,7 +334,7 @@ void user_main( void * args ) {
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
       values8 = new uint64_t[FLAGS_num_starting_workers];
 
-      double start = Grappa_walltime();
+      double start = Grappa::walltime();
 
       for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
         privateTask( [t] {
@@ -357,7 +357,7 @@ void user_main( void * args ) {
       }
 
       final->wait();
-      double end = Grappa_walltime();
+      double end = Grappa::walltime();
 
       LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
 

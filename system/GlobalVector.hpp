@@ -351,7 +351,7 @@ public:
   /// Push element on the back (queue or stack)
   void push(const T& e) {
     ++global_vector_push_ops;
-    double t = Grappa_walltime();
+    double t = Grappa::walltime();
     if (FLAGS_flat_combining) {
       proxy.combine([&e](Proxy& p) {
         if (p.npop > 0) {
@@ -368,12 +368,12 @@ public:
       ++global_vector_push_msgs;
       Master::push(self, &val, 1);
     }
-    global_vector_push_latency += (Grappa_walltime() - t);
+    global_vector_push_latency += (Grappa::walltime() - t);
   }
   
   T pop() {
     ++global_vector_pop_ops;
-    double t = Grappa_walltime();
+    double t = Grappa::walltime();
     T val;
     if (FLAGS_flat_combining) {
       proxy.combine([&val](Proxy& p){
@@ -390,7 +390,7 @@ public:
       ++global_vector_pop_msgs;
       Master::pop(self, &val, 1);
     }
-    global_vector_pop_latency += (Grappa_walltime() - t);
+    global_vector_pop_latency += (Grappa::walltime() - t);
     return val;
   }
   
@@ -398,7 +398,7 @@ public:
   
   T dequeue() {
     ++global_vector_deq_ops;
-    double t = Grappa_walltime();
+    double t = Grappa::walltime();
     
     T val;
     if (FLAGS_flat_combining) {
@@ -410,7 +410,7 @@ public:
       ++global_vector_deq_msgs;
       Master::dequeue(self, &val, 1);
     }
-    global_vector_deq_latency += (Grappa_walltime() - t);
+    global_vector_deq_latency += (Grappa::walltime() - t);
     return val;
   }
   

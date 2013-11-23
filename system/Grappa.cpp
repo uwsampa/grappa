@@ -203,7 +203,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   Grappa::force_tick();
   Grappa::force_tick();
   Grappa::Timestamp start_ts = Grappa::timestamp();
-  double start = Grappa_walltime();
+  double start = Grappa::walltime();
   // now go do other stuff for a while
   
   // set up stats dump signal handler
@@ -331,7 +331,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   Grappa::force_tick();
   Grappa::force_tick();
   Grappa::Timestamp end_ts = Grappa::timestamp();
-  double end = Grappa_walltime();
+  double end = Grappa::walltime();
   Grappa::tick_rate = (double) (end_ts - start_ts) / (end-start);
 
   char * jobid_str = getenv("SLURM_JOB_ID");

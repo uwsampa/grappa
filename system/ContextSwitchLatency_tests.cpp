@@ -34,7 +34,7 @@ Cacheline myarray[MAX_ARRAY_SIZE];
 BOOST_AUTO_TEST_SUITE( ContextSwitchLatency_tests );
 
 void user_main( void * args ) {
-  srand((unsigned int)Grappa_walltime());
+  srand((unsigned int)Grappa::walltime());
   
   final = new CompletionEvent(2);
   task_barrier = new CompletionEvent(2);

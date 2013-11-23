@@ -59,7 +59,7 @@ enum class Exp { PUSH, POP, DEQUEUE, QUEUE, STACK };
 
 template< Exp EXP >
 double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
   
   forall_global_private(0, FLAGS_nelems, [qa](int64_t i){
     if (EXP == Exp::QUEUE) {
@@ -88,7 +88,7 @@ double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
     }
   });
   
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   return t;
 }
 

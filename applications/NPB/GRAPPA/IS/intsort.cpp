@@ -225,7 +225,7 @@ void rank(int iteration) {
   });
   
   VLOG(2) << "histogramming";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
 
   // histogram to find out how many fall into each bucket  
   forall_localized<&gce>(key_array, nkeys, [](int64_t i, key_t& k){
@@ -233,9 +233,9 @@ void rank(int iteration) {
     counts[b]++;
   });
   
-  histogram_time += Grappa_walltime() - _time;
+  histogram_time += Grappa::walltime() - _time;
   VLOG(2) << "allreducing";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
   
   // allreduce everyone's counts & compute global bucket_ranks (prefix sum)
   auto bl = bucketlist;
@@ -284,7 +284,7 @@ void rank(int iteration) {
     total_bucket_allocation = 0;
   });
   
-  allreduce_time += Grappa_walltime() - _time;
+  allreduce_time += Grappa::walltime() - _time;
     
   // print_array("counts", &counts[0], counts.size());
   // print_array("bucket_cores", bucket_cores);
@@ -297,7 +297,7 @@ void rank(int iteration) {
   });
 
   VLOG(2) << "scattering into buckets";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
   
   // scatter into buckets
   forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
@@ -317,9 +317,9 @@ void rank(int iteration) {
     }
   });
   
-  scatter_time += Grappa_walltime() - _time;
+  scatter_time += Grappa::walltime() - _time;
   VLOG(2) << "ranking locally";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
   
   // Ranking of all keys occurs in this section
   on_all_cores([iteration]{
@@ -401,7 +401,7 @@ void rank(int iteration) {
     // }    
   });
   
-  local_rank_time += Grappa_walltime() - _time;
+  local_rank_time += Grappa::walltime() - _time;
 }
 
 void full_verify() {
@@ -451,7 +451,7 @@ void user_main(void * ignore) {
   // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
   auto _bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
 
-  generation_time = Grappa_walltime();
+  generation_time = Grappa::walltime();
 
   // initialize all cores
   call_on_all_cores([_key_array, _bucketlist]{
@@ -473,7 +473,7 @@ void user_main(void * ignore) {
   //   }
   // });
   
-  generation_time = Grappa_walltime() - generation_time;
+  generation_time = Grappa::walltime() - generation_time;
   std::cerr << "generation_time: " << generation_time << "\n";
 
   // Do one interation for free (i.e., untimed) to guarantee initialization of  
@@ -488,7 +488,7 @@ void user_main(void * ignore) {
 
   Statistics::start_tracing();
   
-  total_time = Grappa_walltime();
+  total_time = Grappa::walltime();
 
   // This is the main iteration
   for( iteration=1; iteration<=niterations; iteration++ ) {
@@ -496,7 +496,7 @@ void user_main(void * ignore) {
       rank( iteration );
   }
 
-  total_time = Grappa_walltime() - total_time;
+  total_time = Grappa::walltime() - total_time;
 
   Statistics::stop_tracing();
   Statistics::merge_and_print();
@@ -508,9 +508,9 @@ void user_main(void * ignore) {
   std::cerr << "local_rank_time: " << local_rank_time << "\n";
 
   if (!skip_verify) {
-    full_verify_time = Grappa_walltime();
+    full_verify_time = Grappa::walltime();
     full_verify();
-    full_verify_time = Grappa_walltime() - full_verify_time;
+    full_verify_time = Grappa::walltime() - full_verify_time;
     std::cerr << "full_verify_time: " << full_verify_time << "\n";
   }
   

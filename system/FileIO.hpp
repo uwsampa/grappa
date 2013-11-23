@@ -218,7 +218,7 @@ struct read_array_args {
 namespace impl {
 template < typename T >
 void _read_array_file(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
 
 	Grappa::call_on_all_cores([]{
 	  Grappa::impl::global_scheduler.allow_active_workers(FLAGS_io_blocks_per_node);
@@ -247,7 +247,7 @@ void _read_array_file(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
 	});
 
   f.offset += nelem * sizeof(T);
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   VLOG(1) << "read_array_time: " << t;
   VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
 }
@@ -255,7 +255,7 @@ void _read_array_file(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
 template < typename T >
 void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   const char * dirname = f.fname;
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
 
 	Grappa::call_on_all_cores([]{
 	  Grappa::impl::global_scheduler.allow_active_workers(FLAGS_io_blocks_per_node);
@@ -294,7 +294,7 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
 	  Grappa::impl::global_scheduler.allow_active_workers(-1);
 	});
 
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   VLOG(1) << "read_array_time: " << t;
   VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
   delete[] args;
@@ -325,7 +325,7 @@ void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems
     LOG(ERROR) << "filesystem error: " << e.what();
   }
 	
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
 
   Grappa::on_all_cores([dirname,array,nelems]{
     range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
@@ -347,14 +347,14 @@ void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems
     VLOG(1) << "finished saving array[" << r.start << ":" << r.end << "]";
   });
 	
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   LOG(INFO) << "save_array_time: " << t;
   LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
 }
 
 template< typename T >
 void _save_array_file(const char * fname, GlobalAddress<T> array, size_t nelems) {
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
 
   std::fstream fo(fname, std::ios::out | std::ios::binary);
 
@@ -367,7 +367,7 @@ void _save_array_file(const char * fname, GlobalAddress<T> array, size_t nelems)
   }
 	Grappa::locale_free(buf);
 
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   fo.close();
   LOG(INFO) << "save_array_time: " << t;
   LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;

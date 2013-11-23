@@ -41,11 +41,11 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_messages, 0);
 GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_bytes, 0);
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, communicator_start_time, []() {
     // initialization value
-    return Grappa_walltime();
+    return Grappa::walltime();
     });
 GRAPPA_DEFINE_STAT( CallbackStatistic<double>, communicator_end_time, []() {
     // sampling value
-    return Grappa_walltime();
+    return Grappa::walltime();
     });
 
 /// Global communicator instance
