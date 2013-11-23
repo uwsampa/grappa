@@ -3,3 +3,5 @@ add_subdirectory(sort)
 add_subdirectory(suite)
 add_subdirectory(pagerank)
 add_subdirectory(demos)
+
+add_subdirectory(NPB/GRAPPA/IS)

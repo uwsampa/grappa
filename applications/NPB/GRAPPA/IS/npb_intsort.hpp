@@ -19,6 +19,7 @@ inline NPBClass get_npb_class(char c) {
     case 'C': return NPBClass::C;
     case 'D': return NPBClass::D;
     case 'E': return NPBClass::E;
+    default: return NPBClass::S;
   }
 }
 inline char npb_class_char(NPBClass c) {
@@ -30,5 +31,6 @@ inline char npb_class_char(NPBClass c) {
     case NPBClass::C: return 'C';
     case NPBClass::D: return 'D';
     case NPBClass::E: return 'E';
+    default: return 'S';
   }
 }

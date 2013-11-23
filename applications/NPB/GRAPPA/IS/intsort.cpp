@@ -20,6 +20,7 @@
 
 using namespace Grappa;
 
+static void parseOptions(int argc, char ** argv);
 
 /// Quick and dirty growable bucket that is padded to take up a full Grappa block so 
 /// that malloc'ing a global array round-robins buckets to nodes to keep it as even
@@ -440,7 +441,7 @@ int main(int argc, char* argv[]) {
     //  Printout initial NPB info 
     printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
     printf( "nkeys:       %ld  (class %c, 2^%d)\n", (long)nkeys, npb_class_char(npbclass), scale);
-    printf( "maxkey:      %ld (2^%d)\n", maxkey, log2maxkey);
+    printf( "maxkey:      %d (2^%d)\n", maxkey, log2maxkey);
     printf( "niterations: %d\n", niterations);
     printf( "cores:       %d\n", cores());
 
@@ -602,6 +603,6 @@ static void parseOptions(int argc, char ** argv) {
   }
   nkeys = 1L << scale;
   nbuckets = 1L << log2buckets;
-  maxkey = (log2maxkey == 64) ? (std::numeric_limits<uint64_t>::max()) : (1ul << log2maxkey) - 1;
+  maxkey = (log2maxkey == 64) ? (std::numeric_limits<key_t>::max()) : (1ul << log2maxkey) - 1;
 }
 
