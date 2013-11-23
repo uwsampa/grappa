@@ -266,181 +266,176 @@ int64_t calc_nnz(const graph& g) {
   return reduce<int64_t,collective_add>(&sum);
 }
 
-static void user_main(void* ignore) {
-  double t;
-  
-  graphedges _ge;
-  graph _dirg;
-  graph _g;
-  
-  printf("[[ Graph Application Suite ]]\n"); fflush(stdout);  
-  
-  graphedges* ge = &_ge;
-  graph* dirg = &_dirg;
-  graph* g = &_g;
-  
-  if (checkpointing) {
-    checkpoint_in(ge, g);
-  }
-  
-  if (!checkpointing) {
-    fprintf(stderr, "graph generation not implemented for Grappa yet...\n");
-    exit(0);
-    
-    printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
-    t = timer();
-    
-    genScalData(ge, A, B, C, D);
-    
-    t = timer() - t;
-    printf("edge_generation_time: %g\n", t);
-    //  if (graphfile) print_edgelist_dot(ge, graphfile);
-    
-    //###############################################
-    // Kernel: Compute Graph
-    
-    /* From the input edges, construct the graph 'G'.  */
-    printf("Kernel - Compute Graph beginning execution...\n"); fflush(stdout);
-    //  MTA("mta trace \"begin computeGraph\"")
-    
-    t = timer();
-    
-    // directed graph
-    computeGraph(ge, dirg);
-    
-    //  free_edgelist(&ge);
-    
-    // undirected graph
-    makeUndirected(dirg, g);
-    
-    t = timer() - t;
-    printf("compute_graph_time: %g\n", t);
-  }
-  
-  // call_on_all_cores([]{ Statistics::reset(); });
-  
-  //###############################################
-  // Kernel: Connected Components
-  if (do_components) {
-    printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
-    t = walltime();
-    
-    Statistics::start_tracing();
-    
-    graphint connected = connectedComponents(g);
-    
-    t = walltime() - t;
-    Statistics::stop_tracing();
-    
-    LOG(INFO) << "ncomponents: " << connected << std::endl;
-    LOG(INFO) << "components_time: " << t << std::endl;
-    
-    // call_on_all_cores([]{ Grappa_stop_profiling(); });
-    Statistics::merge_and_print();
-  }  
-  
-  //###############################################
-  // Kernel: Path Isomorphism
-  if (do_pathiso) {
-    // assign random colors to vertices in the range: [0,10)
-    //  MTA("mta trace \"begin markColors\"")
-    markColors(dirg, 0, 10);
-    
-    // path to find (sequence of specifically colored vertices)
-    color_t pattern[] = {2, 5, 9};
-    size_t npattern = 3;
-    
-    color_t *c = pattern;
-    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %ld", *c);
-    for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %ld", *c); } printf("\n"); fflush(stdout);
-    t = timer();
-    
-    graphint num_matches = pathIsomorphism(dirg, pattern, npattern);
-    
-    t = timer() - t;
-    printf("path_iso_matches: %ld\n", num_matches);
-    printf("path_isomorphism_time: %g\n", t); fflush(stdout);
-  }
-    
-  //###############################################
-  // Kernel: Triangles
-  if (do_triangles) {
-    printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
-    t = timer();
-    
-    graphint num_triangles = triangles(g);
-    
-    t = timer() - t;
-    printf("ntriangles: %ld\n", num_triangles);
-    printf("triangles_time: %g\n", t); fflush(stdout);
-  }
-
-  int64_t nnz = calc_nnz(*g);
-  
-  // call_on_all_cores([]{ Statistics::reset(); });
-
-  //###############################################
-  // Kernel: Betweenness Centrality
-  if (do_centrality) {
-    printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
-    
-    GlobalAddress<double> bc = Grappa::global_alloc<double>(numVertices);
-    
-    double avgbc;
-    int64_t total_nedge;
-    
-    if (do_multi_centrality) {
-      t = centrality_multi(g, bc, kcent, &avgbc, &total_nedge);      
-    } else {
-      t = centrality(g, bc, kcent, &avgbc, &total_nedge);
-    }
-    
-    // double ref_bc = -1;
-    // switch (SCALE) {
-    //   case 10: ref_bc = 11.736328; break;
-    //   case 16: ref_bc = 10.87493896; break;
-    //   case 20: ref_bc = 10.52443173; break;
-    //   case 23: 
-    //     switch (kcent) {
-    //       case 4: ref_bc = 4.894700766; break;
-    //     } break;
-    // }
-    // if (ref_bc != -1) {
-    //   if ( fabs(avgbc - ref_bc) > 0.000001 ) {
-    //     fprintf(stderr, "error: check failed: avgbc = %10.8g, ref = %10.8g\n", avgbc, ref_bc);
-    //   }
-    // } else {
-      printf("warning: no reference available\n");
-    // }
-
-    fprintf(stderr, "avg_centrality: %10.8g\n", avgbc);
-    fprintf(stderr, "centrality_time: %g\n", t); fflush(stdout);
-    fprintf(stderr, "centrality_teps: %g\n", (double)nnz * kcent / t);
-  }
-  
-  //###################
-  // Kernels complete!
-  
-  // Grappa_merge_and_dump_stats();
-  //Grappa_dump_stats_all_nodes();
-
-  VLOG(1) << "freeing graphs";
-  //free_graph(dirg);
-  free_graph(g);
-  VLOG(1) << "done freeing";
-}
-
 int main(int argc, char* argv[]) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
+  Grappa::init(&argc, &argv);
   
   parseOptions(argc, argv);
   setupParams(SCALE, 8);
   
-  Grappa_run_user_main(&user_main, (void*)NULL);
+  Grappa::run([]{
+    double t;
   
-  Grappa_finish(0);
-  return 0;
+    graphedges _ge;
+    graph _dirg;
+    graph _g;
+  
+    printf("[[ Graph Application Suite ]]\n"); fflush(stdout);  
+  
+    graphedges* ge = &_ge;
+    graph* dirg = &_dirg;
+    graph* g = &_g;
+  
+    if (checkpointing) {
+      checkpoint_in(ge, g);
+    }
+  
+    if (!checkpointing) {
+      fprintf(stderr, "graph generation not implemented for Grappa yet...\n");
+      exit(0);
+    
+      printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
+      t = timer();
+    
+      genScalData(ge, A, B, C, D);
+    
+      t = timer() - t;
+      printf("edge_generation_time: %g\n", t);
+      //  if (graphfile) print_edgelist_dot(ge, graphfile);
+    
+      //###############################################
+      // Kernel: Compute Graph
+    
+      /* From the input edges, construct the graph 'G'.  */
+      printf("Kernel - Compute Graph beginning execution...\n"); fflush(stdout);
+      //  MTA("mta trace \"begin computeGraph\"")
+    
+      t = timer();
+    
+      // directed graph
+      computeGraph(ge, dirg);
+    
+      //  free_edgelist(&ge);
+    
+      // undirected graph
+      makeUndirected(dirg, g);
+    
+      t = timer() - t;
+      printf("compute_graph_time: %g\n", t);
+    }
+  
+    // call_on_all_cores([]{ Statistics::reset(); });
+  
+    //###############################################
+    // Kernel: Connected Components
+    if (do_components) {
+      printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
+      t = walltime();
+    
+      Statistics::start_tracing();
+    
+      graphint connected = connectedComponents(g);
+    
+      t = walltime() - t;
+      Statistics::stop_tracing();
+    
+      LOG(INFO) << "ncomponents: " << connected << std::endl;
+      LOG(INFO) << "components_time: " << t << std::endl;
+    
+      // call_on_all_cores([]{ Grappa_stop_profiling(); });
+      Statistics::merge_and_print();
+    }  
+  
+    //###############################################
+    // Kernel: Path Isomorphism
+    if (do_pathiso) {
+      // assign random colors to vertices in the range: [0,10)
+      //  MTA("mta trace \"begin markColors\"")
+      markColors(dirg, 0, 10);
+    
+      // path to find (sequence of specifically colored vertices)
+      color_t pattern[] = {2, 5, 9};
+      size_t npattern = 3;
+    
+      color_t *c = pattern;
+      printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %ld", *c);
+      for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %ld", *c); } printf("\n"); fflush(stdout);
+      t = timer();
+    
+      graphint num_matches = pathIsomorphism(dirg, pattern, npattern);
+    
+      t = timer() - t;
+      printf("path_iso_matches: %ld\n", num_matches);
+      printf("path_isomorphism_time: %g\n", t); fflush(stdout);
+    }
+    
+    //###############################################
+    // Kernel: Triangles
+    if (do_triangles) {
+      printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
+      t = timer();
+    
+      graphint num_triangles = triangles(g);
+    
+      t = timer() - t;
+      printf("ntriangles: %ld\n", num_triangles);
+      printf("triangles_time: %g\n", t); fflush(stdout);
+    }
+
+    int64_t nnz = calc_nnz(*g);
+  
+    // call_on_all_cores([]{ Statistics::reset(); });
+
+    //###############################################
+    // Kernel: Betweenness Centrality
+    if (do_centrality) {
+      printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
+    
+      GlobalAddress<double> bc = Grappa::global_alloc<double>(numVertices);
+    
+      double avgbc;
+      int64_t total_nedge;
+    
+      if (do_multi_centrality) {
+        t = centrality_multi(g, bc, kcent, &avgbc, &total_nedge);      
+      } else {
+        t = centrality(g, bc, kcent, &avgbc, &total_nedge);
+      }
+    
+      // double ref_bc = -1;
+      // switch (SCALE) {
+      //   case 10: ref_bc = 11.736328; break;
+      //   case 16: ref_bc = 10.87493896; break;
+      //   case 20: ref_bc = 10.52443173; break;
+      //   case 23: 
+      //     switch (kcent) {
+      //       case 4: ref_bc = 4.894700766; break;
+      //     } break;
+      // }
+      // if (ref_bc != -1) {
+      //   if ( fabs(avgbc - ref_bc) > 0.000001 ) {
+      //     fprintf(stderr, "error: check failed: avgbc = %10.8g, ref = %10.8g\n", avgbc, ref_bc);
+      //   }
+      // } else {
+        printf("warning: no reference available\n");
+      // }
+
+      fprintf(stderr, "avg_centrality: %10.8g\n", avgbc);
+      fprintf(stderr, "centrality_time: %g\n", t); fflush(stdout);
+      fprintf(stderr, "centrality_teps: %g\n", (double)nnz * kcent / t);
+    }
+  
+    //###################
+    // Kernels complete!
+  
+    // Grappa_merge_and_dump_stats();
+    //Grappa_dump_stats_all_nodes();
+
+    VLOG(1) << "freeing graphs";
+    //free_graph(dirg);
+    free_graph(g);
+    VLOG(1) << "done freeing";
+  });
+  Grappa::finalize();
 }
 
 void setupParams(int scale, int edgefactor) {

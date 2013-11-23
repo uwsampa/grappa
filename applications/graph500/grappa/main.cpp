@@ -294,80 +294,72 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 //  }
 }
 
-static void user_main(int * args) {
-  double t = timer();
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
   
-  tuple_graph tg;
-  csr_graph g;
-  int64_t bfs_roots[NBFS_max];
-
-	nvtx_scale = ((int64_t)1)<<SCALE;
-	int64_t desired_nedge = desired_nedge = nvtx_scale * edgefactor;
-	/* Catch a few possible overflows. */
-	assert (desired_nedge >= nvtx_scale);
-	assert (desired_nedge >= edgefactor);
-  
-  LOG(INFO) << "scale = " << SCALE << ", nv = " << nvtx_scale << ", edgefactor = " << edgefactor << ", nedge = " << desired_nedge;
-
-  if (load_checkpoint) {
-    checkpoint_in(&tg, &g, bfs_roots);
-  } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
-  
-  if (!load_checkpoint) {
-    tg.edges = global_alloc<packed_edge>(desired_nedge);
-    
-    /* Make the raw graph edges. */
-    /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
-     * validator). */
-    
-    double start, stop;
-    start = timer();
-    {
-      make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-    }
-    stop = timer();
-    generation_time = stop - start;
-    LOG(INFO) << "graph_generation: " << generation_time;
-    
-    // construct graph
-    setup_bfs(&tg, &g, bfs_roots);
-    
-    if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
-  }
-
-  // watch out for profiling! check the tau 
-  Grappa::Statistics::reset();
-  
-  run_bfs(&tg, &g, bfs_roots);
-  
-
-  Grappa::Statistics::merge_and_print(std::cout);
-  fflush(stdout);
-  
-//  free_graph_data_structure();
-  
-  Grappa::global_free(tg.edges);
-  
-  /* Print results. */
-  output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, NBFS, bfs_time, bfs_nedge);
-
-  t = timer() - t;
-  std::cout << "total_runtime: " << t << std::endl;
-  
-}
-
-int main(int argc, char** argv) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
-
   /* Parse arguments. */
   get_options(argc, argv);
-
-  Grappa_run_user_main(&user_main, (int*)NULL);
-
-  DVLOG(1) << "waiting to finish";
   
-  Grappa_finish(0);
-  return 0;
-}
+  Grappa::run({
+    double t = timer();
+  
+    tuple_graph tg;
+    csr_graph g;
+    int64_t bfs_roots[NBFS_max];
 
+  	nvtx_scale = ((int64_t)1)<<SCALE;
+  	int64_t desired_nedge = desired_nedge = nvtx_scale * edgefactor;
+  	/* Catch a few possible overflows. */
+  	assert (desired_nedge >= nvtx_scale);
+  	assert (desired_nedge >= edgefactor);
+  
+    LOG(INFO) << "scale = " << SCALE << ", nv = " << nvtx_scale << ", edgefactor = " << edgefactor << ", nedge = " << desired_nedge;
+
+    if (load_checkpoint) {
+      checkpoint_in(&tg, &g, bfs_roots);
+    } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
+  
+    if (!load_checkpoint) {
+      tg.edges = global_alloc<packed_edge>(desired_nedge);
+    
+      /* Make the raw graph edges. */
+      /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
+       * validator). */
+    
+      double start, stop;
+      start = timer();
+      {
+        make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+      }
+      stop = timer();
+      generation_time = stop - start;
+      LOG(INFO) << "graph_generation: " << generation_time;
+    
+      // construct graph
+      setup_bfs(&tg, &g, bfs_roots);
+    
+      if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
+    }
+
+    // watch out for profiling! check the tau 
+    Grappa::Statistics::reset();
+  
+    run_bfs(&tg, &g, bfs_roots);
+  
+
+    Grappa::Statistics::merge_and_print(std::cout);
+    fflush(stdout);
+  
+  //  free_graph_data_structure();
+  
+    Grappa::global_free(tg.edges);
+  
+    /* Print results. */
+    output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, NBFS, bfs_time, bfs_nedge);
+
+    t = timer() - t;
+    std::cout << "total_runtime: " << t << std::endl;
+  
+  });
+  Grappa::finalize();
+}

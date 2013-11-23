@@ -429,110 +429,103 @@ void full_verify() {
   VLOG(1) << "done";
 }
 
-void user_main(void * ignore) {
-  int             i, iteration, itemp;
-  
-  //  Printout initial NPB info 
-  printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
-  printf( "nkeys:       %ld  (class %c, 2^%d)\n", (long)nkeys, npb_class_char(npbclass), scale);
-  printf( "maxkey:      %ld (2^%d)\n", maxkey, log2maxkey);
-  printf( "niterations: %d\n", niterations);
-  printf( "cores:       %d\n", cores());
-
-  // Check to see whether total number of processes is within bounds.
-  if( cores() < MIN_PROCS || cores() > MAX_PROCS) {
-      printf( "\n ERROR: number of processes %d not within range %d-%d"
-             "\n Exiting program!\n\n", cores(), MIN_PROCS, MAX_PROCS);
-      return;
-  }
-
-  auto _key_array = Grappa::global_alloc<key_t>(nkeys);
-
-  // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
-  auto _bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
-
-  generation_time = Grappa::walltime();
-
-  // initialize all cores
-  call_on_all_cores([_key_array, _bucketlist]{
-    init_seed();
-    key_array = _key_array;
-    bucketlist = _bucketlist;
-  });
-
-  // Generate random number sequence and subsequent keys on all procs
-  // Note: the distribution should be roughly Gaussian
-  forall_localized(key_array, nkeys, [](int64_t i, key_t& key){
-    key = next_seq_element();
-  });
-  
-  // on_all_cores([]{
-  //   // Determine where the partial verify test keys are, load into top of array bucket_size
-  //   for (int i=0; i<TEST_ARRAY_SIZE; i++) {
-  //     partial_verify_vals[i] = delegate::read(key_array+test_index_array[npbclass][i]);
-  //   }
-  // });
-  
-  generation_time = Grappa::walltime() - generation_time;
-  std::cerr << "generation_time: " << generation_time << "\n";
-
-  // Do one interation for free (i.e., untimed) to guarantee initialization of  
-  // all data and code pages and respective tables
-  rank(0);
-  
-  if( npbclass != NPBClass::S ) printf( "\n   iteration\n" );
-
-  histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
-  
-  Statistics::reset_all_cores();
-
-  Statistics::start_tracing();
-  
-  total_time = Grappa::walltime();
-
-  // This is the main iteration
-  for( iteration=1; iteration<=niterations; iteration++ ) {
-      if (npbclass != NPBClass::S ) printf( "        %d\n", iteration );
-      rank( iteration );
-  }
-
-  total_time = Grappa::walltime() - total_time;
-
-  Statistics::stop_tracing();
-  Statistics::merge_and_print();
-  
-  std::cerr << "total_time: " << total_time << "\n";
-  std::cerr << "histogram_time: " << histogram_time << "\n";
-  std::cerr << "allreduce_time: " << allreduce_time << "\n";
-  std::cerr << "scatter_time: " << scatter_time << "\n";
-  std::cerr << "local_rank_time: " << local_rank_time << "\n";
-
-  if (!skip_verify) {
-    full_verify_time = Grappa::walltime();
-    full_verify();
-    full_verify_time = Grappa::walltime() - full_verify_time;
-    std::cerr << "full_verify_time: " << full_verify_time << "\n";
-  }
-  
-  std::cerr << "problem_size: " << nkeys << "\n";
-  
-  double mops = static_cast<double>(niterations)*nkeys/total_time/1e6;
-  std::cerr << "mops_total: " << mops << "\n";
-  std::cerr << "mops_per_process: " << mops/cores() << "\n";
-}
-
-static void parseOptions(int argc, char ** argv);
-
 int main(int argc, char* argv[]) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
+  Grappa::init(&argc, &argv);
   
   parseOptions(argc, argv);
   
-  Grappa_run_user_main(&user_main, (void*)NULL);
+  Grappa::run([]{
+    int             i, iteration, itemp;
   
-  Grappa_finish(0);
-  return 0;
+    //  Printout initial NPB info 
+    printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
+    printf( "nkeys:       %ld  (class %c, 2^%d)\n", (long)nkeys, npb_class_char(npbclass), scale);
+    printf( "maxkey:      %ld (2^%d)\n", maxkey, log2maxkey);
+    printf( "niterations: %d\n", niterations);
+    printf( "cores:       %d\n", cores());
+
+    // Check to see whether total number of processes is within bounds.
+    if( cores() < MIN_PROCS || cores() > MAX_PROCS) {
+        printf( "\n ERROR: number of processes %d not within range %d-%d"
+               "\n Exiting program!\n\n", cores(), MIN_PROCS, MAX_PROCS);
+        return;
+    }
+
+    auto _key_array = Grappa::global_alloc<key_t>(nkeys);
+
+    // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
+    auto _bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
+
+    generation_time = Grappa::walltime();
+
+    // initialize all cores
+    call_on_all_cores([_key_array, _bucketlist]{
+      init_seed();
+      key_array = _key_array;
+      bucketlist = _bucketlist;
+    });
+
+    // Generate random number sequence and subsequent keys on all procs
+    // Note: the distribution should be roughly Gaussian
+    forall_localized(key_array, nkeys, [](int64_t i, key_t& key){
+      key = next_seq_element();
+    });
+  
+    // on_all_cores([]{
+    //   // Determine where the partial verify test keys are, load into top of array bucket_size
+    //   for (int i=0; i<TEST_ARRAY_SIZE; i++) {
+    //     partial_verify_vals[i] = delegate::read(key_array+test_index_array[npbclass][i]);
+    //   }
+    // });
+  
+    generation_time = Grappa::walltime() - generation_time;
+    std::cerr << "generation_time: " << generation_time << "\n";
+
+    // Do one interation for free (i.e., untimed) to guarantee initialization of  
+    // all data and code pages and respective tables
+    rank(0);
+  
+    if( npbclass != NPBClass::S ) printf( "\n   iteration\n" );
+
+    histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
+  
+    Statistics::reset_all_cores();
+
+    Statistics::start_tracing();
+  
+    total_time = Grappa::walltime();
+
+    // This is the main iteration
+    for( iteration=1; iteration<=niterations; iteration++ ) {
+        if (npbclass != NPBClass::S ) printf( "        %d\n", iteration );
+        rank( iteration );
+    }
+
+    total_time = Grappa::walltime() - total_time;
+
+    Statistics::stop_tracing();
+    Statistics::merge_and_print();
+  
+    std::cerr << "total_time: " << total_time << "\n";
+    std::cerr << "histogram_time: " << histogram_time << "\n";
+    std::cerr << "allreduce_time: " << allreduce_time << "\n";
+    std::cerr << "scatter_time: " << scatter_time << "\n";
+    std::cerr << "local_rank_time: " << local_rank_time << "\n";
+
+    if (!skip_verify) {
+      full_verify_time = Grappa::walltime();
+      full_verify();
+      full_verify_time = Grappa::walltime() - full_verify_time;
+      std::cerr << "full_verify_time: " << full_verify_time << "\n";
+    }
+  
+    std::cerr << "problem_size: " << nkeys << "\n";
+  
+    double mops = static_cast<double>(niterations)*nkeys/total_time/1e6;
+    std::cerr << "mops_total: " << mops << "\n";
+    std::cerr << "mops_per_process: " << mops/cores() << "\n";
+  });
+  Grappa::finalize();
 }
 
 static void printHelp(const char * exe) {

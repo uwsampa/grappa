@@ -263,82 +263,77 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
-void user_main(void* ignore) {
-  call_on_all_cores([]{ Statistics::reset(); });
-
-  double t, rand_time;
-
-  LOG(INFO) << "### Sort Benchmark ###";
-  LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
-  LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
-  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
-
-  //LOG(INFO) << "iobufsize_mb = " << (double)BUFSIZE/(1L<<20);
-  LOG(INFO) << "block_size = " << block_size;
-
-  GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>(nelems);
-
-  char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%d.%d", scale, log2maxkey);
-  GrappaFile f(dirname, true);
-
-  if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
-    LOG(INFO) << "generating...";
-    t = Grappa::walltime();
-
-    // fill vector with random 64-bit integers
-    // forall_local<uint64_t,set_random>(array, nelems);
-    forall_localized(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
-
-    rand_time = Grappa::walltime() - t;
-    LOG(INFO) << "fill_random_time: " << rand_time;
-
-    //print_array("generated array", array, nelems);
-  }
-
-  if (write_to_disk || (read_from_disk && !fs::exists(dirname))) {
-    if (fs::exists(dirname)) fs::remove_all(dirname);
-
-    Grappa_save_array(f, true, array, nelems);
-  }
-
-  if (read_from_disk) {
-    Grappa::memset(array, (uint64_t)0, nelems);
-    Grappa_read_array(f, array, nelems);
-    //print_array("read array", array, nelems);
-  }
-
-  /////////
-  // sort
-  /////////
-  if (do_sort) {
-    bucket_sort(array, nelems, nbuckets);
-
-    // verify
-    size_t jump = nelems/17;
-    uint64_t prev;
-    for (size_t i=0; i<nelems; i+=jump) {
-      prev = 0;
-      for (size_t j=1; j<64 && (i+j)<nelems; j++) {
-        uint64_t curr = delegate::read(array+i+j);
-        CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
-        prev = curr;
-      }
-    }
-  }
-
-  Statistics::merge_and_print();
-}
-
 int main(int argc, char* argv[]) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
+  Grappa::init(&argc, &argv);
   
   parseOptions(argc, argv);
   
-  Grappa_run_user_main(&user_main, (void*)NULL);
-  
-  Grappa_finish(0);
-  return 0;
+  Grappa::run([]{
+    call_on_all_cores([]{ Statistics::reset(); });
+
+    double t, rand_time;
+
+    LOG(INFO) << "### Sort Benchmark ###";
+    LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
+    LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
+    LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
+
+    //LOG(INFO) << "iobufsize_mb = " << (double)BUFSIZE/(1L<<20);
+    LOG(INFO) << "block_size = " << block_size;
+
+    GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>(nelems);
+
+    char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%d.%d", scale, log2maxkey);
+    GrappaFile f(dirname, true);
+
+    if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
+      LOG(INFO) << "generating...";
+      t = Grappa::walltime();
+
+      // fill vector with random 64-bit integers
+      // forall_local<uint64_t,set_random>(array, nelems);
+      forall_localized(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
+
+      rand_time = Grappa::walltime() - t;
+      LOG(INFO) << "fill_random_time: " << rand_time;
+
+      //print_array("generated array", array, nelems);
+    }
+
+    if (write_to_disk || (read_from_disk && !fs::exists(dirname))) {
+      if (fs::exists(dirname)) fs::remove_all(dirname);
+
+      Grappa_save_array(f, true, array, nelems);
+    }
+
+    if (read_from_disk) {
+      Grappa::memset(array, (uint64_t)0, nelems);
+      Grappa_read_array(f, array, nelems);
+      //print_array("read array", array, nelems);
+    }
+
+    /////////
+    // sort
+    /////////
+    if (do_sort) {
+      bucket_sort(array, nelems, nbuckets);
+
+      // verify
+      size_t jump = nelems/17;
+      uint64_t prev;
+      for (size_t i=0; i<nelems; i+=jump) {
+        prev = 0;
+        for (size_t j=1; j<64 && (i+j)<nelems; j++) {
+          uint64_t curr = delegate::read(array+i+j);
+          CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
+          prev = curr;
+        }
+      }
+    }
+
+    Statistics::merge_and_print();
+  });
+  Grappa::finalize();
 }
 
 static void printHelp(const char * exe) {

@@ -243,93 +243,85 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   return res;
 }
 
-//void print_graph(csr_graph* g);
-//void print_array(const char * name, GlobalAddress<packed_edge> base, size_t nelem, int width);
-void user_main( int * ignore ) {
-  LOG(INFO) << "starting...";
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
+    LOG(INFO) << "starting...";
  
-  // to be assigned to stats output
-  double make_graph_time_SO, 
-         tuples_to_csr_time_SO, 
-         pagerank_time_SO;
-  uint64_t actual_nnz_SO;
+    // to be assigned to stats output
+    double make_graph_time_SO, 
+           tuples_to_csr_time_SO, 
+           pagerank_time_SO;
+    uint64_t actual_nnz_SO;
 
-  tuple_graph tg;
-  csr_graph unweighted_g;
-  uint64_t N = (1L<<FLAGS_scale);
+    tuple_graph tg;
+    csr_graph unweighted_g;
+    uint64_t N = (1L<<FLAGS_scale);
 
-  uint64_t desired_nnz = FLAGS_nnz_factor * N;
+    uint64_t desired_nnz = FLAGS_nnz_factor * N;
 
-  // results output
-  DictOut resultd;
+    // results output
+    DictOut resultd;
  
-  // initialize rng 
-  //init_random(); 
-  //userseed = 10;
+    // initialize rng 
+    //init_random(); 
+    //userseed = 10;
 
-  double time;
-  TIME(time, 
-    make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
-    //print_array("tuples", tg.edges, tg.nedge, 10);
-  );
-  LOG(INFO) << "make_graph: " << time;
-  make_graph_time_SO = time;
+    double time;
+    TIME(time, 
+      make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
+      //print_array("tuples", tg.edges, tg.nedge, 10);
+    );
+    LOG(INFO) << "make_graph: " << time;
+    make_graph_time_SO = time;
   
 
-  TIME(time,
-    create_graph_from_edgelist(&tg, &unweighted_g);
-  );
-  LOG(INFO) << "tuple->csr: " << time;
-  tuples_to_csr_time_SO = time;
-  actual_nnz_SO = unweighted_g.nadj;
-  //print_graph( &unweighted_g ); 
-  LOG(INFO) << "final matrix has " << static_cast<double>(actual_nnz_SO)/N << " avg nonzeroes/row";
+    TIME(time,
+      create_graph_from_edgelist(&tg, &unweighted_g);
+    );
+    LOG(INFO) << "tuple->csr: " << time;
+    tuples_to_csr_time_SO = time;
+    actual_nnz_SO = unweighted_g.nadj;
+    //print_graph( &unweighted_g ); 
+    LOG(INFO) << "final matrix has " << static_cast<double>(actual_nnz_SO)/N << " avg nonzeroes/row";
 
-  // add weights to the csr graph
-  weighted_csr_graph g( unweighted_g );
-  g.adjweight = Grappa::global_alloc<double>(g.nadj);
-  forall_localized( g.adjweight, g.nadj, [](int64_t i, double& w) {
-    // TODO random
-    w = 0.2f;
+    // add weights to the csr graph
+    weighted_csr_graph g( unweighted_g );
+    g.adjweight = Grappa::global_alloc<double>(g.nadj);
+    forall_localized( g.adjweight, g.nadj, [](int64_t i, double& w) {
+      // TODO random
+      w = 0.2f;
+    });
+
+    // print the matrix if it is small 
+    if ( g.nv <= 16 ) { 
+      //matrix_out( &g, std::cerr, false); 
+      //matrix_out( &g, std::cout, true );
+    }
+
+    Grappa::Statistics::reset();
+    Grappa::Statistics::start_tracing();
+
+    pagerank_result result;
+    TIME(time,
+      result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
+    );
+    pagerank_time_SO = time;
+    Grappa::Statistics::stop_tracing();
+
+    // output stats
+    make_graph_time   = make_graph_time_SO;
+    tuples_to_csr_time = tuples_to_csr_time_SO;
+    actual_nnz        = actual_nnz_SO;
+    pagerank_time     = pagerank_time_SO;
+    Grappa::Statistics::merge_and_print();
+
+    vector rank = result.ranks;
+    vindex which = result.which;
+
+    // TODO: print out pagerank stats, like mean, median, min, max
+    // could also print out random sample of them for verify
+    //if ( rank.length <= 16 ) vector_out( &rank, std::cout );
   });
-
-  // print the matrix if it is small 
-  if ( g.nv <= 16 ) { 
-    //matrix_out( &g, std::cerr, false); 
-    //matrix_out( &g, std::cout, true );
-  }
-
-  Grappa::Statistics::reset();
-  Grappa::Statistics::start_tracing();
-
-  pagerank_result result;
-  TIME(time,
-    result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
-  );
-  pagerank_time_SO = time;
-  Grappa::Statistics::stop_tracing();
-
-  // output stats
-  make_graph_time   = make_graph_time_SO;
-  tuples_to_csr_time = tuples_to_csr_time_SO;
-  actual_nnz        = actual_nnz_SO;
-  pagerank_time     = pagerank_time_SO;
-  Grappa::Statistics::merge_and_print();
-
-  vector rank = result.ranks;
-  vindex which = result.which;
-
-  // TODO: print out pagerank stats, like mean, median, min, max
-  // could also print out random sample of them for verify
-  //if ( rank.length <= 16 ) vector_out( &rank, std::cout );
-}
-
-/// Main() entry
-int main (int argc, char** argv) {
-    Grappa_init( &argc, &argv ); 
-    Grappa_activate();
-
-    Grappa_run_user_main( &user_main, (int*)NULL );
-    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-    Grappa_finish( 0 );
+  Grappa::finalize();
 }
