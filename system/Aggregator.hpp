@@ -209,12 +209,12 @@ public:
 /// Header for aggregated active messages.
 struct AggregatorGenericCallHeader {
   uintptr_t function_pointer;
-  Node destination;
+  Core destination;
   uint16_t args_size;
   uint16_t payload_size;
 #ifdef GRAPPA_TRACE
 // TODO: really don't want this transmitted even in tracing
-  Node source;
+  Core source;
 #endif
 #ifdef VTRACE_FULL
 // TODO: really don't want this transmitted even in tracing
@@ -312,7 +312,7 @@ private:
   int aggregator_deaggregate_am_handle_;
 
   /// routing table for hierarchical aggregation
-  std::vector< Node > route_map_;
+  std::vector< Core > route_map_;
 
 #ifdef VTRACE_FULL
   /// Vampir trace message metadata
@@ -363,20 +363,20 @@ public:
   void finish();
 
   /// route map lookup for hierarchical aggregation
-  inline Node get_target_for_node( Node n ) const {
+  inline Core get_target_for_node( Core n ) const {
     return route_map_[ n ];
   }
 
   /// route map update for hierarchical aggregation
-  inline void update_target_for_node( Node node, Node target ) {
+  inline void update_target_for_node( Core node, Core target ) {
     route_map_[ node ] = target;
   }
 
   /// send aggregated messages for node
-  inline void flush( Node node ) {
+  inline void flush( Core node ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     DVLOG(5) << "flushing node " << node;
-    Node target = route_map_[ node ];
+    Core target = route_map_[ node ];
     stats.record_flush( buffers_[ target ].oldest_ts_, buffers_[ target ].newest_ts_ );
     global_communicator.send( target,
                               aggregator_deaggregate_am_handle_,
@@ -398,7 +398,7 @@ public:
     if( FLAGS_flush_on_idle ) {
       while ( !least_recently_sent_.empty() ) {
         stats.record_idle_flush();
-        DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
+        DVLOG(5) << "idle flush Core " << least_recently_sent_.top_key();
         flush(least_recently_sent_.top_key());
       }
     }
@@ -467,8 +467,8 @@ public:
   inline const size_t max_size() const { return buffer_size_; }
 
   /// how much space is available for aggregation to this destination?
-  inline const size_t remaining_size( Node destination ) const { 
-    Node target = get_target_for_node( destination );
+  inline const size_t remaining_size( Core destination ) const { 
+    Core target = get_target_for_node( destination );
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
@@ -481,7 +481,7 @@ public:
   ///  @param args_size size in bytes of arg struct
   ///  @param payload pointer to payload buffer
   ///  @param payload_size size in bytes of payload buffer
-  inline void aggregate( Node destination, AggregatorAMHandler fn_p,
+  inline void aggregate( Core destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -489,7 +489,7 @@ public:
     VT_TRACER("aggregate");
 #endif
     CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
-    Node target = get_target_for_node( destination );
+    Core target = get_target_for_node( destination );
     CHECK( target < max_nodes_ ) << "target:" << target << " max_nodes_:" << max_nodes_;
 
     // make sure arg struct and payload aren't too big.
@@ -508,7 +508,7 @@ public:
 					   static_cast<uint16_t>(args_size),
 					   static_cast<uint16_t>(payload_size)
 #ifdef GRAPPA_TRACE
-					   , global_communicator.mynode()
+					   , global_communicator.mycore()
 #endif
 #ifdef VTRACE_FULL
 					   , tag_
@@ -567,7 +567,7 @@ public:
   least_recently_sent_.update_or_insert( target, -ts );
   previous_timestamp_ = ts;
 #ifdef VTRACE_FULL
-  tag_ += global_communicator.mynode();
+  tag_ += global_communicator.mycore();
 #endif
   DVLOG(5) << "aggregated " << header;
 }
@@ -607,7 +607,7 @@ extern Aggregator global_aggregator;
 ///  @param payload pointer to payload buffer
 ///  @param payload_size size in bytes of payload buffer
 template< typename ArgsStruct >
-inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+inline void Grappa_call_on( Core destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                               const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                               const void * payload = NULL, const size_t payload_size = 0)
 {
@@ -640,7 +640,7 @@ inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t
 /// different payload type.
 /// TODO: deprecated. remove this.
 template< typename ArgsStruct, typename PayloadType >
-inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+inline void Grappa_call_on_x( Core destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {

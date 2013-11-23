@@ -226,7 +226,7 @@ namespace Grappa {
 #warning RDMA Aggregator is bypassed!
 #endif
 #ifdef ENABLE_RDMA_AGGREGATOR
-      //cores_.resize( global_communicator.nodes() );
+      //cores_.resize( global_communicator.cores() );
       mycore_ = global_communicator.mycore();
       mynode_ = -1; // gasnet supernode
       total_cores_ = global_communicator.cores();

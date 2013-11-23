@@ -15,8 +15,8 @@
 namespace Grappa {
   namespace impl {
 
-// forward declaration of Grappa Node
-typedef int16_t Node;
+// forward declaration of Grappa Core
+typedef int16_t Core;
 
 /// Represents work to be done. 
 /// A function pointer and 3 64-bit arguments.
@@ -111,7 +111,7 @@ class TaskManagerStatistics {
 /// Keeps track of tasks, pairing workers with tasks, and load balancing.
 class TaskManager {
   private:
-    /// queue for tasks assigned specifically to this Node
+    /// queue for tasks assigned specifically to this Core
     std::deque<Task> privateQ; 
 
     /// indicates that all tasks *should* be finished
@@ -120,7 +120,7 @@ class TaskManager {
 
 
     /// machine-local id (to support hierarchical dynamic load balancing)
-    Node localId;
+    Core localId;
 
     bool all_terminate;
 
@@ -142,10 +142,10 @@ class TaskManager {
     bool gqPullLock;     // global queue pull lock
 
     /// local neighbors (to support hierarchical dynamic load balancing)
-    Node* neighbors;
+    Core* neighbors;
 
-    /// number of Nodes on local machine (to support hierarchical dynamic load balancing)
-    Node numLocalNodes;
+    /// number of Cores on local machine (to support hierarchical dynamic load balancing)
+    Core numLocalNodes;
 
     /// next victim to steal from (for selection by pseudo-random permutation)
     int64_t nextVictimIndex;
@@ -164,7 +164,7 @@ class TaskManager {
     /// @return true if local shared queue has elements
     bool publicHasEle() const;
 
-    /// @return true if Node-private queue has elements
+    /// @return true if Core-private queue has elements
     bool privateHasEle() const {
       return !privateQ.empty();
     }
@@ -192,9 +192,9 @@ class TaskManager {
   public:
 
 
-    //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+    //TaskManager (bool doSteal, Core localId, Core* neighbors, Core numLocalNodes, int chunkSize, int cbint);
     TaskManager();
-    void init (Node localId, Node* neighbors, Node numLocalNodes);
+    void init (Core localId, Core* neighbors, Core numLocalNodes);
     void activate();
 
     /// @return true if work is considered finished and

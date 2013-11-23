@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     task_barrier = new CompletionEvent(2);
     task_signal = new CompletionEvent(1);
 
-    BOOST_CHECK( Grappa_nodes() == 1 );
+    BOOST_CHECK( Grappa::cores() == 1 );
     BOOST_CHECK( FLAGS_lines <= MAX_ARRAY_SIZE );
       privateTask( [] {
 

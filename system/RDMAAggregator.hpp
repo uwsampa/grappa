@@ -61,7 +61,7 @@ extern double tick_rate;
 
 namespace Grappa {
 
-  typedef Node Core;
+  typedef Core Core;
 
   /// Internal messaging functions
   namespace impl {
@@ -199,7 +199,7 @@ namespace Grappa {
     public:
       
       Core mycore_;
-      Node mynode_;
+      Core mynode_;
       Core cores_per_node_;
       Core total_cores_;
 

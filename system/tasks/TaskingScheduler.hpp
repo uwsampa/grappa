@@ -155,7 +155,7 @@ class TaskingScheduler : public Scheduler {
 #endif
         }
 
-        if( ( global_communicator.mynode() == 0 ) &&
+        if( ( global_communicator.mycore() == 0 ) &&
             ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
           prev_stats_blob_ts = current_ts;
           
@@ -312,13 +312,13 @@ class TaskingScheduler : public Scheduler {
 
     /// Set allowed active workers to allow `n` more workers than are active now, or if '-1'
     /// is specified, allow all workers to be active.
-    /// (this is mostly to make Node 0 with user_main not get forced to have fewer active)
+    /// (this is mostly to make Core 0 with user_main not get forced to have fewer active)
     void allow_active_workers(int64_t n) {
       if (n == -1) {
         max_allowed_active_workers = num_workers;
       } else {
-        //VLOG(1) << "mynode = " << global_communicator.mynode();
-        max_allowed_active_workers = n + ((global_communicator.mynode() == 0) ? 1 : 0);
+        //VLOG(1) << "mynode = " << global_communicator.mycore();
+        max_allowed_active_workers = n + ((global_communicator.mycore() == 0) ? 1 : 0);
       }
     }
 

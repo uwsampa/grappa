@@ -161,7 +161,7 @@ void run(FP fp) {
   //Grappa_take_profiling_sample();
 #endif
 
-  if( global_communicator.mynode() == 0 ) {
+  if( global_communicator.mycore() == 0 ) {
     CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
@@ -200,7 +200,7 @@ void run(FP fp) {
 
 /// @deprecated see Grappa::privateTask()
 ///
-/// Spawn a task visible to this Node only
+/// Spawn a task visible to this Core only
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -221,7 +221,7 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
 
 /// @deprecated see Grappa::privateTask()
 /// 
-/// Spawn a task visible to this Node only
+/// Spawn a task visible to this Core only
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -237,7 +237,7 @@ void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
 
 /// @deprecated see Grappa::privateTask()
 ///
-/// Spawn a task visible to this Node only
+/// Spawn a task visible to this Core only
 ///
 /// @tparam A0 type of first task argument
 ///
@@ -251,7 +251,7 @@ inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
 /// @deprecated see Grappa::publicTask()
 ///
 /// Spawn a task to the global task pool.
-/// That is, it can potentially be executed on any Node.
+/// That is, it can potentially be executed on any Core.
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -274,7 +274,7 @@ void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2)
 /// @deprecated see Grappa::publicTask
 ///
 /// Spawn a task to the global task pool.
-/// That is, it can potentially be executed by any Node.
+/// That is, it can potentially be executed by any Core.
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -291,7 +291,7 @@ void Grappa_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
 /// @deprecated see Grappa::publicTask
 ///
 /// Spawn a task to the global task pool.
-/// That is, it can potentially be executed by any Node.
+/// That is, it can potentially be executed by any Core.
 ///
 /// @tparam A0 type of first task argument
 ///
@@ -342,7 +342,7 @@ struct remote_task_spawn_args {
 };
 
 /// Grappa Active message for 
-/// void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0, A1, A2, Node)
+/// void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0, A1, A2, Core)
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -352,7 +352,7 @@ static void remote_task_spawn_am( remote_task_spawn_args<A0,A1,A2> * args, size_
   Grappa::impl::global_task_manager.spawnRemotePrivate(args->fn_p, args->arg0, args->arg1, args->arg2 );
 }
 
-/// Spawn a private task on another Node
+/// Spawn a private task on another Core
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -362,19 +362,19 @@ static void remote_task_spawn_am( remote_task_spawn_args<A0,A1,A2> * args, size_
 /// @param arg0 first task argument
 /// @param arg1 second task argument
 /// @param arg2 third task argument
-/// @param target Node to spawn the task on
+/// @param target Core to spawn the task on
 template< typename A0, typename A1, typename A2 >
-void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2, Node target) {
+void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2, Core target) {
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
 
   remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
   Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
-  DVLOG(5) << "Sent AM to spawn private task on Node " << target;
+  DVLOG(5) << "Sent AM to spawn private task on Core " << target;
 }
 
-/// Spawn a private task on another Node
+/// Spawn a private task on another Core
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -382,21 +382,21 @@ void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg
 /// @param fn_p function pointer for the new task
 /// @param args first task argument
 /// @param shared_arg second task argument
-/// @param target Node to spawn the task on
+/// @param target Core to spawn the task on
 template< typename A0, typename A1 >
-void Grappa_remote_privateTask( void (*fn_p)(A0,A1), A0 args, A1 shared_arg, Node target) {
+void Grappa_remote_privateTask( void (*fn_p)(A0,A1), A0 args, A1 shared_arg, Core target) {
   Grappa_remote_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), args, shared_arg, (void*)NULL, target);
 }
 
-/// Spawn a private task on another Node
+/// Spawn a private task on another Core
 ///
 /// @tparam A type of first task argument
 ///
 /// @param fn_p function pointer for the new task
 /// @param args first task argument
-/// @param target Node to spawn the task on
+/// @param target Core to spawn the task on
 template< typename A >
-void Grappa_remote_privateTask( void (*fn_p)(A), A args, Node target) {
+void Grappa_remote_privateTask( void (*fn_p)(A), A args, Core target) {
   Grappa_remote_privateTask(reinterpret_cast<void (*)(A,void*)>(fn_p), args, (void*)NULL, target);
 }
 

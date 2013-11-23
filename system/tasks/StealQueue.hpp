@@ -47,9 +47,9 @@ DECLARE_int32( chunk_size );
 
 
 
-/// Type for Node ID. 
+/// Type for Core ID. 
 #include <boost/cstdint.hpp>
-typedef int16_t Node;
+typedef int16_t Core;
 
 /// Forward declare for steal_locally
 class Worker;
@@ -135,10 +135,10 @@ template <typename T>
 
       // work stealing 
       void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
-      void steal_request( int k, Node from );
+      void steal_request( int k, Core from );
 
       // work sharing
-      /// void workShareRequest( uint64_t remoteSize, Node from, T * data, int num );
+      /// void workShareRequest( uint64_t remoteSize, Core from, T * data, int num );
       /// void workShareReplyFewer( int amountDenied );
       /// void workShareReplyGreater( int amountGiven, T * data );
 
@@ -248,7 +248,7 @@ template <typename T>
       int64_t steal_locally( Core victim, int64_t max_steal );
 
       // work sharing API
-      /// int64_t workShare( Node target, uint64_t amount );
+      /// int64_t workShare( Core target, uint64_t amount );
 
       // global queue API
       /// uint64_t pull_global();
@@ -325,7 +325,7 @@ uint64_t StealQueue<T>::topPosn() const
 extern TaskingScheduler global_scheduler;
 // void Grappa_suspend();
 // void Grappa_wake( Thread * );
-// Node Grappa_mynode();
+// Core Grappa::mycore();
 
 // bunch of static state for workshare and global queue
 // Porting should remove this
@@ -338,15 +338,15 @@ static bool pendingWorkShare = false;
 static bool pendingGlobalPush = false;
           
 
-/// Steal elements from the StealQueue<T> located at the victim Node.
+/// Steal elements from the StealQueue<T> located at the victim Core.
 /// @tparam T type of the queue elements
-/// @param victim target Node to steal from
+/// @param victim target Core to steal from
 /// @param max_steal max steal amount
 /// 
 /// @return amount stolen
 template <typename T>
 int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
-  Core origin = global_communicator.mynode();
+  Core origin = global_communicator.mycore();
   CHECK( victim != origin ) << "Cannot steal from self";
   
   // if the bottom of the stack is not currently claimed
@@ -463,14 +463,14 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 /// struct workShareRequest_args {
 ///   uint64_t queueSize;
 ///   uint64_t amountPushed;
-///   Node from;
+///   Core from;
 /// };
 /// 
 /// // returns change in number of elements
 /// template <typename T>
-/// int64_t StealQueue<T>::workShare( Node target, uint64_t amount ) {
+/// int64_t StealQueue<T>::workShare( Core target, uint64_t amount ) {
 ///   CHECK( !pendingWorkShare ) << "Implementation allows only one pending workshare per node";
-///   CHECK( global_communicator.mynode() != target ) << "cannot workshare with self target: " << target;
+///   CHECK( global_communicator.mycore() != target ) << "cannot workshare with self target: " << target;
 ///   CHECK( amount <= bufsize ) << "Only support single-packet transfers";
 /// 
 ///   uint64_t mySize = depth();
@@ -496,7 +496,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 /// 
 ///   DVLOG(5) << "Initiating work share: target=" << target << ", mySize=" << mySize << ", amount=" << amount << ", new bottom=" << bottom;
 /// 
-///   workShareRequest_args args = { mySize, amount, global_communicator.mynode() };
+///   workShareRequest_args args = { mySize, amount, global_communicator.mycore() };
 ///   Grappa_call_on( target, StealQueue<T>::workShareRequest_am, &args, sizeof(args), xfer_start, amount * sizeof(T) ); // FIXME: call_on deprecated
 ///   size_t msg_size = Grappa_sizeof_message( &args, sizeof(args), xfer_start, amount * sizeof(T) );
 ///   StealStatistics::record_workshare_request( msg_size );
@@ -618,7 +618,7 @@ void StealQueue<T>::reclaimSpace() {
 /// }
 /// 
 /// template <typename T>
-/// void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, int num ) {
+/// void StealQueue<T>::workShareRequest( uint64_t remoteSize, Core from, T * data, int num ) {
 ///   uint64_t mySize = depth();
 /// 
 ///   reclaimSpace();

@@ -52,7 +52,7 @@ void user_main( user_main_args * args )
         task1_arg t1_arg = { make_global( &sem ), i };
         BLOG( "remote-spawn " << i );
 
-        // spawn the task on Node 1
+        // spawn the task on Core 1
         Grappa_remote_privateTask( &task1_f_CA, make_global( &t1_arg ), 1 );
 
         // block until task is finished

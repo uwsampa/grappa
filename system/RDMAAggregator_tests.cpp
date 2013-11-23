@@ -249,7 +249,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
             local_ce.enroll( expected_messages_per_core );
             LOG(INFO) << "Core " << Grappa::mycore() << " waiting for " << local_ce.get_count() << " updates.";
 
-            Grappa_barrier_suspending();
+            Grappa::barrier();
 
 
             if( FLAGS_disable_sending ) {
@@ -303,7 +303,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
             local_ce.wait();
 
-            Grappa_barrier_suspending();
+            Grappa::barrier();
 
             BOOST_CHECK_EQUAL( local_count, expected_messages_per_core );
             CHECK_EQ( local_count, expected_messages_per_core ) << "Local message delivery";
@@ -502,7 +502,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           local_count = 0;
           local_ce.enroll( expected_messages_per_core );
 
-          Grappa_barrier_suspending();
+          Grappa::barrier();
 
           if( FLAGS_disable_sending ) {
             // keep aggregator from polling during sends or flushing for a bit.
@@ -593,7 +593,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
             Grappa::impl::global_rdma_aggregator.disable_everything_ = false;
           }
         
-          Grappa_barrier_suspending();
+          Grappa::barrier();
 
           BOOST_CHECK_EQUAL( local_count, expected_messages_per_core );
           CHECK_EQ( local_count, expected_messages_per_core ) << "Remote message distribution";
@@ -655,7 +655,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           const Core locale_core = Grappa::mylocale() * Grappa::locale_cores();
           const Core source_core = Grappa::mycore();
 
-          Grappa_barrier_suspending();
+          Grappa::barrier();
 
           // if we are a communicating core
           if( i_am_sender ) {
@@ -751,7 +751,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           // wait for all completions.
           local_ce.wait();
         
-          Grappa_barrier_suspending();
+          Grappa::barrier();
         
 
           BOOST_CHECK_EQUAL( local_count, expected_messages_per_core );

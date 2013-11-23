@@ -140,9 +140,9 @@ void user_main( void * args )
     Grappa::ConditionVariable * cvp = &cv;
 
     auto m6 = Grappa::send_heap_message( 1, [cvp] { 
-        BOOST_CHECK_EQUAL( Grappa_mynode(), 1 );
+        BOOST_CHECK_EQUAL( Grappa::mycore(), 1 );
         auto m6a = Grappa::send_heap_message( 0, [cvp] {
-            BOOST_CHECK_EQUAL( Grappa_mynode(), 0 );
+            BOOST_CHECK_EQUAL( Grappa::mycore(), 0 );
             Grappa::signal( cvp );
           } );
         Grappa_flush( 0 );

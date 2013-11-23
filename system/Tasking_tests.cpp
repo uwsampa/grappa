@@ -13,9 +13,9 @@
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
 
 //
-// Basic test of Grappa running on two Nodes: run user main, and spawning local tasks, local task joiner
+// Basic test of Grappa running on two Cores: run user main, and spawning local tasks, local task joiner
 //
-// This test spawns a few private tasks that do delegate operations to Node 1
+// This test spawns a few private tasks that do delegate operations to Core 1
 
 int num_tasks = 8;
 int64_t num_finished=0;
@@ -36,7 +36,7 @@ void task1_f( task1_arg * arg ) {
     Grappa_yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
 
-    // int fetch add to address on Node1
+    // int fetch add to address on Core1
     int64_t result = Grappa_delegate_fetch_and_add_word( nf_addr, 1 );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
     if ( result == num_tasks-1 ) {

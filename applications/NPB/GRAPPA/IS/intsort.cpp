@@ -559,7 +559,7 @@ static void parseOptions(int argc, char ** argv) {
   // at least 2*num_nodes buckets by default
   nbuckets = 2;
   log2buckets = 1;
-  Node nodes = Grappa_nodes();
+  Core nodes = Grappa::cores();
   while (nbuckets < nodes) {
     nbuckets <<= 1;
     log2buckets++;

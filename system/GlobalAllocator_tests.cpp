@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   //    LOG(INFO) << *global_allocator;
 
-      if( Grappa_mynode() == 0 ) {
+      if( Grappa::mycore() == 0 ) {
         BOOST_CHECK_EQUAL( global_allocator->total_bytes(), local_size_bytes );
         BOOST_CHECK_EQUAL( global_allocator->total_bytes_in_use(), 1 + 8 + 8 + 1 );
       }

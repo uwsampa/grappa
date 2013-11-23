@@ -13,7 +13,7 @@
 
 /// This test suite tests the task cache wrappers defined in Cache.hpp.
 /// These functions wrap a task function pointer to take care of caching
-/// arguments from the original Node.
+/// arguments from the original Core.
 /// There are two variations, declare the wrapped function or pass it in inline.
 
 
@@ -68,7 +68,7 @@ void user_main( user_main_args * args )
 {
     BOOST_MESSAGE( "pointer RW, declared" );
     {
-        for ( Node i=0; i<2; i++ ) {
+        for ( Core i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
             Grappa_remote_privateTask( &pointer_task_f_CW, make_global( &args ), i );
@@ -80,7 +80,7 @@ void user_main( user_main_args * args )
     
 //    BOOST_MESSAGE( "pointer RW, callsite" );
 //    {
-//        for ( Node i=0; i<2; i++ ) {
+//        for ( Core i=0; i<2; i++ ) {
 //            phore sem( 1, 0 );
 //            task_arg args = { 1, make_global( &sem ) };
 //            Grappa_remote_privateTask( CACHE_WRAP( &pointer_task_f, &args ), i );
@@ -91,7 +91,7 @@ void user_main( user_main_args * args )
     
     BOOST_MESSAGE( "ref RW, declared" );
     {
-        for ( Node i=0; i<2; i++ ) {
+        for ( Core i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
             Grappa_remote_privateTask( &ref_task_f_CW, make_global( &args ), i );
@@ -103,7 +103,7 @@ void user_main( user_main_args * args )
     
 //    BOOST_MESSAGE( "ref RW, callsite" );
 //    {
-//        for ( Node i=0; i<2; i++ ) {
+//        for ( Core i=0; i<2; i++ ) {
 //            Semaphore sem( 1, 0 );
 //            task_arg args = { 1, make_global( &sem ) };
 //            Grappa_remote_privateTask( CACHE_WRAP( &ref_task_f, &args ), i );
@@ -114,7 +114,7 @@ void user_main( user_main_args * args )
     
     BOOST_MESSAGE( "pointer RO, declared" );
     {
-        for ( Node i=0; i<2; i++ ) {
+        for ( Core i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
             Grappa_remote_privateTask( &c_pointer_task_f_CW, make_global( &args ), i );
@@ -125,7 +125,7 @@ void user_main( user_main_args * args )
     
     BOOST_MESSAGE( "ref RO, declared" );
     {
-        for ( Node i=0; i<2; i++ ) {
+        for ( Core i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
             Grappa_remote_privateTask( &c_ref_task_f_CW, make_global( &args ), i );

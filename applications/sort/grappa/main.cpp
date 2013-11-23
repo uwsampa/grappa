@@ -112,7 +112,7 @@ bool do_sort;
 inline uint64_t next_random() {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
-  static engine_t engine(12345L*Grappa_mynode());
+  static engine_t engine(12345L*Grappa::mycore());
   static gen_t gen(engine, dist_t(0, maxkey));
   return gen();
 }
@@ -146,7 +146,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
     GlobalAddress<bucket_t> bi = bucketlist+i;
-    VLOG(1) << "bucket[" << i << "] on Node " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
+    VLOG(1) << "bucket[" << i << "] on Core " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
   }
 #endif
 
@@ -373,7 +373,7 @@ static void parseOptions(int argc, char ** argv) {
   // at least 2*num_nodes buckets by default
   nbuckets = 2;
   log2buckets = 1;
-  Node nodes = Grappa_nodes();
+  Core nodes = Grappa::cores();
   while (nbuckets < nodes) {
     nbuckets <<= 1;
     log2buckets++;

@@ -39,7 +39,7 @@ namespace Grappa {
 
   namespace impl {
 
-/// global TaskingScheduler for this Node
+/// global TaskingScheduler for this Core
 TaskingScheduler global_scheduler;
 
 /// Create uninitialized TaskingScheduler.

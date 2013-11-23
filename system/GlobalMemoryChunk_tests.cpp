@@ -31,9 +31,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   
   BOOST_MESSAGE( "Base pointer is " << base );
 
-  size = local_size_bytes * Grappa_nodes() / sizeof(int64_t);
+  size = local_size_bytes * Grappa::cores() / sizeof(int64_t);
 
-  BOOST_CHECK_EQUAL( Grappa_nodes(), 2 );
+  BOOST_CHECK_EQUAL( Grappa::cores(), 2 );
 
   DVLOG(1) << "Spawning user main Thread....";
   

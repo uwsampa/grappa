@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
     
-    BOOST_CHECK_EQUAL( 2, Grappa_nodes() );
+    BOOST_CHECK_EQUAL( 2, Grappa::cores() );
     // try read
     some_data = 1111;
     int64_t remote_data = delegate::read( make_global(&some_data,1) );

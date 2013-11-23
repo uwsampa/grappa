@@ -46,13 +46,13 @@ int finalize();
 }
 
 /// pointer to parent pthread
-extern Thread * master_thread;
+extern Worker * master_thread;
 
 /// for convenience/brevity, define macro to get current thread/worker
 /// pointer
 #define CURRENT_THREAD Grappa::impl::global_scheduler.get_current_thread()
 
-extern Node * node_neighbors;
+extern Core * node_neighbors;
 
 void Grappa_init( int * argc_p, char ** argv_p[], size_t size = -1 );
 
@@ -63,138 +63,58 @@ int Grappa_finish( int retval );
 
 
 ///
-/// Thread management routines
+/// Worker management routines
 ///
 
-/// Yield to scheduler, placing current Thread on run queue.
+/// Yield to scheduler, placing current Worker on run queue.
 static inline void Grappa_yield( )
 {
   /*bool immed =*/ Grappa::impl::global_scheduler.thread_yield( );
 }
 
-/// Yield to scheduler, placing current Thread on periodic queue.
+/// Yield to scheduler, placing current Worker on periodic queue.
 static inline void Grappa_yield_periodic( )
 {
   /*bool immed =*/ Grappa::impl::global_scheduler.thread_yield_periodic( );
 }
 
-/// Yield to scheduler, suspending current Thread.
+/// Yield to scheduler, suspending current Worker.
 static inline void Grappa_suspend( )
 {
-  DVLOG(5) << "suspending Thread " << Grappa::impl::global_scheduler.get_current_thread() << "(# " << Grappa::impl::global_scheduler.get_current_thread()->id << ")";
+  DVLOG(5) << "suspending Worker " << Grappa::impl::global_scheduler.get_current_thread() << "(# " << Grappa::impl::global_scheduler.get_current_thread()->id << ")";
   Grappa::impl::global_scheduler.thread_suspend( );
-  //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
+  //CHECK_EQ(retval, 0) << "Worker " << th1 << " suspension failed. Have the server threads exited?";
 }
 
-/// Wake a Thread by putting it on the run queue, leaving the current thread running.
-static inline void Grappa_wake( Thread * t )
+/// Wake a Worker by putting it on the run queue, leaving the current thread running.
+static inline void Grappa_wake( Worker * t )
 {
-  DVLOG(5) << Grappa::impl::global_scheduler.get_current_thread()->id << " waking Thread " << t;
+  DVLOG(5) << Grappa::impl::global_scheduler.get_current_thread()->id << " waking Worker " << t;
   Grappa::impl::global_scheduler.thread_wake( t );
 }
 
-/// Wake a Thread t by placing current thread on run queue and running t next.
-static inline void Grappa_yield_wake( Thread * t )
+/// Wake a Worker t by placing current thread on run queue and running t next.
+static inline void Grappa_yield_wake( Worker * t )
 {
-  DVLOG(5) << "yielding Thread " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+  DVLOG(5) << "yielding Worker " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
   Grappa::impl::global_scheduler.thread_yield_wake( t );
 }
 
-/// Wake a Thread t by suspending current thread and running t next.
-static inline void Grappa_suspend_wake( Thread * t )
+/// Wake a Worker t by suspending current thread and running t next.
+static inline void Grappa_suspend_wake( Worker * t )
 {
-  DVLOG(5) << "suspending Thread " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+  DVLOG(5) << "suspending Worker " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
   Grappa::impl::global_scheduler.thread_suspend_wake( t );
 }
 
 /// Place current thread on queue to be reused by tasking layer as a worker.
-/// @deprecated should not be in the public API because it is a Thread-level not Task-level routine
+/// @deprecated should not be in the public API because it is a Worker-level not Task-level routine
 static inline bool Grappa_thread_idle( )
 {
-  DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread()->id << " going idle";
+  DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread()->id << " going idle";
   return Grappa::impl::global_scheduler.thread_idle( );
 }
 
-
-///
-/// Query job info
-///
-
-/// How many nodes are there?
-static inline Node Grappa_nodes() {
-  return global_communicator.nodes();
-}
-
-/// What is my node?
-static inline Node Grappa_mynode() {
-  return global_communicator.mynode();
-}
-
-
-///
-/// Communication utilities
-///
-
-/// Enter global barrier.
-static inline void Grappa_barrier() {
-  global_communicator.barrier();
-}
-
-/// Enter global barrier that is poller safe
-static inline void Grappa_barrier_commsafe() {
-    global_communicator.barrier_notify();
-    while (!global_communicator.barrier_try()) {
-        Grappa_yield();
-    }
-}
-
-GRAPPA_DEPRECATED void Grappa_barrier_suspending();
-
-
-
-
-/// Spawn a user function. TODO: get return values working
-/// TODO: remove Thread * arg
-Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args );
-
-template< typename T >
-Thread * Grappa_template_spawn( void (* fn_p)(Thread *, T *), T * args )
-{
-  typedef void (* fn_t)(Thread *, void *);
-
-  Thread * th = Grappa_spawn( (fn_t)fn_p, (void *)args );
-  DVLOG(5) << "Spawned Thread " << th;
-  return th;
-}
-
-/// Active message for spawning a Thread on a remote node (used by Grappa_remote_spawn())
-template< typename T >
-static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size) {
-  typedef void (*thread_fn)(Thread*,T*);
-  void (*fn_p)(Thread*,T*) = *reinterpret_cast<thread_fn*>(payload);
-  T* aa = new T;
-  *aa = *args;
-  Grappa_template_spawn(fn_p, aa);
-}
-
-/// Spawn a user Thread on a remote node. Copies the passed arguments 
-/// to the remote node.
-/// Note: the Thread function should take ownership of the arguments 
-/// and clean them up at the end of the function call.
-template< typename T >
-void Grappa_remote_spawn( void (*fn_p)(Thread*,T*), const T* args, Node target) {
-  // typedef void (*am_t)(T*,size_t,void*,size_t);
-  // am_t a = &am_remote_spawn<T>;
-  Grappa_call_on(target, Grappa_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
-  DVLOG(5) << "Sent AM to spawn Thread on Node " << target;
-}
-template< typename T >
-void Grappa_remote_spawn( void (*fn_p)(Thread*,void*), const T* args, Node target) {
-  // typedef void (*am_t)(T*,size_t,void*,size_t);
-  // am_t a = &am_remote_spawn<T>;
-  Grappa_call_on(target, Grappa_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
-  DVLOG(5) << "Sent AM to spawn Thread on Node " << target;
-}
 
 /// TODO: remove this
 void Grappa_signal_done( );
@@ -217,7 +137,7 @@ static inline void Grappa_poll()
 }
 
 /// Send waiting aggregated messages to a particular destination.
-static inline void Grappa_flush( Node n )
+static inline void Grappa_flush( Core n )
 {
   global_aggregator.flush( n );
 }

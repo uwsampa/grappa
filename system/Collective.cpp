@@ -9,5 +9,5 @@
 #include "Delegate.hpp"
 
 Thread * reducing_thread;
-Node reduction_reported_in = 0;
+Core reduction_reported_in = 0;
 

@@ -45,12 +45,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   // make sure we've registered the handler properly and gasnet can call it
   BOOST_CHECK_EQUAL( success, false );
-  gasnet_AMRequestShort0( s.mynode(), foo_h );
+  gasnet_AMRequestShort0( s.mycore(), foo_h );
   BOOST_CHECK_EQUAL( success, true );
 
     // make sure we've registered the handler properly and we can call it
   success = false;
-  s.send( s.mynode(), foo_h, NULL, 0 );
+  s.send( s.mycore(), foo_h, NULL, 0 );
   BOOST_CHECK_EQUAL( success, true );
 
 
@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   const size_t bardata_size = gasnet_AMMaxMedium();
   char bardata[ bardata_size ];
   memset( &bardata[0], 1, bardata_size );
-  s.send( s.mynode(), bar_h, &bardata[0], bardata_size );
+  s.send( s.mycore(), bar_h, &bardata[0], bardata_size );
   BOOST_CHECK_EQUAL( success, true );
 
   s.finish();

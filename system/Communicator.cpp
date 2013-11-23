@@ -84,9 +84,9 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 #ifdef HEAPCHECK_ENABLE
   }
 #endif
-  // make sure the Node type is big enough for our system
-  assert( static_cast< int64_t >( gasnet_nodes() ) <= (1L << sizeof(Node) * 8) && 
-          "Node type is too small for number of nodes in job" );
+  // make sure the Core type is big enough for our system
+  assert( static_cast< int64_t >( gasnet_nodes() ) <= (1L << sizeof(Core) * 8) && 
+          "Core type is too small for number of nodes in job" );
 
   // initialize job geometry
   mycore_ = gasnet_mynode();

@@ -55,7 +55,7 @@ namespace Grappa {
 }
 
 extern Thread * reducing_thread;
-extern Node reduction_reported_in;
+extern Core reduction_reported_in;
 
 // This class is just for holding the reduction
 // value in a type-safe manner
@@ -88,19 +88,19 @@ static void am_reduce_array_wake(T * val, size_t sz, void * payload, size_t psz)
   Grappa_wake(reducing_thread);
 }
 
-// Grappa active message sent by every Node to Grappa::impl::HOME_CORE to perform reduction in one place
+// Grappa active message sent by every Core to Grappa::impl::HOME_CORE to perform reduction in one place
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
 static void am_reduce(T * val, size_t sz, void* payload, size_t psz) {
-  CHECK(Grappa_mynode() == Grappa::impl::HOME_CORE);
+  CHECK(Grappa::mycore() == Grappa::impl::HOME_CORE);
 
   if (reduction_reported_in == 0) Reductions<T>::reduction_result = BaseVal;
   Reductions<T>::reduction_result = Reducer(Reductions<T>::reduction_result, *val);
 
   reduction_reported_in++;
   VLOG(5) << "reported_in = " << reduction_reported_in;
-  if (reduction_reported_in == Grappa_nodes()) {
+  if (reduction_reported_in == Grappa::cores()) {
     reduction_reported_in = 0;
-    for (Node n = 0; n < Grappa_nodes(); n++) {
+    for (Core n = 0; n < Grappa::cores(); n++) {
       VLOG(5) << "waking " << n;
       T data = Reductions<T>::reduction_result;
       Grappa_call_on(n, &am_reduce_wake, &data);
@@ -108,10 +108,10 @@ static void am_reduce(T * val, size_t sz, void* payload, size_t psz) {
   }
 }
 
-// Grappa active message sent by every Node to Grappa::impl::HOME_CORE to perform reduction in one place
+// Grappa active message sent by every Core to Grappa::impl::HOME_CORE to perform reduction in one place
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
 static void am_reduce_array(T * val, size_t sz, void* payload, size_t psz) {
-  CHECK(Grappa_mynode() == Grappa::impl::HOME_CORE);
+  CHECK(Grappa::mycore() == Grappa::impl::HOME_CORE);
   
   size_t nelem = sz / sizeof(T);
 
@@ -128,9 +128,9 @@ static void am_reduce_array(T * val, size_t sz, void* payload, size_t psz) {
   
   reduction_reported_in++;
   VLOG(5) << "reported_in = " << reduction_reported_in;
-  if (reduction_reported_in == Grappa_nodes()) {
+  if (reduction_reported_in == Grappa::cores()) {
     reduction_reported_in = 0;
-    for (Node n = 0; n < Grappa_nodes(); n++) {
+    for (Core n = 0; n < Grappa::cores(); n++) {
       VLOG(5) << "waking " << n;
       Grappa_call_on(n, &am_reduce_array_wake, rarray, sizeof(T)*nelem);
     }
@@ -141,16 +141,16 @@ static void am_reduce_array(T * val, size_t sz, void* payload, size_t psz) {
 // am_reduce with no initial value
 template< typename T, T (*Reducer)(const T&, const T&) >
 static void am_reduce_noinit(T * val, size_t sz, void* payload, size_t psz) {
-  CHECK(Grappa_mynode() == Grappa::impl::HOME_CORE);
+  CHECK(Grappa::mycore() == Grappa::impl::HOME_CORE);
   
   if (reduction_reported_in == 0) Reductions<T>::reduction_result = *val; // no base val
   else Reductions<T>::reduction_result = Reducer(Reductions<T>::reduction_result, *val);
   
   reduction_reported_in++;
   VLOG(5) << "reported_in = " << reduction_reported_in;
-  if (reduction_reported_in == Grappa_nodes()) {
+  if (reduction_reported_in == Grappa::cores()) {
     reduction_reported_in = 0;
-    for (Node n = 0; n < Grappa_nodes(); n++) {
+    for (Core n = 0; n < Grappa::cores(); n++) {
       VLOG(5) << "waking " << n;
       T data = Reductions<T>::reduction_result;
       Grappa_call_on(n, &am_reduce_wake, &data);
@@ -171,7 +171,7 @@ static void am_reduce_noinit(T * val, size_t sz, void* payload, size_t psz) {
 /// ALLNODES
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
 T Grappa_allreduce(T myval) {
-  // TODO: do tree reduction to reduce amount of serialization at Node 0
+  // TODO: do tree reduction to reduce amount of serialization at Core 0
   reducing_thread = CURRENT_THREAD;
   
   Grappa_call_on(Grappa::impl::HOME_CORE, &am_reduce<T,Reducer,BaseVal>, &myval);
@@ -190,7 +190,7 @@ void allreduce_one_message(T * array, size_t nelem, T * result = NULL) {
   if (!result) result = array;
   Reductions<T*>::final_reduction_result = result;
 
-  // TODO: do tree reduction to reduce amount of serialization at Node 0
+  // TODO: do tree reduction to reduce amount of serialization at Core 0
   reducing_thread = CURRENT_THREAD;
  
   Grappa_call_on(Grappa::impl::HOME_CORE, &am_reduce_array<T,Reducer,BaseVal>, array, sizeof(T)*nelem);
@@ -225,7 +225,7 @@ void Grappa_allreduce(T * array, size_t nelem, T * result = NULL) {
 /// ALLNODES
 template< typename T, T (*Reducer)(const T&, const T&) >
 T Grappa_allreduce_noinit(T myval) {
-  // TODO: do tree reduction to reduce amount of serialization at Node 0
+  // TODO: do tree reduction to reduce amount of serialization at Core 0
   reducing_thread = CURRENT_THREAD;
   
   Grappa_call_on(Grappa::impl::HOME_CORE, &am_reduce_noinit<T,Reducer>, &myval);

@@ -79,7 +79,7 @@ char * impl_getName() { return "Grappa"; }
 int    impl_paramsToStr(char * strBuf, int ind) {
   ind += sprintf(strBuf+ind, "Execution strategy:  ");
 
-  ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa_nodes());
+  ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa::cores());
   ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
 
   if ( FLAGS_load_balance.compare(        "none" ) != 0 ) {

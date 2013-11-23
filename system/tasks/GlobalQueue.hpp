@@ -122,7 +122,7 @@ class GlobalQueue {
     bool initialized;
 
     static bool isMaster() {
-      return Grappa_mynode() == HOME_NODE;
+      return Grappa::mycore() == HOME_NODE;
     }
 
 
@@ -146,7 +146,7 @@ class GlobalQueue {
 
     void init() {
       if ( isMaster() ) {
-        capacity = (CAPACITY_PER_NODE) * Grappa_nodes();
+        capacity = (CAPACITY_PER_NODE) * Grappa::cores();
         DVLOG(5) << "GlobalQueue capacity: " << capacity;
         queueBase = Grappa::global_alloc< QueueEntry<T> > ( capacity );
         // TODO could give option just to malloc here, but would be
@@ -356,7 +356,7 @@ void GlobalQueue<T>::pull_entry_request( pull_entry_args<T> * args ) {
 }
 
 
-// routines for calling the global GlobalQueue on each Node
+// routines for calling the global GlobalQueue on each Core
 template <typename T>
 A_Entry GlobalQueue<T>::push_reserve_g ( bool ignore ) {
   return global_queue.push_reserve( ignore );

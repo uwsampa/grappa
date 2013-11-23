@@ -57,10 +57,10 @@ using namespace Grappa::impl;
 using namespace Grappa::Statistics;
 using namespace Grappa;
 
-static Thread * barrier_thread = NULL;
+static Worker * barrier_thread = NULL;
 
-Thread * master_thread;
-static Thread * user_main_thr;
+Worker * master_thread;
+static Worker * user_main_thr;
 
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
@@ -69,7 +69,7 @@ double Grappa::tick_rate = 0.0;
 static int jobid = 0;
 static const char * nodelist_str = NULL;
 
-Node * node_neighbors;
+Core * node_neighbors;
 
 #ifdef HEAPCHECK_ENABLE
 HeapLeakChecker * Grappa_heapchecker = 0;
@@ -89,7 +89,7 @@ namespace Grappa {
 }
 
 /// Body of the polling thread.
-static void poller( Thread * me, void * args ) {
+static void poller( Worker * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
   StateTimer::enterState_communication();
   while( !Grappa_done() ) {
@@ -119,7 +119,7 @@ static void poller( Thread * me, void * args ) {
   // no one else matters.
   // Tasks on task queues would be a programmer error
   global_scheduler.shutdown_readyQ();
-  VLOG(5) << "polling Thread exiting";
+  VLOG(5) << "polling Worker exiting";
 
   // master will be scheduled upon exit of poller thread
 }
@@ -309,12 +309,12 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   // process command line args for Tau
   //TAU_INIT( argc_p, argv_p );
 #ifdef GRAPPA_TRACE
-  TAU_PROFILE_SET_NODE(Grappa_mynode());
+  TAU_PROFILE_SET_NODE(Grappa::mycore());
 #endif
 
   //TODO: options for local stealing
-  node_neighbors = new Node[Grappa_nodes()];
-  for ( Node nod=0; nod < Grappa_nodes(); nod++ ) {
+  node_neighbors = new Core[Grappa::cores()];
+  for ( Core nod=0; nod < Grappa::cores(); nod++ ) {
     node_neighbors[nod] = nod;
   }
   
@@ -322,7 +322,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   master_thread = convert_to_master();
   VLOG(1) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
-  global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
+  global_task_manager.init( Grappa::mycore(), node_neighbors, Grappa::cores() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   
   // start RDMA Aggregator *after* threading layer
@@ -350,7 +350,7 @@ void Grappa_activate()
   global_communicator.activate();
   locale_shared_memory.activate();
   global_task_manager.activate();
-  Grappa_barrier();
+  Grappa::comm_barrier();
 
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
@@ -374,27 +374,7 @@ void Grappa_activate()
     VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  rdma_aggregator: ??\n  shared_message_pool: " << shpool_sz << " (" << shpool_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
   }
   
-  Grappa_barrier();
-}
-
-/// Split-phase barrier. (ALLNODES)
-void Grappa_barrier_suspending() {
-  Grappa::barrier();
-}
-
-
-///
-/// Thread management routines
-///
-
-/// Spawn a user function. TODO: get return values working
-/// TODO: remove Thread * arg
-Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
-{
-  Worker * th = worker_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
-  global_scheduler.ready( th );
-  DVLOG(5) << "Spawned Worker " << th;
-  return th;
+  Grappa::comm_barrier();
 }
 
 
@@ -436,8 +416,8 @@ static void signal_task_termination_am( int * ignore, size_t isize, void * paylo
 /// User main done
 void Grappa_end_tasks() {
   // send task termination signal
-  CHECK( Grappa_mynode() == 0 );
-  for ( Node n = 1; n < Grappa_nodes(); n++ ) {
+  CHECK( Grappa::mycore() == 0 );
+  for ( Core n = 1; n < Grappa::cores(); n++ ) {
       int ignore = 0;
       Grappa_call_on( n, &signal_task_termination_am, &ignore );
       Grappa_flush( n );
@@ -469,7 +449,7 @@ int Grappa_finish( int retval )
   Grappa_signal_done(); // this may be overkill (just set done bit?)
 
   //TAU_PROFILE_EXIT("Tau_profile_exit called");
-  Grappa_barrier();
+  Grappa::comm_barrier();
 
   DVLOG(1) << "Cleaning up Grappa library....";
 

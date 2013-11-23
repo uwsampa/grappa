@@ -15,7 +15,7 @@
 #define XENDOFF(matrix, index) (xoff)+2*(index)+1
 
 namespace spmv {
-  // global: local per Node
+  // global: local per Core
   weighted_csr_graph m;
   vector v;
   vindex x;

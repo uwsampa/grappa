@@ -81,7 +81,7 @@ public:
       acquired_ = true;
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
-      if( request_address_->node() == Grappa_mynode() ) {
+      if( request_address_->node() == Grappa::mycore() ) {
         DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
         *pointer_ = request_address_->pointer();
         acquire_started_ = true;

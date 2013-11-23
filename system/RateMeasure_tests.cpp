@@ -13,8 +13,8 @@
 #include "Collective.hpp"
 
 // Tests to measure the delegate op rates
-// - Single location: every Node reads a single location on a single other Node on another machine
-// - Stream location: every Node reads contiguous locations on a single other Node on another machine
+// - Single location: every Core reads a single location on a single other Core on another machine
+// - Stream location: every Core reads contiguous locations on a single other Core on another machine
 // Must set the --num_places value to the number of network interfaces to ensure all ops use the network
 
 const uint64_t data_size = 1<<10;
@@ -51,10 +51,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       start = wctime();
     
       Grappa::on_all_cores([]{
-        int64_t nodes_per_place = Grappa_nodes() / FLAGS_num_places;
-        Node dest = (Grappa_mynode()+nodes_per_place)%Grappa_nodes();
+        int64_t nodes_per_place = Grappa::cores() / FLAGS_num_places;
+        Core dest = (Grappa::mycore()+nodes_per_place)%Grappa::cores();
         GlobalAddress<int64_t> addr = make_global( &some_data[0], dest);
-        VLOG(3) << Grappa_mynode() << "sends to " << dest;
+        VLOG(3) << Grappa::mycore() << "sends to " << dest;
         for ( uint64_t i=0; i<data_size; i++ ) {
             Grappa::delegate::read( addr );
         }
@@ -62,7 +62,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
       end = wctime();
       sing_runtime = end - start;
-      sing_rate = (data_size*num_tasks*Grappa_nodes())/sing_runtime;
+      sing_rate = (data_size*num_tasks*Grappa::cores())/sing_runtime;
       BOOST_MESSAGE( "single location: " << sing_runtime <<" s, " 
                       << sing_rate << " reads/sec" );
     }
@@ -73,10 +73,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       start = wctime();
   
       Grappa::on_all_cores([]{
-        int64_t nodes_per_place = Grappa_nodes() / FLAGS_num_places;
-        Node dest = (Grappa_mynode()+nodes_per_place)%Grappa_nodes();
+        int64_t nodes_per_place = Grappa::cores() / FLAGS_num_places;
+        Core dest = (Grappa::mycore()+nodes_per_place)%Grappa::cores();
         GlobalAddress<int64_t> addr = make_global( &some_data[0], dest);
-        VLOG(3) << Grappa_mynode() << "sends to " << addr.node();
+        VLOG(3) << Grappa::mycore() << "sends to " << addr.node();
         for ( uint64_t i=0; i<data_size; i++ ) {
             Grappa::delegate::read( addr + i );
         }
@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   
       end = wctime();
       stream_runtime = end - start;
-      stream_rate = (data_size*num_tasks*Grappa_nodes())/stream_runtime;
+      stream_rate = (data_size*num_tasks*Grappa::cores())/stream_runtime;
       BOOST_MESSAGE( "stream location: " << stream_runtime <<" s, " 
                       << stream_rate << " reads/sec" );
     }

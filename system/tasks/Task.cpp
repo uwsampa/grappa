@@ -89,7 +89,7 @@ TaskManager global_task_manager;
 
 
 /// Initialize the task manager with runtime parameters.
-void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg ) {
+void TaskManager::init ( Core localId_arg, Core * neighbors_arg, Core numLocalNodes_arg ) {
   if ( FLAGS_load_balance.compare(        "none" ) == 0 ) {
     doSteal = false; doShare = false; doGQ = false;
   } else if ( FLAGS_load_balance.compare( "steal" ) == 0 ) {
@@ -115,7 +115,7 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
   srandom(0);
   for (int i=numLocalNodes; i>=2; i--) {
     int ri = random() % i;
-    Node temp = neighbors[ri];
+    Core temp = neighbors[ri];
     neighbors[ri] = neighbors[i-1];
     neighbors[i-1] = temp;
   }
@@ -216,8 +216,8 @@ inline void TaskManager::checkWorkShare() {
   ///   double divisor = local_size/FLAGS_ws_coeff;
   ///   if (divisor==0) divisor = 1.0;
   ///   if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/divisor)) ) {
-  ///     Node target = fast_rand()%Grappa_nodes();
-  ///     if ( target == Grappa_mynode() ) target = (target+1)%Grappa_nodes(); // don't share with ourself
+  ///     Core target = fast_rand()%Grappa::cores();
+  ///     if ( target == Grappa::mycore() ) target = (target+1)%Grappa::cores(); // don't share with ourself
   ///     DVLOG(5) << "before share: " << publicQ;
   ///     uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
   ///     int64_t numChange = publicQ.workShare( target, amount );
@@ -266,17 +266,17 @@ inline void TaskManager::checkPull() {
 
       VLOG(5) << CURRENT_THREAD << " trying to steal";
       int goodSteal = 0;
-      Node victimId = -1;
+      Core victimId = -1;
 
       for ( int64_t tryCount=0; 
           tryCount < numLocalNodes && !goodSteal && !(publicHasEle() || privateHasEle() || workDone);
           tryCount++ ) {
 
-        Node v = neighbors[nextVictimIndex];
+        Core v = neighbors[nextVictimIndex];
         victimId = v;
         nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
 
-        if ( v == Grappa_mynode() ) continue; // don't steal from myself
+        if ( v == Grappa::mycore() ) continue; // don't steal from myself
 
         goodSteal = publicQ.steal_locally(v, chunkSize);
 
@@ -287,7 +287,7 @@ inline void TaskManager::checkPull() {
       // if finished because succeeded in stealing
       if ( goodSteal ) {
         VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
-          << " from Node" << victimId;
+          << " from Core" << victimId;
         VLOG(5) << *this; 
         TaskManagerStatistics::record_successful_steal_session();
 

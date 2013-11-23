@@ -55,9 +55,6 @@ typedef void (*HandlerPointer)();
 typedef int16_t Core;
 typedef int16_t Locale;
 
-/// @deprecated
-typedef Core Node;
-
 const static int16_t MAX_CORES_PER_LOCALE = 64;
 
 /// Maximum size of GASNet medium active message payload. 
@@ -215,22 +212,6 @@ public:
 
   void finish( int retval = 0 );
 
-  /// Get id of this node
-  inline Node mynode() const { 
-    assert( registration_is_allowed_ || communication_is_allowed_ );
-    return gasnet_mynode(); 
-  }
-
-  /// Get total count of nodes
-  inline Node nodes() const { 
-    assert( registration_is_allowed_ || communication_is_allowed_ );
-    return gasnet_nodes(); 
-  }
-
-
-
-
-
   inline Core mycore() const { 
     return mycore_;
   }
@@ -285,7 +266,7 @@ public:
   }
 
   /// Send no-argment active message with payload
-  inline void send( Node node, int handler, void * buf, size_t size ) { 
+  inline void send( Core node, int handler, void * buf, size_t size ) { 
     assert( communication_is_allowed_ );
     assert( size < maximum_message_payload_size ); // make sure payload isn't too big
     stats.record_message( size );
@@ -298,7 +279,7 @@ public:
   /// Send no-argment active message with payload. This only allows
   /// messages will be immediately copied to the HCA.
   /// TODO: can we avoid the copy onto gasnet's buffer? This is so small it probably doesn't matter.
-  inline void send_immediate( Node node, int handler, void * buf, size_t size ) { 
+  inline void send_immediate( Core node, int handler, void * buf, size_t size ) { 
     DCHECK_EQ( communication_is_allowed_, true );
     CHECK_LT( size, gasnetc_inline_limit ); // make sure payload isn't too big
     stats.record_message( size );
@@ -309,7 +290,7 @@ public:
   }
 
   /// Send no-argment active message with payload via RDMA, blocking until sent.
-  inline void send( Node node, int handler, void * buf, size_t size, void * dest_buf ) { 
+  inline void send( Core node, int handler, void * buf, size_t size, void * dest_buf ) { 
     DCHECK_EQ( communication_is_allowed_, true );
     stats.record_message( size );
 #ifdef VTRACE_FULL
@@ -319,7 +300,7 @@ public:
   }
 
   /// Send no-argment active message with payload via RDMA asynchronously.
-  inline void send_async( Node node, int handler, void * buf, size_t size, void * dest_buf ) { 
+  inline void send_async( Core node, int handler, void * buf, size_t size, void * dest_buf ) { 
     DCHECK_EQ( communication_is_allowed_, true );
     stats.record_message( size );
 #ifdef VTRACE_FULL
@@ -349,10 +330,10 @@ namespace Grappa {
 /// @{
 
 /// How many cores are there in this job?
-inline Core cores() { return global_communicator.nodes(); }
+inline Core cores() { return global_communicator.cores(); }
 
 /// What's my core ID in this job?
-inline Core mycore() { return global_communicator.mynode(); }
+inline Core mycore() { return global_communicator.mycore(); }
 
 /// How many cores are in my shared memory domain?
 inline Core locale_cores() { return global_communicator.locale_cores(); }
@@ -371,13 +352,6 @@ inline Locale locale_of(Core c) { return global_communicator.locale_of(c); }
 
 /// how big can inline messages be?
 inline size_t inline_limit() { return global_communicator.inline_limit(); }
-
-// /// @deprecated How many cores are in this job?
-// inline Core nodes() { return global_communicator.supernodes(); }
-
-// /// @deprecated What's my core ID within this job?
-// inline Core mynode() { return global_communicator.mysupernode(); }
-
 
 /// @}
 

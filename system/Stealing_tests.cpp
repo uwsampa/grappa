@@ -58,10 +58,10 @@ void wakeindex_f( wakeindex_args * args, size_t size, void * payload, size_t pay
 }
 
 void multiBarrier( int index ) {
-    // increment the val on Node 0
+    // increment the val on Core 0
     GlobalAddress<int64_t> vals_addr = GlobalAddress<int64_t>::TwoDimensional( &vals[index], 0 );
     int64_t result = Grappa_delegate_fetch_and_add_word( vals_addr, 1 );
-    if ( result < Grappa_nodes()-1 ) {
+    if ( result < Grappa::cores()-1 ) {
         // I not last so suspend
         BOOST_MESSAGE( index << " suspended index:" << result);
         isActuallyAsleep[index] = true;
@@ -69,17 +69,17 @@ void multiBarrier( int index ) {
             Grappa_suspend( );
         }
         BOOST_MESSAGE( index << " wake from barrier");
-    } else if ( result == Grappa_nodes()-1 ) {
+    } else if ( result == Grappa::cores()-1 ) {
         BOOST_MESSAGE( index << " is last and sending");
         // I am last so wake other
         wakeindex_args warg = { index };
-        for (Node no = 1; no < Grappa_nodes(); no++ ) {
-            Node dest = (Grappa_mynode() + no) % Grappa_nodes();
+        for (Core no = 1; no < Grappa::cores(); no++ ) {
+            Core dest = (Grappa::mycore() + no) % Grappa::cores();
             Grappa_call_on( dest, &wakeindex_f, &warg );
         }
     } else {
-        BOOST_MESSAGE( result << " == " << Grappa_nodes()-1 );
-        BOOST_CHECK( result == Grappa_nodes()-1 );
+        BOOST_MESSAGE( result << " == " << Grappa::cores()-1 );
+        BOOST_CHECK( result == Grappa::cores()-1 );
     }
 }
 
@@ -88,7 +88,7 @@ void task_local( task1_arg * arg ) {
     Thread * parent = arg->parent;
    
     // this task should not have been stolen and running on 0 
-    BOOST_CHECK_EQUAL( 0, Grappa_mynode() );
+    BOOST_CHECK_EQUAL( 0, Grappa::mycore() );
 
     BOOST_MESSAGE( CURRENT_THREAD << " with task(local) " << mynum << " about to enter multi barrier" );
     threads[mynum] = CURRENT_THREAD; // store my Thread ptr in local global array
@@ -115,16 +115,16 @@ void task_stolen( task1_arg * arg ) {
     Thread * parent = arg->parent;
 
     // this task should have been stolen and running on not 0
-    BOOST_CHECK( 0 != Grappa_mynode() );
+    BOOST_CHECK( 0 != Grappa::mycore() );
     
     GlobalAddress<int64_t> dum_addr = GlobalAddress<int64_t>::TwoDimensional( &num_stolen_started, 0 );
     int64_t result_d = Grappa_delegate_fetch_and_add_word( dum_addr, 1 );
-    if ( result_d == (Grappa_nodes()-1)*tasks_per_node - 1 ) {
+    if ( result_d == (Grappa::cores()-1)*tasks_per_node - 1 ) {
         wake_arg wwwarg = {NULL};
         Grappa_call_on( 0, &wakedum_f, &wwwarg);
     }
 
-    // wake the corresponding task on Node 0
+    // wake the corresponding task on Core 0
     BOOST_MESSAGE( CURRENT_THREAD << " with task(stolen) " << mynum << " about to enter multi barrier" );
     threads[mynum] = CURRENT_THREAD; // store my Thread ptr in local global array
     multiBarrier( mynum );
@@ -144,7 +144,7 @@ void task_stolen( task1_arg * arg ) {
 void dummy_f( task1_arg * arg ) {
     // must wait until all stolen tasks start
     BOOST_MESSAGE( "dummy start" );
-    while ( num_stolen_started < (Grappa_nodes()-1)*tasks_per_node) {
+    while ( num_stolen_started < (Grappa::cores()-1)*tasks_per_node) {
         dummy_thr = CURRENT_THREAD;
         Grappa_suspend();
     }
@@ -153,12 +153,12 @@ void dummy_f( task1_arg * arg ) {
 
 void user_main(void * args ) 
 {
-  num_tasks = tasks_per_node * Grappa_nodes();
+  num_tasks = tasks_per_node * Grappa::cores();
 
   task1_arg argss[num_tasks];
-  for (int no = 1; no < Grappa_nodes(); no++) {
+  for (int no = 1; no < Grappa::cores(); no++) {
       for (int ta = 0; ta<tasks_per_node; ta++) {
-          int index = (Grappa_nodes() * tasks_per_node) + ta;
+          int index = (Grappa::cores() * tasks_per_node) + ta;
           argss[index] = { ta, me };
           Grappa_publicTask( &task_stolen, &argss[index] );
       }

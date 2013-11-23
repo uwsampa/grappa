@@ -57,7 +57,7 @@ public:
   ///   @param base base address of region to allocate from
   ///   @param size number of bytes available for allocation
   GlobalAllocator( GlobalAddress< void > base, size_t size )
-    : a_p_( 0 == Grappa_mynode()  // node 0 does all allocation for now
+    : a_p_( 0 == Grappa::mycore()  // node 0 does all allocation for now
             ? new Allocator( base, size )
             : NULL )
   { 

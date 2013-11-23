@@ -335,7 +335,7 @@ namespace impl {
     double t = Grappa::walltime();
 
     Grappa::on_all_cores([dirname,array,nelems]{
-      range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
+      range_t r = blockDist(0, nelems, Grappa::mycore(), Grappa::cores());
       char fname[FNAME_LENGTH]; array_dir_fname(fname, dirname, r.start, r.end);
       std::fstream fo(fname, std::ios::out | std::ios::binary);
     

@@ -9,11 +9,17 @@ namespace Grappa {
   
   extern ConditionVariable barrier_cv;
   
-  /// Mostly equivalent to Grappa_barrier_suspending but uses ConditionVariable.
+  /// Blocking SPMD barrier (must be called once on all cores to continue)
   inline void barrier() {
     DVLOG(5) << "entering barrier";
     global_communicator.barrier_notify();
     wait(&barrier_cv);
+  }
+  
+  /// Directly call the underlying communicator's blocking barrier. This is not
+  /// recommended, as it prevents Grappa communication from continuing.
+  inline void comm_barrier() {
+    global_communicator.barrier();
   }
   
 namespace impl {

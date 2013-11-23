@@ -189,7 +189,7 @@ LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) 
 //  NV = NV_;
 //  NE = NE_;
   
-  range_t r = blockDist(0, NV, Grappa_mynode(), Grappa_nodes());
+  range_t r = blockDist(0, NV, Grappa::mycore(), Grappa::cores());
   joiner.reset();
   
   for (graphint i=r.start; i<r.end; i++) {

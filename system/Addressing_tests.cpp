@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_SUITE( Addressing_tests );
 
 
 struct array_element {
-  Node node;
+  Core node;
   int offset;
   int block;
   int index;
@@ -55,7 +55,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa_activate();
 
 
-  if( 0 == Grappa_mynode() ) {
+  if( 0 == Grappa::mycore() ) {
     int foo;
     int bar;
     GlobalAddress< int > foop = GlobalAddress< int >::TwoDimensional( &foo );
@@ -74,28 +74,28 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     const int array_size = 12;
     
     // array for comparison
-    array_element array[ array_size * Grappa_nodes()];
+    array_element array[ array_size * Grappa::cores()];
     
     // distribute elements to node arrays in round robin fashion. 
-    array_element node_array[ Grappa_nodes() ][ array_size ];
+    array_element node_array[ Grappa::cores() ][ array_size ];
     // these are the indices for each node
-    int node_i[ Grappa_nodes() ];
-    for( int i = 0; i < Grappa_nodes(); ++i ) {
+    int node_i[ Grappa::cores() ];
+    for( int i = 0; i < Grappa::cores(); ++i ) {
       node_i[i] = 0;
     }
 
-    for( int i = 0; i < array_size * Grappa_nodes(); ++i ) {
+    for( int i = 0; i < array_size * Grappa::cores(); ++i ) {
       intptr_t byte_address = i * sizeof( array_element );
 
       intptr_t block_index = byte_address / block_size;
       intptr_t offset_in_block = byte_address % block_size;
 
-      Node node = block_index % Grappa_nodes();
-      intptr_t node_block_index = block_index / Grappa_nodes();
+      Core node = block_index % Grappa::cores();
+      intptr_t node_block_index = block_index / Grappa::cores();
 
-      array[ i ].block = node_block_index; //( (i * sizeof(array_element)) / block_size ) / Grappa_nodes();
+      array[ i ].block = node_block_index; //( (i * sizeof(array_element)) / block_size ) / Grappa::cores();
       array[ i ].offset = offset_in_block; //(i * sizeof(array_element)) % block_size;
-      array[ i ].node = node; //( (i * sizeof(array_element)) / block_size ) % Grappa_nodes();
+      array[ i ].node = node; //( (i * sizeof(array_element)) / block_size ) % Grappa::cores();
       //array[ i ].address = array[i].block * block_size + array[i].offset;
       array[ i ].index = i;
       //node_array[ array[i].node ][ node_i[i]++ ] = array[i];
@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               << " offset " << array[i].offset;
     }
 
-    for( int node = 0; node < Grappa_nodes(); ++node ) {
+    for( int node = 0; node < Grappa::cores(); ++node ) {
       VLOG(1) << "Contents of node " << node << " memory";
       for( int i = 0; i < array_size; ++i ) {
         VLOG(1) << "   " << i << ":"
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     ptrdiff_t offset = &array[0] - (array_element *)NULL;
     int j = 0;
-    for( int i = 0; i < array_size * Grappa_nodes(); ++i ) {
+    for( int i = 0; i < array_size * Grappa::cores(); ++i ) {
       GlobalAddress< array_element > gap = l1 + i;
       ptrdiff_t node_base_address = &node_array[ array[i].node ][0] - (array_element *)NULL;
       BOOST_CHECK_EQUAL( array[i].node, gap.node() );

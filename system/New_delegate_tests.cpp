@@ -209,7 +209,7 @@ void check_call_suspending() {
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
-    CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
+    CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
     Grappa::Statistics::start_tracing();
 

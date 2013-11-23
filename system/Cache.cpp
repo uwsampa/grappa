@@ -36,6 +36,6 @@ void CacheStatistics::count_rw_release( uint64_t bytes ) {
 }
 
 /// TODO: delete me.
-Node address2node( void * ) {
+Core address2node( void * ) {
   return 0;
 }
