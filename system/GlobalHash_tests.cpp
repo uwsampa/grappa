@@ -159,36 +159,30 @@ double test_set_insert_throughput() {
   return t;
 }
 
-void user_main( void * ignore ) {
-  if (FLAGS_map_perf) {
-    auto ha = GlobalHashMap<long,long>::create(FLAGS_global_hash_size);
-    
-    for (int i=0; i<FLAGS_ntrials; i++) {
-      trial_time += test_insert_throughput<Exp::INSERT>(ha);
-      ha->clear();
-    }
-    
-    ha->destroy();
-    
-  } else if (FLAGS_set_perf) { 
-    for (int i=0; i<FLAGS_ntrials; i++) {
-      trial_time += test_set_insert_throughput();
-    }
-  } else {
-    test_correctness();
-    test_set_correctness();
-  }
-  
-  Statistics::merge_and_print();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-  Grappa_activate();
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    if (FLAGS_map_perf) {
+      auto ha = GlobalHashMap<long,long>::create(FLAGS_global_hash_size);
+    
+      for (int i=0; i<FLAGS_ntrials; i++) {
+        trial_time += test_insert_throughput<Exp::INSERT>(ha);
+        ha->clear();
+      }
+    
+      ha->destroy();
+    
+    } else if (FLAGS_set_perf) { 
+      for (int i=0; i<FLAGS_ntrials; i++) {
+        trial_time += test_set_insert_throughput();
+      }
+    } else {
+      test_correctness();
+      test_set_correctness();
+    }
+  
+    Statistics::merge_and_print();
+  });
+  Grappa::finalize();
 }
-
 BOOST_AUTO_TEST_SUITE_END();
-

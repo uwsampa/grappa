@@ -27,6 +27,13 @@ protected:
     Entry( K key, V val): key(key), val(val) {}
   };
   
+  struct ResultEntry {
+    bool found;
+    ResultEntry * next;
+    V val;
+  };
+  
+public:
   struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
     std::vector<Entry> entries;
     
@@ -53,13 +60,7 @@ protected:
       }
     }
   } GRAPPA_BLOCK_ALIGNED;
-  
-  struct ResultEntry {
-    bool found;
-    ResultEntry * next;
-    V val;
-  };
-
+protected:
   struct Proxy {
     static const size_t LOCAL_HASH_SIZE = 1<<10;
     
@@ -166,6 +167,9 @@ public:
     return self;
   }
   
+  GlobalAddress<Cell> begin() { return this->base; }
+  size_t ncells() { return this->capacity; }
+  
   void clear() {
     forall_localized(base, capacity, [](Cell& c){ c.clear(); });
   }
@@ -231,10 +235,6 @@ public:
     }
   }
 
-  template< GlobalCompletionEvent * GCE, int64_t Threshold,
-            typename TT, typename VV, typename F >
-  friend void forall_localized(GlobalAddress<GlobalHashMap<TT,VV>> self, F func);  
-  
 } GRAPPA_BLOCK_ALIGNED;
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce,
@@ -243,7 +243,7 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           typename V = decltype(nullptr),
           typename F = decltype(nullptr) >
 void forall_localized(GlobalAddress<GlobalHashMap<T,V>> self, F visit) {
-  forall_localized<GCE,Threshold>(self->base, self->capacity,
+  forall_localized<GCE,Threshold>(self->begin(), self->ncells(),
   [visit](typename GlobalHashMap<T,V>::Cell& c){
     for (auto& e : c.entries) {
       visit(e.key, e.val);
