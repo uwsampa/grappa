@@ -89,7 +89,7 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     joiner.wait();
     VLOG(5) << "nchanged = " << nchanged;
     // global reduction to find out if anyone changed anything
-    nchanged = Grappa_allreduce<graphint,collective_add<graphint>,0>(nchanged);
+    nchanged = Grappa::allreduce<graphint,collective_add<graphint>>(nchanged);
     VLOG(5) << "global_nchanged = " << nchanged;
     
     if (nchanged == 0) break;
@@ -113,7 +113,7 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
 
   Grappa::barrier();
   
-  ncomponents = Grappa_allreduce<graphint,collective_add<graphint>,0>(ncomponents);
+  ncomponents = Grappa::allreduce<graphint,collective_add<graphint>>(ncomponents);
 }
 
 /// Takes a graph as input and an array with length NV.  The array D will store

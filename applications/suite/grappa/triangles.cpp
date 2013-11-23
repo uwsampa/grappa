@@ -201,7 +201,7 @@ LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) 
   VLOG(3) << "ntriangles (local) = " << ntriangles;
   
 //  ntriangles = Grappa_collective_reduce(&collective_add, 0, ntriangles, 0);
-  ntriangles = Grappa_allreduce<graphint,collective_add<graphint>,0>(ntriangles);
+  ntriangles = Grappa::allreduce<graphint,collective_add<graphint>>(ntriangles);
 }
 
 /*	Finds the number of _unique_ triangles in an undirected graph.
