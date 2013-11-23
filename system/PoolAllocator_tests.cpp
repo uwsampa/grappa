@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_SUITE( PoolAllocator_tests );
 
 void test_pool1() {
   BOOST_MESSAGE("Test MessagePool");
-  LocalTaskJoiner joiner;
+  CompletionEvent joiner;
   
   int x[10];
 
@@ -22,11 +22,11 @@ void test_pool1() {
     MessagePoolStatic<2048> pool;
     
     for (int i=0; i<10; i++) {
-      joiner.registerTask();
+      joiner.enroll();
       auto* f = pool.message(1, [i,&x,&joiner]{
         send_heap_message(0, [i,&x, &joiner]{
           x[i] = i;
-          joiner.signal();
+          joiner.complete();
         });
       });
       f->enqueue();
@@ -41,17 +41,17 @@ void test_pool1() {
 
 void test_pool2() {
   BOOST_MESSAGE("Test pool block_until_all_sent");
-  LocalTaskJoiner joiner;
+  CompletionEvent joiner;
   
   int x[10];
   MessagePoolStatic<2048> pool;
 
   for (int i=0; i<10; i++) {
-    joiner.registerTask();
+    joiner.enroll();
     auto f = pool.send_message(1, [i,&x,&joiner]{
       send_heap_message(0, [i,&x, &joiner]{
         x[i] = i;
-        joiner.signal();
+        joiner.complete();
       });
     });
   }
@@ -109,10 +109,9 @@ static int test_async_x;
 
 void test_async_delegate() {
   BOOST_MESSAGE("Test Async delegates");
-  MessagePool pool(2048);
   
   delegate::Promise<bool> a;
-  a.call_async(pool, 1, []()->bool {
+  a.call_async(1, []()->bool {
     test_async_x = 7;
     BOOST_MESSAGE( "x = " << test_async_x );
     return true;
@@ -123,12 +122,8 @@ void test_async_delegate() {
   
   BOOST_MESSAGE("Testing reuse...");
   
-  pool.block_until_all_sent();
-  
-  BOOST_CHECK_EQUAL(pool.remaining(), 2048);
-  
   delegate::Promise<bool> b;
-  b.call_async(pool, 1, []()->bool {
+  b.call_async(1, []()->bool {
     test_async_x = 8;
     return true;
   });
@@ -166,21 +161,16 @@ void test_overrun() {
   BOOST_CHECK_EQUAL(y.readFF(), 1);
 }
 
-void user_main(void* ignore) {
-  test_pool1();
-  test_pool2();
-  test_pool_external();
-  test_async_delegate();
-  test_overrun();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-         &(boost::unit_test::framework::master_test_suite().argv)
-         );
-  Grappa_activate();
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    test_pool1();
+    test_pool2();
+    test_pool_external();
+    test_async_delegate();
+    test_overrun();
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
