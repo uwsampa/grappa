@@ -35,7 +35,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   BOOST_CHECK_EQUAL( Grappa::cores(), 2 );
 
-  DVLOG(1) << "Spawning user main Thread....";
+  DVLOG(1) << "Spawning user main Worker....";
   
   Grappa::run([]{
     for( int i = 0; i < size; ++i ) {

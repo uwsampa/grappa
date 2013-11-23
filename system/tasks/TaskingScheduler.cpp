@@ -66,8 +66,8 @@ TaskingScheduler global_scheduler;
   prev_ts = Grappa::timestamp();
 }
 
-/// Initialize with references to master Thread and a TaskManager.
-void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
+/// Initialize with references to master Worker and a TaskManager.
+void TaskingScheduler::init ( Worker * master_arg, TaskManager * taskman ) {
   master = master_arg;
   readyQ.init( FLAGS_readyq_prefetch_distance );
   current_thread = master;
@@ -84,23 +84,23 @@ void TaskingScheduler::run ( ) {
 }
 
 /// Schedule Threads from the scheduler until one e
-/// If <result> non-NULL, store the Thread's exit value there.
-/// This routine is only to be called if the current Thread
-/// is the master Thread (the one returned by convert_to_master()).
-/// @return the exited Thread, or NULL if scheduler is done
-Thread * TaskingScheduler::thread_wait( void **result ) {
-  CHECK( current_thread == master ) << "only meant to be called by system Thread";
+/// If <result> non-NULL, store the Worker's exit value there.
+/// This routine is only to be called if the current Worker
+/// is the master Worker (the one returned by convert_to_master()).
+/// @return the exited Worker, or NULL if scheduler is done
+Worker * TaskingScheduler::thread_wait( void **result ) {
+  CHECK( current_thread == master ) << "only meant to be called by system Worker";
 
-  Thread * next = nextCoroutine( false );
+  Worker * next = nextCoroutine( false );
   if (next == NULL) {
     // no user threads remain
     return NULL;
   } else {
     current_thread = next;
 
-    Thread * died = (Thread *) thread_context_switch( master, next, NULL);
+    Worker * died = (Worker *) thread_context_switch( master, next, NULL);
 
-    // At the moment, we only return from a Thread in the case of death.
+    // At the moment, we only return from a Worker in the case of death.
 
     if (result != NULL) {
       void *retval = (void *)died->next;
@@ -110,13 +110,13 @@ Thread * TaskingScheduler::thread_wait( void **result ) {
   }
 }
 
-/// Get an idle worker Thread that can be paired with a Task.
+/// Get an idle worker Worker that can be paired with a Task.
 ///
 /// Threads returned by this method are specifically running workerLoop().
-Thread * TaskingScheduler::getWorker () {
+Worker * TaskingScheduler::getWorker () {
   if (task_manager->available()) {
     // check the pool of unassigned coroutines
-    Thread * result = unassignedQ.dequeue();
+    Worker * result = unassignedQ.dequeue();
     if (result != NULL) return result;
 
     // possibly spawn more coroutines
@@ -128,13 +128,13 @@ Thread * TaskingScheduler::getWorker () {
   }
 }
 
-/// Worker Thread routine.
+/// Worker Worker routine.
 /// This is the routine every worker thread runs.
 /// The worker thread continuously asks for Tasks and executes them.
 ///
-/// Note that worker threads are NOT guarenteed to ever call Thread.exit()
+/// Note that worker threads are NOT guarenteed to ever call Worker.exit()
 /// before the program ends.
-void workerLoop ( Thread * me, void* args ) {
+void workerLoop ( Worker * me, void* args ) {
   task_worker_args* wargs = (task_worker_args*) args;
   TaskManager* tasks = wargs->tasks;
   TaskingScheduler * sched = wargs->scheduler; 
@@ -172,8 +172,8 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
   num_workers += num;
   VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
   for (uint64_t i=0; i<num; i++) {
-    // spawn a new worker Thread
-    Thread * t = worker_spawn( current_thread, this, workerLoop, work_args);
+    // spawn a new worker Worker
+    Worker * t = impl::worker_spawn( current_thread, this, workerLoop, work_args);
 
     // place the Worker in the pool of idle workers
     unassigned( t );
@@ -184,19 +184,19 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
 #define BASIC_MAX_WORKERS 2
 /// Give the scheduler a chance to spawn more worker Threads,
 /// based on some heuristics.
-Thread * TaskingScheduler::maybeSpawnCoroutines( ) {
+Worker * TaskingScheduler::maybeSpawnCoroutines( ) {
   // currently only spawn a worker if there are less than some threshold
   if ( num_workers < BASIC_MAX_WORKERS ) {
     num_workers += 1;
     VLOG(5) << "spawning another worker; now there are " << num_workers;
-    return worker_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
+    return impl::worker_spawn( current_thread, this, workerLoop, work_args ); // current Worker will be coro parent; is this okay?
   } else {
     // might have another way to spawn
     return NULL;
   }
 }
 
-/// Callback for when a worker Thread is run for the first time.
+/// Callback for when a worker Worker is run for the first time.
 void TaskingScheduler::onWorkerStart( ) {
   // all worker Threads start in the idle worker pool (unassigned)
   // so decrement num_idle when it starts.

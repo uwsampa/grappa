@@ -73,7 +73,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     user_main_args uargs;
 
-    DVLOG(1) << "Spawning user main Thread....";
+    DVLOG(1) << "Spawning user main Worker....";
     Grappa_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
     CHECK( Grappa_done() );

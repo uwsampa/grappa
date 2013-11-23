@@ -32,7 +32,7 @@ private:
   GlobalAddress< T > * request_address_;
   size_t * count_;
   T ** pointer_;
-  Thread * thread_;
+  Grappa::Worker * thread_;
   int num_messages_;
   int response_count_;
 
@@ -106,7 +106,7 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent start_release");
 #endif
-            DVLOG(5) << "Thread " << CURRENT_THREAD 
+            DVLOG(5) << "Worker " << CURRENT_THREAD 
               << " issuing release for " << *request_address_ 
               << " * " << *count_ ;
       release_started_ = true;
@@ -156,18 +156,18 @@ public:
       pool.send_message(args.request_address.core(),
         [args](void * payload, size_t payload_size) {
           IRStatistics::count_release_ams( payload_size );
-          DVLOG(5) << "Thread " << CURRENT_THREAD
+          DVLOG(5) << "Worker " << CURRENT_THREAD
           << " received release request to " << args.request_address
           << " reply to " << args.reply_address;
           memcpy( args.request_address.pointer(), payload, payload_size );
     
           auto reply_address = args.reply_address;
           Grappa::send_heap_message(args.reply_address.core(), [reply_address]{
-            DVLOG(5) << "Thread " << CURRENT_THREAD << " received release reply to " << reply_address;
+            DVLOG(5) << "Worker " << CURRENT_THREAD << " received release reply to " << reply_address;
             reply_address.pointer()->release_reply();
           });
     
-          DVLOG(5) << "Thread " << CURRENT_THREAD
+          DVLOG(5) << "Worker " << CURRENT_THREAD
           << " sent release reply to " << reply_address;
         },
         (char*)(*pointer_) + offset, request_bytes
@@ -187,11 +187,11 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent block_until_released");
 #endif
-      DVLOG(5) << "Thread " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << CURRENT_THREAD 
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       while( !released_ ) {
-        DVLOG(5) << "Thread " << CURRENT_THREAD 
+        DVLOG(5) << "Worker " << CURRENT_THREAD 
                 << " blocking on " << *request_address_ 
                 << " * " << *count_ ;
         if( !released_ ) {
@@ -199,7 +199,7 @@ public:
           Grappa_suspend();
           thread_ = NULL;
         }
-        DVLOG(5) << "Thread " << CURRENT_THREAD 
+        DVLOG(5) << "Worker " << CURRENT_THREAD 
                  << " woke up for " << *request_address_ 
                  << " * " << *count_ ;
       }
@@ -207,14 +207,14 @@ public:
   }
 
   void release_reply( ) { 
-    DVLOG(5) << "Thread " << CURRENT_THREAD 
+    DVLOG(5) << "Worker " << CURRENT_THREAD 
              << " received release reply ";
     ++response_count_;
     if ( response_count_ == num_messages_ ) {
       released_ = true;
       if( thread_ != NULL ) {
-        DVLOG(5) << "Thread " << CURRENT_THREAD 
-                 << " waking Thread " << thread_;
+        DVLOG(5) << "Worker " << CURRENT_THREAD 
+                 << " waking Worker " << thread_;
         Grappa_wake( thread_ );
       }
     }

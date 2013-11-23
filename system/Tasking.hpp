@@ -43,10 +43,11 @@ void Grappa_global_queue_initialize();
 void Grappa_end_tasks();
 
 // forward declare master thread from scheduler
-extern Thread * master_thread;
 
 
 namespace Grappa {
+
+  extern Worker * master_thread;
 
   /// @addtogroup Tasking
   /// @{
@@ -75,7 +76,7 @@ namespace Grappa {
     /// functors. This function takes ownership of the heap-allocated
     /// functor and deallocates it after it has run.
     template< typename T >
-    static void worker_heapfunctor_proxy( Thread * me, void * vp ) {
+    static void worker_heapfunctor_proxy( Worker * me, void * vp ) {
       T * tp = reinterpret_cast< T * >( vp );
       (*tp)();
       delete tp;
@@ -116,7 +117,7 @@ namespace Grappa {
       // uint64_t args[3] = { 0 };
       // TF * tfargs = reinterpret_cast< TF * >( &args[0] );
       // *tfargs = tf;
-      DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns private";
+      DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread() << " spawns private";
       Grappa::impl::global_task_manager.spawnLocalPrivate( Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2] );
     }
   }
@@ -131,7 +132,7 @@ namespace Grappa {
     static_assert(sizeof(tf) <= 24,
         "Functor argument to publicTask too large to be automatically coerced.");
     
-    DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
+    DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
     
     uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
     Grappa::impl::global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
@@ -142,7 +143,7 @@ namespace Grappa {
   void spawn_worker( TF && tf ) {
     TF * tp = new TF(tf);
     void * vp = reinterpret_cast< void * >( tp );
-    Thread * th = worker_spawn( Grappa::impl::global_scheduler.get_current_thread(), &Grappa::impl::global_scheduler,
+    Worker * th = impl::worker_spawn( Grappa::impl::global_scheduler.get_current_thread(), &Grappa::impl::global_scheduler,
                                 Grappa::impl::worker_heapfunctor_proxy<TF>, vp );
     Grappa::impl::global_scheduler.ready( th );
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
@@ -215,7 +216,7 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
-  DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns private";
+  DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread() << " spawns private";
   Grappa::impl::global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
 }
 
@@ -267,7 +268,7 @@ void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2)
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
-  DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
+  DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
   Grappa::impl::global_task_manager.spawnPublic( fn_p, arg0, arg1, arg2 );
 }
 

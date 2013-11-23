@@ -23,12 +23,12 @@ GlobalAddress<int64_t> nf_addr;
 
 struct task1_arg {
     int num;
-    Thread * parent;
+    Worker * parent;
 };
 
 void task1_f( task1_arg * arg ) {
     int mynum = arg->num;
-    Thread * parent = arg->parent;
+    Worker * parent = arg->parent;
 
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 1" );
     Grappa_yield( );
@@ -47,7 +47,7 @@ void task1_f( task1_arg * arg ) {
 struct task2_shared {
   GlobalAddress<int64_t> nf;
   int64_t * array;
-  Thread * parent;
+  Worker * parent;
   LocalTaskJoiner * joiner;
 };
 
@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   Grappa_activate();
 
-  DVLOG(1) << "Spawning user main Thread....";
+  DVLOG(1) << "Spawning user main Worker....";
   Grappa_run_user_main( &user_main, (void*)NULL );
   VLOG(5) << "run_user_main returned";
   CHECK( Grappa_done() );

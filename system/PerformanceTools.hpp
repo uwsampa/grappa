@@ -8,7 +8,6 @@
 /// Collection of utilities for monitoring performance
 #pragma once
 
-#include "CurrentThread.hpp"
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -25,8 +24,8 @@ DECLARE_bool(record_grappa_events);
     TAU_PROFILER_CREATE(timer, nametext, typetext, group)
 #define GRAPPA_PROFILE_THREAD_START(timer, thread) TAU_PROFILER_START_TASK( timer, Grappa_tau_id((thread)) )
 #define GRAPPA_PROFILE_THREAD_STOP(timer, thread) TAU_PROFILER_STOP_TASK( timer, Grappa_tau_id((thread)) )
-#define GRAPPA_PROFILE_START(timer) GRAPPA_PROFILE_THREAD_START( timer, Grappa_current_thread() ) 
-#define GRAPPA_PROFILE_STOP(timer) GRAPPA_PROFILE_THREAD_STOP( timer, Grappa_current_thread() ) 
+#define GRAPPA_PROFILE_START(timer) GRAPPA_PROFILE_THREAD_START( timer, impl::global_scheduler.get_current_thread() ) 
+#define GRAPPA_PROFILE_STOP(timer) GRAPPA_PROFILE_THREAD_STOP( timer, impl::global_scheduler.get_current_thread() ) 
 #else
 #define GRAPPA_PROFILE_CREATE(timer, nametext, typetext, group) do {} while (0)
 #define GRAPPA_PROFILE_THREAD_START(timer, thread) do {} while (0)
@@ -44,19 +43,19 @@ DECLARE_bool(record_grappa_events);
     GRAPPA_PROFILE_CREATE( timer, nametext, typetext, group ); \
     GrappaProfiler __cat( prof, __LINE__) ( timer, thread )
 
-#define GRAPPA_PROFILE( timer, nametext, typetext, group ) GRAPPA_THREAD_PROFILE( timer, nametext, typetext, group, Grappa_current_thread() )
+#define GRAPPA_PROFILE( timer, nametext, typetext, group ) GRAPPA_THREAD_PROFILE( timer, nametext, typetext, group, impl::global_scheduler.get_current_thread() )
 #include <boost/current_function.hpp>
 #define GRAPPA_FUNCTION_PROFILE( group ) GRAPPA_PROFILE( __cat(timer, __LINE__), BOOST_CURRENT_FUNCTION, "", group )
 #define GRAPPA_THREAD_FUNCTION_PROFILE( group, thread ) GRAPPA_THREAD_PROFILE( __cat(timer, __LINE__), BOOST_CURRENT_FUNCTION, "", group, thread )
 
-class Thread;
+class Worker;
 class GrappaProfiler {
     private:
         void* timer;
-        Thread * thr;
+        Worker * thr;
 
     public:
-        GrappaProfiler ( void* timer, Thread * thr ) 
+        GrappaProfiler ( void* timer, Worker * thr ) 
             : timer ( timer )
             , thr ( thr ) {
             

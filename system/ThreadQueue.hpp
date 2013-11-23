@@ -5,6 +5,16 @@
 #include <glog/logging.h>
 #include <iostream>
 
+namespace Grappa {
+  class ThreadQueue;
+  class PrefetchingThreadQueue;
+}
+std::ostream& operator<< ( std::ostream& o, const Grappa::ThreadQueue& tq );
+std::ostream& operator<< ( std::ostream& o, const Grappa::PrefetchingThreadQueue& tq );
+
+namespace Grappa {
+
+
 /// A queue of threads
 class ThreadQueue {
     private:
@@ -37,9 +47,10 @@ class ThreadQueue {
             return (head==NULL);
         }
         
-        friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
+        friend std::ostream& ::operator<< ( std::ostream& o, const ThreadQueue& tq );
 };
 
+}
 
 template< typename T >
 T _max(const T& a, const T& b) {
@@ -50,6 +61,7 @@ T _min(const T& a, const T& b) {
   return (a<b) ? a : b;
 }
 
+namespace Grappa {
 
 class PrefetchingThreadQueue {
   private:
@@ -154,11 +166,11 @@ class PrefetchingThreadQueue {
     }
 
 
-    friend std::ostream& operator<< ( std::ostream& o, const PrefetchingThreadQueue& tq );
+    friend std::ostream& ::operator<< ( std::ostream& o, const PrefetchingThreadQueue& tq );
 };
 
 
-/// Remove a Thread from the queue and return it
+/// Remove a Worker from the queue and return it
 inline Worker * ThreadQueue::dequeue() {
     Worker * result = head;
     if (result != NULL) {
@@ -189,7 +201,7 @@ inline Worker * ThreadQueue::dequeueLazy() {
     return result;
 }
 
-/// Add a Thread to the queue
+/// Add a Worker to the queue
 inline void ThreadQueue::enqueue( Worker * t) {
     if (head==NULL) {
         head = t;
@@ -206,4 +218,4 @@ inline Worker * ThreadQueue::front() const {
   return head;
 }
 
-
+}

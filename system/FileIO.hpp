@@ -95,13 +95,11 @@ struct IODescriptor {
   bool complete;
   ConditionVariable cv;
   
-  Thread * waiter;
   struct aiocb ac;
   IODescriptor * nextCompleted; // for use in completed stack
   
   IODescriptor(int file_desc=0, size_t file_offset = 0, void * buffer = NULL, size_t bufsize = 0) {
     complete = false;
-    waiter = NULL;
     nextCompleted = NULL;
     ac.aio_reqprio = 0;
     ac.aio_sigevent.sigev_notify = SIGEV_SIGNAL; // notify completion using a signal

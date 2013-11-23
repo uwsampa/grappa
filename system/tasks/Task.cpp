@@ -261,7 +261,7 @@ inline void TaskManager::checkPull() {
       GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
       GRAPPA_PROFILE_START( prof );
 
-      // only one Thread is allowed to steal
+      // only one Worker is allowed to steal
       stealLock = false;
 
       VLOG(5) << CURRENT_THREAD << " trying to steal";

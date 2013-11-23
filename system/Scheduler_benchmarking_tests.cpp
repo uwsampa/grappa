@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE( benchmark_test1) {
 
   Grappa_activate();
 
-  DVLOG(1) << "Spawning user main Thread....";
+  DVLOG(1) << "Spawning user main Worker....";
   Grappa_run_user_main( &user_main, (void*)NULL );
   VLOG(5) << "run_user_main returned";
   CHECK( Grappa_done() );

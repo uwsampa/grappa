@@ -28,18 +28,18 @@ int num_tasks;
 int64_t num_finished=0;
 int64_t num_stolen_started = 0;
 int64_t vals[4] = {0};
-Thread * threads[4]={NULL};
-Thread * dummy_thr=NULL;
+Worker * threads[4]={NULL};
+Worker * dummy_thr=NULL;
 bool isWoken[4] = {false};
 bool isActuallyAsleep[4] = {false};
 
 struct task1_arg {
     int num;
-    Thread * parent;
+    Worker * parent;
 };
 
 struct wake_arg {
-    Thread * wakee;
+    Worker * wakee;
 };
 
 void wake_f( wake_arg * args, size_t size, void * payload, size_t payload_size ) {
@@ -85,13 +85,13 @@ void multiBarrier( int index ) {
 
 void task_local( task1_arg * arg ) {
     int mynum = arg->num;
-    Thread * parent = arg->parent;
+    Worker * parent = arg->parent;
    
     // this task should not have been stolen and running on 0 
     BOOST_CHECK_EQUAL( 0, Grappa::mycore() );
 
     BOOST_MESSAGE( CURRENT_THREAD << " with task(local) " << mynum << " about to enter multi barrier" );
-    threads[mynum] = CURRENT_THREAD; // store my Thread ptr in local global array
+    threads[mynum] = CURRENT_THREAD; // store my Worker ptr in local global array
     multiBarrier( mynum );
     
     // increment the global counter
@@ -112,7 +112,7 @@ void wakedum_f( wake_arg * unused, size_t arg_size, void * payload, size_t paylo
 
 void task_stolen( task1_arg * arg ) {
     int mynum = arg->num;
-    Thread * parent = arg->parent;
+    Worker * parent = arg->parent;
 
     // this task should have been stolen and running on not 0
     BOOST_CHECK( 0 != Grappa::mycore() );
@@ -126,7 +126,7 @@ void task_stolen( task1_arg * arg ) {
 
     // wake the corresponding task on Core 0
     BOOST_MESSAGE( CURRENT_THREAD << " with task(stolen) " << mynum << " about to enter multi barrier" );
-    threads[mynum] = CURRENT_THREAD; // store my Thread ptr in local global array
+    threads[mynum] = CURRENT_THREAD; // store my Worker ptr in local global array
     multiBarrier( mynum );
     
     // increment the global counter
@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   //BOOST_CHECK_EQUAL( FLAGS_chunk_size, 4 );
   //BOOST_CHECK_EQUAL( FLAGS_num_starting_workers, 4 );
 
-  DVLOG(1) << "Spawning user main Thread....";
+  DVLOG(1) << "Spawning user main Worker....";
   Grappa_run_user_main( &user_main, (void*)NULL );
   BOOST_CHECK( Grappa_done() == true );
 

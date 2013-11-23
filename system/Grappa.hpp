@@ -43,10 +43,11 @@ void init( int * argc_p, char ** argv_p[], size_t size = -1 );
 /// finishes. Running Grappa code after calling finalize() is illegal.
 int finalize();
 
-}
 
 /// pointer to parent pthread
 extern Worker * master_thread;
+
+}
 
 /// for convenience/brevity, define macro to get current thread/worker
 /// pointer
@@ -87,21 +88,21 @@ static inline void Grappa_suspend( )
 }
 
 /// Wake a Worker by putting it on the run queue, leaving the current thread running.
-static inline void Grappa_wake( Worker * t )
+static inline void Grappa_wake( Grappa::Worker * t )
 {
   DVLOG(5) << Grappa::impl::global_scheduler.get_current_thread()->id << " waking Worker " << t;
   Grappa::impl::global_scheduler.thread_wake( t );
 }
 
 /// Wake a Worker t by placing current thread on run queue and running t next.
-static inline void Grappa_yield_wake( Worker * t )
+static inline void Grappa_yield_wake( Grappa::Worker * t )
 {
   DVLOG(5) << "yielding Worker " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
   Grappa::impl::global_scheduler.thread_yield_wake( t );
 }
 
 /// Wake a Worker t by suspending current thread and running t next.
-static inline void Grappa_suspend_wake( Worker * t )
+static inline void Grappa_suspend_wake( Grappa::Worker * t )
 {
   DVLOG(5) << "suspending Worker " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
   Grappa::impl::global_scheduler.thread_suspend_wake( t );

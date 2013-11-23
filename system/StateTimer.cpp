@@ -37,7 +37,7 @@ void StateTimer::enterState_thread_( ) {
 #endif
 }
 
-/// Set the StateTimer state of the Thread
+/// Set the StateTimer state of the Worker
 void StateTimer::setThreadState_( int state ) {
 #if STATE_TIMER_ON
     CURRENT_THREAD->state = state;

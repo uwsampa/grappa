@@ -24,7 +24,7 @@ void user_main( void * args )
   data++;
   Grappa::unlock( &m );
 
-  Thread * t = impl::global_scheduler.get_current_thread();
+  Worker * t = impl::global_scheduler.get_current_thread();
 
   privateTask([&] { 
     lock( &m ); 

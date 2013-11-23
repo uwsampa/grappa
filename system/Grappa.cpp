@@ -57,11 +57,6 @@ using namespace Grappa::impl;
 using namespace Grappa::Statistics;
 using namespace Grappa;
 
-static Worker * barrier_thread = NULL;
-
-Worker * master_thread;
-static Worker * user_main_thr;
-
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
@@ -76,6 +71,12 @@ HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
 namespace Grappa {
+  
+  static Worker * barrier_thread = NULL;
+
+  Worker * master_thread;
+  static Worker * user_main_thr;
+  
   // defined here so FileIO.hpp doesn't need a .cpp
   IODescriptor * aio_completed_stack;
   
@@ -356,7 +357,7 @@ void Grappa_activate()
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
 
   // fire up polling thread
-  global_scheduler.periodic( worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+  global_scheduler.periodic( impl::worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
 
   global_rdma_aggregator.activate();

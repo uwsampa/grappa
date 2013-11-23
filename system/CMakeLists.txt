@@ -21,7 +21,6 @@ set(SYSTEM_SOURCES
   CallbackStatistic.cpp
   Collective.cpp
   Communicator.cpp
-  CurrentThread.cpp
   Delegate.cpp
   FlatCombiner.cpp
   GlobalAllocator.cpp
@@ -66,7 +65,6 @@ set(SYSTEM_SOURCES
   ConditionVariable.hpp
   ConditionVariableLocal.hpp
   CountingSemaphoreLocal.hpp
-  CurrentThread.hpp
   Delegate.hpp
   ExternalCountPayloadMessage.hpp
   FileIO.hpp

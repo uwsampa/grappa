@@ -13,17 +13,6 @@
 
 using namespace Grappa;
 
-//#include <boost/hash.hpp>
-//#include <boost/unordered_set.hpp>
-//#include <boost/dynamic_bitset.hpp>
-
-
-//#define read      Grappa_delegate_read_word
-//#define write     Grappa_delegate_write_word
-//#define cmp_swap  Grappa_delegate_compare_and_swap_word
-//#define fetch_add Grappa_delegate_fetch_and_add_word
-//#define allreduce_add Grappa_allreduce<int64_t,coll_add<int64_t>,0>
-
 static PushBuffer<int64_t> vlist_buf;
 
 static GlobalAddress<int64_t> vlist;

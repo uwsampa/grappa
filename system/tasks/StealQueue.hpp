@@ -51,8 +51,6 @@ DECLARE_int32( chunk_size );
 #include <boost/cstdint.hpp>
 typedef int16_t Core;
 
-/// Forward declare for steal_locally
-class Worker;
 
 /*
  * Implementor note:
@@ -62,6 +60,10 @@ class Worker;
  */
    
 namespace Grappa {
+
+  /// Forward declare for steal_locally
+  class Worker;
+
   namespace impl {
 
     // global queue forward declarations
@@ -324,7 +326,7 @@ uint64_t StealQueue<T>::topPosn() const
 
 extern TaskingScheduler global_scheduler;
 // void Grappa_suspend();
-// void Grappa_wake( Thread * );
+// void Grappa_wake( Worker * );
 // Core Grappa::mycore();
 
 // bunch of static state for workshare and global queue
