@@ -88,7 +88,7 @@ void try_global_ce() {
   
   x = 0;
 //  gce.reset_all(); (don't need this anymore)
-  on_all_cores([xa]{
+  on_all_cores([xa,N]{
     int y = 0;
     auto ya = make_global(&y);
     
@@ -153,7 +153,7 @@ void try_global_ce_recursive() {
   
   x = 0;
 //  gce.reset_all();
-  on_all_cores([xa]{
+  on_all_cores([xa,N]{
     int y = 0;
     auto ya = make_global(&y);
     
@@ -196,7 +196,7 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(x, N);
   
   BOOST_MESSAGE("  private,global");
-  on_all_cores([]{
+  on_all_cores([N]{
 //    gce.reset();
 //    barrier();
     
@@ -232,25 +232,21 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(total, N);
 }
 
-void user_main(void * args) {
-  CHECK(cores() >= 2); // at least 2 nodes for these tests...
-
-  try_no_tasks();
-  try_one_task();
-  try_many_tasks();
-  try_global_ce();
-  try_global_ce_recursive();
-  try_synchronizing_spawns();
-  
-  Statistics::merge_and_print();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-              &(boost::unit_test::framework::master_test_suite().argv));
-  Grappa_activate();
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    CHECK(cores() >= 2); // at least 2 nodes for these tests...
+
+    try_no_tasks();
+    try_one_task();
+    try_many_tasks();
+    try_global_ce();
+    try_global_ce_recursive();
+    try_synchronizing_spawns();
+  
+    Statistics::merge_and_print();
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

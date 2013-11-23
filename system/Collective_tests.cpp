@@ -16,45 +16,35 @@ BOOST_AUTO_TEST_SUITE( Collective_tests );
 
 static int global_x;
 
-
-void user_main( int * ignore ) {
-  BOOST_MESSAGE("testing allreduce");
-  Grappa::on_all_cores([]{
-    int x = 7;
-    int total_x = Grappa::allreduce<int,collective_add>(x);
-    BOOST_CHECK_EQUAL(total_x, 7*Grappa::cores());
-    
-    global_x = Grappa::mycore() + 1;
-  });
-
-  BOOST_MESSAGE("testing reduce");
-  int total_x = Grappa::reduce<int,collective_add>(&global_x);
-  Core n = Grappa::cores();
-  BOOST_CHECK_EQUAL(total_x, n*(n+1)/2);
-  
-  BOOST_MESSAGE("testing allreduce_inplace");
-  Grappa::on_all_cores([]{
-    const int N = 1024;
-    int xs[N];
-    for (int i=0; i<N; i++) xs[i] = i;
-    
-    Grappa::allreduce_inplace<int,collective_add>(xs, N);
-    
-    for (int i=0; i<N; i++) BOOST_CHECK_EQUAL(xs[i], Grappa::cores() * i);
-  });
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    BOOST_MESSAGE("testing allreduce");
+    Grappa::on_all_cores([]{
+      int x = 7;
+      int total_x = Grappa::allreduce<int,collective_add>(x);
+      BOOST_CHECK_EQUAL(total_x, 7*Grappa::cores());
+    
+      global_x = Grappa::mycore() + 1;
+    });
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-
-  Grappa_activate();
-
-  Grappa_run_user_main( &user_main, (int*)NULL );
-  BOOST_CHECK( Grappa_done() == true );
-
-  Grappa_finish( 0 );
+    BOOST_MESSAGE("testing reduce");
+    int total_x = Grappa::reduce<int,collective_add>(&global_x);
+    Core n = Grappa::cores();
+    BOOST_CHECK_EQUAL(total_x, n*(n+1)/2);
+  
+    BOOST_MESSAGE("testing allreduce_inplace");
+    Grappa::on_all_cores([]{
+      const int N = 1024;
+      int xs[N];
+      for (int i=0; i<N; i++) xs[i] = i;
+    
+      Grappa::allreduce_inplace<int,collective_add>(xs, N);
+    
+      for (int i=0; i<N; i++) BOOST_CHECK_EQUAL(xs[i], Grappa::cores() * i);
+    });
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

@@ -19,6 +19,8 @@
 //#include <typeinfo>
 //#include <cxxabi.h>
 
+#define GRAPPA_TEST_ARGS &(boost::unit_test::framework::master_test_suite().argc), &(boost::unit_test::framework::master_test_suite().argv) 
+
 namespace Grappa {
 
 extern double tick_rate;
