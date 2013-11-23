@@ -62,58 +62,51 @@ void validate(GlobalAddress<int64_t> A, size_t n) {
 
 
 
-void user_main( int * args ) {
-
-  // allocate array
-  GlobalAddress<int64_t> A = Grappa::global_alloc<int64_t>(FLAGS_sizeA);
-
-  do {
-
-    LOG(INFO) << "Starting";
-    Grappa::memset(A, 0, FLAGS_sizeA);
-
-    Grappa::Statistics::reset_all_cores();
-
-    double start = Grappa::walltime();
-
-    // best with loop threshold 1024
-    // shared pool size 2^16
-    Grappa::forall_global_public( 0, FLAGS_iterations-1, [A] ( int64_t i ) {
-        uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
-        Grappa::delegate::increment_async( A + b, 1 );
-      } );
-
-    double end = Grappa::walltime();
-
-    Grappa::on_all_cores( [] {
-        Grappa_stop_profiling();
-      } );
-    
-    gups_runtime = end - start;
-    gups_throughput = FLAGS_iterations / (end - start);
-    gups_throughput_per_locale = gups_throughput / Grappa::locales();
-
-    Grappa::Statistics::merge_and_print();
-
-    if( FLAGS_validate ) {
-      LOG(INFO) << "Validating....";
-      validate(A, FLAGS_sizeA);
-    }
-
-   } while (FLAGS_repeats-- > 1);
-
-  LOG(INFO) << "Done. ";
-}
-
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-		  &(boost::unit_test::framework::master_test_suite().argv) );
-    Grappa_activate();
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
 
-    Grappa_run_user_main( &user_main, (int*)NULL );
+    // allocate array
+    GlobalAddress<int64_t> A = Grappa::global_alloc<int64_t>(FLAGS_sizeA);
 
-    Grappa_finish( 0 );
+    do {
+
+      LOG(INFO) << "Starting";
+      Grappa::memset(A, 0, FLAGS_sizeA);
+
+      Grappa::Statistics::reset_all_cores();
+
+      double start = Grappa::walltime();
+
+      // best with loop threshold 1024
+      // shared pool size 2^16
+      Grappa::forall_global_public( 0, FLAGS_iterations-1, [A] ( int64_t i ) {
+          uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
+          Grappa::delegate::increment_async( A + b, 1 );
+        } );
+
+      double end = Grappa::walltime();
+
+      Grappa::on_all_cores( [] {
+          Grappa_stop_profiling();
+        } );
+    
+      gups_runtime = end - start;
+      gups_throughput = FLAGS_iterations / (end - start);
+      gups_throughput_per_locale = gups_throughput / Grappa::locales();
+
+      Grappa::Statistics::merge_and_print();
+
+      if( FLAGS_validate ) {
+        LOG(INFO) << "Validating....";
+        validate(A, FLAGS_sizeA);
+      }
+
+     } while (FLAGS_repeats-- > 1);
+
+    LOG(INFO) << "Done. ";
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

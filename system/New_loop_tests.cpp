@@ -243,32 +243,23 @@ void test_forall_localized() {
     
 }
 
-void user_main(void * args) {
-  CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
-
-  test_on_all_cores();
-  
-  test_loop_decomposition();
-  test_loop_decomposition_global();
-  
-  test_forall_here();
-  test_forall_global_private();
-  test_forall_global_public();
-  
-  test_forall_localized();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-	       &(boost::unit_test::framework::master_test_suite().argv)
-	       );
-
-  Grappa_activate();
-
-  Grappa_run_user_main( &user_main, (void*)NULL );
-
-  Grappa_finish( 0 );
+    test_on_all_cores();
+  
+    test_loop_decomposition();
+    test_loop_decomposition_global();
+  
+    test_forall_here();
+    test_forall_global_private();
+    test_forall_global_public();
+  
+    test_forall_localized();
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
