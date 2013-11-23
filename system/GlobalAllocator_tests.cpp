@@ -21,16 +21,16 @@ const size_t local_size_bytes = 1 << 14;
 
 void user_main( void * ignore ) {
   Grappa::on_all_cores([] {
-    GlobalAddress< int64_t > a = Grappa_malloc( 1 );
+    GlobalAddress< int8_t > a = Grappa::global_alloc( 1 );
     LOG(INFO) << "got pointer " << a.pointer();
 
-    GlobalAddress< int64_t > b = Grappa::global_alloc< int64_t >( 1 );
+    GlobalAddress< int8_t > b = Grappa::global_alloc( 1 );
     LOG(INFO) << "got pointer " << b.pointer();
 
-    GlobalAddress< int64_t > c = Grappa_malloc( 8 );
+    GlobalAddress< int8_t > c = Grappa::global_alloc( 8 );
     LOG(INFO) << "got pointer " << c.pointer();
 
-    GlobalAddress< int64_t > d = Grappa_malloc( 1 );
+    GlobalAddress< int8_t > d = Grappa::global_alloc( 1 );
     LOG(INFO) << "got pointer " << d.pointer();
 
 //    LOG(INFO) << *global_allocator;

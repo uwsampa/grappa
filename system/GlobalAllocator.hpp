@@ -121,7 +121,7 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a );
 namespace Grappa {
 
 /// Allocate bytes from the global shared heap.
-template< typename T = void >
+template< typename T = int8_t >
 GlobalAddress<T> global_alloc(size_t count) {
   CHECK_GT(count, 0) << "allocation must be greater than 0";
   return static_cast<GlobalAddress<T>>(GlobalAllocator::remote_malloc(sizeof(T)*count));
@@ -151,15 +151,6 @@ GlobalAddress<T> symmetric_global_alloc() {
 
 
 } // namespace Grappa
-
-////////////////////////////////////////////
-// Legacy
-////////////////////////////////////////////
-
-/// Allocate bytes from the global shared heap.
-inline GlobalAddress<void> Grappa_malloc(size_t size_bytes) {
-  return static_cast<GlobalAddress<void>>(Grappa::global_alloc<char>(size_bytes));
-}
 
 /// @}
 
