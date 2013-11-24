@@ -28,7 +28,7 @@ void search( int64_t x ) {
       // async: Non-blocking parallel for loop.
       // public: Iterations are load balanced and so may execute on any core.
       forall_public_async( x+1, num_children, [](int64_t c) {
-          search(c);
+        search(c);
       });
     }
   }
