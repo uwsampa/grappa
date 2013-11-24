@@ -283,3 +283,12 @@ run([]{
 
 We will use a simple benchmark to illustrate the use of parallel loops and delegate operations.
 
+
+### Irregular parallelism
+
+We will use a tree search to illustrate the spawning and syncing of an unpredictable
+number of dynamic tasks. 
+
+In this tutorial you will learn:
+- use of `forall_public_*` loops to create tasks that can be load balanced between cores
+- use of a `GlobalCompletionEvent` to synchronize dynamic tasks across all cores
