@@ -396,12 +396,36 @@ namespace {
       
       std::vector<FetchAdd> fetchadds;
       
+      //////////////////////////////////////
+      // find candidate regions
+      //
+      // algorithm:
+      // - find all global accesses
+      // - for each global access:
+      //   - walk forward as far as possible; stop if:
+      //     - different global address (could lead to branching opportunity)
+      //     - Core-local access (including global statics--can't guarantee it's okay to move those)
+      //     - output (allows code movement to be observed)
+      //   - check input/output sizes; if larger than threshold, ignore
+      //   - save as candidate extraction region (with use info)
+      //
+      // enabling runtime choices/multi-address candidates
+      // - don't stop if different global address, rather save candidate so far, then continue
+      // - save multi-address candidate (and associate with single-address candidates that overlap)
+      // - add runtime branch:
+      //     if (addr1.core() == addr2.core()) { call multi_address_region }
+      //     else { call addr1; ...; call addr2 }
+      
       for (auto& bb : F) {
         
         // look for fetch_add opportunity
         std::map<Value*,LoadInst*> target_lds;
         std::map<Value*,Value*> target_increments;
         std::map<Value*,Instruction*> operand_to_inst;
+        
+        DelegateExtractor dex(&bb, *F.getParent(), ginfo);
+        ValueSet inputs, outputs; GlobalPtrMap gptrs;
+        dex.findInputsOutputsUses(inputs, outputs, gptrs);
         
         for (auto& inst : bb) {
           switch ( inst.getOpcode() ) {

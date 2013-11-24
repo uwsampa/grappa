@@ -45,30 +45,46 @@ DelegateExtractor::DelegateExtractor(BasicBlock* bb, Module& mod, GlobalPtrInfo&
 }
 
 // TODO: augment to also return set of global pointers accessed
-void DelegateExtractor::findInputsOutputs(ValueSet &Inputs,
-                                      ValueSet &Outputs) const {
-  for (SetVector<BasicBlock *>::const_iterator I = bbs.begin(),
-       E = bbs.end();
-       I != E; ++I) {
-    BasicBlock *BB = *I;
-    
-    // If a used value is defined outside the region, it's an input.  If an
-    // instruction is used outside the region, it's an output.
-    for (BasicBlock::iterator II = BB->begin(), IE = BB->end();
-         II != IE; ++II) {
-      for (User::op_iterator OI = II->op_begin(), OE = II->op_end();
-           OI != OE; ++OI)
-        if (definedInCaller(bbs, *OI))
-          Inputs.insert(*OI);
+void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& outputs,
+                                          GlobalPtrMap& gptrs) const {
+  // map loaded value back to its pointer
+  std::map<Value*,Value*> gvals;
+  
+  for (auto bb : bbs) {
+    for (auto& ii : *bb) {
       
-      for (Value::use_iterator UI = II->use_begin(), UE = II->use_end();
-           UI != UE; ++UI)
-        if (!definedInRegion(bbs, *UI)) {
-          Outputs.insert(II);
+      if (auto gld = dyn_cast_global<LoadInst>(&ii)) {
+        auto p = gld->getPointerOperand();
+        if (gptrs.count(p) == 0) gptrs.emplace(p, GlobalPtrUse());
+        gptrs[p].loads++;
+        gvals[gld] = p;
+      } else if (auto gi = dyn_cast_global<StoreInst>(&ii)) {
+        auto p = gi->getPointerOperand();
+        if (gptrs.count(p) == 0) gptrs.emplace(p, GlobalPtrUse());
+        gptrs[p].stores++;
+      }
+      
+      for (auto op = ii.op_begin(), opend = ii.op_end(); op != opend; op++) {
+        if (definedInCaller(bbs, *op)) inputs.insert(*op);
+        if (gvals.count(*op) > 0) {
+          gptrs[gvals[*op]].uses++;
+        }
+      }
+      for (auto use = ii.use_begin(), useend = ii.use_end(); use != useend; use++) {
+        if (definedInRegion(bbs, *use)) {
+          outputs.insert(&ii);
           break;
         }
+      }
     }
   }
+  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
+  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
+  errs() << "gptrs:\n"; for (auto v : gptrs) {
+    auto u = v.second;
+    errs() << "  " << v.first->getName()
+           << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
+  } errs() << "\n";
 }
 
 
@@ -77,10 +93,8 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   auto inblock = bbs[0];
   
   ValueSet inputs, outputs;
-  findInputsOutputs(inputs, outputs);
-  
-  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
-  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
+  GlobalPtrMap gptrs;
+  findInputsOutputs(inputs, outputs, gptrs);
   
   // create struct types for inputs & outputs
   SmallVector<Type*,8> in_types, out_types;

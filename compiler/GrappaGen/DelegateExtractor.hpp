@@ -70,20 +70,33 @@ namespace llvm {
     return nullptr;
   }
   
+  struct GlobalPtrUse {
+    int16_t loads, stores, uses;
+    GlobalPtrUse(): loads(0), stores(0), uses(0) {}
+  };
+  using GlobalPtrMap = std::map<Value*,GlobalPtrUse>;
+  using ValueSet = SetVector<Value*>;
+  
   class DelegateExtractor {
-    using ValueSet = SetVector<Value*>;
     
     SetVector<BasicBlock*> bbs;
     DominatorTree* dom;
     Module& mod;
     DataLayout* layout;
     GlobalPtrInfo& ginfo;
+    
   public:
+    
     DelegateExtractor(BasicBlock* bb, Module& mod, GlobalPtrInfo& ginfo);
 //    DelegateExtractor(ArrayRef<BasicBlock*> bbs, DominatorTree* dom);
     
-    void findInputsOutputs(ValueSet& Inputs, ValueSet& Outputs) const;
+    /// Compute the inputs and outputs and catalog all uses of global pointers in the specified code.
+    void findInputsOutputsUses(ValueSet& inputs, ValueSet& outputs, GlobalPtrMap& global_ptr_uses) const;
     
+    /// Construct generic delegate from region specified for this DelegateExtractor.
+    /// Replaces the original BasicBlock with a new one that invokes `grappa_on()`
+    ///
+    /// @return constructed delegate function of type: void(void* in, void* out)
     Function* constructDelegateFunction(Value* gptr);
   };
 
