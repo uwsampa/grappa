@@ -41,6 +41,13 @@
 
 namespace llvm {
 
+  struct OperandIterator {
+    Instruction* self;
+    OperandIterator(Instruction* self): self(self) {}
+    User::op_iterator begin() { return self->op_begin(); }
+    User::op_iterator end()   { return self->op_end(); }
+  };
+  
   struct GlobalPtrInfo {
     Function *call_on_fn, *get_core_fn, *get_pointer_fn;
     

@@ -133,6 +133,7 @@ namespace {
     GrappaGen() : FunctionPass(ID) { }
     
     
+    /// Experimental code to replace FetchAdd with a `grappa_on` using CodeExtractor directly
     void replaceFetchAdd(FetchAdd& fa) {
       errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
       
@@ -262,7 +263,7 @@ namespace {
       
       auto on_fn_ty = call_on_fn->getFunctionType()->getParamType(1);
       
-      auto new_call = CallInst::Create(call_on_fn, (Value*[]){
+      CallInst::Create(call_on_fn, (Value*[]){
         target_core,
         new BitCastInst(delegate_fn, on_fn_ty, "", delegate_call),
         new BitCastInst(arg_in, void_ptr_ty, "", delegate_call),
@@ -285,7 +286,6 @@ namespace {
       fa.store->removeFromParent();
       ir_comment(f, "grappa.fetchadd", "");
     }
-    
     
     void replaceFetchAddWithGenericDelegate(FetchAdd& fa, Module* mod) {
       errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
@@ -386,6 +386,7 @@ namespace {
     }
     
     virtual bool runOnFunction(Function &F) {
+      auto& mod = *F.getParent();
       DT = &getAnalysis<DominatorTree>();
 
       bool changed = false;
@@ -416,6 +417,100 @@ namespace {
       //     if (addr1.core() == addr2.core()) { call multi_address_region }
       //     else { call addr1; ...; call addr2 }
       
+      auto valid_in_delegate = [](Instruction* inst, Value* gptr, ValueSet& available_vals) {
+        if (auto gld = dyn_cast_global<LoadInst>(inst)) {
+          if (gld->getPointerOperand() == gptr) {
+            available_vals.insert(gld);
+            outs() << "load to same gptr: ok\n";
+            return true;
+          }
+        } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
+          if (available_vals.count(g->getValueOperand()) > 0) {
+            if (g->getPointerOperand() == gptr) {
+              outs() << "store to same gptr: great!\n";
+              return true;
+            } else {
+              outs() << "store to different gptr: not supported yet.\n";
+              return false;
+            }
+          }
+        } else if (auto ld = dyn_cast<LoadInst>(inst)) {
+          if (ld->getPointerAddressSpace() == 0) {
+            outs() << "load to normal memory: " << *ld << "\n";
+            return false;
+          }
+        } else {
+          return true;
+//          return std::all_of(inst->op_begin(), inst->op_end(), [&](Value* op){
+//            return available_vals.count(op) > 0;
+//          });
+        }
+        return false;
+      };
+      
+      for (auto bbit = F.begin(); bbit != F.end(); ) {
+        auto bb = bbit++;
+        
+        DelegateExtractor dex(bb, mod, ginfo);
+        ValueSet inputs, outputs; GlobalPtrMap gptrs;
+        dex.findInputsOutputsUses(inputs, outputs, gptrs);
+        
+        if (gptrs.size() == 0) continue;
+        
+        outs() << "checking bb:" << *bb << "\n----------\n";
+        
+//        struct Candidate { BasicBlock::iterator start_pt, end_pt; };
+//        std::set<Candidate> candidates;
+        SmallVector<BasicBlock*,4> bbs;
+        bbs.push_back(bb);
+        
+        SetVector<BasicBlock*> candidate_bbs;
+        
+        for (auto iit = bb->begin(); iit != bb->end(); ) {
+          Value* gptr = nullptr;
+          if (auto gld = dyn_cast_global<LoadInst>(iit)) {
+            gptr = gld->getPointerOperand();
+          } else if (auto g = dyn_cast_global<StoreInst>(iit)) {
+            gptr = g->getPointerOperand();
+          }
+          if (gptr) {
+            ValueSet vals;
+            auto start_pt = iit;
+            while (valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
+            auto end_pt = iit;
+//            candidates.emplace(Candidate{ start_pt, end_pt });
+            
+//            outs() << "splitting...\n";
+            
+            if (start_pt != bb->begin()) {
+              bb = bb->splitBasicBlock(start_pt);
+              bbs.push_back(bb);
+              outs() << "there\n";
+            }
+            
+            candidate_bbs.insert(bb);
+            
+            if (end_pt != bb->end()) {
+              bb = bb->splitBasicBlock(end_pt);
+              bbs.push_back(bb);
+              iit = bb->begin();
+              outs() << "here: bb =" << *bb;
+            }
+            
+            if (auto inst = dyn_cast<Instruction>(&*iit)) { outs() << "iit = " << *inst << "\n"; }
+            
+          } else {
+            iit++;
+          }
+        }
+        
+        outs() << "\n-----------------------\n[[ after split ]]\n";
+        for (BasicBlock* bb : bbs) {
+          outs() << (candidate_bbs.count(bb) ? "** candidate **" : "") << *bb << "\n";
+        }
+      }
+      
+/*
       for (auto& bb : F) {
         
         // look for fetch_add opportunity
@@ -492,6 +587,7 @@ namespace {
       for (auto* inst : global_stores) {
         replaceWithRemoteStore(inst);
       }
+ */
       
       return changed;
     }
