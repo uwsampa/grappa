@@ -78,13 +78,13 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
       }
     }
   }
-  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
-  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
-  errs() << "gptrs:\n"; for (auto v : gptrs) {
-    auto u = v.second;
-    errs() << "  " << v.first->getName()
-           << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
-  } errs() << "\n";
+//  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
+//  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
+//  errs() << "gptrs:\n"; for (auto v : gptrs) {
+//    auto u = v.second;
+//    errs() << "  " << v.first->getName()
+//           << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
+//  } errs() << "\n";
 }
 
 
@@ -94,7 +94,7 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   
   ValueSet inputs, outputs;
   GlobalPtrMap gptrs;
-  findInputsOutputs(inputs, outputs, gptrs);
+  findInputsOutputsUses(inputs, outputs, gptrs);
   
   // create struct types for inputs & outputs
   SmallVector<Type*,8> in_types, out_types;
