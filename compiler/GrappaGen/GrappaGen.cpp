@@ -425,25 +425,44 @@ namespace {
             return true;
           }
         } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
-          if (available_vals.count(g->getValueOperand()) > 0) {
-            if (g->getPointerOperand() == gptr) {
-              outs() << "store to same gptr: great!\n";
-              return true;
-            } else {
-              outs() << "store to different gptr: not supported yet.\n";
-              return false;
-            }
-          }
-        } else if (auto ld = dyn_cast<LoadInst>(inst)) {
-          if (ld->getPointerAddressSpace() == 0) {
-            outs() << "load to normal memory: " << *ld << "\n";
+          if (g->getPointerOperand() == gptr) {
+            outs() << "store to same gptr: great!\n";
+            return true;
+          } else {
+            outs() << "store to different gptr: not supported yet.\n";
             return false;
           }
+        } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
+          outs() << "load/store to normal memory: " << *inst << "\n";
+          return false;
+        } else if (auto ge = dyn_cast<GetElementPtrInst>(inst)) {
+          // TODO: fix this, some GEP's should be alright...
+          return false;
+        } else if (isa<TerminatorInst>(inst) || isa<PHINode>(inst) || isa<InvokeInst>(inst)) {
+          return false;
+        } else if (auto call = dyn_cast<CallInst>(inst)) {
+          auto fn = call->getCalledFunction();
+          if (fn->getName() == "llvm.dbg.value") return true;
+          // TODO: detect if function is pure / inline it and see??
+          return false;
         } else {
           return true;
-//          return std::all_of(inst->op_begin(), inst->op_end(), [&](Value* op){
-//            return available_vals.count(op) > 0;
+//          bool is_bin_op = isa<BinaryOperator>(inst);
+//          
+//          if (is_bin_op) outs() << "checking ops: " << *inst << "\n";
+//          
+//          bool valid = std::all_of(inst->op_begin(), inst->op_end(), [&](Value* op){
+//            if (is_bin_op) {
+//              outs() << *op << "\n  avail:" << available_vals.count(op) << ", const:" << dyn_cast<Constant>(op) << "\n";
+//            }
+//            if (available_vals.count(op) > 0 || isa<Constant>(op)) {
+//              return true;
+//            } else {
+//              return false;
+//            }
 //          });
+//          available_vals.insert(inst);
+//          return valid;
         }
         return false;
       };
@@ -475,9 +494,8 @@ namespace {
           }
           if (gptr) {
             ValueSet vals;
+            vals.insert(iit);
             auto start_pt = iit;
-            while (valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
-            auto end_pt = iit;
 //            candidates.emplace(Candidate{ start_pt, end_pt });
             
 //            outs() << "splitting...\n";
@@ -485,19 +503,29 @@ namespace {
             if (start_pt != bb->begin()) {
               bb = bb->splitBasicBlock(start_pt);
               bbs.push_back(bb);
-              outs() << "there\n";
+//              outs() << "there\n";
             }
-            
+
             candidate_bbs.insert(bb);
+            
+            iit = bb->begin();
+            iit++;
+            
+            while (valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
+            auto end_pt = iit;
+            bool end_pt_dist = std::distance(end_pt, bb->end());
+            outs() << "@bh end_pt distance = " << end_pt_dist << " (pre)\n";
+            
             
             if (end_pt != bb->end()) {
               bb = bb->splitBasicBlock(end_pt);
               bbs.push_back(bb);
               iit = bb->begin();
-              outs() << "here: bb =" << *bb;
+//              outs() << "distance = " << std::distance(iit, bb->end()) << "\n";
+//              outs() << "here: bb =" << *bb;
+            } else {
+              iit = bb->end();
             }
-            
-            if (auto inst = dyn_cast<Instruction>(&*iit)) { outs() << "iit = " << *inst << "\n"; }
             
           } else {
             iit++;
@@ -622,6 +650,8 @@ namespace {
       // module = &m;
       // auto int_ty = m.getTypeByName("int");
       // delegate_read_fn = m.getOrInsertFunction("delegate_read_int", int_ty, );
+      
+      outs() << "@bh isa<Constant>(i64 0): " << isa<Constant>(ConstantInt::get(i64_ty, 0)) << "\n";
       
       return false;
     }
