@@ -71,20 +71,13 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
         }
       }
       for (auto use = ii.use_begin(), useend = ii.use_end(); use != useend; use++) {
-        if (definedInRegion(bbs, *use)) {
+        if (!definedInRegion(bbs, *use)) {
           outputs.insert(&ii);
           break;
         }
       }
     }
   }
-//  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
-//  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
-//  errs() << "gptrs:\n"; for (auto v : gptrs) {
-//    auto u = v.second;
-//    errs() << "  " << v.first->getName()
-//           << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
-//  } errs() << "\n";
 }
 
 
