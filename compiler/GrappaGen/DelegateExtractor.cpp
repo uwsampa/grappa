@@ -1,3 +1,4 @@
+#undef DEBUG
 #include "DelegateExtractor.hpp"
 
 using namespace llvm;
@@ -55,12 +56,12 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
       
       if (auto gld = dyn_cast_global<LoadInst>(&ii)) {
         auto p = gld->getPointerOperand();
-        if (gptrs.count(p) == 0) gptrs.emplace(p, GlobalPtrUse());
+        if (gptrs.count(p) == 0) gptrs[p] = {};
         gptrs[p].loads++;
         gvals[gld] = p;
       } else if (auto gi = dyn_cast_global<StoreInst>(&ii)) {
         auto p = gi->getPointerOperand();
-        if (gptrs.count(p) == 0) gptrs.emplace(p, GlobalPtrUse());
+        if (gptrs.count(p) == 0) gptrs[p] = {};
         gptrs[p].stores++;
       }
       
@@ -85,19 +86,33 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   assert(bbs.size() == 1);
   auto inblock = bbs[0];
   
-  errs() << "\n-------------------\ncandidate block:" << *inblock << "\n";
+  Instruction* first = inblock->begin();
+  auto& dl = first->getDebugLoc();
+  outs() << "\n-------------------\nextracted delegate: "
+         << "(line " << dl.getLine() << ")\n"
+         << "block:" << *inblock;
   
   ValueSet inputs, outputs;
   GlobalPtrMap gptrs;
   findInputsOutputsUses(inputs, outputs, gptrs);
   
-  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
-  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
-  errs() << "gptrs:\n"; for (auto v : gptrs) {
-    auto u = v.second;
-    errs() << "  " << v.first->getName()
-           << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
-  } errs() << "\n";
+  outs() << "inputs:\n";
+  for (auto in : inputs) {
+    outs() << "  " << in->getName() << " (" << layout->getTypeAllocSize(in->getType()) << ")\n";
+  }
+  outs() << "outputs:\n";
+  for (auto out : outputs) {
+    outs() << "  " << out->getName() << " (" << layout->getTypeAllocSize(out->getType()) << ")\n";
+  }
+
+  
+  DEBUG( outs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n"
+    << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n"
+    << "gptrs:\n"; for (auto v : gptrs) {
+      auto u = v.second;
+      errs() << "  " << v.first->getName()
+    << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
+  } errs() << "\n" );
   
   // create struct types for inputs & outputs
   SmallVector<Type*,8> in_types, out_types;
@@ -124,8 +139,8 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   auto in_arg_ = argi++;
   auto out_arg_ = argi++;
   
-  errs() << "in_arg_:" << *in_arg_ << "\n";
-  errs() << "@bh out_arg_:" << *out_arg_ << "\n";
+  DEBUG( errs() << "in_arg_:" << *in_arg_ << "\n" );
+  DEBUG( errs() << "out_arg_:" << *out_arg_ << "\n" );
   
   auto in_arg = new BitCastInst(in_arg_, in_struct_ty->getPointerTo(), "bc.in", entrybb);
   auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "bc.out", entrybb);
@@ -146,7 +161,7 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
     auto gep = struct_elt_ptr(in_arg, i, "d.ge.in." + v->getName(), entrybb);
     auto in_val = new LoadInst(gep, "d.in." + v->getName(), entrybb);
     
-    errs() << "in_val: " << *in_val << " (parent:" << in_val->getParent()->getName() << ", fn:" << in_val->getParent()->getParent()->getName() << ")\n";
+    DEBUG( errs() << "in_val: " << *in_val << " (parent:" << in_val->getParent()->getName() << ", fn:" << in_val->getParent()->getParent()->getName() << ")\n" );
     
     Value *final_in = in_val;
     
@@ -253,28 +268,30 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
     auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out." + v->getName(), call_pt);
     auto ld = new LoadInst(gep, "d.call.out." + v->getName(), call_pt);
     
-    errs() << "replacing output:\n" << *v << "\nwith:\n" << *ld << "\nin:\n";
+    DEBUG( errs() << "replacing output:\n" << *v << "\nwith:\n" << *ld << "\nin:\n" );
     std::vector<User*> Users(v->use_begin(), v->use_end());
     for (unsigned u = 0, e = Users.size(); u != e; ++u) {
       Instruction *inst = cast<Instruction>(Users[u]);
-      errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ") ";
+      DEBUG( errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ") " );
       if (inst->getParent()->getParent() != new_fn) {
         inst->replaceUsesOfWith(v, ld);
-        errs() << " !!";
+        DEBUG( errs() << " !!" );
       } else {
-        errs() << " ??";
+        DEBUG( errs() << " ??" );
       }
-      errs() << "\n";
+      DEBUG( errs() << "\n" );
     }
   }
   
-  errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
-  errs() << "----------------\ncall site:\n" << *callbb;
+  DEBUG(
+    errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
+    errs() << "----------------\ncall site:\n" << *callbb;
+    errs() << "@bh inblock preds:\n";
+    for (auto p = pred_begin(inblock), pe = pred_end(inblock); p != pe; ++p) {
+      errs() << (*p)->getName() << "\n";
+    }
+  );
   
-  errs() << "@bh inblock preds:\n";
-  for (auto p = pred_begin(inblock), pe = pred_end(inblock); p != pe; ++p) {
-    errs() << (*p)->getName() << "\n";
-  }
-  
+  outs() << "-------------------\n";
   return new_fn;
 }

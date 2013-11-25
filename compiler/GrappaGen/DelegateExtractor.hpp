@@ -14,9 +14,9 @@
 
 #pragma once
 
-#ifdef DEBUG
-#undef DEBUG
-#endif
+//#ifdef DEBUG
+//#undef DEBUG
+//#endif
 
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
@@ -38,6 +38,9 @@
 #include <llvm/Analysis/DomPrinter.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
+
+#undef DEBUG_TYPE
+#define DEBUG_TYPE "grappa"
 
 namespace llvm {
 

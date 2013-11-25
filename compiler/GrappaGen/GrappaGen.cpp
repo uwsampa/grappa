@@ -1,9 +1,12 @@
-#ifdef DEBUG
-//#define _DEBUG
-#undef DEBUG
-#endif
 
-#define DEBUG_TYPE "grappa_gen"
+#undef DEBUG
+
+//#ifdef DEBUG
+////#define _DEBUG
+//#undef DEBUG
+//#endif
+
+#include <llvm/Support/Debug.h>
 #include <llvm/Pass.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/BasicBlock.h>
@@ -32,10 +35,10 @@
 #include <set>
 #include <map>
 
-// I'm not sure why, but I can't seem to enable debug output in the usual way
-// (with command line flags). Here's a hack.
-#undef DEBUG
-#define DEBUG(s) s
+//// I'm not sure why, but I can't seem to enable debug output in the usual way
+//// (with command line flags). Here's a hack.
+//#undef DEBUG
+//#define DEBUG(s) s
 
 using namespace llvm;
 
@@ -478,10 +481,8 @@ namespace {
         
         if (gptrs.size() == 0) continue;
         
-        outs() << "checking bb:" << *bb << "\n----------\n";
+        DEBUG( outs() << "checking bb:" << *bb << "\n----------\n" );
         
-//        struct Candidate { BasicBlock::iterator start_pt, end_pt; };
-//        std::set<Candidate> candidates;
         SmallVector<BasicBlock*,4> bbs;
         bbs.push_back(bb);
         
@@ -496,17 +497,13 @@ namespace {
             ValueSet vals;
             vals.insert(iit);
             auto start_pt = iit;
-//            candidates.emplace(Candidate{ start_pt, end_pt });
-            
-//            outs() << "splitting...\n";
             
             if (start_pt != bb->begin()) {
               bb = bb->splitBasicBlock(start_pt);
               bbs.push_back(bb);
-//              outs() << "there\n";
             }
-
-            candidate_bbs.emplace(bb, gptr);
+            
+            candidate_bbs[bb] = gptr;
             
             iit = bb->begin();
             iit++;
@@ -514,15 +511,12 @@ namespace {
             while (valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
             auto end_pt = iit;
             bool end_pt_dist = std::distance(end_pt, bb->end());
-            outs() << "@bh end_pt distance = " << end_pt_dist << " (pre)\n";
-            
+            DEBUG( outs() << "@bh end_pt distance = " << end_pt_dist << " (pre)\n" );
             
             if (end_pt != bb->end()) {
               bb = bb->splitBasicBlock(end_pt);
               bbs.push_back(bb);
               iit = bb->begin();
-//              outs() << "distance = " << std::distance(iit, bb->end()) << "\n";
-//              outs() << "here: bb =" << *bb;
             } else {
               iit = bb->end();
             }
@@ -532,10 +526,12 @@ namespace {
           }
         }
         
-        outs() << "\n-----------------------\n[[ after split ]]\n";
-        for (BasicBlock* bb : bbs) {
-          outs() << (candidate_bbs.count(bb) ? "** candidate **" : "") << *bb << "\n";
-        }
+        DEBUG(
+          outs() << "\n-----------------------\n[[ after split ]]\n";
+          for (BasicBlock* bb : bbs) {
+            outs() << (candidate_bbs.count(bb) ? "** candidate **" : "") << *bb << "\n";
+          }
+        );
       }
       
       for (auto& e : candidate_bbs) {
