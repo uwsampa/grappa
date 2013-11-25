@@ -420,56 +420,6 @@ namespace {
       //     if (addr1.core() == addr2.core()) { call multi_address_region }
       //     else { call addr1; ...; call addr2 }
       
-      auto valid_in_delegate = [](Instruction* inst, Value* gptr, ValueSet& available_vals) {
-        if (auto gld = dyn_cast_global<LoadInst>(inst)) {
-          if (gld->getPointerOperand() == gptr) {
-            available_vals.insert(gld);
-            outs() << "load to same gptr: ok\n";
-            return true;
-          }
-        } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
-          if (g->getPointerOperand() == gptr) {
-            outs() << "store to same gptr: great!\n";
-            return true;
-          } else {
-            outs() << "store to different gptr: not supported yet.\n";
-            return false;
-          }
-        } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
-          outs() << "load/store to normal memory: " << *inst << "\n";
-          return false;
-        } else if (auto ge = dyn_cast<GetElementPtrInst>(inst)) {
-          // TODO: fix this, some GEP's should be alright...
-          return false;
-        } else if (isa<TerminatorInst>(inst) || isa<PHINode>(inst) || isa<InvokeInst>(inst)) {
-          return false;
-        } else if (auto call = dyn_cast<CallInst>(inst)) {
-          auto fn = call->getCalledFunction();
-          if (fn->getName() == "llvm.dbg.value") return true;
-          // TODO: detect if function is pure / inline it and see??
-          return false;
-        } else {
-          return true;
-//          bool is_bin_op = isa<BinaryOperator>(inst);
-//          
-//          if (is_bin_op) outs() << "checking ops: " << *inst << "\n";
-//          
-//          bool valid = std::all_of(inst->op_begin(), inst->op_end(), [&](Value* op){
-//            if (is_bin_op) {
-//              outs() << *op << "\n  avail:" << available_vals.count(op) << ", const:" << dyn_cast<Constant>(op) << "\n";
-//            }
-//            if (available_vals.count(op) > 0 || isa<Constant>(op)) {
-//              return true;
-//            } else {
-//              return false;
-//            }
-//          });
-//          available_vals.insert(inst);
-//          return valid;
-        }
-        return false;
-      };
-      
       std::map<BasicBlock*,Value*> candidate_bbs;
       
       for (auto bbit = F.begin(); bbit != F.end(); ) {
@@ -508,7 +458,7 @@ namespace {
             iit = bb->begin();
             iit++;
             
-            while (valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
+            while (DelegateExtractor::valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
             auto end_pt = iit;
             bool end_pt_dist = std::distance(end_pt, bb->end());
             DEBUG( outs() << "@bh end_pt distance = " << end_pt_dist << " (pre)\n" );

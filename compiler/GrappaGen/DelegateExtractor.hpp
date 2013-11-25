@@ -108,6 +108,8 @@ namespace llvm {
     ///
     /// @return constructed delegate function of type: void(void* in, void* out)
     Function* constructDelegateFunction(Value* gptr);
+    
+    static bool valid_in_delegate(Instruction* inst, Value* gptr, ValueSet& available_vals);
   };
 
 }
