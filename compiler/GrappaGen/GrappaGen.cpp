@@ -467,6 +467,8 @@ namespace {
         return false;
       };
       
+      std::map<BasicBlock*,Value*> candidate_bbs;
+      
       for (auto bbit = F.begin(); bbit != F.end(); ) {
         auto bb = bbit++;
         
@@ -482,8 +484,6 @@ namespace {
 //        std::set<Candidate> candidates;
         SmallVector<BasicBlock*,4> bbs;
         bbs.push_back(bb);
-        
-        SetVector<BasicBlock*> candidate_bbs;
         
         for (auto iit = bb->begin(); iit != bb->end(); ) {
           Value* gptr = nullptr;
@@ -506,7 +506,7 @@ namespace {
 //              outs() << "there\n";
             }
 
-            candidate_bbs.insert(bb);
+            candidate_bbs.emplace(bb, gptr);
             
             iit = bb->begin();
             iit++;
@@ -536,6 +536,13 @@ namespace {
         for (BasicBlock* bb : bbs) {
           outs() << (candidate_bbs.count(bb) ? "** candidate **" : "") << *bb << "\n";
         }
+      }
+      
+      for (auto& e : candidate_bbs) {
+        auto bb = e.first;
+        auto gptr = e.second;
+        DelegateExtractor dex(bb, mod, ginfo);
+        dex.constructDelegateFunction(gptr);
       }
       
 /*
@@ -650,8 +657,6 @@ namespace {
       // module = &m;
       // auto int_ty = m.getTypeByName("int");
       // delegate_read_fn = m.getOrInsertFunction("delegate_read_int", int_ty, );
-      
-      outs() << "@bh isa<Constant>(i64 0): " << isa<Constant>(ConstantInt::get(i64_ty, 0)) << "\n";
       
       return false;
     }

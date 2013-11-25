@@ -85,9 +85,19 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   assert(bbs.size() == 1);
   auto inblock = bbs[0];
   
+  errs() << "\n-------------------\ncandidate block:" << *inblock << "\n";
+  
   ValueSet inputs, outputs;
   GlobalPtrMap gptrs;
   findInputsOutputsUses(inputs, outputs, gptrs);
+  
+  errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n";
+  errs() << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n";
+  errs() << "gptrs:\n"; for (auto v : gptrs) {
+    auto u = v.second;
+    errs() << "  " << v.first->getName()
+           << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
+  } errs() << "\n";
   
   // create struct types for inputs & outputs
   SmallVector<Type*,8> in_types, out_types;
@@ -99,7 +109,6 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   
   // create function shell
   auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
-  errs() << "delegate fn ty: " << *new_fn_ty << "\n";
   auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + inblock->getName(), &mod);
   
   auto& ctx = mod.getContext();
