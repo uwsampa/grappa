@@ -23,6 +23,10 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency);
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_ops_small_msg);
+
+#define SMALL_MSG_SIZE 16
+
 namespace Grappa {
     /// @addtogroup Delegates
     /// @{

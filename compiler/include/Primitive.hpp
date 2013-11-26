@@ -125,7 +125,40 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
   
   if (dst == origin) {
     VLOG(5) << "short-circuit";
+    delegate_ops_short_circuited++;
+    
     fn(args, out);
+    
+  } else if ( args_sz < SMALL_MSG_SIZE && out_sz < SMALL_MSG_SIZE) {
+    VLOG(5) << "small_msg";
+    delegate_ops_small_msg++;
+    
+    int8_t _args[SMALL_MSG_SIZE];
+    int8_t _out[SMALL_MSG_SIZE];
+    
+    memcpy(_args, args, args_sz);
+    
+    Grappa::FullEmpty<void*> fe(_out); fe.reset();
+    auto gfe = make_global(&fe);
+    
+    Grappa::send_heap_message(dst, [fn,_args,gfe]{
+      
+      int8_t _out[SMALL_MSG_SIZE];
+      
+      fn((void*)_args, _out);
+      
+      Grappa::send_heap_message(gfe.core(), [gfe,_out]{
+        
+        auto r = gfe->readXX();
+        memcpy(r, _out, SMALL_MSG_SIZE);
+        gfe->writeEF(r);
+        
+      });
+      
+    });
+    
+    fe.readFF();
+    memcpy(out, _out, out_sz);
     
   } else {
     
@@ -134,7 +167,7 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
     
     Grappa::send_heap_message(dst, [fn,out_sz,gfe](void* args, size_t args_sz){
       
-      auto out = Grappa::locale_alloc<int8_t>(out_sz);
+      auto out = Grappa::locale_alloc<int8_t>(out_sz); // <-- this is slow
       fn(args, out);
       
       auto msg = Grappa::heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
