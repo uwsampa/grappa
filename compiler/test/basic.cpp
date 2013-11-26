@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
       }
       
     });
-    
+    Statistics::merge_and_dump_to_file();
   });
   finalize();
   return 0;

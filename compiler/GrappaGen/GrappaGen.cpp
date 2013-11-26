@@ -574,7 +574,7 @@ namespace {
     }
     
     virtual bool doInitialization(Module& module) {
-      errs() << "initializing\n";
+      outs() << "-- Grappa Pass:\n";
       
       auto getFunction = [&module](StringRef name) {
         auto fn = module.getFunction(name);
@@ -615,9 +615,7 @@ namespace {
       AU.addRequired<DominatorTree>();
     }
     
-    ~GrappaGen() {
-      llvm::errs() << "closing\n";
-    }
+    ~GrappaGen() { }
   };
   
   char GrappaGen::ID = 0;
