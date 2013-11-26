@@ -11,8 +11,8 @@
 
 using namespace Grappa;
 
-DEFINE_int64( size_a, 1 << 30, "Size of target array." );
-DEFINE_int64( size_b, 1 << 20, "Size of random array." );
+DEFINE_int64( size_a, 1L << 24, "Size of target array." );
+DEFINE_int64( size_b, 1L << 20, "Size of random array." );
 DEFINE_int64( iterations, 3, "Number of iterations to average over" );
 
 GRAPPA_DEFINE_STAT( SummarizingStatistic<double>, gups_global_time, 0.0 );
