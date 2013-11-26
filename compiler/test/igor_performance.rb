@@ -9,13 +9,14 @@ Igor do
   
   isolate ['performance.exe']
   
+  GFLAGS.delete :flat_combining
+  GFLAGS.merge!({
+    size_a:     [2**30],
+    size_b:     [2**20],
+    iterations: [3]
+  })
   command "%{tdir}/grappa_srun.rb -- %{tdir}/performance.exe #{GFLAGS.expand}"
-  
-  params {
-    sizeA      2**30
-    sizeB      2**20
-    iterations 3
-  }  
+  params.merge! GFLAGS
   
   interact
 end
