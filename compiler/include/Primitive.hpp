@@ -161,6 +161,7 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
     memcpy(out, _out, out_sz);
     
   } else {
+    delegate_ops_payload_msg++;
     
     Grappa::FullEmpty<void*> fe(out); fe.reset();
     auto gfe = make_global(&fe);

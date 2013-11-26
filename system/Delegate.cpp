@@ -20,6 +20,7 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_a
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited, 0);
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<int64_t>, delegate_ops_small_msg, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<int64_t>, delegate_ops_payload_msg, 0);
 
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency, 0.0);
 
