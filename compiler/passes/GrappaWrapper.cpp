@@ -19,6 +19,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/CodeExtractor.h>
+#include <llvm/Analysis/Verifier.h>
 
 #include <llvmUtil.h>
 #include <llvmGlobalToWide.h>
@@ -68,7 +69,28 @@ namespace {
     ~GrappaWrapper() { }
     
     virtual bool runOnModule(Module& module) {
-      return global_to_wide_pass->runOnModule(module);
+      bool changed = false;
+      
+      changed |= global_to_wide_pass->runOnModule(module);
+      
+      verifyModule(module);
+      
+      outs() << "------------------------\n";
+      
+      for (auto& fn : module) {
+        for (auto& bb : fn) {
+//          for (auto& inst : bb) {
+//            if (auto call = dyn_cast<CallInst>(&inst)) {
+//              auto fn = call->getCalledFunction();
+//              if (fn && call->getCalledFunction()->getName().startswith(".gf.")) {
+//                outs() << " global_fn => " << *call->getCalledFunction() << "\n";
+//              }
+//            }
+//          }
+        }
+      }
+      outs() << "^^^^^^^^^^^^^^^^^^^^^^^^\n";
+      return changed;
     }
     
     virtual bool doInitialization(Module& module) {
@@ -76,15 +98,6 @@ namespace {
       
       wide_info = new GlobalToWideInfo();
       auto& info = *wide_info;
-      
-      auto get_ty = [&module](StringRef name) {
-        auto ty = module.getTypeByName(name);
-        if (!ty) {
-          llvm::errs() << "unable to find " << name << "\n";
-          abort();
-        }
-        return ty;
-      };
       
       auto get_fn = [&module,&info](StringRef name) {
         auto fn = module.getFunction(name);
@@ -103,7 +116,8 @@ namespace {
       info.wideSpace = GLOBAL_SPACE + 1;
       
       GlobalPointerInfo ptr_info;
-      ptr_info.wideTy = Type::getInt64Ty(ctx);
+//      ptr_info.wideTy = Type::getInt64Ty(ctx);
+      ptr_info.wideTy = Type::getInt8PtrTy(ctx);
       outs() << "@bh wideTy: " << *ptr_info.wideTy << "\n";
       
 //      ptr_info.globalToWideFn = get_fn("grappa_global_to_wide_void");
@@ -122,7 +136,8 @@ namespace {
       outs() << "makeFn: " << *info.makeFn->getType() << "\n";
       
 //      info.gTypes[Type::getVoidTy(ctx)] = ptr_info;
-//      info.gTypes[Type::getInt8PtrTy(ctx, GLOBAL_SPACE)] = ptr_info;
+      info.gTypes[Type::getInt8PtrTy(ctx, GLOBAL_SPACE)] = ptr_info;
+      info.gTypes[Type::getInt64PtrTy(ctx, GLOBAL_SPACE)] = ptr_info;
       
       info.getFn = get_fn("grappa_get");
 //      info.getFn = module.getOrInsertFunction("grappa_get", Type::getVoidTy(ctx),
