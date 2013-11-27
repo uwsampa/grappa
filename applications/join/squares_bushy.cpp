@@ -153,15 +153,15 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
         auto b_ptr = E2_index->vs + b_ind;
         edges_transfered++;
         // lookup b vertex
-        remotePrivateTask<&impl::local_gce>(b_ptr.core(), [ai,b_ptr] {
+        remotePrivateTask<&impl::local_gce>(b_ptr.core(), [ai,b_ptr,b_ind] {
           auto b = *(b_ptr.pointer());
           ir2_count += b.nadj; // count(E1xE2)
           // forall neighbors of b
-          forall_here_async<&impl::local_gce>( 0, b.nadj, [ai,b](int64_t start, int64_t iters) {
+          forall_here_async<&impl::local_gce>( 0, b.nadj, [ai,b,b_ind](int64_t start, int64_t iters) {
             for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto c_ind = b.local_adj[i];
             auto owner = h(ai, c_ind);
-            VLOG(5) << "abc: " << resultStr({ai,c_ind});
+            VLOG(5) << "abc: " << resultStr({ai,b_ind,c_ind});
             edges_transfered++;
             delegate::call_async( owner, [ai,b,c_ind] {
               localAssignedEdges_abc.push_back( Edge(ai,c_ind) );
@@ -186,18 +186,18 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
         auto d_ptr = E4_index->vs + d_ind;
         edges_transfered++;
         // lookup d vertex
-        remotePrivateTask<&impl::local_gce>(d_ptr.core(), [ci,d_ptr] {
+        remotePrivateTask<&impl::local_gce>(d_ptr.core(), [ci,d_ptr,d_ind] {
           auto d = *(d_ptr.pointer());
           ir3_count += d.nadj; // count(E3xE4)
           // forall neighbors of d
-          forall_here_async<&impl::local_gce>( 0, d.nadj, [ci,d](int64_t start, int64_t iters) {
+          forall_here_async<&impl::local_gce>( 0, d.nadj, [ci,d,d_ind](int64_t start, int64_t iters) {
             for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto a_ind = d.local_adj[i];
-            auto owner = h(ci, a_ind);
-            VLOG(5) << "cda: " << resultStr({ci,a_ind});
+            auto owner = h(a_ind, ci);
+            VLOG(5) << "cda: " << resultStr({ci,d_ind,a_ind});
             edges_transfered++;
             delegate::call_async( owner, [ci,d,a_ind] {
-              localAssignedEdges_cda.push_back( Edge(a_ind,ci) );
+              localAssignedEdges_cda.push_back( Edge(ci, a_ind) );
             });
             }
           });
