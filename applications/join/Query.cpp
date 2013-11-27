@@ -13,6 +13,7 @@
 // queries
 #include "squares.hpp"
 #include "squares_partition.hpp"
+#include "squares_bushy.hpp"
 
 // graph gen
 #include "generator/make_graph.h"
@@ -62,6 +63,8 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
 
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, index_runtime, 0);
+
 
 // calculated parameters
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, participating_cores, 0);
@@ -93,7 +96,8 @@ void user_main( int * ignore ) {
   
   std::unordered_map<std::string, Query*> qm( {
       {"SquareQuery", new SquareQuery()}, 
-      {"SquarePartition4way", new SquarePartition4way()}
+      {"SquarePartition4way", new SquarePartition4way()},
+      {"SquareBushyPlan", new SquareBushyPlan()}
       });
 
   Query& q = *(qm[FLAGS_query]);

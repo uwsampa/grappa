@@ -22,16 +22,21 @@
 #include <FullEmpty.hpp>
 
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, index_runtime, 0);
 
 
 using namespace Grappa;
 
-GlobalAddress<Graph<Vertex>> E1_index, E2_index, E3_index, E4_index;
+namespace SquareQuery_ {
+  GlobalAddress<Graph<Vertex>> E1_index, E2_index, E3_index, E4_index;
+}
+
+using namespace SquareQuery_;
 
 void SquareQuery::preprocessing(std::vector<tuple_graph> relations) {
   // the index on a->[b] is not part of the query; just to clean tuples
   // so it is in the untimed preprocessing step
+  
+  auto e1 = relations[0];
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f1;
   privateTask( [&f1,e1] {
@@ -45,7 +50,6 @@ void SquareQuery::preprocessing(std::vector<tuple_graph> relations) {
 }
 
 void SquareQuery::execute(std::vector<tuple_graph> relations) {
-  auto e1 = relations[0];
   auto e2 = relations[1];
   auto e3 = relations[2];
   auto e4 = relations[3];
@@ -96,7 +100,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
 
   end = Grappa_walltime();
 
-  VLOG(1) << "insertions: " << (e1.nedge+e2.nedge+e3.nedge+e4.nedge)/(end-start) << " per sec";
+  VLOG(1) << "insertions: " << (e2.nedge+e3.nedge+e4.nedge)/(end-start) << " per sec";
   index_runtime = end - start;
 
 #if DEBUG
