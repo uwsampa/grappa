@@ -10,6 +10,8 @@ set(SOURCES
   DHT.hpp
   Hypercube.hpp
   Hypercube.cpp
+  local_graph.cpp
+  local_graph.hpp
   "${APP_BFS}/oned_csr.h"
   "${APP_BFS}/oned_csr.cpp"
   "${APP_BFS}/timer.h"
@@ -41,6 +43,8 @@ set(QUERIES_SOURCES
   squares.hpp
   squares_partition.cpp
   squares_partition.hpp
+  squares_bushy.cpp
+  squares_bushy.hpp
   Query.hpp
 )
 
