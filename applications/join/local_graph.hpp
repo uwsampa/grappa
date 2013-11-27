@@ -1,5 +1,9 @@
+#pragma once
+
 #include <vector>
 #include <unordered_set>
+#include <cstdint>
+#include <iostream>
 
 #if 1
 #include <unordered_set>
@@ -21,53 +25,23 @@ struct Edge {
   // for construction by sets
   Edge() : src(-1), dst(-1) {}
 };
-std::ostream& operator<<(std::ostream& o, const Edge& e) {
-  return o << "("<<e.src<<","<<e.dst<<")";
-}
 
-bool operator==(const Edge& e1, const Edge& e2) {
-  return e1.src==e2.src && e1.dst==e2.dst;
-}
+std::ostream& operator<<(std::ostream& o, const Edge& e);
+bool operator==(const Edge& e1, const Edge& e2);
+
 struct Edge_hasher {
-  std::size_t operator()(const Edge& e) const {
-    return (0xFFFFffff & e.src) | ((0xFFFFffff & e.dst)<<32);
-  }
+  std::size_t operator()(const Edge& e) const;
 };
 
 class LocalAdjListGraph {
   private:
     VertexToAdjMap adjs;
   public:
+    LocalAdjListGraph(std::vector<Edge>& edges);
+    LocalAdjListGraph(std::unordered_set<Edge, Edge_hasher>& edges);
 
-    LocalAdjListGraph(std::vector<Edge>& edges) : adjs() {
-      // assume that the vertex ids are not compressed
-      
-      DVLOG(5) << "local construction: ";
-      for (auto e : edges) {
-        DVLOG(5) << "  " << e;
-        auto& val = adjs[e.src];
-        val.push_back(e.dst);
-      }
-    }
-    
-    LocalAdjListGraph(std::unordered_set<Edge, Edge_hasher>& edges) : adjs() {
-      // assume that the vertex ids are not compressed
-      
-      DVLOG(5) << "local construction: ";
-      for (auto e : edges) {
-        DVLOG(5) << "  " << e;
-        auto& val = adjs[e.src];
-        val.push_back(e.dst);
-      }
-    }
-
-    std::vector<int64_t>& neighbors(int64_t root) {
-      return adjs[root];
-    }
-
-    VertexToAdjMap& vertices() {
-      return adjs;
-    }
+    std::vector<int64_t>& neighbors(int64_t root);
+    VertexToAdjMap& vertices();
 };
 
 class LocalMapGraph {
@@ -75,35 +49,12 @@ class LocalMapGraph {
     VertexToAdjSet adjs;
   public:
 
-    LocalMapGraph (std::vector<Edge>& edges) : adjs() {
-      // assume that the vertex ids are not compressed
-
-      DVLOG(5) << "local construction: ";
-      for (auto e : edges) {
-        DVLOG(5) << "  " << e;
-        auto& val = adjs[e.src];
-        val.insert(e.dst);
-      }
-    }
+    LocalMapGraph (std::vector<Edge>& edges);
     
-    LocalMapGraph (std::unordered_set<Edge, Edge_hasher>& edges) : adjs() {
-      // assume that the vertex ids are not compressed
+    LocalMapGraph (std::unordered_set<Edge, Edge_hasher>& edges);
 
-      DVLOG(5) << "local construction: ";
-      for (auto e : edges) {
-        DVLOG(5) << "  " << e;
-        auto& val = adjs[e.src];
-        val.insert(e.dst);
-      }
-    }
+    bool inNeighborhood(int64_t root, int64_t queried);
 
-    bool inNeighborhood(int64_t root, int64_t queried) {
-      auto& s = adjs[root];
-      return s.find(queried) != s.end();
-    }
-
-    int64_t nadj(int64_t root) {
-      return adjs[root].size();
-    }
+    int64_t nadj(int64_t root);
 };
     
