@@ -92,30 +92,48 @@ namespace {
           llvm::errs() << "unable to find " << name << "\n";
           abort();
         }
-        return fn;
-        info.specialFunctions.insert(fn);
+        // info.specialFunctions.insert(fn);
         return fn;
       };
-      
-      info.localeIdType = Type::getInt16Ty(module.getContext());
-      info.nodeIdType = Type::getInt16Ty(module.getContext());
+      auto& ctx = module.getContext();
+
+      info.localeIdType = Type::getInt16Ty(ctx);
+      info.nodeIdType = Type::getInt16Ty(ctx);
       info.globalSpace = GLOBAL_SPACE;
       info.wideSpace = GLOBAL_SPACE + 1;
       
       GlobalPointerInfo ptr_info;
-      ptr_info.wideTy = get_ty("struct.GlobalAddressBase");
-      ptr_info.globalToWideFn = get_fn("grappa_global_to_wide_void");
-      ptr_info.wideToGlobalFn = get_fn("grappa_wide_to_global_void");
+      ptr_info.wideTy = Type::getInt64Ty(ctx);
+      outs() << "@bh wideTy: " << *ptr_info.wideTy << "\n";
       
-      info.addrFn = ptr_info.addrFn = get_fn("grappa_wide_get_pointer");
-      info.nodeFn = ptr_info.locFn = get_fn("grappa_wide_get_core");
-      info.locFn = ptr_info.nodeFn = get_fn("grappa_wide_get_locale_core");
-      info.makeFn = ptr_info.makeFn = get_fn("grappa_make_wide");
+//      ptr_info.globalToWideFn = get_fn("grappa_global_to_wide_void");
+//      ptr_info.wideToGlobalFn = get_fn("grappa_wide_to_global_void");
+//      outs() << "@bh wideToGlobalFn: " << *ptr_info.wideToGlobalFn->getType() << "\n";
       
-      auto voidTy = Type::getVoidTy(module.getContext());
-      info.gTypes[voidTy] = ptr_info;
+      info.addrFn = get_fn("grappa_wide_get_pointer");
+      info.nodeFn = get_fn("grappa_wide_get_core");
+      info.locFn = get_fn("grappa_wide_get_locale_core");
+      info.makeFn = get_fn("grappa_make_wide");
+//      info.addrFn = ptr_info.addrFn = get_fn("grappa_wide_get_pointer");
+//      info.nodeFn = ptr_info.locFn = get_fn("grappa_wide_get_core");
+//      info.locFn = ptr_info.nodeFn = get_fn("grappa_wide_get_locale_core");
+//      info.makeFn = ptr_info.makeFn = get_fn("grappa_make_wide");
+      
+      outs() << "makeFn: " << *info.makeFn->getType() << "\n";
+      
+//      info.gTypes[Type::getVoidTy(ctx)] = ptr_info;
+//      info.gTypes[Type::getInt8PtrTy(ctx, GLOBAL_SPACE)] = ptr_info;
       
       info.getFn = get_fn("grappa_get");
+//      info.getFn = module.getOrInsertFunction("grappa_get", Type::getVoidTy(ctx),
+//                                              Type::getInt8PtrTy(ctx), ptr_info.wideTy,
+//                                              Type::getInt64Ty(ctx), Type::getInt64Ty(ctx),
+//                                              nullptr);
+//      
+      outs() << "@bh getFn:         " << *info.getFn->getType() << "\n";
+//      outs() << "@bh get or insert: " << *getFn->getType() << "\n";
+//      outs() << "----------\n" << *getFn << "-------------\n";
+      
       info.putFn = get_fn("grappa_put");
       info.getPutFn = get_fn("grappa_getput_void");
       info.memsetFn = get_fn("grappa_memset_void");

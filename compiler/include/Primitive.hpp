@@ -9,6 +9,8 @@
 
 #define global grappa_global
 
+using GlobalAddressBase = void*;
+
 template< typename T >
 inline T global* gptr(GlobalAddress<T> ga) {
   return reinterpret_cast<T global*>(ga.raw_bits());
@@ -49,34 +51,34 @@ extern "C" {
   }
 
   void* grappa_wide_get_pointer(GlobalAddressBase a) {
-    return GlobalAddress<int8_t>(a).pointer();
+    return GlobalAddress<int8_t>::Raw(a).pointer();
   }
   Core grappa_wide_get_core(GlobalAddressBase a) {
-    return GlobalAddress<int8_t>(a).core();
+    return GlobalAddress<int8_t>::Raw(a).core();
   }
   GlobalAddressBase grappa_wide_get_locale_core(GlobalAddressBase a, Core* c) {
-    *c = GlobalAddress<int8_t>(a).core(); // TODO: get id within locale...
+    *c = GlobalAddress<int8_t>::Raw(a).core(); // TODO: get id within locale...
     return a;
   }
   
-  GlobalAddressBase grappa_make_wide(Core c, void* p) { return make_global(p, c); }
+  GlobalAddressBase grappa_make_wide(Core c, void* p) { return static_cast<GlobalAddressBase>(make_global(p, c)); }
   
   void global* grappa_wide_to_global_void(GlobalAddressBase ga) {
-    return gptr(GlobalAddress<int8_t>(ga));
+    return gptr(GlobalAddress<int8_t>::Raw(ga));
   }
-  GlobalAddressBase grappa_global_to_wide_void(void global* ga) { return gaddr(ga); }
+  GlobalAddressBase grappa_global_to_wide_void(void global* ga) { return static_cast<GlobalAddressBase>(gaddr(ga)); }
   
   void grappa_memset_void(GlobalAddressBase dst, int8_t val, int64_t n) {
-    Grappa::memset(GlobalAddress<int8_t>(dst), val, n);
+    Grappa::memset(GlobalAddress<int8_t>::Raw(dst), val, n);
   }
   
   void grappa_getput_void(GlobalAddressBase dst, GlobalAddressBase src, int64_t n) {
-    Grappa::memcpy(GlobalAddress<int8_t>(dst), GlobalAddress<int8_t>(src), n);
+    Grappa::memcpy(GlobalAddress<int8_t>::Raw(dst), GlobalAddress<int8_t>::Raw(src), n);
   }
   
   /// most basic way to read data from remote address (compiler generates these from global* accesses)
   void grappa_get(void *addr, GlobalAddressBase src, int64_t sz, int64_t sync_control) {
-    auto ga = GlobalAddress<int8_t>(src);
+    auto ga = GlobalAddress<int8_t>::Raw(src);
     auto origin = Grappa::mycore();
     auto dest = ga.core();
     
@@ -109,7 +111,7 @@ extern "C" {
 
   /// most basic way to write data at remote address (compiler generates these from global* accesses)
   void grappa_put(GlobalAddressBase dest, void* src, int64_t sz, int64_t sync_control) {
-    auto ga = GlobalAddress<int8_t>(dest);
+    auto ga = GlobalAddress<int8_t>::Raw(dest);
     auto origin = Grappa::mycore();
     
     if (ga.core() == origin) {

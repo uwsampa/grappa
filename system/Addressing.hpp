@@ -73,12 +73,6 @@ static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 
-extern "C"
-struct GlobalAddressBase {
-  /// Storage for address
-  intptr_t storage_;
-};
-
 /// @addtogroup Memory
 /// @{
 
@@ -92,8 +86,11 @@ struct GlobalAddressBase {
 ///
 /// Linear addresses are block cyclic across all the cores in the system.
 template< typename T >
-class GlobalAddress : public GlobalAddressBase {
+class GlobalAddress {
 private:
+  
+  intptr_t storage_;
+  
   //DISALLOW_COPY_AND_ASSIGN( GlobalAddress );
   template< typename U > friend std::ostream& operator<<( std::ostream& o, const GlobalAddress< U >& ga );
   //friend template< typename U > GlobalAddress< U > operator+( const GlobalAddress< U >& t, ptrdiff_t i );
@@ -129,8 +126,6 @@ public:
   /// Construct a global address, initialized to a null pointer
   GlobalAddress( ) { storage_ = 0; }
   
-  GlobalAddress(GlobalAddressBase o) { storage_ = o.storage_; }
-
   /// Construct a 2D global address with an initial pointer and node.
   static GlobalAddress TwoDimensional( T * t, Node n = global_communicator.mynode() )
   {
@@ -177,6 +172,8 @@ public:
     g.storage_ = t;
     return g;
   }
+  
+  static GlobalAddress Raw(void* p) { return Raw(reinterpret_cast<intptr_t>(p)); }
 
   /// Return the raw bits of a global address
   inline intptr_t raw_bits() const {
@@ -372,6 +369,11 @@ public:
   operator void * ( ) {
     void * u = reinterpret_cast< void * >( storage_ );
     return u;
+  }
+  
+  /// cast to intptr_t (used in compiler as 'GlobalAddressBase'
+  explicit operator intptr_t () {
+    return storage_;
   }
   
 #ifdef __GRAPPA_CLANG__
