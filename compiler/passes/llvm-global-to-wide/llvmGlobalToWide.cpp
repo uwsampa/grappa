@@ -309,7 +309,17 @@ namespace {
       return info->gTypes[globalPtrTy].globalToWideFn;
     }
     Function* getWideToGlobalFn(Type* globalPtrTy) {
+      outs() << "  -- &info = " << &info << "\n";
+      outs() << "  -- &gTypes = " << &info->gTypes << "\n";
+      outs() << "  -- globalPtrTy: " << globalPtrTy << " : " << info->gTypes.count(globalPtrTy) <<  "\n";
+      auto fn = info->gTypes[globalPtrTy].wideToGlobalFn;
+      outs() << *fn;
+      outs() << "  -- wide->global "; if (fn) outs() << *fn->getType(); else outs() << "null";
+      outs() << "\n";
       populateFunctionsForGlobalToWideType(&M, info, globalPtrTy);
+      fn = info->gTypes[globalPtrTy].wideToGlobalFn;
+      outs() << "  -- wide->global "; if (fn) outs() << *fn->getType(); else outs() << "null";
+      outs() << "\n";
       return info->gTypes[globalPtrTy].wideToGlobalFn;
     }
 
@@ -322,9 +332,11 @@ namespace {
       return call;
     }
     CallInst* callWideToGlobalFn(Value* widePtr, Type* globalTy, Instruction* insertBefore) {
+      outs() << "globalTy: " << *globalTy << "\n";
       Function* fn = getWideToGlobalFn(globalTy);
       Value* local_args[1];
       local_args[0] = widePtr;
+      outs() << "wideToGlobalFn = " << *fn->getType() << ", widePtr = " << *widePtr->getType() << "\n";
       CallInst* call = CallInst::Create( fn, local_args, "", insertBefore);
       return call;
     }
@@ -510,12 +522,17 @@ namespace {
             Value* castAlloc = new BitCastInst(alloc, voidPtrTy, "", oldLoad);
             Value* args[4];
             args[0] = castAlloc;
+            outs() << "wideVoidPtrTy => " << *wideVoidPtrTy << "\n";
+            outs() << "oldLoadTy => " << *oldLoad->getType() << "\n";
             args[1] = createWideBitCast(info, wAddr,
                                         wideVoidPtrTy,
                                         oldLoad);
             args[2] = createSizeof(info, wLoadedTy);
             args[3] = createLoadStoreControl(M, info, oldLoad->getOrdering(), oldLoad->getSynchScope());
-
+            
+            outs() << "args[1].getType => " << *args[1]->getType() << "\n";
+            outs() << "getFn: " << *getFn->getType() << "\n";
+            
             Value* call = CallInst::Create(getFn, args, "", oldLoad);
             assert(call);
 
@@ -1780,6 +1797,8 @@ llvm::Function* getMakeFn(llvm::Module *module, GlobalToWideInfo* info, llvm::Ty
 
 void populateFunctionsForGlobalToWideType(Module *module, GlobalToWideInfo* info, Type* globalPtrTy)
 {
+//  outs() << "globalPtrTy: " << *globalPtrTy << "\n";
+  
   llvm::Type *widePtrTy = NULL;
 
   widePtrTy = convertTypeGlobalToWide(module, info, globalPtrTy);
@@ -1787,6 +1806,9 @@ void populateFunctionsForGlobalToWideType(Module *module, GlobalToWideInfo* info
   GlobalPointerInfo & r = info->gTypes[globalPtrTy];
 
   if( ! r.globalToWideFn ) {
+    
+    outs() << "widePtrTy => " << *widePtrTy << "\n";
+    
     llvm::Type* argTy[1];
     argTy[0] = globalPtrTy;
     r.globalToWideFn = llvm::Function::Create(
@@ -1841,6 +1863,10 @@ Type* convertTypeGlobalToWide(Module* module, GlobalToWideInfo* info, Type* t)
       GlobalPointerInfo g = (*it).second;
       if( g.wideTy ) return g.wideTy;
     }
+  }
+  
+  if (t->isPrimitiveType()) {
+    return Type::getInt8PtrTy(context);
   }
 
   // Is it a struct type?
