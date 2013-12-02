@@ -6,13 +6,6 @@
 #include <iostream>
 
 namespace Grappa {
-  class ThreadQueue;
-  class PrefetchingThreadQueue;
-}
-std::ostream& operator<< ( std::ostream& o, const Grappa::ThreadQueue& tq );
-std::ostream& operator<< ( std::ostream& o, const Grappa::PrefetchingThreadQueue& tq );
-
-namespace Grappa {
 
 
 /// A queue of threads
@@ -22,13 +15,13 @@ class ThreadQueue {
         Worker * tail;
         uint64_t len;
         
+      public:
         std::ostream& dump( std::ostream& o ) const {
             return o << "[length:" << len
                      << "; head:" << (void*)head
                      << "; tail:" << (void*)tail << "]";
         }
 
-    public:
         ThreadQueue ( ) 
             : head ( NULL )
             , tail ( NULL )
@@ -45,9 +38,7 @@ class ThreadQueue {
 
         bool empty() {
             return (head==NULL);
-        }
-        
-        friend std::ostream& ::operator<< ( std::ostream& o, const ThreadQueue& tq );
+        }     
 };
 
 }
@@ -165,8 +156,6 @@ class PrefetchingThreadQueue {
       }
     }
 
-
-    friend std::ostream& ::operator<< ( std::ostream& o, const PrefetchingThreadQueue& tq );
 };
 
 
@@ -219,3 +208,6 @@ inline Worker * ThreadQueue::front() const {
 }
 
 }
+
+std::ostream& operator<< ( std::ostream& o, const Grappa::ThreadQueue& tq );
+std::ostream& operator<< ( std::ostream& o, const Grappa::PrefetchingThreadQueue& tq );
