@@ -4,10 +4,10 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
+#include "TaskingScheduler.hpp"
 #include "Task.hpp"
 #include "../Grappa.hpp"
 #include "../PerformanceTools.hpp"
-#include "TaskingScheduler.hpp"
 #include "common.hpp"
 #include "Statistics.hpp"
 
