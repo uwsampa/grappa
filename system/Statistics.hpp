@@ -8,6 +8,7 @@
 #include "SimpleStatistic.hpp"
 #include "SummarizingStatistic.hpp"
 #include "CallbackStatistic.hpp"
+#include "MaxStatistic.hpp"
 
 /// @addtogroup Utility
 /// @{

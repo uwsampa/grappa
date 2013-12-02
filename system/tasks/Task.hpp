@@ -11,6 +11,8 @@
 #include <deque>
 #include "Worker.hpp"
 
+#define PRIVATEQ_LIFO 1
+
 
 namespace Grappa {
   namespace impl {
@@ -285,7 +287,11 @@ inline void TaskManager::spawnPublic( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A
 template < typename A0, typename A1, typename A2 >
 inline void TaskManager::spawnLocalPrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
+#if PRIVATEQ_LIFO
+  privateQ.push_front( newtask );
+#else
   privateQ.push_back( newtask );
+#endif
 
   /// note from cbarrier implementation
   /* no notification necessary since
@@ -307,7 +313,12 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(A0, A1, A2), A0 arg0, A1 a
 template < typename A0, typename A1, typename A2 > 
 inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
+#if PRIVATEQ_LIFO
   privateQ.push_front( newtask );
+#else
+  privateQ.push_back( newtask );
+#endif
+  stats.record_remote_private_task_spawn();
   /// note from cbarrier implementation
   /*
    * local cancel cbarrier

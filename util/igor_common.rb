@@ -29,21 +29,28 @@ module Isolatable
   def isolate(exes, shared_dir=nil)
     puts "########## Isolating ##########"
     @isolate_called = true
-    
+
     # set aside copy of executable and its libraries
     # ldir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
-    shared_dir = File.dirname(caller[0][/(^.*?):/,1]) unless shared_dir
+    script_dir = File.dirname(caller[0][/(^.*?):/,1]) # if symlink, this is location of symlink
+    shared_dir = script_dir unless shared_dir
     @ldir = "#{File.expand_path shared_dir}/.igor/#{Process.pid}"
     puts "making #{@ldir}"
     FileUtils.mkdir_p(@ldir)
     
     exes = [exes] unless exes.is_a? Array
-    exes << 'mpirun' << "#{File.dirname(__FILE__)}/bin/grappa_srun.rb" \
-                     << "#{File.dirname(__FILE__)}/bin/grappa_srun_prolog.rb" \
-                     << "#{File.dirname(__FILE__)}/bin/grappa_srun_epilog.sh"
+    exes << 'mpirun' << "#{File.dirname(__FILE__)}/../bin/grappa_srun.rb" \
+                     << "#{File.dirname(__FILE__)}/../bin/grappa_srun_prolog.rb" \
+                     << "#{File.dirname(__FILE__)}/../bin/grappa_srun_epilog.sh"
     
     exes.each do |exe|
-      exe = `which #{exe}`.strip if not File.exists? exe
+      if not File.exists? exe
+        if File.exists? "#{script_dir}/#{exe}"
+          exe = "#{script_dir}/#{exe}"
+        else
+          exe = `which #{exe}`.strip          
+        end
+      end
       FileUtils.cp(exe, @ldir)
       libs = `bash -c "LD_LIBRARY_PATH=#{$GRAPPA_LIBPATH} ldd #{exe}"`
                 .split(/\n/)

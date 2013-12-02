@@ -140,9 +140,8 @@ if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")
 endif()
 
-# (a bit of a hack) without this, stack.o isn't generated
-# ... could also add custom command, but this seems easier
-set_source_files_properties( stack.S PROPERTIES LANGUAGE C )
+enable_language(ASM)
+set_source_files_properties( stack.S PROPERTIES LANGUAGE ASM )
 
 add_library(Grappa
   ${SYSTEM_SOURCES}

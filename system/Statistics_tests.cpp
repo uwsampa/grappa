@@ -30,6 +30,8 @@ GRAPPA_DEFINE_STAT(SummarizingStatistic<int>, baz, 0);
 
 GRAPPA_DEFINE_STAT(HistogramStatistic, rand_msg, 0);
 
+GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, maz, 0);
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
@@ -66,7 +68,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     Statistics::reset_all_cores();
 
-  #ifdef HISTOGRAM_SAMPLED
+#ifdef HISTOGRAM_SAMPLED
     VLOG(1) << "testing histogram sampling";
     int64_t N = 1<<20;  
     auto xs = Grappa::global_alloc<int64_t>(N);
@@ -77,7 +79,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         rand_msg = delegate::read(xs+i);
       }
     });
-  #endif
+#endif
+
+    on_all_cores([] {
+        maz.add( (Grappa::mycore()+Grappa::cores()-1)%Grappa::cores() );
+        maz.add( 1 );
+    });
 
     call_on_all_cores([]{ Grappa_stop_profiling(); });
     Statistics::merge_and_print();

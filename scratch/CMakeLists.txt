@@ -12,4 +12,5 @@ file(GLOB SCRATCHES
 foreach(file ${SCRATCHES})
   get_filename_component(base ${file} NAME_WE)
   add_grappa_exe(scratch-${base} ${base}.exe ${file})
+  set_property(TARGET ${name} PROPERTY FOLDER "Scratch")
 endforeach()

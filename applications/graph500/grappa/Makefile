@@ -58,7 +58,7 @@ force: ;
 allclean: clean
 	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
-clean:
+clean::
 	rm -f $(SOURCES) main.o main_new.o bfs_*.o graph.exe generator.a
 	cd ../generator; $(MAKE) -f Makefile.grappa clean
 

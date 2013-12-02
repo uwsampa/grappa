@@ -111,7 +111,6 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   auto offsets = static_cast<GlobalAddress<range_t>>(xoff);
   
   forall_localized<&my_gce>(offsets, nv, [offsets,nv](int64_t s, int64_t n, range_t * x){
-    
     for (int i=0; i<n; i++) {
       int64_t index = make_linear(x+i)-offsets;
       block_offset_t b = indexToBlock(index, nv, cores());

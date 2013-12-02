@@ -2,7 +2,7 @@
 require 'igor'
 
 # inherit parser, sbatch_flags
-load '../../../igor_common.rb'
+require_relative '../../../util/igor_common.rb'
 
 def expand_flags(*names)
   names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
