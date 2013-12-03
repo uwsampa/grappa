@@ -85,9 +85,10 @@ def configure(generator, mode, opt)
     args << "-DCMAKE_BUILD_TYPE=" + {'Debug'=>'Debug', 'Release'=>'RelWithDebInfo'}[mode]
   end
   
-  args << "-DBOOST_ROOT=#{opt.boost}" if opt.boost
-  unless opt.boost
-    puts "warning: --boost not specified, will download & build it, which may take a while"
+  if opt.boost =~ /^download|none$/
+    args << "-DBoost_NO_SYSTEM_PATHS=ON"
+  elsif opt.boost
+    args << "-DBOOST_ROOT=#{opt.boost}"
   end
   
   build_dir = "build/#{generator}"
