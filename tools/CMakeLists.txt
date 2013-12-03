@@ -9,6 +9,7 @@ set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
 if(NOT Boost_FOUND)
   # Download & build Boost
+  # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
   ExternalProject_Add(tool-boost
     SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
     PREFIX             ${EXTERN_BUILD_DIR}/boost
@@ -54,7 +55,7 @@ ExternalProject_Add( tool-gflags
   BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g CXXFLAGS=-stdlib=libstdc++ <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
 )
@@ -70,7 +71,7 @@ ExternalProject_Add( tool-glog
   BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
   CONFIGURE_COMMAND
-  CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g CXXFLAGS=-stdlib=libstdc++ <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
+  CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
   DEPENDS tool-gflags
