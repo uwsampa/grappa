@@ -9,6 +9,7 @@ set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
 if(NOT Boost_FOUND)
   # Download & build Boost
+  # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
   ExternalProject_Add(tool-boost
     SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
     PREFIX             ${EXTERN_BUILD_DIR}/boost
@@ -48,7 +49,7 @@ ExternalProject_Add( tool-gasnet
 # URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
 
 if(APPLE)
-  set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
+  # set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
 
 ExternalProject_Add( tool-gflags
