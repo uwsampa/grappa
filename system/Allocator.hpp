@@ -197,7 +197,7 @@ public:
     ChunkMap::iterator cmit = flit->second.front(); // huh. this is broken.
     // I think there's nothing there, even though there isn't supposed to be.
     //DVLOG(5) << "cmit is " << (void*)cmit;
-    if( cmit == chunks_.end() ) DVLOG(5) << "nothing found. dump:" << dump( std::cout );
+    if( cmit == chunks_.end() ) DVLOG(5) << "nothing found. dump:" << *this;
 
     // subdivide chunk until we have what we need
     while( chunk_size > allocation_size ) {
