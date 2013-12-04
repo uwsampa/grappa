@@ -13,7 +13,7 @@
 //  reason to generate wide pointers ( --no-local or a comms layer configured )
 //
 //===----------------------------------------------------------------------===//
-
+#undef DEBUG
 #include "llvmGlobalToWide.h"
 
 #ifdef HAVE_LLVM
@@ -30,6 +30,12 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
+
+//#include "llvm/CodeGen/LexicalScopes.h"
+#include "llvm/DIBuilder.h"
+#include "llvm/DebugInfo.h"
+#include <llvm/Support/Debug.h>
+//#define DEBUG(blk) blk
 
 #include <cstdio>
 
@@ -309,17 +315,23 @@ namespace {
       return info->gTypes[globalPtrTy].globalToWideFn;
     }
     Function* getWideToGlobalFn(Type* globalPtrTy) {
-      outs() << "  -- &info = " << &info << "\n";
-      outs() << "  -- &gTypes = " << &info->gTypes << "\n";
-      outs() << "  -- globalPtrTy: " << globalPtrTy << " : " << info->gTypes.count(globalPtrTy) <<  "\n";
-      auto fn = info->gTypes[globalPtrTy].wideToGlobalFn;
-      outs() << *fn;
-      outs() << "  -- wide->global "; if (fn) outs() << *fn->getType(); else outs() << "null";
-      outs() << "\n";
+      DEBUG(
+        outs() << "  -- &info = " << &info << "\n";
+        outs() << "  -- &gTypes = " << &info->gTypes << "\n";
+        outs() << "  -- globalPtrTy: " << globalPtrTy << " : " << info->gTypes.count(globalPtrTy) <<  "\n"
+      );
+        auto fn = info->gTypes[globalPtrTy].wideToGlobalFn;
+      DEBUG(
+        outs() << *fn;
+        outs() << "  -- wide->global "; if (fn) outs() << *fn->getType(); else outs() << "null";
+        outs() << "\n";
+      );
       populateFunctionsForGlobalToWideType(&M, info, globalPtrTy);
       fn = info->gTypes[globalPtrTy].wideToGlobalFn;
-      outs() << "  -- wide->global "; if (fn) outs() << *fn->getType(); else outs() << "null";
-      outs() << "\n";
+      DEBUG(
+        outs() << "  -- wide->global "; if (fn) outs() << *fn->getType(); else outs() << "null";
+        outs() << "\n";
+      );
       return info->gTypes[globalPtrTy].wideToGlobalFn;
     }
 
@@ -332,11 +344,11 @@ namespace {
       return call;
     }
     CallInst* callWideToGlobalFn(Value* widePtr, Type* globalTy, Instruction* insertBefore) {
-      outs() << "globalTy: " << *globalTy << "\n";
+      DEBUG( outs() << "globalTy: " << *globalTy << "\n" );
       Function* fn = getWideToGlobalFn(globalTy);
       Value* local_args[1];
       local_args[0] = widePtr;
-      outs() << "wideToGlobalFn = " << *fn->getType() << ", widePtr = " << *widePtr->getType() << "\n";
+      DEBUG( outs() << "wideToGlobalFn = " << *fn->getType() << ", widePtr = " << *widePtr->getType() << "\n" );
       CallInst* call = CallInst::Create( fn, local_args, "", insertBefore);
       return call;
     }
@@ -1121,6 +1133,17 @@ namespace {
       GlobalTypeFixer fixer(M, info, debugPassTwo);
       GlobalTypeFixer* TypeMapper = &fixer; 
 
+      auto dbg_cu_nodes = M.getNamedMetadata("llvm.dbg.cu");
+      assert(dbg_cu_nodes->getNumOperands() == 1);
+      
+      DICompileUnit dbg_cu_node(dbg_cu_nodes->getOperand(0));
+      auto dbg_fns = dbg_cu_node.getSubprograms();
+      
+      DebugInfoFinder finder;
+      finder.processModule(M);
+      
+      outs() << "@bh finder: " << finder.compile_unit_count() << "\n";
+      
       /* This transformation operates in two major parts parts:
        *  - (as a prerequisite, source that has global address space pointers,
        *     and uses dummy functions returned by getAddrFn and friends)
@@ -1139,6 +1162,8 @@ namespace {
       {
         Function *F = &*next_func;
         ++next_func;
+        
+        errs() << "##################\n# " << F->getName() << "\n";
 
         debugPassOne = debugAllPassOne;
         if( debugThisFn[0] && F->getName() == debugThisFn ) {
@@ -1217,11 +1242,40 @@ namespace {
           continue;
         }
 
-        Function *NF = Function::Create(NFTy, F->getLinkage());
-        NF->copyAttributesFrom(F);
+        Function *NF = Function::Create(NFTy, F->getLinkage(), F->getName()+".clone", F->getParent());
+        
+        outs() << "@bh created => " << NF->getName() << "\n";
+        
+        // replace function in debug info
+        MDNode *nd = nullptr;
+        for (auto niter = finder.subprogram_begin(); niter != finder.subprogram_end(); niter++) {
+          DISubprogram s(*niter);
+          if (s.getFunction() == F) {
+            s.replaceFunction(NF);
+            nd = *niter;
+            outs() << "found DI => " << *nd << "\n";
+            break;
+          }
+        }
+        if (!nd) { outs() << "not found: " << F->getName() << "\n"; }
+        
+        // not needed, finder finds these
+//        bool found = false;
+//        for (int i = 0; i < dbg_fns.getNumElements(); i++) {
+//          DISubprogram dbg_s(dbg_fns.getElement(i));
+//          if (dbg_s.getFunction() == F) {
+//            outs() << "found DI => " << *nd << "\n";
+//            dbg_s.replaceFunction(NF);
+//            found = true;
+//            break;
+//          }
+//        }
+//        if (!found) { outs() << "missing => " << F->getName() << "\n"; }
+        
+//        NF->copyAttributesFrom(F);
 
-        F->getParent()->getFunctionList().insert(F, NF);
-        NF->takeName(F);
+//        F->getParent()->getFunctionList().insert(F, NF);
+//        NF->takeName(F);
 
         // Loop over all callers of the function, transforming the call
         // sites to change address space 100 pointers to wide pointers
@@ -1304,8 +1358,7 @@ namespace {
         // now that we have fixed up the calls
         Constant *NC = ConstantExpr::getPointerCast(NF, F->getType());
         F->replaceAllUsesWith(NC);
-
-
+        
         // Since we have now created the new function, splice the body of the
         // old function right into the new function, leaving the old rotting
         // hulk of the function empty.
@@ -1336,7 +1389,7 @@ namespace {
             Instruction* firstNonPHI = NF->getEntryBlock().getFirstNonPHI();
             assert(firstNonPHI);
             New = fixer.callWideToGlobalFn(I2, I->getType(), firstNonPHI);
-
+            
             I->replaceAllUsesWith(New);
             I2->setName(I->getName()); // + "_wide");
             New->takeName(I);
@@ -1429,8 +1482,6 @@ namespace {
         }
       }
 
-
-
       // Pass #2
       ValueToValueMapTy VM;
       RemapFlags Flags = RF_IgnoreMissingEntries;
@@ -1493,7 +1544,7 @@ namespace {
       
             fixer.fixInstruction(insn);
 
-            if( debugPassTwo ) {
+            if( true ) {
               // Print out insns that we added, from prev to I.
               BasicBlock::iterator J;
               if( prev != NULL ) {
@@ -1545,6 +1596,7 @@ namespace {
                 r = typeMapValue(r, VM, Flags, TypeMapper);
                 VM[insn] = r;
                 Junk.push_back(insn);
+                errs() << "junk => " << *insn << "\n";
               }
             }
           }
@@ -1570,9 +1622,10 @@ namespace {
 
         for( unsigned i = 0; i < Junk.size(); i++ ) {
           Instruction *insn = Junk[i];
-          insn->removeFromParent();
-          insn->setName("");
-          insn->dropAllReferences();
+          insn->eraseFromParent();
+//          insn->removeFromParent();
+//          insn->setName("");
+//          insn->dropAllReferences();
         }
  
         // Delete any junk we have accumulated...
@@ -1607,13 +1660,16 @@ namespace {
 
       // Delete special functions, verifying that there are
       // no uses left.
-
+      
+      errs() << "@bh specialFunctions.size() = " << info->specialFunctions.size() << "\n";
+      
       for(specialFunctions_t::iterator I = info->specialFunctions.begin(),
                                        E = info->specialFunctions.end();
           I != E; ++I ) {
         Function* F = *I;
-        assert( F->use_empty() && "Special functions should've been replaced"); 
-        F->eraseFromParent();
+        errs() << "erasing " << F->getName() << "\n";
+//        assert( F->use_empty() && "Special functions should've been replaced"); 
+//        F->eraseFromParent();
       }
 
       // Delete the dummy depedencies preserving function
@@ -1627,7 +1683,7 @@ namespace {
       }
 
       // After it all, put the target info back.
-      if( !madeInfo ) M.setDataLayout(layoutAfterwards);
+//      if( !madeInfo ) M.setDataLayout(layoutAfterwards);
       if( madeInfo ) delete info;
 
       if( extraChecks ) {

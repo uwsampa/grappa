@@ -75,10 +75,9 @@ namespace {
       
       verifyModule(module);
       
-      outs() << "------------------------\n";
-      
-      for (auto& fn : module) {
-        for (auto& bb : fn) {
+//      outs() << "------------------------\n";
+//      for (auto& fn : module) {
+//        for (auto& bb : fn) {
 //          for (auto& inst : bb) {
 //            if (auto call = dyn_cast<CallInst>(&inst)) {
 //              auto fn = call->getCalledFunction();
@@ -87,9 +86,10 @@ namespace {
 //              }
 //            }
 //          }
-        }
-      }
-      outs() << "^^^^^^^^^^^^^^^^^^^^^^^^\n";
+//        }
+//      }
+      outs().flush();
+      errs() << "^^^^^^^^^^^^^^^^^^^^^^^^\n";
       return changed;
     }
     
@@ -174,7 +174,7 @@ namespace {
   //////////////////////////////
   // Register as default pass
   static void registerGrappaGen(const PassManagerBuilder&, PassManagerBase& PM) {
-    fprintf(stderr, "Registered Grappa pass!\n");
+    fprintf(stderr, "Registered Grappa Global-To-Wide Wrapper.\n");
     PM.add(new GrappaWrapper());
   }
   static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_ScalarOptimizerLate, registerGrappaGen);

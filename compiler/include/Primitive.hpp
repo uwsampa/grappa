@@ -28,27 +28,27 @@ inline GlobalAddress<T> gaddr(T global* ptr) {
 
 namespace Grappa {
 
-  Core core(void global* g) { return gaddr(g).core(); }
+//  Core core(void global* g) { return gaddr(g).core(); }
 
-  template< typename T>
-  T* pointer(T global* g) { return gaddr(g).pointer(); }
-  
-  template< typename T >
-  inline T global* globalize( T* t, Core n = Grappa::mycore() ) {
-    return gptr(make_global(t, n));
-  }
+//  template< typename T>
+//  T* pointer(T global* g) { return gaddr(g).pointer(); }
+//  
+//  template< typename T >
+//  inline T global* globalize( T* t, Core n = Grappa::mycore() ) {
+//    return gptr(make_global(t, n));
+//  }
 
 }
 
 extern "C" {
   
-  long grappa_read_long(long global* a) {
-    return Grappa::delegate::read(gaddr(a));
-  }
-
-  long grappa_fetchadd_i64(long global* a, long inc) {
-    return Grappa::delegate::fetch_and_add(gaddr(a), inc);
-  }
+//  long grappa_read_long(long global* a) {
+//    return Grappa::delegate::read(gaddr(a));
+//  }
+//
+//  long grappa_fetchadd_i64(long global* a, long inc) {
+//    return Grappa::delegate::fetch_and_add(gaddr(a), inc);
+//  }
 
   void* grappa_wide_get_pointer(GlobalAddressBase a) {
     return GlobalAddress<int8_t>::Raw(a).pointer();

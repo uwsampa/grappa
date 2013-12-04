@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
     long x = 1, y = 7;
     long global* xa = make_global(&x);
     long global* ya = make_global(&y);
-    
+
     long global* array = global_alloc<long>(10);
     
     on_all_cores([=]{
