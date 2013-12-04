@@ -7,6 +7,7 @@
 #include "StatisticBase.hpp"
 #include "SimpleStatistic.hpp"
 #include "SummarizingStatistic.hpp"
+#include "MaxStatistic.hpp"
 
 /// @addtogroup Utility
 /// @{

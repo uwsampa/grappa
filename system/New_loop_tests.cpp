@@ -243,6 +243,25 @@ void test_forall_localized() {
     
 }
 
+void test_forall_here_async() {
+  const int N = 1117376;
+  const int64_t x = 4;
+  char * y = new char[N];
+// test with different loop_thresholds
+  impl::local_gce.enroll(1);
+  forall_here_async<&impl::local_gce>( 0, N, [x,y](int64_t s, int64_t i) {
+    for (int ii=0; ii<i; ii++) {
+      y[s+ii] = (char) 0xff & x;
+    }
+  });
+  impl::local_gce.complete();
+  impl::local_gce.wait();
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(y[i], x);
+  }
+}
+
+
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
@@ -256,6 +275,8 @@ void user_main(void * args) {
   test_forall_global_public();
   
   test_forall_localized();
+
+  test_forall_here_async();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

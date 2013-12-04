@@ -459,6 +459,8 @@ namespace Grappa {
   /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T reduce(T * global_ptr) {
+    //NOTE: this is written in a continuation passing
+    //style to avoid the use of a GCE which async delegates only support
     CompletionEvent ce(cores()-1);
     // TODO: look into optionally stack-allocating pool storage like in IncoherentAcquirer.
     MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
@@ -480,6 +482,81 @@ namespace Grappa {
     ce.wait();
     return total;
   }
+
+  /// Reduce over a symmetrically allocated object.
+  /// Blocks until reduction is complete.  
+  /// Safe to use any number of these concurrently.
+  //
+  /// @b Example:
+  /// @code
+  ///   void user_main() {
+  ///     auto x = Grappa::symmetric_global_alloc<BlockAlignedInt>();
+  ///     on_all_cores([]{ x = foo(); });
+  ///     int total = reduce<int,collective_add>(x);
+  ///   }
+  /// @endcode
+  template< typename T, T (*ReduceOp)(const T&, const T&)>
+   T reduce( GlobalAddress<T> localizable ) {
+     CompletionEvent ce(cores() - 1); 
+
+     T total = *(localizable.localize());
+     Core origin = mycore();
+
+     for (Core c=0; c<cores(); c++) {
+      if (c != origin) {
+        send_heap_message(c, [localizable, &ce, &total, origin]{
+          T val = *(localizable.localize());
+          send_heap_message(origin, [val,&ce,&total] {
+            total = ReduceOp(total, val);
+            ce.complete();
+          });
+        });
+      }
+     }
+    ce.wait();
+    return total;
+   }
+
+  /// Reduce over a member of a symmetrically allocated object.
+  /// The Accessor function is used to pull out the member.
+  /// Blocks until reduction is complete.  
+  /// Safe to use any number of these concurrently.
+  ///
+  /// @b Example:
+  /// @code
+  ///   struct BlockAlignedObj {
+  ///     int x;
+  ///   } GRAPPA_BLOCK_ALIGNED;
+  ///   int getX(GlobalAddress<BlockAlignedObj> o) {
+  ///     return o->x;
+  ///   }
+  ///   void user_main() {
+  ///     auto x = Grappa::symmetric_global_alloc<BlockAlignedObj>();
+  ///     on_all_cores([]{ x = foo(); });
+  ///     int total = reduce<int,BlockedAlignedObj,collective_add,&getX>(x);
+  ///   }
+  /// @endcode
+  template< typename T, typename P, T (*ReduceOp)(const T&, const T&), T (*Accessor)(GlobalAddress<P>)>
+   T reduce( GlobalAddress<P> localizable ) {
+     CompletionEvent ce(cores() - 1); 
+
+     T total = Accessor(localizable);
+     Core origin = mycore();
+
+     for (Core c=0; c<cores(); c++) {
+      if (c != origin) {
+        send_heap_message(c, [localizable, &ce, &total, origin]{
+          T val = Accessor(localizable);
+          send_heap_message(origin, [val,&ce,&total] {
+            total = ReduceOp(total, val);
+            ce.complete();
+          });
+        });
+      }
+     }
+    ce.wait();
+    return total;
+   }
   
   /// @}
 } // namespace Grappa

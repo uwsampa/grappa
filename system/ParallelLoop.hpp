@@ -497,7 +497,7 @@ namespace Grappa {
       Core nc = cores();
       Core fc;
       int64_t nbytes = nelems*sizeof(T);
-      GlobalAddress<int64_t> end = base+nelems;
+      GlobalAddress<T> end = base+nelems;
       if (nelems > 0) { fc = 1; }
 
       size_t block_elems = block_size / sizeof(T);
@@ -595,7 +595,7 @@ namespace Grappa {
             typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
   void forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    impl::forall_localized_async<GCE,Threshold>(base, nelems, loop_body, &F::operator());
+    impl::forall_localized_async<GCE,Threshold,T,F>(base, nelems, loop_body, &F::operator());
   }
   
   /// @}

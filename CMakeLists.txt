@@ -112,17 +112,21 @@ list(APPEND GRAPPA_LIBS
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
 set(Boost_USE_MULTITHREADED OFF)
-find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
+find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
 
 if(NOT Boost_FOUND)
   set(Boost_USE_MULTITHREADED ON)
-  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
-endif()  
+  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
+endif()
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
-  message("-- Boost_LIBRARIES: ${Boost_LIBRARIES}")
-  # sets Boost_LIBRARIES correctly
+  string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
+  message("-- Boost found:  ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION} -- ${BOOST_PREFIX}")
+  # Boost_LIBRARIES set with the libraries to link against
+else()
+  message("-- Boost not found.")
+  message("   !! Will download and build Boost, which may take a while.")
 endif()
 
 ######################################
