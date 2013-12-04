@@ -318,7 +318,6 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 
 #else
   privateQ.push_back( newtask );
 #endif
-  stats.record_remote_private_task_spawn();
   /// note from cbarrier implementation
   /*
    * local cancel cbarrier
