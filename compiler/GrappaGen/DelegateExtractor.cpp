@@ -45,9 +45,8 @@ DelegateExtractor::DelegateExtractor(BasicBlock* bb, Module& mod, GlobalPtrInfo&
   bbs.insert(bb);
 }
 
-// TODO: augment to also return set of global pointers accessed
 void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& outputs,
-                                          GlobalPtrMap& gptrs) const {
+                                              GlobalPtrMap& gptrs) const {
   // map loaded value back to its pointer
   std::map<Value*,Value*> gvals;
   
@@ -104,7 +103,6 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   for (auto out : outputs) {
     outs() << "  " << out->getName() << " (" << layout->getTypeAllocSize(out->getType()) << ")\n";
   }
-
   
   DEBUG( outs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n"
     << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n"
