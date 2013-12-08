@@ -7,6 +7,8 @@ SET_DIRECTORY_PROPERTIES(PROPERTIES CLEAN_NO_CUSTOM 1)
 set(EXTERN_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/build")
 set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
+message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party dependencies (if needed).")
+
 if(NOT Boost_FOUND)
 
   find_library(THIRD_PARTY_BOOST "boost_filesystem" "${THIRD_PARTY_ROOT}/lib")

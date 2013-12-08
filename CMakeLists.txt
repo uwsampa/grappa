@@ -64,8 +64,12 @@ if(NOT APPLE)
 endif()
 
 if(TRACING)
-# explicitly add third-party dir to rpath (only necessary when compiling with vtcxx)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
+  # explicitly add third-party dir to rpath (only necessary when compiling with vtcxx)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
+
+  if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${VAMPIR_ROOT}/lib")
+  endif()
 endif()
 
 ##### </RUNPATH> ########
