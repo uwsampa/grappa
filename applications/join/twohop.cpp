@@ -168,13 +168,13 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
      if (Grappa::mycore()==0) {
      if (join_result_count > 1000000 && !first_phase) {
       first_phase = true;
-      call_on_all_cores([]{Grappa_stop_profiling();}); 
-      call_on_all_cores([]{Grappa_start_profiling();}); 
+      Statistics::stop_tracing();
+      Statistics::start_tracing();
       }
   
      if (join_result_count > 22000000 && !second_phase) { 
       second_phase = true;
-      call_on_all_cores([]{Grappa_stop_profiling();}); 
+      Statistics::stop_tracing();
       }
       }
       */
@@ -215,7 +215,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
     count_reduction_runtime = Grappa_walltime() - end;
 #endif 
 
-//  on_all_cores([]{Grappa_stop_profiling();});
+//  Statistics::stop_tracing();
   Grappa::Statistics::merge_and_print();
 }
 

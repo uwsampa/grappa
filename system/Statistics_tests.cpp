@@ -67,6 +67,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     });
 
     Statistics::reset_all_cores();
+    Statistics::start_tracing();
 
 #ifdef HISTOGRAM_SAMPLED
     VLOG(1) << "testing histogram sampling";
@@ -86,7 +87,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         maz.add( 1 );
     });
 
-    call_on_all_cores([]{ Grappa_stop_profiling(); });
+    Statistics::stop_tracing();
     Statistics::merge_and_print();
     //Statistics::dump_stats_blob();
   

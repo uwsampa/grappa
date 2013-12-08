@@ -87,14 +87,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       double end = Grappa::walltime();
 
-      Grappa::on_all_cores( [] {
-          Grappa_stop_profiling();
-        } );
+      Grappa::Statistics::start_tracing();
     
       gups_runtime = end - start;
       gups_throughput = FLAGS_iterations / (end - start);
       gups_throughput_per_locale = gups_throughput / Grappa::locales();
-
+      
+      Grappa::Statistics::stop_tracing();
       Grappa::Statistics::merge_and_print();
 
       if( FLAGS_validate ) {

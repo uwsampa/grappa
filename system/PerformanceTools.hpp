@@ -78,11 +78,3 @@ class GrappaProfiler {
 void dump_all_task_profiles();
 
 
-
-void Grappa_set_profiler_argv0( char * argv0 );
-
-void Grappa_start_profiling();
-void Grappa_stop_profiling();
-
-extern bool take_profiling_sample;
-

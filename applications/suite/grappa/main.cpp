@@ -323,7 +323,7 @@ int main(int argc, char* argv[]) {
       printf("compute_graph_time: %g\n", t);
     }
   
-    // call_on_all_cores([]{ Statistics::reset(); });
+    // Statistics::start_tracing();
   
     //###############################################
     // Kernel: Connected Components
@@ -341,7 +341,7 @@ int main(int argc, char* argv[]) {
       LOG(INFO) << "ncomponents: " << connected << std::endl;
       LOG(INFO) << "components_time: " << t << std::endl;
     
-      // call_on_all_cores([]{ Grappa_stop_profiling(); });
+      // Statistics::stop_tracing();
       Statistics::merge_and_print();
     }  
   

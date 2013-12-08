@@ -94,35 +94,6 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int * NB
   }
 }
 
-static void enable_tau() {
-  Grappa::Statistics::reset_all_cores();
-  call_on_all_cores([]{
-#ifdef GRAPPA_TRACE
-    VLOG(1) << "Enabling TAU recording.";
-    FLAGS_record_grappa_events = true;
-#endif
-#ifdef GOOGLE_PROFILER
-    // unnecessary with reset_all_cores() above
-    //Grappa_start_profiling();
-#endif
-  });
-}
-
-static void disable_tau() {
-  // Statistics::merge_and_print(LOG(INFO));
-  call_on_all_cores([]{
-#ifdef GRAPPA_TRACE
-    VLOG(1) << "Disabling TAU recording.";
-    FLAGS_record_grappa_events = false;
-#endif
-#ifdef GOOGLE_PROFILER
-    Grappa_stop_profiling();
-#else
-    // Statistics::reset();
-#endif
-  });
-}
-
 static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   double t;
   
@@ -133,14 +104,14 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
     // call_on_all_cores([]{ Statistics::reset(); });
-    
-    enable_tau();
+
+    Statistics::start_tracing();
 
     t = timer();
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
     t = timer() - t;
 
-    disable_tau();
+    Statistics::stop_tracing();
     
     VLOG(1) << "make_bfs_tree time: " << t;
 

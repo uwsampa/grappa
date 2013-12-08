@@ -116,16 +116,95 @@ namespace Grappa {
       });
     }
     
+    namespace impl {
+    
+      // callback for sampling at profiler signals
+      // runs in signal handler, so should be async-signal-safe
+      int profile_handler( void * arg ) {
+        take_tracing_sample = true;
+      #ifdef GOOGLE_PROFILER
+        return 1; // tell profiler to profile at this tick
+      #endif
+      #ifdef STATS_BLOB
+        return 0; // don't take profiling sample
+      #endif
+        return 0;
+      }
+      
+      /// set when we should take a sample at the next context switch
+      bool take_tracing_sample = false;
+
+      // remember argv[0] for generating profiler filenames
+      static char * argv0_for_profiler = NULL;
+      int time_for_profiler = 0;
+
+      #define PROFILER_FILENAME_LENGTH 2048
+      static char profiler_filename[PROFILER_FILENAME_LENGTH] = {0}; 
+
+      // which profiling phase are we in? 
+      static int profiler_phase = 0;
+
+      /// Record binary name for use in construcing profiler filenames
+      void set_profiler_argv0( char * argv0 ) {
+        argv0_for_profiler = argv0;
+        time_for_profiler = time(NULL);
+      }
+
+      /// Get next filename for profiler files
+      char * get_next_profiler_filename( ) {
+        // use Slurm environment variables if we can
+        // char * jobname = getenv("SLURM_JOB_NAME");
+        char * jobid = getenv("SLURM_JOB_ID");
+        char * procid = getenv("SLURM_PROCID");
+        if( /*jobname != NULL &&*/ jobid != NULL && procid != NULL ) {
+          sprintf( profiler_filename, "%s.%s.rank%s.phase%d.prof", "exe", jobid, procid, profiler_phase );
+        } else {
+          sprintf( profiler_filename, "%s.%d.pid%d.phase%d.prof", argv0_for_profiler, time_for_profiler, getpid(), profiler_phase );
+        }
+        VLOG(3) << "profiler_filename = " << profiler_filename;
+        ++profiler_phase;
+        return profiler_filename;
+      }
+    }
+    
     void start_tracing() {
       call_on_all_cores([]{
-        Grappa_start_profiling();
-        reset();
+        start_tracing_here();
       });
+    }
+
+    void start_tracing_here() {
+      #ifdef GOOGLE_PROFILER
+        ProfilerOptions po;
+        po.filter_in_thread = &impl::profile_handler;
+        po.filter_in_thread_arg = NULL;
+        ProfilerStartWithOptions( impl::get_next_profiler_filename(), &po );
+        //ProfilerStart( Grappa_get_profiler_filename() );
+      #if defined(VTRACE_SAMPLED) || defined(HISTOGRAM_SAMPLED)
+        reset();
+      #endif
+      #ifdef VTRACE_SAMPLED
+        VT_USER_START("sampling");
+        sample();
+      #endif
+      #endif // GOOGLE_PROFILER
+    }
+
+    void stop_tracing_here() {
+      #ifdef GOOGLE_PROFILER
+        ProfilerStop( );
+        impl::profile_handler(NULL);
+        #ifdef VTRACE_SAMPLED
+          VT_USER_END("sampling");
+          
+          sample();
+        #endif
+      #endif
     }
 
     void stop_tracing() {
       call_on_all_cores([]{
-        Grappa_stop_profiling();
+        stop_tracing_here();
       });
     }
     

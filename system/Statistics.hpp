@@ -22,6 +22,11 @@ namespace Grappa {
   }
   
   namespace Statistics {
+    
+    namespace impl {
+      extern bool take_tracing_sample;
+    }
+    
     // singleton list
     
     /// Print all registered stats in JSON format. Takes another argument for including
@@ -52,10 +57,16 @@ namespace Grappa {
     
     /// Begin recording stats using VampirTrace (also enables Google gperf profiling) (also resets stats)
     void start_tracing();
+
+    /// Only call 'start_tracing' on this core (use in SPMD context)
+    void start_tracing_here();
     
     /// Stop recording tracing and profiling information. Trace/profile is written out and aggregated 
     /// at end of execution.
     void stop_tracing();
+    
+    /// Only call 'stop_tracing' on this core (use in SPMD context)
+    void stop_tracing_here();
   }
   
 } // namespace Grappa

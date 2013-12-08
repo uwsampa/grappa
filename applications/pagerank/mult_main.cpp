@@ -18,22 +18,6 @@ DEFINE_uint64( nnz_factor, 10, "Approximate number of non-zeros per matrix row" 
 DEFINE_uint64( logN, 16, "logN dimension of square matrix" );
 
 
-//////////utility//////////////
-LOOP_FUNCTION(start_prof,nid) {
-  Grappa_start_profiling();
-}
-
-LOOP_FUNCTION(stop_prof,nid) {
-  Grappa_stop_profiling();
-}
-void start_profiling() {
-  start_prof f;
-  fork_join_custom(&f);
-}
-void stop_profiling() {
-  stop_prof f;
-  fork_join_custom(&f);
-}
 ///////////////////////////
 
 
@@ -83,25 +67,25 @@ int main(int argc, char* argv[]) {
     vector vec;
     vec.length = N;
     vec.a = Grappa::global_alloc<double>(N);
-    Grappa_memset(vec.a, 1.0f/N, N);
+    Grappa::memset(vec.a, 1.0f/N, N);
 
     VLOG(1) << "Allocating dest vector";
     vector target;
     target.length = N;
     target.a = Grappa::global_alloc<double>(N);
-    Grappa_memset(target.a, 0.0f, N);
-
+    Grappa::memset(target.a, 0.0f, N);
+    
     //matrix_out( &g, std::cout, false );
     //matrix_out( &g, std::cout, true );
 
-    Grappa_reset_stats_all_nodes();
+    Grappa::Statistics::reset();
     VLOG(1) << "Starting multiply... N=" << g.nv;
     TIME(time,
-    //  start_profiling();
+    //  Statistics::start_tracing();
         spmv_mult(g, vec, target);
-    //  stop_profiling();
+    //  Statistics::stop_tracing();
     );
-    Grappa_merge_and_dump_stats();
+    Grappa::Statistics::merge_and_print();
     LOG(INFO) << "multiply: " << time;
     LOG(INFO) << actual_nnz / time << " nz/s";
     resultd.add( "multiply_time", time );

@@ -225,8 +225,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
       double start = Grappa::walltime();
 
+      Grappa::Statistics::start_tracing();
+      
       Grappa::on_all_cores( [expected_messages_per_core, sent_messages_per_core] {
-          Grappa_start_profiling();
+          
           LOG(INFO) << __PRETTY_FUNCTION__ << ": Starting.";
           google::FlushLogFiles(google::GLOG_INFO);
 
@@ -310,8 +312,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           }
         
           msgs.finish(); // clean up messages
-          Grappa_stop_profiling();
         } );
+      Grappa::Statistics::stop_tracing();
 
       double time = Grappa::walltime() - start;
       local_messages_per_locale = expected_messages_per_locale;
@@ -416,7 +418,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       
 
         {
-          Grappa_start_profiling();
+          Grappa::Statistics::start_tracing_here();
           double start = Grappa::walltime();
 
           {
@@ -426,14 +428,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           }
       
           double time = Grappa::walltime() - start;
-          Grappa_stop_profiling();
+          Grappa::Statistics::stop_tracing_here();
           serialized_messages_per_locale = expected_messages_per_locale;
           serialized_messages_time = time;
           serialized_messages_rate_per_locale = expected_messages_per_locale / time;
         }      
 
         {
-          Grappa_start_profiling();
+          Grappa::Statistics::start_tracing_here();
           double start = Grappa::walltime();
 
           {
@@ -442,7 +444,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           }
       
           double time = Grappa::walltime() - start;
-          Grappa_stop_profiling();
+          Grappa::Statistics::stop_tracing_here();
           deserialized_messages_per_locale = expected_messages_per_locale;
           deserialized_messages_time = time;
           deserialized_messages_rate_per_locale = expected_messages_per_locale / time;
