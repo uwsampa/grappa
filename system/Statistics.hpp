@@ -18,16 +18,15 @@ namespace Grappa {
   using StatisticList = std::vector<impl::StatisticBase*>;
   
   namespace impl {
+    /// singleton list of stats
     StatisticList& registered_stats();
+    
+    extern bool take_tracing_sample;
+    void set_exe_name( char * name );
   }
   
   namespace Statistics {
-    
-    namespace impl {
-      extern bool take_tracing_sample;
-    }
-    
-    // singleton list
+        
     
     /// Print all registered stats in JSON format. Takes another argument for including
     /// legacy stats in output (inside "STATS{  }STATS" bookends)

@@ -145,8 +145,8 @@ class TaskingScheduler : public Scheduler {
         current_ts = Grappa::timestamp();
 
         // maybe sample
-        if( Grappa::Statistics::impl::take_tracing_sample ) {
-          Grappa::Statistics::impl::take_tracing_sample = false;
+        if( Grappa::impl::take_tracing_sample ) {
+          Grappa::impl::take_tracing_sample = false;
 #ifdef HISTOGRAM_SAMPLED
           DVLOG(3) << "sampling histogram";
           Grappa::Statistics::histogram_sample();

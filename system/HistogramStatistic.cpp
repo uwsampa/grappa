@@ -2,17 +2,17 @@
 
 namespace Grappa {
 
-  namespace Statistics {
-  
-    namespace impl {
-      std::vector<HistogramStatistic*>& histogram_stats() {        
-        static std::vector<HistogramStatistic*> r;
-        return r;
-      }
+  namespace impl {
+    std::vector<HistogramStatistic*>& histogram_stats() {        
+      static std::vector<HistogramStatistic*> r;
+      return r;
     }
-  
+  }
+
+  namespace Statistics {
+    
     void histogram_sample() {
-      for (HistogramStatistic * h : Grappa::Statistics::impl::histogram_stats()) {
+      for (HistogramStatistic * h : Grappa::impl::histogram_stats()) {
         DVLOG(5) << "sampling...";
         h->sample();
       }
@@ -26,7 +26,7 @@ namespace Grappa {
     , log_initialized(false)
   {
   #ifdef HISTOGRAM_SAMPLED
-    Statistics::impl::histogram_stats().push_back(this);
+    impl::histogram_stats().push_back(this);
   #endif //HISint64_tOGRAM_SAMPLED
   }
   

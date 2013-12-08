@@ -180,7 +180,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   gasnett_backtrace_init( (*argv_p)[0] );
 
   // help generate unique profile filename
-  Grappa_set_profiler_argv0( (*argv_p)[0] );
+  Grappa::impl::set_exe_name( (*argv_p)[0] );
 
   // parse command line flags
   google::ParseCommandLineFlags(argc_p, argv_p, true);

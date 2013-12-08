@@ -159,7 +159,7 @@ void run(FP fp) {
 #endif
 #ifdef VTRACE_SAMPLED
   // this doesn't really add anything to the profiled trace
-  //Grappa_Grappa::Statistics::impl::take_tracing_sample();
+  //Grappa_Grappa::impl::take_tracing_sample();
 #endif
 
   if( global_communicator.mycore() == 0 ) {
@@ -190,7 +190,7 @@ void run(FP fp) {
 
 #ifdef VTRACE_SAMPLED
   // this doesn't really add anything to the profiled trace
-  //Grappa_Grappa::Statistics::impl::take_tracing_sample();
+  //Grappa_Grappa::impl::take_tracing_sample();
 #endif
 }
 
