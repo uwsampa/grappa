@@ -39,7 +39,7 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3840_to_4095_bytes, 0);
 // other metrics
 GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_messages, 0);
 GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, communicator_start_time, []() {
+GRAPPA_DEFINE_STAT( CallbackStatistic<double>, communicator_start_time, []() {
     // initialization value
     return Grappa::walltime();
     });
