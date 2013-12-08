@@ -25,6 +25,7 @@ OptionParser.new{|p|
   p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to distinguish it (i.e. compiler version)"){|n| opt.name = n }
+  p.on('--vampir=path/to/vampirtrace/root',"Enable VampirTrace/gperftools-based sampled tracing."){|p| opt.vampir = p }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -78,8 +79,22 @@ def configure(generator, mode, opt)
   end
   args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
   
-  args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
-  args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+  if opt.vampir
+    args << "-DVAMPIR_ROOT:PATH=#{opt.vampir}"
+    args << "-DCMAKE_C_COMPILER:FILEPATH=#{opt.vampir}/bin/vtcc"
+    args << "-DCMAKE_CXX_COMPILER:FILEPATH=#{opt.vampir}/bin/vtcxx"
+    args << "-DBASE_C_COMPILER:FILEPATH=#{opt.cc}"
+    args << "-DBASE_CXX_COMPILER:FILEPATH=#{opt.cxx}"
+    args << "-DCMAKE_C_FLAGS:STRING='-vt:cc #{opt.cc}'"
+    args << "-DCMAKE_CXX_FLAGS:STRING='-vt:cxx #{opt.cxx}'"
+    args << "-DTRACING:BOOL=ON"
+  else  
+    args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
+    args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+    args << "-DBASE_C_COMPILER=#{opt.cc}"
+    args << "-DBASE_CXX_COMPILER=#{opt.cxx}"
+  end
+  
   if mode
     # note: use 'RelWithDebInfo' because it adds '-g'...
     args << "-DCMAKE_BUILD_TYPE=" + {'Debug'=>'Debug', 'Release'=>'RelWithDebInfo'}[mode]
@@ -92,6 +107,7 @@ def configure(generator, mode, opt)
   
   build_dir = "build/#{generator}"
   build_dir << "+#{mode}" if mode
+  build_dir << "+Tracing" if opt.vampir
   build_dir << "+#{opt.name}" if opt.name
   
   mkdir_p build_dir

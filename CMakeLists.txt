@@ -26,21 +26,6 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
-if(TRACING)
-  # TODO:Fix VampirTrace support
-  
-  set(GOOGLE_PROFILER ON)
-
-  add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
-
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
-  
-  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
-  set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
-endif()
-
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
@@ -79,17 +64,22 @@ set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
 set(tool_list tool-gasnet tool-gflags tool-glog)
 
 if(TRACING)
+  
   set(GOOGLE_PROFILER ON)
-
-  list(APPEND GRAPPA_LIBS vt otf z papi dl m)
-
-  add_definitions(-DVTRACE_SAMPLED -DVTRACE)
-
-  # set(CMAKE_C_COMPILER "${TOOLS_INSTALL_DIR}/bin/vtcc")
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+  
+  include_directories("${VAMPIR_ROOT}/include/vampirtrace")
+  link_directories("${VAMPIR_ROOT}/lib")
+  
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -vt:inst manual")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -vt:inst manual")
+  
+  # list(APPEND GRAPPA_LIBS vt otf z papi dl m)
+  
+  # set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
+  # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
+  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
+
 
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
@@ -186,6 +176,10 @@ macro(add_grappa_exe target exe )
   target_link_libraries(${target} Grappa)
   target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
   target_link_libraries(${target} ${Boost_LIBRARIES})
+  
+  if(TRACING)
+    target_link_libraries(${target} open-trace-format )
+  endif()
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
