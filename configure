@@ -25,6 +25,7 @@ OptionParser.new{|p|
   p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to distinguish it (i.e. compiler version)"){|n| opt.name = n }
+  p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies instead of re-building for each configuration."){|p| opt.third_party = p }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -80,6 +81,9 @@ def configure(generator, mode, opt)
   
   args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
   args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+  
+  args << "-DTHIRD_PARTY_ROOT:PATH=#{opt.third_party}" if opt.third_party
+  
   if mode
     # note: use 'RelWithDebInfo' because it adds '-g'...
     args << "-DCMAKE_BUILD_TYPE=" + {'Debug'=>'Debug', 'Release'=>'RelWithDebInfo'}[mode]

@@ -73,10 +73,12 @@ endif()
 
 #########################################
 # Determine tools to build
-set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
+if(NOT DEFINED THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools")
+endif()
 
 # always need these
-set(tool_list tool-gasnet tool-gflags tool-glog)
+set(tool_list "")
 
 if(TRACING)
   set(GOOGLE_PROFILER ON)
@@ -94,13 +96,13 @@ endif()
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
-  list(APPEND tool_list tool-gperftools)
+  # list(APPEND tool_list tool-gperftools)
 endif()
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
-include_directories("${TOOLS_INSTALL_DIR}/include")
-link_directories("${TOOLS_INSTALL_DIR}/lib")
+include_directories("${THIRD_PARTY_ROOT}/include")
+link_directories("${THIRD_PARTY_ROOT}/lib")
 list(APPEND GRAPPA_LIBS
   gflags
   glog
@@ -159,7 +161,7 @@ add_definitions(
   "-DGASNET_${GASNET_CONDUIT_UP}"
   "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
 )
-include_directories("${TOOLS_INSTALL_DIR}/include/${GASNET_CONDUIT}-conduit")
+include_directories("${THIRD_PARTY_ROOT}/include/${GASNET_CONDUIT}-conduit")
 
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
