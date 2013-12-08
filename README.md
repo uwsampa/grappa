@@ -195,3 +195,22 @@ Tracing configurations have `+Tracing` in their name. Cd into the build director
 * `${exe}.otf`: main file that links other trace files together
 * `${exe}.*.events.z`: zipped trace events per process
 
+For now, tracing must be explicitly enabled for a particular region of execution, using `Statistics::start_tracing()` and `Statistics::stop_tracing()`. For example:
+
+```cpp
+int main(int argc, char* argv[]) {
+  init(&argc, &argv);
+  run([]{
+    
+    // setup, allocate global memory, etc
+    
+    Statistics::start_tracing();
+    
+    // performance-critical region
+    
+    Statistics::stop_tracing();
+  });
+  finalize();
+}
+```
+
