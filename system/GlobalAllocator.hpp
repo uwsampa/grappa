@@ -97,10 +97,10 @@ public:
   // debugging
   //
 
-  /// human-readable allocator state
+  /// human-readable allocator state (not to be called directly---called by 'operator<<' overload)
   std::ostream& dump( std::ostream& o ) const {
     if( a_p_ ) {
-      return o << "{GlobalAllocator: " << a_p_->dump( o ) << "}";
+      return o << "{GlobalAllocator: " << *a_p_ << "}";
     } else {
       return o << "{delegated GlobalAllocator}";
     }
