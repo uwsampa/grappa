@@ -22,7 +22,7 @@ ENV["GASNET_FREEZE"] = "0"
 case `hostname`
 when /n\d+/ #(sampa)
   ENV["GASNET_PHYSMEM_MAX"] = "1024M"
-  ENV["LD_LIBRARY_PATH"] = "/home/nelson/grappa/tools/built_deps/lib:/sampa/home/nelson/grappa/tools/built_deps/lib/valgrind:/sampa/share/gcc-4.7.2/rtf/lib64:/sampa/share/gcc-4.7.2/src/boost_1_51_0/stage/lib:$LD_LIBRARY_PATH"
+  # ENV["LD_LIBRARY_PATH"] = "/home/nelson/grappa/tools/built_deps/lib:/sampa/home/nelson/grappa/tools/built_deps/lib/valgrind:/sampa/share/gcc-4.7.2/rtf/lib64:/sampa/share/gcc-4.7.2/src/boost_1_51_0/stage/lib:$LD_LIBRARY_PATH"
 end
 #ENV["GASNET_PHYSMEM_NOPROBE"] = "1"
 

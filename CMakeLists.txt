@@ -32,13 +32,21 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 # TODO: use -stdlib=libc++ too?
 
+#########################################
+# Determine tools to build
+if(NOT DEFINED THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools")
+endif()
+
+# always need these
+set(tool_list "")
+
 ###########################
 # Use RUNPATH if available
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# when building, don't use the install RPATH already
-# (but later on when installing)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE) 
+# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
@@ -54,16 +62,15 @@ endif("${isSystemDir}" STREQUAL "-1")
 if(NOT APPLE)
   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
 endif()
-##### </RUNPATH> ########
 
-#########################################
-# Determine tools to build
-if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools")
+if(TRACING)
+# explicitly add third-party dir to rpath (only necessary when compiling with vtcxx)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
 endif()
 
-# always need these
-set(tool_list "")
+##### </RUNPATH> ########
+
+
 
 if(TRACING)
   
@@ -72,6 +79,8 @@ if(TRACING)
   include_directories("${VAMPIR_ROOT}/include/vampirtrace")
   link_directories("${VAMPIR_ROOT}/lib")
   
+  # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -finstrument-functions")
+  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finstrument-functions")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -vt:inst manual")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -vt:inst manual")
   
@@ -79,7 +88,8 @@ if(TRACING)
   
   # set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
   # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
-  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
+
 endif()
 
 
@@ -181,11 +191,7 @@ macro(add_grappa_exe target exe )
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
   target_link_libraries(${target} Grappa)
   target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
-  target_link_libraries(${target} ${Boost_LIBRARIES})
-  
-  if(TRACING)
-    target_link_libraries(${target} open-trace-format )
-  endif()
+  target_link_libraries(${target} ${Boost_LIBRARIES})  
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
