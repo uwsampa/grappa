@@ -10,7 +10,7 @@ set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 if(NOT Boost_FOUND)
 
   find_library(THIRD_PARTY_BOOST "boost_filesystem" "${THIRD_PARTY_ROOT}/lib")
-  if( THIRD_PARTY_BOOST MATCHES ".*NOTFOUND" )
+  if( NOT THIRD_PARTY_BOOST )
   
     # Download & build Boost
     # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
@@ -40,7 +40,7 @@ if(NOT Boost_FOUND)
 endif()
 
 find_library(THIRD_PARTY_GASNET "gasnet_tools-seq" "${THIRD_PARTY_ROOT}/lib")
-if( THIRD_PARTY_GASNET MATCHES ".*NOTFOUND" )
+if( NOT THIRD_PARTY_GASNET )
   ExternalProject_Add( tool-gasnet
     PREFIX             ${EXTERN_BUILD_DIR}/gasnet
     STAMP_DIR          ${EXTERN_STAMP_DIR}/gasnet
@@ -63,7 +63,7 @@ if(APPLE)
 endif()
 
 find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib")
-if( THIRD_PARTY_GFLAGS MATCHES ".*NOTFOUND" )
+if( NOT THIRD_PARTY_GFLAGS )
   ExternalProject_Add( tool-gflags
     URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
     SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
@@ -80,7 +80,7 @@ if( THIRD_PARTY_GFLAGS MATCHES ".*NOTFOUND" )
 endif()
 
 find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib")
-if( THIRD_PARTY_GLOG MATCHES ".*NOTFOUND" )
+if( NOT THIRD_PARTY_GLOG )
 
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
@@ -106,7 +106,7 @@ endif()
 if(TRACING)
   
   find_library(THIRD_PARTY_GPERFTOOLS "profiler" "${THIRD_PARTY_ROOT}/lib")
-  if( THIRD_PARTY_GPERFTOOLS MATCHES ".*NOTFOUND" )
+  if( NOT THIRD_PARTY_GPERFTOOLS )
   
     ExternalProject_Add( tool-gperftools
       URL                http://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
