@@ -64,6 +64,7 @@ if(NOT APPLE)
 endif()
 
 if(TRACING)
+  message("-- Tracing enabled.")
   # explicitly add third-party dir to rpath (only necessary when compiling with vtcxx)
   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
 
@@ -205,7 +206,7 @@ endmacro(add_grappa_application)
 
 set(GRAPPA_TESTS "")
 
-macro(add_grappa_test name)
+macro(add_grappa_test name nnode ppn)
   get_filename_component(base ${name} NAME_WE) # name without extension
   
   add_grappa_exe(${name} ${name} ${ARGN})
@@ -216,7 +217,7 @@ macro(add_grappa_test name)
   
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=2 --ppn=2
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
     DEPENDS Grappa ${name}
   )
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")

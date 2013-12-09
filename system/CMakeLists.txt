@@ -153,19 +153,55 @@ add_dependencies(Grappa all-tools)
 
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
-# create targets for each test
-foreach(test_cpp ${TEST_SOURCES})  
+macro(add_grappa_test_default test_cpp nnode ppn target)
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${test_cpp})
-  
-  # include Boost test automagic main() generation
-  # add an additional rule if you need to include multiple components
-  
-endforeach()
+  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
+  add_dependencies( check-${target} check-${test_name} )
+endmacro()
 
-add_custom_target(check-all DEPENDS ${GRAPPA_TESTS})
-set_property(TARGET check-all PROPERTY FOLDER "Tests")
+# compile and run all passing tests
+add_custom_target(check-all-pass)
+set_property(TARGET check-all-pass PROPERTY FOLDER "Tests")
+
+# targets known to be failing
+add_custom_target(check-all-fail)
+set_property(TARGET check-all-fail PROPERTY FOLDER "Tests")
+
+
+add_grappa_test_default( Addressing_tests.cpp              2 2  pass )
+add_grappa_test_default( Allocator_tests.cpp               2 2  pass )
+add_grappa_test_default( Array_tests.cpp                   2 2  pass )
+add_grappa_test_default( BufferVector_tests.cpp            2 2  pass )
+add_grappa_test_default( Cache_tests.cpp                   2 2  pass )
+add_grappa_test_default( Collective_tests.cpp              2 2  pass )
+add_grappa_test_default( CompletionEvent_tests.cpp         2 2  pass )
+add_grappa_test_default( ContextSwitchLatency_tests.cpp    1 1  pass )
+add_grappa_test_default( Delegate_tests.cpp                2 1  pass )
+add_grappa_test_default( FileIO_tests.cpp                  2 1  fail )
+add_grappa_test_default( FlatCombiner_tests.cpp            2 2  pass )
+add_grappa_test_default( GlobalAllocator_tests.cpp         2 1  pass )
+add_grappa_test_default( GlobalHash_tests.cpp              2 1  pass )
+add_grappa_test_default( GlobalMemoryChunk_tests.cpp       2 1  pass )
+add_grappa_test_default( GlobalMemory_tests.cpp            2 1  pass )
+add_grappa_test_default( GlobalVector_tests.cpp            2 1  pass )
+add_grappa_test_default( Gups_tests.cpp                    2 1  pass )
+add_grappa_test_default( LocaleSharedMemory_tests.cpp      2 1  pass )
+add_grappa_test_default( Message_tests.cpp                 2 1  fail )
+add_grappa_test_default( Mutex_tests.cpp                   2 1  pass )
+add_grappa_test_default( New_delegate_tests.cpp            2 2  pass )
+add_grappa_test_default( New_loop_tests.cpp                2 2  pass )
+add_grappa_test_default( PoolAllocator_tests.cpp           2 1  pass )
+add_grappa_test_default( Public_tasks_tests.cpp            2 1  pass )
+add_grappa_test_default( RDMAAggregator_tests.cpp          2 1  pass )
+add_grappa_test_default( RateMeasure_tests.cpp             2 1  pass )
+add_grappa_test_default( Reducer_tests.cpp                 2 1  pass )
+add_grappa_test_default( Scheduler_benchmarking_tests.cpp  2 1  pass )
+add_grappa_test_default( Semaphore_tests.cpp               2 1  fail )
+add_grappa_test_default( Statistics_tests.cpp              2 1  pass )
+add_grappa_test_default( Stealing_tests.cpp                2 1  fail )
+add_grappa_test_default( Tasking_tests.cpp                 2 1  pass )
+add_grappa_test_default( ThreadQueue_tests.cpp             2 1  pass )
 
 
 # add a target to generate API documentation with Doxygen

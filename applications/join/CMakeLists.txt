@@ -70,7 +70,7 @@ endforeach()
 foreach(test_cpp ${TEST_SOURCES})
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${SOURCES} ${test_cpp})
+  add_grappa_test(${test} 2 2 ${SOURCES} ${test_cpp})
   target_link_libraries(${test} generator)
 endforeach()
 
