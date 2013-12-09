@@ -4,6 +4,8 @@
 
 BOOST_AUTO_TEST_SUITE( ThreadQueue_tests );
 
+using namespace Grappa;
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   #ifndef DEBUG
     BOOST_MESSAGE( "This test requires -DDEBUG for full checks" );
@@ -15,7 +17,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     ws[i] = new Worker();
   }
 
-  PrefetchingThreadQueue q(4);
+  PrefetchingThreadQueue q;
+  q.init(4);
 
   q.enqueue(ws[0]);
   BOOST_CHECK( q.length() == 1 );
