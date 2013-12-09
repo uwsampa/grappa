@@ -28,7 +28,7 @@
 #include <boost/test/unit_test.hpp>
 
 DEFINE_int64( repeats, 1, "Repeats" );
-DEFINE_int64( iterations, 1 << 30, "Iterations" );
+DEFINE_int64( iterations, 1 << 25, "Iterations" );
 DEFINE_int64( sizeA, 1024, "Size of array that gups increments" );
 DEFINE_bool( validate, true, "Validate result" );
 
