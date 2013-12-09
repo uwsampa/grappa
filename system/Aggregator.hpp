@@ -4,10 +4,7 @@
 // This software was created with Government support under DE
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
-
-#ifndef __AGGREGATOR_HPP__
-#define __AGGREGATOR_HPP__
-
+#pragma once
 
 #ifdef STL_DEBUG_ALLOCATOR
 #include "../tools/stl-debug-allocator/archive/Source/includes.h"
@@ -670,4 +667,32 @@ inline void Grappa_call_on_x( Core destination, void (* fn_p)(ArgsStruct *, size
   StateTimer::stop_communication();
 }
 
-#endif
+namespace Grappa {
+  
+  namespace impl {
+
+    /// Poll Grappa aggregation and communication layers.
+    static inline void poll()
+    {
+      global_aggregator.poll();
+    #ifdef ENABLE_RDMA_AGGREGATOR
+      Grappa::impl::global_rdma_aggregator.poll();
+    #endif
+    }
+
+    /// Send waiting aggregated messages to a particular destination.
+    static inline void flush( Core n )
+    {
+      global_aggregator.flush( n );
+    }
+
+    /// Meant to be called when there's no other work to be done, calls poll, 
+    /// flushes any aggregator buffers with anything in them, and deaggregates.
+    static inline void idle_flush_poll() {
+      global_aggregator.idle_flush_poll();
+    }
+    
+  }
+}
+
+

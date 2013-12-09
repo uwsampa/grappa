@@ -233,7 +233,7 @@ public:
               << " * " << *count_ ;
         if( !acquired_ ) {
           thread_ = CURRENT_THREAD;
-          Grappa_suspend();
+          Grappa::suspend();
           thread_ = NULL;
         }
         DVLOG(5) << "Worker " << CURRENT_THREAD 

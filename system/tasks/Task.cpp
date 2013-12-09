@@ -341,8 +341,8 @@ bool TaskManager::waitConsumeAny( Task * result ) {
   if ( !local_available() ) {
     GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
     GRAPPA_PROFILE_START( prof );
-    if ( !Grappa_thread_idle() ) { // TODO: change to directly use scheduler thread idle
-      Grappa_yield(); // TODO: remove this, since thread_idle now suspends always
+    if ( !Grappa::thread_idle() ) { // TODO: change to directly use scheduler thread idle
+      Grappa::yield(); // TODO: remove this, since thread_idle now suspends always
     } else {
       DVLOG(5) << CURRENT_THREAD << " un-idled";
     }
@@ -371,7 +371,7 @@ std::ostream& operator<<( std::ostream& o, const Task& t ) {
 /// not guarenteed to be executed after this returns.
 void TaskManager::signal_termination( ) {
   workDone = true;
-  Grappa_signal_done();
+  impl::signal_done();
 }
 
 /// Teardown.

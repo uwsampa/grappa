@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
 
               // do the work
               for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
-                Grappa_yield();
+                Grappa::yield();
               }
 
               final->complete();
@@ -246,7 +246,7 @@ int main(int argc, char* argv[]) {
             // do the work
             for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
               values8[t] += 1;
-              Grappa_yield();
+              Grappa::yield();
             }
             final->complete();
           });
@@ -278,7 +278,7 @@ int main(int argc, char* argv[]) {
               for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
               values16[t].val1 += 1;
               values16[t].val2 += 1;
-              Grappa_yield();
+              Grappa::yield();
               }
               final->complete();
               });
@@ -313,7 +313,7 @@ int main(int argc, char* argv[]) {
               for (uint64_t j=0; j<FLAGS_private_array_size; j++) {
               myarray[j] += 1;
               }
-              Grappa_yield();
+              Grappa::yield();
               }
               values8[t] = myarray[rand()%FLAGS_private_array_size];
               final->complete();
@@ -351,7 +351,7 @@ int main(int argc, char* argv[]) {
               for (uint64_t j=0; j<FLAGS_private_array_size; j++) {
               myarray[j].val += 1;
               }
-              Grappa_yield();
+              Grappa::yield();
               }
               values8[t] = myarray[rand()%FLAGS_private_array_size].val;
               final->complete();

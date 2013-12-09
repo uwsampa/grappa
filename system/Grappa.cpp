@@ -96,7 +96,7 @@ static void poller( Worker * me, void * args ) {
   while( !Grappa_done() ) {
     global_scheduler.stats.sample();
 
-    Grappa_poll();
+    Grappa::impl::poll();
     
     // poll global barrier
     Grappa::impl::barrier_poll();
@@ -114,7 +114,7 @@ static void poller( Worker * me, void * args ) {
       }
     }
 
-    Grappa_yield_periodic();
+    Grappa::yield_periodic();
   }
   // cleanup stragglers on readyQ since I should be last to run;
   // no one else matters.
@@ -423,7 +423,7 @@ void Grappa_end_tasks() {
   for ( Core n = 1; n < Grappa::cores(); n++ ) {
       int ignore = 0;
       Grappa_call_on( n, &signal_task_termination_am, &ignore );
-      Grappa_flush( n );
+      Grappa::flush( n );
   }
   signal_task_termination_am( NULL, 0, NULL, 0 );
 }
@@ -435,13 +435,6 @@ void Grappa_end_tasks() {
 //  Grappa_done_flag = true;
 //}
 
-/// Tell all nodes that we are ready to exit.
-/// This will terminate the automatic portions of the communication layer
-void Grappa_signal_done ( ) { 
-    VLOG(5) << "mark done";
-    Grappa_done_flag = true;
-}
-
 /// Finish the job. 
 /// 
 /// If we've already been notified that we can exit, enter global
@@ -449,7 +442,7 @@ void Grappa_signal_done ( ) {
 /// notify everyone else, enter the barrier, and then clean up.
 int Grappa_finish( int retval )
 {
-  Grappa_signal_done(); // this may be overkill (just set done bit?)
+  Grappa::impl::signal_done(); // this may be overkill (just set done bit?)
 
   //TAU_PROFILE_EXIT("Tau_profile_exit called");
   Grappa::comm_barrier();
@@ -480,22 +473,23 @@ int Grappa_finish( int retval )
 }
 
 namespace Grappa {
-namespace impl {
 
-void poll() {
-  global_communicator.poll();
-  global_aggregator.poll();
-}
+  namespace impl {
+    /// Tell all nodes that we are ready to exit.
+    /// This will terminate the automatic portions of the communication layer
+    void signal_done() { 
+      VLOG(5) << "mark done";
+      Grappa_done_flag = true;
+    }
+  }
 
-} // namespace impl
+  void init( int * argc_p, char ** argv_p[], size_t size ) {
+    Grappa_init( argc_p, argv_p, size );
+    Grappa_activate();
+  }
 
-void init( int * argc_p, char ** argv_p[], size_t size ) {
-  Grappa_init( argc_p, argv_p, size );
-  Grappa_activate();
-}
-
-int finalize() {
-  return Grappa_finish(0);
-}
+  int finalize() {
+    return Grappa_finish(0);
+  }
 
 } // namespace Grappa

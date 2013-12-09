@@ -196,7 +196,7 @@ public:
                 << " * " << *count_ ;
         if( !released_ ) {
           thread_ = CURRENT_THREAD;
-          Grappa_suspend();
+          Grappa::suspend();
           thread_ = NULL;
         }
         DVLOG(5) << "Worker " << CURRENT_THREAD 

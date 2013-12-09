@@ -564,9 +564,57 @@ extern TaskingScheduler global_scheduler;
 
 } // namespace impl
 
+
+///////////////////////////
+/// Helpers
+///
+/// @addtogroup Delegates
+/// @{
+
+
 inline Worker& current_worker() {
   return *impl::global_scheduler.get_current_thread();
 }
+
+/// Yield to scheduler, placing current Worker on run queue.
+static inline void yield() { impl::global_scheduler.thread_yield(); }
+
+/// Yield to scheduler, placing current Worker on periodic queue.
+static inline void yield_periodic() { impl::global_scheduler.thread_yield_periodic( ); }
+
+/// Yield to scheduler, suspending current Worker.
+static inline void suspend() {
+  DVLOG(5) << "suspending Worker " << impl::global_scheduler.get_current_thread() << "(# " << impl::global_scheduler.get_current_thread()->id << ")";
+  impl::global_scheduler.thread_suspend( );
+  //CHECK_EQ(retval, 0) << "Worker " << th1 << " suspension failed. Have the server threads exited?";
+}
+
+/// Wake a Worker by putting it on the run queue, leaving the current thread running.
+static inline void wake( Worker * t ) {
+  DVLOG(5) << impl::global_scheduler.get_current_thread()->id << " waking Worker " << t;
+  impl::global_scheduler.thread_wake( t );
+}
+
+/// Wake a Worker t by placing current thread on run queue and running t next.
+static inline void yield_wake( Worker * t ) {
+  DVLOG(5) << "yielding Worker " << impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+  impl::global_scheduler.thread_yield_wake( t );
+}
+
+/// Wake a Worker t by suspending current thread and running t next.
+static inline void suspend_wake( Worker * t ) {
+  DVLOG(5) << "suspending Worker " << impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+  impl::global_scheduler.thread_suspend_wake( t );
+}
+
+/// Place current thread on queue to be reused by tasking layer as a worker.
+/// @deprecated should not be in the public API because it is a Worker-level not Task-level routine
+static inline bool thread_idle() {
+  DVLOG(5) << "Worker " << impl::global_scheduler.get_current_thread()->id << " going idle";
+  return impl::global_scheduler.thread_idle();
+}
+
+/// @}
 
 } // namespace Grappa
 

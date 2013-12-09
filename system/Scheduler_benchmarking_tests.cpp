@@ -36,13 +36,13 @@ void user_main( void* args )
 
   // warmup context switches  
   for (int64_t i=0; i<warmup_iters; i++) {
-    Grappa_yield();
+    Grappa::yield();
   }
 
   // time many context switches
   start = wctime();
   for (int64_t i=0; i<iters; i++) {
-    Grappa_yield();
+    Grappa::yield();
   }
   end = wctime();
 

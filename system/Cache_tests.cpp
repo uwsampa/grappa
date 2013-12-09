@@ -111,13 +111,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       Incoherent<int64_t>::RW buf4( GlobalAddress< int64_t >::TwoDimensional( bar, 1 ), 1);
       buf4.start_acquire( );
       for (int i=0; i<2000; i++) {
-          Grappa_yield(); // spin to let reply come back
+          Grappa::yield(); // spin to let reply come back
       }
       buf4.block_until_acquired( );
 
       buf4.start_release( );
       for (int i=0; i<2000; i++) {
-          Grappa_yield(); // spin to let reply come back
+          Grappa::yield(); // spin to let reply come back
       }
       buf4.block_until_released( );
     }

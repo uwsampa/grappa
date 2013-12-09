@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               Grappa::impl::global_rdma_aggregator.flush( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
             }
 
-            Grappa_yield();
+            Grappa::yield();
 
             if( FLAGS_disable_sending ) {
               // keep aggregator from polling during sends or flushing for a bit.
@@ -568,7 +568,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               
                 // now send explicitly
                 Grappa::impl::global_rdma_aggregator.flush( dest_core );
-                Grappa_yield();
+                Grappa::yield();
 
                 if( FLAGS_disable_sending ) {
                   //sleep(30);
@@ -746,7 +746,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               DVLOG(4) << "Pushing buffer onto received list";
               Grappa::impl::global_rdma_aggregator.received_buffer_list_.push( b );
               remote_distributed_buffers_per_locale++;
-              Grappa_yield();
+              Grappa::yield();
             }
           }
 

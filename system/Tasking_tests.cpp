@@ -31,9 +31,9 @@ void task1_f( task1_arg * arg ) {
     Worker * parent = arg->parent;
 
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 1" );
-    Grappa_yield( );
+    Grappa::yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 2" );
-    Grappa_yield( );
+    Grappa::yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
 
     // int fetch add to address on Core1
@@ -59,7 +59,7 @@ void task2_f(int64_t index, task2_shared * sa) {
   sa->array[index] = result;
 
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " about to yield" );
-  Grappa_yield( );
+  Grappa::yield( );
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " is done" );
 
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " result=" << result );
@@ -77,7 +77,7 @@ void user_main( void* args )
     Grappa_privateTask( &task1_f, &argss[ta] );
   }
 
-  Grappa_suspend(); // no wakeup race because tasks wont run until this yield occurs
+  Grappa::suspend(); // no wakeup race because tasks wont run until this yield occurs
                      // normally a higher level robust synchronization object should be used
 
   BOOST_MESSAGE( "testing shared args" );

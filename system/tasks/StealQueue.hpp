@@ -325,7 +325,7 @@ uint64_t StealQueue<T>::topPosn() const
 /////////////////////////////////////////////////
 
 extern TaskingScheduler global_scheduler;
-// void Grappa_suspend();
+// void Grappa::suspend();
 // void Grappa_wake( Worker * );
 // Core Grappa::mycore();
 

@@ -28,8 +28,8 @@ void task1_f( const task1_arg * args ) {
     BLOG( CURRENT_THREAD << " task runs i=" << args->i );
 
     // yield a couple times to simulate work
-    Grappa_yield();
-    Grappa_yield();
+    Grappa::yield();
+    Grappa::yield();
 
     // tell parent we are done
     Semaphore::release( &args->sem, 1 ); 

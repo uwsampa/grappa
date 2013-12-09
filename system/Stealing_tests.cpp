@@ -66,7 +66,7 @@ void multiBarrier( int index ) {
         BOOST_MESSAGE( index << " suspended index:" << result);
         isActuallyAsleep[index] = true;
         if ( !isWoken[index] ) {
-            Grappa_suspend( );
+            Grappa::suspend( );
         }
         BOOST_MESSAGE( index << " wake from barrier");
     } else if ( result == Grappa::cores()-1 ) {
@@ -146,7 +146,7 @@ void dummy_f( task1_arg * arg ) {
     BOOST_MESSAGE( "dummy start" );
     while ( num_stolen_started < (Grappa::cores()-1)*tasks_per_node) {
         dummy_thr = CURRENT_THREAD;
-        Grappa_suspend();
+        Grappa::suspend();
     }
     BOOST_MESSAGE( "dummy done" );
 }

@@ -11,16 +11,14 @@
 
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
-
+#include "Aggregator.hpp"
 
 
 namespace Grappa {
-namespace impl {
-
-void poll();
-void failure_function();
-
-}
+  namespace impl {
+    // defined in Grappa.hpp
+    void failure_function();
+  }
 }
 
 // prefetch two cache lines per message
@@ -127,8 +125,13 @@ namespace Grappa {
         rdma_idle_flushes++;
 
         Core c = Grappa::mycore();
-
-        Grappa::impl::poll();
+        
+        /////////////////////////////////////////////////////
+        // came from old Grappa::impl::poll() in Grappa.cpp
+        // (not sure why it was polling the other aggregator...)
+        global_communicator.poll();
+        global_aggregator.poll();
+        /////////////////////////////////////////////////////
 
         // receive_poll();
         
