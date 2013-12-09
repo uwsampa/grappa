@@ -35,6 +35,7 @@ set(SYSTEM_SOURCES
   IncoherentAcquirer.cpp
   IncoherentReleaser.cpp
   LocaleSharedMemory.cpp
+  MaxStatistic.cpp
   MessageBase.cpp
   MessagePool.cpp
   ParallelLoop.cpp
