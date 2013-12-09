@@ -40,7 +40,7 @@ void task1_f( task1_arg * arg ) {
     int64_t result = Grappa_delegate_fetch_and_add_word( nf_addr, 1 );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
     if ( result == num_tasks-1 ) {
-        Grappa_wake( parent );
+        Grappa::wake( parent );
     }
 }
 

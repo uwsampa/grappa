@@ -258,7 +258,7 @@ public:
                                                                  << " and count = " << *count_;
       acquired_ = true;
       if( thread_ != NULL ) {
-        Grappa_wake( thread_ );
+        Grappa::wake( thread_ );
       }
       if( start_time_ != 0 ) {
         network_time_ = Grappa::timestamp();

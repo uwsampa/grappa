@@ -215,7 +215,7 @@ public:
       if( thread_ != NULL ) {
         DVLOG(5) << "Worker " << CURRENT_THREAD 
                  << " waking Worker " << thread_;
-        Grappa_wake( thread_ );
+        Grappa::wake( thread_ );
       }
     }
   }

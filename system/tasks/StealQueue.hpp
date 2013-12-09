@@ -326,7 +326,7 @@ uint64_t StealQueue<T>::topPosn() const
 
 extern TaskingScheduler global_scheduler;
 // void Grappa::suspend();
-// void Grappa_wake( Worker * );
+// void Grappa::wake( Worker * );
 // Core Grappa::mycore();
 
 // bunch of static state for workshare and global queue

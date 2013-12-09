@@ -43,7 +43,7 @@ struct wake_arg {
 };
 
 void wake_f( wake_arg * args, size_t size, void * payload, size_t payload_size ) {
-    Grappa_wake( args->wakee );
+    Grappa::wake( args->wakee );
 }
 
 struct wakeindex_args {
@@ -53,7 +53,7 @@ struct wakeindex_args {
 void wakeindex_f( wakeindex_args * args, size_t size, void * payload, size_t payload_size ) {
     isWoken[args->index] = true;
     if (isActuallyAsleep[args->index]) {
-        Grappa_wake( threads[args->index] );
+        Grappa::wake( threads[args->index] );
     }
 }
 
@@ -100,13 +100,13 @@ void task_local( task1_arg * arg ) {
     BOOST_MESSAGE( CURRENT_THREAD << " with task(local) called fetch add=" << result );
     if ( result == num_tasks-1 ) {
         BOOST_MESSAGE( CURRENT_THREAD << " with task(local) " << mynum << " result=" << result );
-        Grappa_wake( parent );
+        Grappa::wake( parent );
     }
 }
 
 void wakedum_f( wake_arg * unused, size_t arg_size, void * payload, size_t payload_size ) {
     if ( dummy_thr != NULL ) {
-        Grappa_wake( dummy_thr );
+        Grappa::wake( dummy_thr );
     }
 }
 

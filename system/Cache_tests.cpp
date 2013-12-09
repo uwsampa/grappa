@@ -355,9 +355,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       LOG(INFO) << "empty RW...";
       { Incoherent<int64_t>::RW c(xa, 1, &buf); c[0] = c[0]+1; }
     }
-    //Grappa_waitForTasks();
-    //Grappa_signal_done();
-
+    
     Grappa::Statistics::merge_and_print();
   });
   Grappa::finalize();
