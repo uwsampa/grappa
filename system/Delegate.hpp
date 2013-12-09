@@ -88,8 +88,10 @@ namespace Grappa {
       }
     }
   
-    template <typename F>
-    inline auto call(Core dest, F func, decltype(func()) (F::*mf)() const) -> decltype(func()) {
+    template <typename F, typename TT >
+    inline auto call(Core dest, F func, TT (F::*mf)() const) -> TT {
+      static_assert(std::is_convertible< decltype(func()), TT >(),
+                    "lambda doesn't return the expected type");
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short
       // -circuit case and extra work in MessagePool)
@@ -245,9 +247,17 @@ namespace Grappa {
     /// round-trip communication is complete.
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T >
-    T read(GlobalAddress<T> target) {
+    T read(GlobalAddress<T> target) {      
       delegate_reads++;
       return call(target.node(), [target]() -> T {
+        delegate_read_targets++;
+        return *target.pointer();
+      });
+    }
+    template< typename T >
+    const T read_const(GlobalAddress<const T> target) {      
+      delegate_reads++;
+      return call(target.node(), [target]() -> const T {
         delegate_read_targets++;
         return *target.pointer();
       });
