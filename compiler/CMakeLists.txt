@@ -34,6 +34,9 @@ add_llvm_loadable_module( LLVMGrappaGen
 set_target_properties( LLVMGrappaGen PROPERTIES COMPILE_FLAGS "-fno-rtti" )
 set_property(TARGET LLVMGrappaGen PROPERTY FOLDER "Compiler")
 
+add_library(GrappaPrimitive "GrappaGen/Primitive.cpp")
+add_dependencies(GrappaPrimitive Grappa)
+set_target_properties(GrappaPrimitive PROPERTIES COMPILE_DEFINITIONS "__GRAPPA_CLANG__")
 
 get_property( GRAPPA_GEN_LOCATION TARGET LLVMGrappaGen  PROPERTY LOCATION )
 
@@ -48,7 +51,7 @@ set_property(TARGET compiler PROPERTY FOLDER "Compiler")
 # macro that runs the Grappa optimization pass when compiling
 macro(add_grappaclang_exe target exe)
   add_grappa_exe(${target} "${exe}" ${ARGN})
-  add_dependencies(${target} LLVMGrappaGen)
+  add_dependencies(${target} LLVMGrappaGen GrappaPrimitive)
   set_source_files_properties(${ARGN} PROPERTIES OBJECT_DEPENDS compiler)
   set_target_properties(${target} PROPERTIES
     COMPILE_FLAGS       "-Xclang -load -Xclang ${GRAPPA_GEN_LOCATION}"
