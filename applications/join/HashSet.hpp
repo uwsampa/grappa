@@ -58,7 +58,7 @@ class HashSet {
     HashSet( ) {}
 
     static void init_global_DHT( HashSet<K,HF,GCE> * globally_valid_local_pointer, size_t capacity ) {
-      GlobalAddress<Cell> base = Grappa_typed_malloc<Cell>( capacity );
+      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity] {
         *globally_valid_local_pointer = HashSet<K,HF,GCE>( base, capacity );

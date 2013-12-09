@@ -84,7 +84,7 @@ class DHT {
     DHT( ) {}
 
     static void init_global_DHT( DHT * globally_valid_local_pointer, size_t capacity ) {
-      GlobalAddress<Cell> base = Grappa_typed_malloc<Cell>( capacity );
+      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity );
 
       // TODO: could use on_all_nodes here if use BOOST_PP_COMMA
       // actually I probably want to change the on_all_node macro to a true function call

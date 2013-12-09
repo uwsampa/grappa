@@ -121,7 +121,7 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
   size_t nedge = FLAGS_undirected ? 2*tg.nedge : tg.nedge;
 
   // allocate the tuples
-  GlobalAddress<Tuple> base = Grappa_typed_malloc<Tuple>( nedge );
+  GlobalAddress<Tuple> base = Grappa::global_alloc<Tuple>( nedge );
 
   // copy and transform from edge representation to Tuple representation
   forall_localized(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
@@ -188,11 +188,11 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   VLOG(1) << "Scan tuples, creating index on subject";
   
   double start, end;
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   {
     scanAndHash( tuples, num_tuples );
   } 
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   
   VLOG(1) << "insertions: " << num_tuples/(end-start) << " per sec";
   hash_runtime = end - start;
@@ -212,7 +212,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   DHT_type::set_RO_global( &joinTable );
 #endif
 
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
   forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Right];
@@ -307,7 +307,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   }); // end outer loop over tuples
          
   
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   triangles_runtime = end-start;
   
   //uint64_t total_triangle_count = Grappa::reduce<uint64_t, collective_add>( &local_triangle_count ); 
@@ -323,45 +323,34 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   //VLOG(1) << "joins: " << (end-start) << " seconds; total_triangle_count=" << total_triangle_count << "; total_first_join_count=" << total_first_join_results << "; total_second_join_count=" << total_second_join_results;
 }
 
-void user_main( int * ignore ) {
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
 
-  GlobalAddress<Tuple> tuples;
-  size_t num_tuples;
+    GlobalAddress<Tuple> tuples;
+    size_t num_tuples;
 
-  if ( FLAGS_fin == "" ) {
-    VLOG(1) << "Generating some data";
-    tuples = generate_data( FLAGS_scale, FLAGS_edgefactor, &num_tuples );
-  } else {
-    VLOG(1) << "Reading data from " << FLAGS_fin;
+    if ( FLAGS_fin == "" ) {
+      VLOG(1) << "Generating some data";
+      tuples = generate_data( FLAGS_scale, FLAGS_edgefactor, &num_tuples );
+    } else {
+      VLOG(1) << "Reading data from " << FLAGS_fin;
     
-    tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
-    readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
-    num_tuples = FLAGS_file_num_tuples;
+      tuples = Grappa::global_alloc<Tuple>( FLAGS_file_num_tuples );
+      readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
+      num_tuples = FLAGS_file_num_tuples;
     
-    print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
-  }
+      print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
+    }
 
-  DHT_type::init_global_DHT( &joinTable, 64 );
+    DHT_type::init_global_DHT( &joinTable, 64 );
 
-  Column joinIndex1 = 0; // subject
-  Column joinIndex2 = 1; // object
-  Column select = 1; // object
+    Column joinIndex1 = 0; // subject
+    Column joinIndex2 = 1; // object
+    Column select = 1; // object
 
-  // triangle (assume one index to build)
-  triangles( tuples, num_tuples, joinIndex1, joinIndex2, joinIndex2, select ); 
+    // triangle (assume one index to build)
+    triangles( tuples, num_tuples, joinIndex1, joinIndex2, joinIndex2, select ); 
+  });
+  Grappa::finalize();
 }
-
-
-/// Main() entry
-int main (int argc, char** argv) {
-    Grappa_init( &argc, &argv ); 
-    Grappa_activate();
-
-    Grappa_run_user_main( &user_main, (int*)NULL );
-    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-    Grappa_finish( 0 );
-}
-
-
-
-// insert conflicts use java-style arraylist, enabling memcpy for next step of join

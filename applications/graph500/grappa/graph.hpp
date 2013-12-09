@@ -173,7 +173,7 @@ struct Graph {
       MPI_Iallreduce(MPI_IN_PLACE, g->scratch, g->nv, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD, &r);
       do {
         MPI_Test( &r, &done, MPI_STATUS_IGNORE );
-        if(!done) { Grappa_yield(); }
+        if(!done) { Grappa::yield(); }
       } while(!done);
     });
   #else

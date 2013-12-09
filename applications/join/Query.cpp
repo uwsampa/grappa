@@ -107,7 +107,7 @@ void user_main( int * ignore ) {
   
   on_all_cores( [] { Grappa::Statistics::reset(); } );
   double start, end;
-  start = Grappa_walltime(); 
+  start = Grappa::walltime(); 
   LOG(INFO) << "query execute... (included in time)";
   q.execute({ tg, tg, tg, tg });
   on_all_cores([] {
@@ -122,7 +122,7 @@ void user_main( int * ignore ) {
   });
     
   
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   query_runtime = end - start;
   Grappa::Statistics::merge_and_print();
 }

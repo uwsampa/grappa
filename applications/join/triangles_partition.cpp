@@ -136,7 +136,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
   auto sidelength = Loc3d::int_cbrt( cores() );
 
   double start, end;
-  start = Grappa_walltime(); 
+  start = Grappa::walltime(); 
   
   // 1. Send edges to the partitions
   //
@@ -276,7 +276,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
 
     LOG(INFO) << "counted " << count << " triangles; R1adjs="<<R1adjs;
   });
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   triangles_runtime = end - start;
   
   

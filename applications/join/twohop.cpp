@@ -104,11 +104,11 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
   
   
   double start, end;
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   {
     scanAndHash( tuples, num_tuples );
   } 
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   
   VLOG(1) << "insertions: " << num_tuples/(end-start) << " per sec";
   hash_runtime = end - start;
@@ -131,7 +131,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
 
 
   //on_all_cores([]{Grappa_start_profiling();});
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
   forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[1];
@@ -207,59 +207,50 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
     }); // end loop over join results
   }); // end loop over relation
 
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   twohop_runtime = end - start;
 
 #if ASYNCHRONOUS_RESULT
     twohop_count = results.size();
-    count_reduction_runtime = Grappa_walltime() - end;
+    count_reduction_runtime = Grappa::walltime() - end;
 #endif 
 
 //  Statistics::stop_tracing();
   Grappa::Statistics::merge_and_print();
 }
 
-void user_main( int * ignore ) {
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
 
-  GlobalAddress<Tuple> tuples;
-  size_t num_tuples;
+    GlobalAddress<Tuple> tuples;
+    size_t num_tuples;
  
 
-  if ( FLAGS_fin == "" ) {
-    VLOG(1) << "Generating some data";
-    //tuples = generate_data( FLAGS_scale, FLAGS_edgefactor, &num_tuples );
-    //
-    //TODO
-    exit(1);
-  } else {
-    VLOG(1) << "Reading data from " << FLAGS_fin;
+    if ( FLAGS_fin == "" ) {
+      VLOG(1) << "Generating some data";
+      //tuples = generate_data( FLAGS_scale, FLAGS_edgefactor, &num_tuples );
+      //
+      //TODO
+      exit(1);
+    } else {
+      VLOG(1) << "Reading data from " << FLAGS_fin;
     
-    tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
-    read_start = Grappa_walltime();
-    readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
-    read_end = Grappa_walltime();
-    num_tuples = FLAGS_file_num_tuples;
+      tuples = Grappa::global_alloc<Tuple>( FLAGS_file_num_tuples );
+      read_start = Grappa::walltime();
+      readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
+      read_end = Grappa::walltime();
+      num_tuples = FLAGS_file_num_tuples;
     
-    //print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
-  }
+      //print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
+    }
 
-  VLOG(1) << "initializing join table";
-  DHT_type::init_global_DHT( &joinTable, num_tuples );
-  VLOG(1) << "initializing results table";
-  Results_type::init_global_DHT( &results, num_tuples*25 );
+    VLOG(1) << "initializing join table";
+    DHT_type::init_global_DHT( &joinTable, num_tuples );
+    VLOG(1) << "initializing results table";
+    Results_type::init_global_DHT( &results, num_tuples*25 );
 
-  twohop( tuples, num_tuples ); 
+    twohop( tuples, num_tuples ); 
+  });
+  Grappa::finalize();
 }
-
-
-/// Main() entry
-int main (int argc, char** argv) {
-    Grappa_init( &argc, &argv ); 
-    Grappa_activate();
-
-    Grappa_run_user_main( &user_main, (int*)NULL );
-    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-    Grappa_finish( 0 );
-}
-
-

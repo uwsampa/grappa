@@ -58,7 +58,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
   VLOG(1) << "Scan tuples, creating index on subject";
 
   double start, end;
-  start = Grappa_walltime();
+  start = Grappa::walltime();
 
 
 
@@ -98,7 +98,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
 
   total_edges = E1_index->nadj + E2_index->nadj + E3_index->nadj + E4_index->nadj;
 
-  end = Grappa_walltime();
+  end = Grappa::walltime();
 
   VLOG(1) << "insertions: " << (e2.nedge+e3.nedge+e4.nedge)/(end-start) << " per sec";
   index_runtime = end - start;
