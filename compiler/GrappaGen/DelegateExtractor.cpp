@@ -421,8 +421,7 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
       gptrs.insert(gptr);
       
       if (i != bb->begin()) {
-        bb = bb->splitBasicBlock(i);
-        //            bbs.insert(bb);
+        bb = bb->splitBasicBlock(i, bb->getName()+".dstart");
       }
       
       return bb;
@@ -450,14 +449,14 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   
   if (i != bb->end()) {
     // stopped in middle of bb
-    auto newbb = bb->splitBasicBlock(i);
+    auto newbb = bb->splitBasicBlock(i, bb->getName()+".dexit");
     exits.insert({newbb, bb});
     
   } else {
     // recurse on successors
     for (auto s = succ_begin(bb), se = succ_end(bb); s != se; s++) {
-      DEBUG( errs() << ">>>>>>" << **s );
-      if ( !expand(*s) && !bbs.count(*s) ) {
+      DEBUG( errs() << ">>>>>> (from " << bb->getName() << ")" << **s );
+      if ( !expand(*s) && bbs.count(*s) == 0 ) {
         exits.insert({*s, bb});
       } // else: exits added by recursive `expand` call
     }
@@ -472,6 +471,9 @@ void DelegateExtractor::print(raw_ostream& o) const {
   o << "// Region @ " << loc.getLine() << "\n";
   o << "gptrs:\n";
   for (auto p : gptrs) o << *p << "\n";
+  o << "~~~~~~~~~~~~~~~~~~~";
+  o << "\nexits:\n";
+  for (auto e : exits) o << "  " << e.first->getName() << " <- " << e.second->getName() << "\n";
   o << "~~~~~~~~~~~~~~~~~~~";
   for (auto bb : bbs) o << *bb;
   o << "^^^^^^^^^^^^^^^^^^^\n";
