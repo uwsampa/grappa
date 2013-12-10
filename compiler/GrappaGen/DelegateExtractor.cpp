@@ -35,6 +35,7 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
 
 #define void_ty      Type::getVoidTy(mod.getContext())
 #define i64_ty       Type::getInt64Ty(mod.getContext())
+#define i16_ty       Type::getInt16Ty(mod.getContext())
 #define void_ptr_ty  Type::getInt8PtrTy(mod.getContext(), 0)
 #define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GlobalPtrInfo::SPACE)
 
@@ -126,7 +127,7 @@ Function* DelegateExtractor::extractFunction() {
   auto out_struct_ty = StructType::get(mod.getContext(), out_types);
   
   // create function shell
-  auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
+  auto new_fn_ty = FunctionType::get(i16_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
   auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + bbin->getName(), &mod);
   
   auto& ctx = mod.getContext();
@@ -154,10 +155,6 @@ Function* DelegateExtractor::extractFunction() {
   }
   
   auto newbb = dyn_cast<BasicBlock>(clone_map[bbin]);
-  
-  // jump from entrybb to block cloned from inblock
-  BranchInst::Create(newbb, entrybb);
-  
   
   std::map<Value*,Value*> remaps;
   
@@ -187,6 +184,9 @@ Function* DelegateExtractor::extractFunction() {
     
     clone_map[v] = final_in;
   }
+  
+  // jump from entrybb to block cloned from inblock
+  BranchInst::Create(newbb, entrybb);
   
   auto old_fn = bbin->getParent();
   
@@ -232,7 +232,8 @@ Function* DelegateExtractor::extractFunction() {
   // see switch
 //  BranchInst::Create(nextbb, callbb);
 
-  auto call_pt = callbb->getTerminator();
+//  auto call_pt = callbb->getTerminator();
+  auto call_pt = callbb;
   
   // allocate space for in/out structs near top of function
   auto in_struct_alloca = new AllocaInst(in_struct_ty, 0, "d.in_struct", old_fn->begin()->begin());
@@ -255,9 +256,18 @@ Function* DelegateExtractor::extractFunction() {
   }
   //////////////////////////////
   
+  assert(gptr && ginfo.get_core_fn);
+  
   auto target_core = CallInst::Create(ginfo.get_core_fn, (Value*[]){
     new BitCastInst(gptr, void_gptr_ty, "", call_pt)
   }, "", call_pt);
+  
+  assert(ginfo.call_on_fn);
+  assert(target_core);
+  assert(new_fn);
+  assert(in_struct_alloca);
+  assert(out_struct_alloca);
+  assert(call_pt);
   
   auto calli = CallInst::Create(ginfo.call_on_fn, (Value*[]){
     target_core,
@@ -271,8 +281,9 @@ Function* DelegateExtractor::extractFunction() {
   ////////////////////////////
   // switch among exit blocks
   
-  auto switchi = SwitchInst::Create(calli, nullptr, exits.size(), call_pt);
+  auto switchi = SwitchInst::Create(calli, callbb, exits.size(), call_pt);
   
+  DEBUG( errs() << "exits => " << exits.size() << "\n" );
   unsigned exit_id = 0;
   for (auto& e : exits) {
     auto retcode = ConstantInt::get(retTy, exit_id);
@@ -283,8 +294,7 @@ Function* DelegateExtractor::extractFunction() {
     assert(predbb && predbb->getParent() == new_fn);
     
     // hook up exit from region with phi node in return block
-    retphi->setIncomingBlock(exit_id, predbb);
-    retphi->setIncomingValue(exit_id, retcode);
+    retphi->addIncoming(retcode, predbb);
     
     // jump to old exit block when call returns the code for it
     auto targetbb = e.first;
@@ -312,8 +322,8 @@ Function* DelegateExtractor::extractFunction() {
   // load outputs
   for (int i = 0; i < outputs.size(); i++) {
     auto v = outputs[i];
-    auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out." + v->getName(), call_pt);
-    auto ld = new LoadInst(gep, "d.call.out." + v->getName(), call_pt);
+    auto gep = struct_elt_ptr(out_struct_alloca, i, "dc.out." + v->getName(), switchi);
+    auto ld = new LoadInst(gep, "d.call.out." + v->getName(), switchi);
     
     DEBUG( errs() << "replacing output:\n" << *v << "\nwith:\n" << *ld << "\nin:\n" );
     std::vector<User*> Users(v->use_begin(), v->use_end());
@@ -364,8 +374,11 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, Value* gptr, ValueS
   } else if (auto ge = dyn_cast<GetElementPtrInst>(inst)) {
     // TODO: fix this, some GEP's should be alright...
     return false;
-  } else if ( isa<TerminatorInst>(inst)|| isa<PHINode>(inst) ) {
+  } else if ( isa<PHINode>(inst) ) {
     return true;
+  } else if ( isa<TerminatorInst>(inst) ) {
+    if ( isa<BranchInst>(inst) || isa<SwitchInst>(inst) ) { return true; }
+    else { return false; }
   } else if ( isa<InvokeInst>(inst)) {
     return false;
   } else if (auto call = dyn_cast<CallInst>(inst)) {

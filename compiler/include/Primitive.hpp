@@ -118,16 +118,20 @@ void grappa_put(void global* dest, void* src, size_t sz) {
   }
 }
 
+using retcode_t = int16_t;
+
 extern "C"
-void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t args_sz,
+retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz,
                void* out, size_t out_sz) {
   auto origin = Grappa::mycore();
+  
+  retcode_t retcode;
   
   if (dst == origin) {
     VLOG(5) << "short-circuit";
     delegate_ops_short_circuited++;
     
-    fn(args, out);
+    retcode = fn(args, out);
     
   } else if ( args_sz < SMALL_MSG_SIZE && out_sz < SMALL_MSG_SIZE) {
     VLOG(5) << "small_msg";
@@ -135,47 +139,46 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
     
     int8_t _args[SMALL_MSG_SIZE];
     int8_t _out[SMALL_MSG_SIZE];
+    void* out = _out;
     
     memcpy(_args, args, args_sz);
     
-    Grappa::FullEmpty<void*> fe(_out); fe.reset();
+    Grappa::FullEmpty<retcode_t> fe;
     auto gfe = make_global(&fe);
     
-    Grappa::send_heap_message(dst, [fn,_args,gfe]{
+    Grappa::send_heap_message(dst, [fn,_args,gfe,out]{
       
       int8_t _out[SMALL_MSG_SIZE];
       
-      fn((void*)_args, _out);
+      retcode_t retcode = fn((void*)_args, _out);
       
-      Grappa::send_heap_message(gfe.core(), [gfe,_out]{
+      Grappa::send_heap_message(gfe.core(), [gfe,_out,out,retcode]{
         
-        auto r = gfe->readXX();
-        memcpy(r, _out, SMALL_MSG_SIZE);
-        gfe->writeEF(r);
+        memcpy(out, _out, SMALL_MSG_SIZE);
+        gfe->writeEF(retcode);
         
       });
       
     });
     
-    fe.readFF();
+    retcode = fe.readFF();
     memcpy(out, _out, out_sz);
     
   } else {
     delegate_ops_payload_msg++;
     
-    Grappa::FullEmpty<void*> fe(out); fe.reset();
+    Grappa::FullEmpty<retcode_t> fe;
     auto gfe = make_global(&fe);
     
-    Grappa::send_heap_message(dst, [fn,out_sz,gfe](void* args, size_t args_sz){
+    Grappa::send_heap_message(dst, [fn,out,out_sz,gfe](void* args, size_t args_sz){
       
       auto out = Grappa::locale_alloc<int8_t>(out_sz); // <-- this is slow
-      fn(args, out);
+      retcode_t retcode = fn(args, out);
       
-      auto msg = Grappa::heap_message(gfe.core(), [gfe](void* out, size_t out_sz){
+      auto msg = Grappa::heap_message(gfe.core(), [out,gfe,retcode](void* p, size_t psz){
         
-        auto r = gfe->readXX();
-        memcpy(r, out, out_sz);
-        gfe->writeEF(r);
+        memcpy(out, p, psz);
+        gfe->writeEF(retcode);
         
       }, out, out_sz);
       msg->delete_payload_after_send();
@@ -183,8 +186,10 @@ void grappa_on(Core dst, void (*fn)(void* args, void* out), void* args, size_t a
       
     }, args, args_sz);
     
-    fe.readFF();
+    retcode = fe.readFF();
   }
+  
+  return retcode;
 }
 
 struct delegate_fetch_add_args {
