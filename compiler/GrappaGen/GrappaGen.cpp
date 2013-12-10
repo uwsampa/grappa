@@ -323,7 +323,8 @@ namespace {
       
       DelegateExtractor dex(*mod, ginfo);
       dex.bbs.insert(delegate_blk);
-      dex.constructDelegateFunction(ld_gptr);
+      dex.gptrs.insert(ld_gptr);
+      dex.extractFunction();
     }
     
     void replaceWithRemoteLoad(LoadInst *orig_ld) {
@@ -465,7 +466,11 @@ namespace {
         
       }
       
-      DEBUG( for (auto c : candidates) { outs() << *c; } );
+      for (auto c : candidates) {
+        DEBUG( outs() << *c );
+        
+        c->extractFunction();
+      }
       
       if (candidates.size() > 0) {
         DEBUG( outs() << "\n" );

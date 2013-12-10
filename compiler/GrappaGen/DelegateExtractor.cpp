@@ -80,15 +80,21 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
 }
 
 
-Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
-  assert(bbs.size() == 1);
-  auto inblock = bbs[0];
+Function* DelegateExtractor::extractFunction() {
+  assert( gptrs.size() == 1 );
+  auto gptr = gptrs[0];
   
-  Instruction* first = inblock->begin();
+  auto bbin = bbs[0];
+  
+  // because of how we construct regions, should not begin with Phi
+  // (should start with global load/store...)
+  assert( ! isa<PHINode>(*bbin->begin()) );
+  
+  Instruction* first = bbin->begin();
   auto& dl = first->getDebugLoc();
   outs() << "\n-------------------\nextracted delegate: "
          << "(line " << dl.getLine() << ")\n"
-         << "block:" << *inblock;
+         << "block:" << *bbin;
   
   ValueSet inputs, outputs;
   GlobalPtrMap gptrs;
@@ -121,7 +127,7 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   
   // create function shell
   auto new_fn_ty = FunctionType::get(void_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
-  auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + inblock->getName(), &mod);
+  auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + bbin->getName(), &mod);
   
   auto& ctx = mod.getContext();
   
@@ -143,7 +149,15 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   auto out_arg = new BitCastInst(out_arg_, out_struct_ty->getPointerTo(), "bc.out", entrybb);
   
   // copy delegate block into new fn & remap values to use args
-  auto newbb = CloneBasicBlock(inblock, clone_map, ".clone", new_fn);
+  for (auto bb : bbs) {
+    clone_map[bb] = CloneBasicBlock(bb, clone_map, ".clone", new_fn);
+  }
+  
+  auto newbb = dyn_cast<BasicBlock>(clone_map[bbin]);
+  
+  // jump from entrybb to block cloned from inblock
+  BranchInst::Create(newbb, entrybb);
+  
   
   std::map<Value*,Value*> remaps;
   
@@ -174,12 +188,18 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
     clone_map[v] = final_in;
   }
   
-  auto old_fn = inblock->getParent();
+  auto old_fn = bbin->getParent();
   
-  auto retbb = BasicBlock::Create(ctx, "ret." + inblock->getName(), new_fn);
+  auto retbb = BasicBlock::Create(ctx, "ret." + bbin->getName(), new_fn);
+  
+  auto retTy = Type::getInt16Ty(ctx);
+  
+  // create PHI for selecting which return value to use
+  // make sure it's the first thing in the BB
+  auto retphi = PHINode::Create(retTy, exits.size(), "d.retphi", retbb);
   
   // return from end of created block
-  auto newret = ReturnInst::Create(ctx, nullptr, retbb);
+  auto newret = ReturnInst::Create(ctx, retphi, retbb);
   
   // store outputs before return
   for (int i = 0; i < outputs.size(); i++) {
@@ -192,25 +212,26 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
   //////////////
   // emit call
   
-  assert(inblock->getTerminator()->getNumSuccessors() == 1);
+//  assert(bbin->getTerminator()->getNumSuccessors() == 1);
   
-  auto prevbb = inblock->getUniquePredecessor();
+  auto prevbb = bbin->getUniquePredecessor();
   assert(prevbb != nullptr);
   
-  auto nextbb = inblock->getTerminator()->getSuccessor(0);
-  
   // create new bb to replace old block and call
-  auto callbb = BasicBlock::Create(inblock->getContext(), "d.call.blk", old_fn, inblock);
+  auto callbb = BasicBlock::Create(bbin->getContext(), "d.call.blk", old_fn, bbin);
   
-  prevbb->getTerminator()->replaceUsesOfWith(inblock, callbb);
-  BranchInst::Create(nextbb, callbb);
+  prevbb->getTerminator()->replaceUsesOfWith(bbin, callbb);
   
   // hook inblock into new fn
   //      inblock->moveBefore(retbb);
-  newbb->getTerminator()->replaceUsesOfWith(nextbb, retbb);
-  // jump from entrybb to inblock
-  BranchInst::Create(newbb, entrybb);
+//  auto nextbb = bbin->getTerminator()->getSuccessor(0);
+//  newbb->getTerminator()->replaceUsesOfWith(nextbb, retbb);
   
+  prevbb->getTerminator()->replaceUsesOfWith(bbin, callbb);
+  
+  // see switch
+//  BranchInst::Create(nextbb, callbb);
+
   auto call_pt = callbb->getTerminator();
   
   // allocate space for in/out structs near top of function
@@ -238,7 +259,7 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
     new BitCastInst(gptr, void_gptr_ty, "", call_pt)
   }, "", call_pt);
   
-  CallInst::Create(ginfo.call_on_fn, (Value*[]){
+  auto calli = CallInst::Create(ginfo.call_on_fn, (Value*[]){
     target_core,
     new_fn,
     new BitCastInst(in_struct_alloca, void_ptr_ty, "", call_pt),
@@ -247,7 +268,36 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
     i64_num(layout->getTypeAllocSize(out_struct_ty))
   }, "", call_pt);
   
+  ////////////////////////////
+  // switch among exit blocks
+  
+  auto switchi = SwitchInst::Create(calli, nullptr, exits.size(), call_pt);
+  
+  unsigned exit_id = 0;
+  for (auto& e : exits) {
+    auto retcode = ConstantInt::get(retTy, exit_id);
+    
+    // bb in delegate that we're coming from
+    assert(clone_map.count(e.second) > 0);
+    auto predbb = dyn_cast<BasicBlock>(clone_map[e.second]);
+    assert(predbb && predbb->getParent() == new_fn);
+    
+    // hook up exit from region with phi node in return block
+    retphi->setIncomingBlock(exit_id, predbb);
+    retphi->setIncomingValue(exit_id, retcode);
+    
+    // jump to old exit block when call returns the code for it
+    auto targetbb = e.first;
+    switchi->addCase(retcode, targetbb);
+    
+    // in extracted delegate, remap branches outside to retbb
+    clone_map[targetbb] = retbb;
+    
+    exit_id++;
+  }
+  
   // use clone_map to remap values in new function
+  // (including branching to new retbb instead of exit blocks)
   for (auto& bb : *new_fn) {
     for (auto& inst : bb) {
       for (int i = 0; i < inst.getNumOperands(); i++) {
@@ -284,7 +334,7 @@ Function* DelegateExtractor::constructDelegateFunction(Value *gptr) {
     errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
     errs() << "----------------\ncall site:\n" << *callbb;
     errs() << "@bh inblock preds:\n";
-    for (auto p = pred_begin(inblock), pe = pred_end(inblock); p != pe; ++p) {
+    for (auto p = pred_begin(bbin), pe = pred_end(bbin); p != pe; ++p) {
       errs() << (*p)->getName() << "\n";
     }
   );

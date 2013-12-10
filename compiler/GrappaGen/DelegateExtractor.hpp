@@ -95,7 +95,7 @@ namespace llvm {
   class DelegateExtractor {
     
   public:
-    SmallSet<Value*,4> gptrs;
+    SmallSetVector<Value*,4> gptrs;
     
     /// map of exit blocks (outside bbs) -> pred blocks (in bbs)
     SmallDenseMap<BasicBlock*,BasicBlock*> exits;
@@ -117,7 +117,7 @@ namespace llvm {
     /// Replaces the original BasicBlock with a new one that invokes `grappa_on()`
     ///
     /// @return constructed delegate function of type: void(void* in, void* out)
-    Function* constructDelegateFunction(Value* gptr);
+    Function* extractFunction();
     
     static bool valid_in_delegate(Instruction* inst, Value* gptr, ValueSet& available_vals);
     
@@ -129,17 +129,17 @@ namespace llvm {
     
     void print(raw_ostream& o) const;
     
-    bool greedyExtract(BasicBlock *start) {
-      auto bb = findStart(start);
-      DEBUG(errs() << "start:" << *bb << "\n");
-      
-      if (!bb) {
-        return false;
-      } else {
-        expand(bb);
-        return true;
-      }
-    }
+//    bool greedyExtract(BasicBlock *start) {
+//      auto bb = findStart(start);
+//      DEBUG(errs() << "start:" << *bb << "\n");
+//      
+//      if (!bb) {
+//        return false;
+//      } else {
+//        expand(bb);
+//        return true;
+//      }
+//    }
 
   };
 
