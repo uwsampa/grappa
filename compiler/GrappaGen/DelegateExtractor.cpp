@@ -38,11 +38,10 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
 #define void_ptr_ty  Type::getInt8PtrTy(mod.getContext(), 0)
 #define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GlobalPtrInfo::SPACE)
 
-DelegateExtractor::DelegateExtractor(BasicBlock* bb, Module& mod, GlobalPtrInfo& ginfo):
+DelegateExtractor::DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo):
   mod(mod), ginfo(ginfo)
 {
   layout = new DataLayout(&mod);
-  bbs.insert(bb);
 }
 
 void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& outputs,
@@ -347,7 +346,7 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, Value* gptr, ValueS
 };
 
 
-BasicBlock* DelegateRegion::findStart(BasicBlock *bb) {
+BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
   Value *gptr = nullptr;
   for (auto i = bb->begin(); i != bb->end(); i++) {
     if (auto gld = dyn_cast_global<LoadInst>(i)) {
@@ -370,7 +369,7 @@ BasicBlock* DelegateRegion::findStart(BasicBlock *bb) {
 }
 
 
-bool DelegateRegion::expand(BasicBlock *bb) {
+bool DelegateExtractor::expand(BasicBlock *bb) {
   assert(gptrs.size() == 1);
   Value* gptr = *gptrs.begin();
   
@@ -404,7 +403,7 @@ bool DelegateRegion::expand(BasicBlock *bb) {
   return true;
 }
 
-void DelegateRegion::print(raw_ostream& o) const {
+void DelegateExtractor::print(raw_ostream& o) const {
   o << "///////////////////\n";
   auto loc = (*bbs.begin())->begin()->getDebugLoc();
   o << "// Region @ " << loc.getLine() << "\n";

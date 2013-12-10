@@ -321,7 +321,8 @@ namespace {
       errs() << "\n-- post block:\n" << *post_blk;
       errs() << "---------------------\n";
       
-      DelegateExtractor dex(delegate_blk, *mod, ginfo);
+      DelegateExtractor dex(*mod, ginfo);
+      dex.bbs.insert(delegate_blk);
       dex.constructDelegateFunction(ld_gptr);
     }
     
@@ -430,40 +431,41 @@ namespace {
       
       SmallSet<BasicBlock*, 32> visited;
       
-      std::list<DelegateRegion> candidates;
-      
-//      SmallVector<BasicBlock*,4> bbs;
-//      bbs.push_back(bb);
+      std::list<DelegateExtractor*> candidates;
       
       while (!bbtodo.empty()) {
+        auto& dex = *new DelegateExtractor(mod, ginfo);
+
         auto bb = bbtodo.front();
         bbtodo.pop();
         visited.insert(bb);
         
-        DelegateExtractor dex(bb, mod, ginfo);
-        ValueSet inputs, outputs; GlobalPtrMap gptrs;
-        dex.findInputsOutputsUses(inputs, outputs, gptrs);
-        
-//        DEBUG( errs() << "." );
-        
-        if (gptrs.size() == 0) {
+//        ValueSet inputs, outputs;
+//        GlobalPtrMap gptrs;
+//        dex.findInputsOutputsUses(inputs, outputs, gptrs);
+
+        if ( auto entry = dex.findStart(bb) ) {
+          DEBUG( errs() << "\n// found candidate\n" );
+          
+          dex.expand(entry);
+          
+          // add all exits to todo list
+          for (auto& e : dex.exits) { bbtodo.push(e.first); }
+          
+          candidates.push_back(&dex);
+          
+        } else { // if no global loads/stores
+          // just add successors
           for(auto s = succ_begin(bb), se = succ_end(bb); s != se; s++)
             if (visited.count(*s) == 0)
               bbtodo.push(*s);
-          continue;
+          
+          delete &dex;
         }
         
-        candidates.emplace_back();
-        auto& candidate = candidates.back();
-        
-        DEBUG( errs() << "\n@ greedyExtract()\n" );
-
-        candidate.greedyExtract(bb);
-        
-        // add all exits to todo list
-        for (auto& e : candidate.exits) bbtodo.push(e.first);
       }
-      DEBUG( for (auto& c : candidates) { outs() << c; } );
+      
+      DEBUG( for (auto c : candidates) { outs() << *c; } );
       
       if (candidates.size() > 0) {
         DEBUG( outs() << "\n" );

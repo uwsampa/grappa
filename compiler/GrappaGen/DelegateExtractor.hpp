@@ -91,45 +91,24 @@ namespace llvm {
   using ValueSet = SetVector<Value*>;
   
   
-  class DelegateRegion {
-  public:
+  
+  class DelegateExtractor {
     
-    SmallSetVector<BasicBlock*,4> bbs;
+  public:
     SmallSet<Value*,4> gptrs;
     
     /// map of exit blocks (outside bbs) -> pred blocks (in bbs)
     SmallDenseMap<BasicBlock*,BasicBlock*> exits;
-
-    /// find start of DelegateRegion
-    BasicBlock* findStart(BasicBlock *bb);
-    
-    // expand region as far as possible within BB
-    bool expand(BasicBlock *bb);
-    
-    void print(raw_ostream& o) const;
-    
-  public:
-    void greedyExtract(BasicBlock *start) {
-      auto bb = findStart(start);
-      DEBUG(errs() << "start:" << *bb << "\n");
-      if (bb) expand(bb);
-    }
-  };
-  
-  inline raw_ostream& operator<<(raw_ostream& o, const DelegateRegion& r) { r.print(o); return o; }
-  
-  class DelegateExtractor {
     
     SetVector<BasicBlock*> bbs;
-    DominatorTree* dom;
+//    DominatorTree* dom;
     Module& mod;
     DataLayout* layout;
     GlobalPtrInfo& ginfo;
     
   public:
     
-    DelegateExtractor(BasicBlock* bb, Module& mod, GlobalPtrInfo& ginfo);
-//    DelegateExtractor(ArrayRef<BasicBlock*> bbs, DominatorTree* dom);
+    DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo);
     
     /// Compute the inputs and outputs and catalog all uses of global pointers in the specified code.
     void findInputsOutputsUses(ValueSet& inputs, ValueSet& outputs, GlobalPtrMap& global_ptr_uses) const;
@@ -141,6 +120,31 @@ namespace llvm {
     Function* constructDelegateFunction(Value* gptr);
     
     static bool valid_in_delegate(Instruction* inst, Value* gptr, ValueSet& available_vals);
+    
+    /// find start of DelegateRegion
+    BasicBlock* findStart(BasicBlock *bb);
+    
+    // expand region as far as possible within BB
+    bool expand(BasicBlock *bb);
+    
+    void print(raw_ostream& o) const;
+    
+    bool greedyExtract(BasicBlock *start) {
+      auto bb = findStart(start);
+      DEBUG(errs() << "start:" << *bb << "\n");
+      
+      if (!bb) {
+        return false;
+      } else {
+        expand(bb);
+        return true;
+      }
+    }
+
   };
 
+  inline raw_ostream& operator<<(raw_ostream& o, const DelegateExtractor& r) {
+    r.print(o);
+    return o;
+  }
 }
