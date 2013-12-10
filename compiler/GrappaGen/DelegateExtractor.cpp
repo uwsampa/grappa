@@ -315,7 +315,9 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, Value* gptr, ValueS
   } else if (auto ge = dyn_cast<GetElementPtrInst>(inst)) {
     // TODO: fix this, some GEP's should be alright...
     return false;
-  } else if (isa<TerminatorInst>(inst) || isa<PHINode>(inst) || isa<InvokeInst>(inst)) {
+  } else if ( isa<TerminatorInst>(inst)|| isa<PHINode>(inst) ) {
+    return true;
+  } else if ( isa<InvokeInst>(inst)) {
     return false;
   } else if (auto call = dyn_cast<CallInst>(inst)) {
     auto fn = call->getCalledFunction();
@@ -392,6 +394,7 @@ bool DelegateRegion::expand(BasicBlock *bb) {
   } else {
     // recurse on successors
     for (auto s = succ_begin(bb), se = succ_end(bb); s != se; s++) {
+      DEBUG( errs() << ">>>>>>" << **s );
       if ( !expand(*s) && !bbs.count(*s) ) {
         exits.insert({*s, bb});
       } // else: exits added by recursive `expand` call
@@ -402,7 +405,9 @@ bool DelegateRegion::expand(BasicBlock *bb) {
 }
 
 void DelegateRegion::print(raw_ostream& o) const {
-  o << "///////////////////\n// Region\n";
+  o << "///////////////////\n";
+  auto loc = (*bbs.begin())->begin()->getDebugLoc();
+  o << "// Region @ " << loc.getLine() << "\n";
   o << "gptrs:\n";
   for (auto p : gptrs) o << *p << "\n";
   o << "~~~~~~~~~~~~~~~~~~~";

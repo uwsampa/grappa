@@ -453,102 +453,17 @@ namespace {
           continue;
         }
         
-        DEBUG( errs() << "checking bb:" << *bb << "\n----------\n" );
-        
         candidates.emplace_back();
         auto& candidate = candidates.back();
         
+        DEBUG( errs() << "\n@ greedyExtract()\n" );
+
         candidate.greedyExtract(bb);
         
         // add all exits to todo list
         for (auto& e : candidate.exits) bbtodo.push(e.first);
       }
       DEBUG( for (auto& c : candidates) { outs() << c; } );
-//      for (auto& e : candidate_bbs) {
-//        auto bb = e.first;
-//        auto gptr = e.second;
-//        DelegateExtractor dex(bb, mod, ginfo);
-//        dex.constructDelegateFunction(gptr);
-//      }
-      
-/*
-      for (auto& bb : F) {
-        
-        // look for fetch_add opportunity
-        std::map<Value*,LoadInst*> target_lds;
-        std::map<Value*,Value*> target_increments;
-        std::map<Value*,Instruction*> operand_to_inst;
-        
-        DelegateExtractor dex(&bb, *F.getParent(), ginfo);
-        ValueSet inputs, outputs; GlobalPtrMap gptrs;
-        dex.findInputsOutputsUses(inputs, outputs, gptrs);
-        
-        for (auto& inst : bb) {
-          switch ( inst.getOpcode() ) {
-            
-            case Instruction::Load: {
-              if (auto ld = dyn_cast_global<LoadInst>(&inst)) {
-                if (ld->getPointerOperand()->getType()->getPointerElementType() == i64_ty) {
-                  target_lds[ld->getPointerOperand()] = ld;
-                  target_increments[ld] = nullptr;
-                }
-                global_loads.insert(ld);
-                changed = true;
-              }
-              break;
-            }
-            
-            case Instruction::Store: {
-              if (auto store = dyn_cast_global<StoreInst>(&inst)) {
-                auto ptr = store->getPointerOperand();
-                if (target_lds.count(ptr) > 0) {
-                  auto ld = target_lds[ptr];
-                  auto inc = target_increments[ld];
-                  if (inc != nullptr) {
-                    fetchadds.emplace_back( FetchAdd{ld, store, inc, operand_to_inst[inc]} );
-                    global_loads.erase(ld);
-                  } else {
-                    global_stores.insert(store);
-                  }
-                } else {
-                  global_stores.insert(store);
-                }
-              }
-              break;
-            }
-            
-            case Instruction::Add: {
-              auto& o = *cast<BinaryOperator>(&inst);
-              Value *target, *inc;
-              if (target_increments.count(o.getOperand(0))) {
-                target = o.getOperand(0);
-                inc = o.getOperand(1);
-              } else if (target_increments.count(o.getOperand(1))) {
-                target = o.getOperand(1);
-                inc = o.getOperand(0);
-              } else {
-                target = inc = nullptr;
-              }
-              target_increments[target] = inc;
-              operand_to_inst[inc] = &o;
-              break;
-            }
-          }
-        }
-      }
-      
-      for (auto& fa : fetchadds) {
-        replaceFetchAddWithGenericDelegate(fa, F.getParent());
-      }
-      
-      for (auto* inst : global_loads) {
-        replaceWithRemoteLoad(inst);
-      }
-      
-      for (auto* inst : global_stores) {
-        replaceWithRemoteStore(inst);
-      }
- */
       
       if (candidates.size() > 0) {
         DEBUG( outs() << "\n" );
