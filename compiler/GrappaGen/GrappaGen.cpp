@@ -34,6 +34,8 @@
 #include <sstream>
 #include <set>
 #include <map>
+#include <queue>
+#include <list>
 
 //// I'm not sure why, but I can't seem to enable debug output in the usual way
 //// (with command line flags). Here's a hack.
@@ -389,6 +391,7 @@ namespace {
     }
     
     virtual bool runOnFunction(Function &F) {
+//      DEBUG( outs() << F.getName() << "\n" );
       auto& mod = *F.getParent();
       DT = &getAnalysis<DominatorTree>();
 
@@ -422,74 +425,51 @@ namespace {
       
       std::map<BasicBlock*,Value*> candidate_bbs;
       
-      for (auto bbit = F.begin(); bbit != F.end(); ) {
-        auto bb = bbit++;
+      std::queue<BasicBlock*> bbtodo;
+      bbtodo.push(F.begin());
+      
+      SmallSet<BasicBlock*, 32> visited;
+      
+      std::list<DelegateRegion> candidates;
+      
+//      SmallVector<BasicBlock*,4> bbs;
+//      bbs.push_back(bb);
+      
+      while (!bbtodo.empty()) {
+        auto bb = bbtodo.front();
+        bbtodo.pop();
+        visited.insert(bb);
         
         DelegateExtractor dex(bb, mod, ginfo);
         ValueSet inputs, outputs; GlobalPtrMap gptrs;
         dex.findInputsOutputsUses(inputs, outputs, gptrs);
         
-        if (gptrs.size() == 0) continue;
+//        DEBUG( errs() << "." );
         
-        DEBUG( outs() << "checking bb:" << *bb << "\n----------\n" );
-        
-        SmallVector<BasicBlock*,4> bbs;
-        bbs.push_back(bb);
-        
-        for (auto iit = bb->begin(); iit != bb->end(); ) {
-          Value* gptr = nullptr;
-          if (auto gld = dyn_cast_global<LoadInst>(iit)) {
-            gptr = gld->getPointerOperand();
-          } else if (auto g = dyn_cast_global<StoreInst>(iit)) {
-            gptr = g->getPointerOperand();
-          }
-          if (gptr) {
-            ValueSet vals;
-            vals.insert(iit);
-            auto start_pt = iit;
-            
-            if (start_pt != bb->begin()) {
-              bb = bb->splitBasicBlock(start_pt);
-              bbs.push_back(bb);
-            }
-            
-            candidate_bbs[bb] = gptr;
-            
-            iit = bb->begin();
-            iit++;
-            
-            while (DelegateExtractor::valid_in_delegate(iit,gptr,vals) && iit != bb->end()) iit++;
-            auto end_pt = iit;
-            bool end_pt_dist = std::distance(end_pt, bb->end());
-            DEBUG( outs() << "@bh end_pt distance = " << end_pt_dist << " (pre)\n" );
-            
-            if (end_pt != bb->end()) {
-              bb = bb->splitBasicBlock(end_pt);
-              bbs.push_back(bb);
-              iit = bb->begin();
-            } else {
-              iit = bb->end();
-            }
-            
-          } else {
-            iit++;
-          }
+        if (gptrs.size() == 0) {
+          for(auto s = succ_begin(bb), se = succ_end(bb); s != se; s++)
+            if (visited.count(*s) == 0)
+              bbtodo.push(*s);
+          continue;
         }
         
-        DEBUG(
-          outs() << "\n-----------------------\n[[ after split ]]\n";
-          for (BasicBlock* bb : bbs) {
-            outs() << (candidate_bbs.count(bb) ? "** candidate **" : "") << *bb << "\n";
-          }
-        );
+        DEBUG( errs() << "checking bb:" << *bb << "\n----------\n" );
+        
+        candidates.emplace_back();
+        auto& candidate = candidates.back();
+        
+        candidate.greedyExtract(bb);
+        
+        // add all exits to todo list
+        for (auto& e : candidate.exits) bbtodo.push(e.first);
       }
-      
-      for (auto& e : candidate_bbs) {
-        auto bb = e.first;
-        auto gptr = e.second;
-        DelegateExtractor dex(bb, mod, ginfo);
-        dex.constructDelegateFunction(gptr);
-      }
+      DEBUG( for (auto& c : candidates) { outs() << c; } );
+//      for (auto& e : candidate_bbs) {
+//        auto bb = e.first;
+//        auto gptr = e.second;
+//        DelegateExtractor dex(bb, mod, ginfo);
+//        dex.constructDelegateFunction(gptr);
+//      }
       
 /*
       for (auto& bb : F) {
@@ -570,12 +550,16 @@ namespace {
       }
  */
       
+      if (candidates.size() > 0) {
+        DEBUG( outs() << "\n" );
+      }
+      
       return changed;
     }
     
     virtual bool doInitialization(Module& module) {
       outs() << "-- Grappa Pass:\n";
-      
+      DEBUG( errs() << "  * debug on\n" );
       auto getFunction = [&module](StringRef name) {
         auto fn = module.getFunction(name);
         if (!fn) {
@@ -608,6 +592,7 @@ namespace {
     }
     
     virtual bool doFinalization(Module &M) {
+      outs().flush();
       return true;
     }
     

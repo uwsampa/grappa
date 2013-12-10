@@ -344,3 +344,69 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, Value* gptr, ValueS
   return false;
 };
 
+
+BasicBlock* DelegateRegion::findStart(BasicBlock *bb) {
+  Value *gptr = nullptr;
+  for (auto i = bb->begin(); i != bb->end(); i++) {
+    if (auto gld = dyn_cast_global<LoadInst>(i)) {
+      gptr = gld->getPointerOperand();
+    } else if (auto g = dyn_cast_global<StoreInst>(i)) {
+      gptr = g->getPointerOperand();
+    }
+    if (gptr) {
+      gptrs.insert(gptr);
+      
+      if (i != bb->begin()) {
+        bb = bb->splitBasicBlock(i);
+        //            bbs.insert(bb);
+      }
+      
+      return bb;
+    }
+  }
+  return nullptr;
+}
+
+
+bool DelegateRegion::expand(BasicBlock *bb) {
+  assert(gptrs.size() == 1);
+  Value* gptr = *gptrs.begin();
+  
+  ValueSet vals;
+  
+  auto i = bb->begin();
+  
+  while ( i != bb->end() && DelegateExtractor::valid_in_delegate(i,gptr,vals) ) i++;
+  
+  if (i == bb->begin()) {
+    return false;
+  } else {
+    bbs.insert(bb);
+  }
+  
+  if (i != bb->end()) {
+    // stopped in middle of bb
+    auto newbb = bb->splitBasicBlock(i);
+    exits.insert({newbb, bb});
+    
+  } else {
+    // recurse on successors
+    for (auto s = succ_begin(bb), se = succ_end(bb); s != se; s++) {
+      if ( !expand(*s) && !bbs.count(*s) ) {
+        exits.insert({*s, bb});
+      } // else: exits added by recursive `expand` call
+    }
+  }
+  
+  return true;
+}
+
+void DelegateRegion::print(raw_ostream& o) const {
+  o << "///////////////////\n// Region\n";
+  o << "gptrs:\n";
+  for (auto p : gptrs) o << *p << "\n";
+  o << "~~~~~~~~~~~~~~~~~~~";
+  for (auto bb : bbs) o << *bb;
+  o << "^^^^^^^^^^^^^^^^^^^\n";
+}
+

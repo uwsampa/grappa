@@ -39,6 +39,9 @@
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 
+#include <list>
+#include <queue>
+
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
 
@@ -86,6 +89,34 @@ namespace llvm {
   };
   using GlobalPtrMap = std::map<Value*,GlobalPtrUse>;
   using ValueSet = SetVector<Value*>;
+  
+  
+  class DelegateRegion {
+  public:
+    
+    SmallSetVector<BasicBlock*,4> bbs;
+    SmallSet<Value*,4> gptrs;
+    
+    /// map of exit blocks (outside bbs) -> pred blocks (in bbs)
+    SmallDenseMap<BasicBlock*,BasicBlock*> exits;
+
+    /// find start of DelegateRegion
+    BasicBlock* findStart(BasicBlock *bb);
+    
+    // expand region as far as possible within BB
+    bool expand(BasicBlock *bb);
+    
+    void print(raw_ostream& o) const;
+    
+  public:
+    void greedyExtract(BasicBlock *start) {
+      auto bb = findStart(start);
+      DEBUG(errs() << "start:" << *bb << "\n");
+      if (bb) expand(bb);
+    }
+  };
+  
+  inline raw_ostream& operator<<(raw_ostream& o, const DelegateRegion& r) { r.print(o); return o; }
   
   class DelegateExtractor {
     
