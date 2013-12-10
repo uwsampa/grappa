@@ -48,6 +48,25 @@ using namespace llvm;
 
 namespace {
   
+  template< typename T, unsigned SizeHint = 32 >
+  class UniqueQueue {
+    std::queue<T> q;
+    SmallSet<T,SizeHint> visited;
+  public:
+    void push(T bb) {
+      if (visited.count(bb) == 0) {
+        visited.insert(bb);
+        q.push(bb);
+      }
+    }
+    T pop() {
+      auto bb = q.front();
+      q.pop();
+      return bb;
+    }
+    bool empty() { return q.empty(); }
+  };
+  
 #define dump_var_l(before, dumpee, after) \
     errs() << before << #dumpee << ": "; \
     dumpee->dump(); \
@@ -427,39 +446,34 @@ namespace {
       
       std::map<BasicBlock*,Value*> candidate_bbs;
       
-      std::queue<BasicBlock*> bbtodo;
-      bbtodo.push(F.begin());
-      
-      SmallSet<BasicBlock*, 32> visited;
-      
       std::list<DelegateExtractor*> candidates;
       
-      while (!bbtodo.empty()) {
+      UniqueQueue<BasicBlock*> todo;
+      todo.push(F.begin());
+      
+      while (!todo.empty()) {
         auto& dex = *new DelegateExtractor(mod, ginfo);
 
-        auto bb = bbtodo.front();
-        bbtodo.pop();
-        visited.insert(bb);
+        auto bb = todo.pop();
         
-//        ValueSet inputs, outputs;
-//        GlobalPtrMap gptrs;
-//        dex.findInputsOutputsUses(inputs, outputs, gptrs);
-
         if ( auto entry = dex.findStart(bb) ) {
           DEBUG( errs() << "\n// found candidate\n" );
           
           dex.expand(entry);
           
           // add all exits to todo list
-          for (auto& e : dex.exits) { bbtodo.push(e.first); }
+          for (auto& e : dex.exits) {
+            todo.push(e.first);
+          }
           
           candidates.push_back(&dex);
+          
+          DEBUG( outs() << dex );
           
         } else { // if no global loads/stores
           // just add successors
           for(auto s = succ_begin(bb), se = succ_end(bb); s != se; s++)
-            if (visited.count(*s) == 0)
-              bbtodo.push(*s);
+            todo.push(*s);
           
           delete &dex;
         }
@@ -467,8 +481,7 @@ namespace {
       }
       
       for (auto c : candidates) {
-        DEBUG( outs() << *c );
-        
+        DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" );
         c->extractFunction();
       }
       
