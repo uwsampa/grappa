@@ -98,7 +98,7 @@ namespace llvm {
     SmallSetVector<Value*,4> gptrs;
     
     /// map of exit blocks (outside bbs) -> pred blocks (in bbs)
-    SmallDenseMap<BasicBlock*,BasicBlock*> exits;
+    SmallSetVector<std::pair<BasicBlock*,BasicBlock*>,4> exits;
     
     SetVector<BasicBlock*> bbs;
 //    DominatorTree* dom;
