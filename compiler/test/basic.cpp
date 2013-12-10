@@ -5,7 +5,7 @@
 
 using namespace Grappa;
 
-void do_work(void *i, void *o) {
+retcode_t do_work(void *i, void *o) {
   auto gaa = reinterpret_cast<long global**>(i);
   auto po = reinterpret_cast<long*>(o);
   
@@ -18,6 +18,7 @@ void do_work(void *i, void *o) {
   
   *po = *p;
   *p += 1;
+  return 0;
 }
 
 int main(int argc, char* argv[]) {
