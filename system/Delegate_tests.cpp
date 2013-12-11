@@ -11,6 +11,7 @@
 
 #include "Grappa.hpp"
 #include "Delegate.hpp"
+#include "GlobalAllocator.hpp"
 
 using namespace Grappa;
 
@@ -20,7 +21,7 @@ int64_t some_data = 1234;
 
 double some_double = 123.0;
 
-int64_t other_data __attribute__ ((aligned (2048))) = 0;
+// int64_t other_data __attribute__ ((aligned (2048))) = 0;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -68,9 +69,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     // try linear global address
 
     // initialize
-    other_data = 0;
-    Grappa::delegate::write( make_global(&other_data,1), 1 );
-
+    auto i64_per_block = block_size / sizeof(int64_t);
+    auto other_data_addr = global_alloc<int64_t>( i64_per_block * 2 );
+    auto& other_data = *other_data_addr.pointer();
+    
+    delegate::write(other_data_addr, 0);
+    delegate::write(other_data_addr+i64_per_block, 1);
+    
     int * foop = new int;
     *foop = 1234;
     BOOST_MESSAGE( *foop );
@@ -99,9 +104,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( la.pointer(), &other_data + 1 );
 
     // change pointer and check computation
-    la += 7;
+    la += (i64_per_block-1);
     BOOST_CHECK_EQUAL( la.node(), 1 );
-    BOOST_CHECK_EQUAL( la.pointer(), &other_data );
 
     // check remote data
     remote_data = delegate::read( la );
