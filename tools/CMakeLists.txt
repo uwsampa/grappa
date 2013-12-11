@@ -7,6 +7,8 @@ SET_DIRECTORY_PROPERTIES(PROPERTIES CLEAN_NO_CUSTOM 1)
 set(EXTERN_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/build")
 set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
+message("-- Third Party:")
+
 if(NOT Boost_FOUND)
 
   find_library(THIRD_PARTY_BOOST "boost_filesystem" "${THIRD_PARTY_ROOT}/lib")
@@ -35,12 +37,15 @@ if(NOT Boost_FOUND)
     )
     set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
     list(APPEND tool_list tool-boost)
+  else()
+    message("     boost:  ${THIRD_PARTY_BOOST}")
   endif()
   
 endif()
 
 find_library(THIRD_PARTY_GASNET "gasnet_tools-seq" "${THIRD_PARTY_ROOT}/lib")
 if( THIRD_PARTY_GASNET MATCHES ".*NOTFOUND" )
+  message("     gasnet: <building>")
   ExternalProject_Add( tool-gasnet
     PREFIX             ${EXTERN_BUILD_DIR}/gasnet
     STAMP_DIR          ${EXTERN_STAMP_DIR}/gasnet
@@ -53,6 +58,8 @@ if( THIRD_PARTY_GASNET MATCHES ".*NOTFOUND" )
     INSTALL_COMMAND    make install
   )
   list(APPEND tool_list tool-gasnet)
+else()
+  message("     gasnet: ${THIRD_PARTY_GASNET}")
 endif()
 
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
@@ -64,6 +71,7 @@ endif()
 
 find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib")
 if( THIRD_PARTY_GFLAGS MATCHES ".*NOTFOUND" )
+  message("     gflags: <building>")
   ExternalProject_Add( tool-gflags
     URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
     SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
@@ -77,11 +85,13 @@ if( THIRD_PARTY_GFLAGS MATCHES ".*NOTFOUND" )
     INSTALL_COMMAND    make install
   )
   list(APPEND tool_list tool-gflags)
+else()
+  message("     gflags: ${THIRD_PARTY_GFLAGS}")
 endif()
 
 find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib")
 if( THIRD_PARTY_GLOG MATCHES ".*NOTFOUND" )
-
+  message("     glog:   <building>")
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
   # URL                http://google-glog.googlecode.com/files/glog-0.3.3.tar.gz
@@ -99,6 +109,8 @@ if( THIRD_PARTY_GLOG MATCHES ".*NOTFOUND" )
     DEPENDS tool-gflags
   )
   list(APPEND tool_list tool-glog)
+else()
+  message("     glog:   ${THIRD_PARTY_GLOG}")
 endif()
 
 # required
@@ -107,7 +119,7 @@ if(TRACING)
   
   find_library(THIRD_PARTY_GPERFTOOLS "profiler" "${THIRD_PARTY_ROOT}/lib")
   if( THIRD_PARTY_GPERFTOOLS MATCHES ".*NOTFOUND" )
-  
+    message("     gperftools: <building>")
     ExternalProject_Add( tool-gperftools
       URL                http://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
       # URL_HASH           SHA1=b799b99d9f021988bbc931db1c21b2f94826d4f0
@@ -122,6 +134,8 @@ if(TRACING)
       INSTALL_COMMAND    make install
     )
     list(APPEND tool_list tool-gperftools)
+  else()
+    message("     gperftools: ${THIRD_PARTY_GPERFTOOLS}")
   endif()
   
 endif()
