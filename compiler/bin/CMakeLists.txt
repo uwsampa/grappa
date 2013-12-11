@@ -4,8 +4,8 @@ set(sysdir "${CMAKE_SOURCE_DIR}/system")
 
 get_property( GRAPPA_LIBRARIES TARGET Grappa         PROPERTY LOCATION )
 
-set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -L${TOOLS_INSTALL_DIR}/lib")
-set(myrpath "${TOOLS_INSTALL_DIR}/lib")
+set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -L${THIRD_PARTY_ROOT}/lib")
+set(myrpath "${THIRD_PARTY_ROOT}/lib")
 
 foreach(lib ${MPI_CXX_LIBRARIES} ${Boost_LIBRARIES})
   set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} ${lib}")
@@ -40,12 +40,6 @@ get_property( include_dirs  DIRECTORY "${sysdir}" PROPERTY INCLUDE_DIRECTORIES )
 foreach(d ${include_dirs} "${CMAKE_CURRENT_SOURCE_DIR}/../include")
   set(GRAPPA_INCLUDES "${GRAPPA_INCLUDES} -I${d}")
 endforeach()
-
-# add_custom_command(
-#   OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/grappaclang"
-#   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/grappaclang.in" LLVMGrappaGen
-#   COMMAND ""
-# )
 
 foreach(file "grappaclang" "grappaclang-no-opt")
   configure_file(
