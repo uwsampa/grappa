@@ -25,6 +25,10 @@ int main(int argc, char* argv[]) {
       }
       
     });
+    
+    VLOG(0) << "x => " << x;
+    CHECK_EQ(x, 9);
+    
     Statistics::merge_and_dump_to_file();
   });
   finalize();
