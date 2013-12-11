@@ -81,6 +81,8 @@ def configure(generator, mode, opt)
   
   args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
   args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+  args << "-DBASE_C_COMPILER=#{opt.cc}"    if opt.cc
+  args << "-DBASE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
   
   args << "-DTHIRD_PARTY_ROOT:PATH=#{opt.third_party}" if opt.third_party
   
