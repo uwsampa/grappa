@@ -1,6 +1,8 @@
 #undef DEBUG
 #include "DelegateExtractor.hpp"
 
+#include <llvm/InstVisitor.h>
+
 using namespace llvm;
 
 /// definedInRegion - Return true if the specified value is defined in the
@@ -306,16 +308,19 @@ Function* DelegateExtractor::extractFunction() {
     exit_id++;
   }
   
+  
+  
   // use clone_map to remap values in new function
   // (including branching to new retbb instead of exit blocks)
   for (auto& bb : *new_fn) {
     for (auto& inst : bb) {
-      for (int i = 0; i < inst.getNumOperands(); i++) {
-        auto o = inst.getOperand(i);
-        if (clone_map.count(o) > 0) {
-          inst.setOperand(i, clone_map[o]);
-        }
-      }
+      RemapInstruction(&inst, clone_map, RF_IgnoreMissingEntries);
+//      for (int i = 0; i < inst.getNumOperands(); i++) {
+//        auto o = inst.getOperand(i);
+//        if (clone_map.count(o) > 0) {
+//          inst.setOperand(i, clone_map[o]);
+//        }
+//      }
     }
   }
   
@@ -340,6 +345,32 @@ Function* DelegateExtractor::extractFunction() {
     }
   }
   
+  // (not actually finding anything, btw)
+  struct Cleaner : public InstVisitor<Cleaner> {
+    void visitDbgDeclareInst(DbgDeclareInst& I) {
+      DEBUG(errs() << " <<<<<" << I << "\n");
+      I.eraseFromParent();
+    }
+    void visitDbgValueInst(DbgValueInst& I) {
+      DEBUG(errs() << " <<<<<" << I << "\n");
+      I.eraseFromParent();
+    }
+  }c;
+  
+  c.visit(old_fn);
+  
+  for (auto bb : bbs) {
+    if (!bb->getTerminator()) {
+      errs() << "******** no terminator" << *bb;
+    }
+  }
+  for (auto fn : {new_fn, old_fn}) {
+    for (auto& bb : *fn) {
+      if (!bb.getTerminator()) {
+        errs() << "******** no terminator" << bb;
+      }
+    }
+  }
   DEBUG(
     errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
     errs() << "----------------\ncall site:\n" << *callbb;
