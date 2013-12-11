@@ -33,7 +33,7 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
 
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
+  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   
   set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
   set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
@@ -87,8 +87,8 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE)
 
-  # set(CMAKE_C_COMPILER "${TOOLS_INSTALL_DIR}/bin/vtcc")
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
+  # set(CMAKE_C_COMPILER "${THIRD_PARTY_ROOT}/bin/vtcc")
+  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
