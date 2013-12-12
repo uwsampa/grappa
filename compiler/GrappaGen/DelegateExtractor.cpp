@@ -225,14 +225,18 @@ Function* DelegateExtractor::extractFunction() {
   auto retphi = PHINode::Create(retTy, exits.size(), "d.retphi", retbb);
   
   // return from end of created block
-  auto newret = ReturnInst::Create(ctx, retphi, retbb);
+  ReturnInst::Create(ctx, retphi, retbb);
   
   // store outputs before return
   for (int i = 0; i < outputs.size(); i++) {
     assert(clone_map.count(outputs[i]) > 0);
-    auto v = clone_map[outputs[i]];
-    auto ep = struct_elt_ptr(out_arg, i, "d.out.gep." + v->getName(), newret);
-    new StoreInst(v, ep, true, newret);
+    auto v = dyn_cast<Instruction>(clone_map[outputs[i]]);
+    assert(v && "how is an output not an instruction?");
+    
+    // insert gep/store at end of value's block
+    auto store_pt = v->getParent()->getTerminator();
+    auto ep = struct_elt_ptr(out_arg, i, "d.out.gep." + v->getName(), store_pt);
+    new StoreInst(v, ep, true, store_pt);
   }
   
   //////////////
