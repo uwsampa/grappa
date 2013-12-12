@@ -482,6 +482,15 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   
   ValueSet vals;
   
+  // to avoid the risk of having a second entry point, conservatively disallow this
+  // (note: other preds would be alright if the entire loop was in the delegate)
+  for_each(it, bb, pred) {
+    if (bbs.count(*it)) {
+      errs() << "possible extra entry point; stopping expand here" << *bb;
+      return false;
+    }
+  }
+  
   auto i = bb->begin();
   
   while ( i != bb->end() && valid_in_delegate(i,vals) ) {
