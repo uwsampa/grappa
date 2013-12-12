@@ -41,6 +41,11 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
 #define void_ptr_ty  Type::getInt8PtrTy(mod.getContext(), 0)
 #define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GlobalPtrInfo::SPACE)
 
+
+/// helper for iterating over preds/succs/uses
+#define for_each(var, arg, prefix) \
+  for (auto var = prefix##_begin(arg), var##_end = prefix##_end(arg); var != var##_end; var++)
+
 DelegateExtractor::DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo):
   mod(mod), ginfo(ginfo)
 {
@@ -96,8 +101,9 @@ Function* DelegateExtractor::extractFunction() {
   Instruction* first = bbin->begin();
   auto& dl = first->getDebugLoc();
   outs() << "\n-------------------\nextracted delegate: "
-         << "(line " << dl.getLine() << ")\n"
-         << "block:" << *bbin;
+         << "(line " << dl.getLine() << ")\n";
+  for (auto bb : bbs) { outs() << *bb; }
+  outs() << "--------------------\n";
   
   ValueSet inputs, outputs;
   GlobalPtrMap gptrs;
@@ -111,14 +117,15 @@ Function* DelegateExtractor::extractFunction() {
   for (auto out : outputs) {
     outs() << "  " << out->getName() << " (" << layout->getTypeAllocSize(out->getType()) << ")\n";
   }
+  outs().flush();
   
-  DEBUG( outs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n"
-    << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n"
-    << "gptrs:\n"; for (auto v : gptrs) {
-      auto u = v.second;
-      errs() << "  " << v.first->getName()
-    << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
-  } errs() << "\n" );
+//  DEBUG( errs() << "\nins:"; for (auto v : inputs) errs() << "\n  " << *v; errs() << "\n"
+//    << "outs:"; for (auto v : outputs) errs() << "\n  " << *v; errs() << "\n"
+//    << "gptrs:\n"; for (auto v : gptrs) {
+//      auto u = v.second;
+//      errs() << "  " << v.first->getName()
+//    << " { loads:" << u.loads << ", stores:" << u.stores << ", uses:" << u.uses << " }\n";
+//  } errs() << "\n" );
   
   // create struct types for inputs & outputs
   SmallVector<Type*,8> in_types, out_types;
@@ -216,13 +223,18 @@ Function* DelegateExtractor::extractFunction() {
   
 //  assert(bbin->getTerminator()->getNumSuccessors() == 1);
   
-  auto prevbb = bbin->getUniquePredecessor();
-  assert(prevbb != nullptr);
+//  auto prevbb = bbin->getUniquePredecessor();
+//  assert(prevbb != nullptr);
   
   // create new bb to replace old block and call
   auto callbb = BasicBlock::Create(bbin->getContext(), "d.call.blk", old_fn, bbin);
   
-  prevbb->getTerminator()->replaceUsesOfWith(bbin, callbb);
+  for_each(predit, bbin, pred) {
+    auto bb = *predit;
+    if (bbs.count(bb) == 0) {
+      bb->getTerminator()->replaceUsesOfWith(bbin, callbb);
+    }
+  }
   
   auto call_pt = callbb;
   
@@ -325,6 +337,13 @@ Function* DelegateExtractor::extractFunction() {
       DEBUG( errs() << "\n" );
     }
   }
+  
+  // delete old bbs
+  for (auto bb : bbs) {
+    for (auto& i : *bb) i.dropAllReferences();
+    bb->dropAllReferences();
+  }
+  for (auto bb : bbs) bb->eraseFromParent();
   
   DEBUG(
     errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
