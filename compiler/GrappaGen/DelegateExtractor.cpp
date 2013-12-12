@@ -309,8 +309,9 @@ Function* DelegateExtractor::extractFunction() {
     auto retcode = ConstantInt::get(retTy, exit_id);
     
     // bb in delegate that we're coming from
-    assert(clone_map.count(e.second) > 0);
-    auto predbb = dyn_cast<BasicBlock>(clone_map[e.second]);
+    auto oldbb = e.second;
+    assert(clone_map.count(oldbb) > 0);
+    auto predbb = dyn_cast<BasicBlock>(clone_map[oldbb]);
     assert(predbb && predbb->getParent() == new_fn);
     
     // hook up exit from region with phi node in return block
@@ -319,6 +320,13 @@ Function* DelegateExtractor::extractFunction() {
     // jump to old exit block when call returns the code for it
     auto targetbb = e.first;
     switchi->addCase(retcode, targetbb);
+    
+    assert(switchi->getParent() == callbb);
+    for (auto& inst : *targetbb) if (auto phi = dyn_cast<PHINode>(&inst)) {
+      int i;
+      while ((i = phi->getBasicBlockIndex(oldbb)) >= 0)
+        phi->setIncomingBlock(i, callbb);
+    }
     
     // in extracted delegate, remap branches outside to retbb
     clone_map[targetbb] = retbb;
