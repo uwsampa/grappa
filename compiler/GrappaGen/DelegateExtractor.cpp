@@ -356,10 +356,7 @@ Function* DelegateExtractor::extractFunction() {
   }
   
   // delete old bbs
-  for (auto bb : bbs) {
-    for (auto& i : *bb) i.dropAllReferences();
-    bb->dropAllReferences();
-  }
+  for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
   for (auto bb : bbs) bb->eraseFromParent();
   
   DEBUG(
@@ -445,6 +442,7 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
       if (i != bb->begin()) {
         bb = bb->splitBasicBlock(i, bb->getName()+".dstart");
       }
+      DEBUG( errs() << ">>>>>>* " << *bb );
       
       outer_fn = bb->getParent();
       
@@ -457,7 +455,6 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
 
 bool DelegateExtractor::expand(BasicBlock *bb) {
   assert(gptrs.size() == 1);
-  Value* gptr = *gptrs.begin();
   
   ValueSet vals;
   
@@ -479,8 +476,9 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   } else {
     // recurse on successors
     for (auto s = succ_begin(bb), se = succ_end(bb); s != se; s++) {
+      if (bbs.count(*s) > 0) continue;
       DEBUG( errs() << ">>>>>> (from " << bb->getName() << ")" << **s );
-      if ( !expand(*s) && bbs.count(*s) == 0 ) {
+      if ( !expand(*s) ) {
         exits.insert({*s, bb});
       } // else: exits added by recursive `expand` call
     }
