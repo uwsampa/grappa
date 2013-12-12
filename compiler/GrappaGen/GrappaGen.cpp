@@ -466,6 +466,7 @@ namespace {
             todo.push(e.first);
           }
           
+          // dex.viewUnextracted();
           candidates.push_back(&dex);
           
           DEBUG( outs() << dex );

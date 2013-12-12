@@ -88,7 +88,7 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
 }
 
 void DelegateExtractor::viewUnextracted() {
-  ViewGraph(this, "Delegate(Unextracted)");
+  ViewGraph(this, "delegate(unextracted) in " + outer_fn->getName());
 }
 
 Function* DelegateExtractor::extractFunction() {
@@ -469,7 +469,7 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
       DEBUG( errs() << ">>>>>>* " << *bb );
       
       outer_fn = bb->getParent();
-      
+      bbs.insert(bb);
       return bb;
     }
   }
@@ -484,8 +484,8 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   
   // to avoid the risk of having a second entry point, conservatively disallow this
   // (note: other preds would be alright if the entire loop was in the delegate)
-  for_each(it, bb, pred) {
-    if (bbs.count(*it)) {
+  if (bbs.count(bb) == 0) for_each(it, bb, pred) {
+    if (bbs.count(*it) == 0) {
       errs() << "possible extra entry point; stopping expand here" << *bb;
       return false;
     }
@@ -528,8 +528,9 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
       auto term = bb->getTerminator();
       if (term->getNumSuccessors() == local_exits.size()) {
         // if all the successors were exits, then we can just stop right before this terminator
-        auto brbb = bb->splitBasicBlock(term);
+        auto brbb = bb->splitBasicBlock(term,bb->getName()+".dterm");
         exits.insert({brbb,bb});
+        
       } else if (term->getNumSuccessors() == local_exits.size() + 1) {
         // we have to split the branch, use conditional jump
         assert(false && "unhandled case");
