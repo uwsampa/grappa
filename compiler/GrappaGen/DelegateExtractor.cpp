@@ -354,7 +354,20 @@ Function* DelegateExtractor::extractFunction() {
       DEBUG( errs() << "\n" );
     }
   }
-  
+
+  // verify that all uses of these bbs are contained
+  for (auto bb : bbs) {
+    for (auto& i : *bb) {
+      for (auto u = i.use_begin(), ue = i.use_end(); u != ue; u++) {
+        if (auto uu = dyn_cast<Instruction>(*u)) {
+          if (bbs.count(uu->getParent()) == 0) {
+            errs() << "use escaped => " << *uu << *bb;
+            assert(false);
+          }
+        }
+      }
+    }
+  }
   // delete old bbs
   for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
   for (auto bb : bbs) bb->eraseFromParent();
