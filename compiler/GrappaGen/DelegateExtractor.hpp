@@ -123,7 +123,7 @@ namespace llvm {
     /// @return constructed delegate function of type: void(void* in, void* out)
     Function* extractFunction();
     
-    static bool valid_in_delegate(Instruction* inst, Value* gptr, ValueSet& available_vals);
+    bool valid_in_delegate(Instruction* inst, ValueSet& available_vals);
     
     /// find start of DelegateRegion
     BasicBlock* findStart(BasicBlock *bb);
@@ -153,7 +153,8 @@ namespace llvm {
     return o;
   }
   
-  template <> struct GraphTraits<DelegateExtractor*> : public GraphTraits<const BasicBlock*> {
+  template <>
+  struct GraphTraits<DelegateExtractor*> : public GraphTraits<const BasicBlock*> {
     static NodeType *getEntryNode(DelegateExtractor *d) { return &d->outer_fn->getEntryBlock(); }
     
     // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
@@ -163,7 +164,8 @@ namespace llvm {
     static size_t         size       (DelegateExtractor *d) { return d->outer_fn->size(); }
   };
   
-  template<> struct DOTGraphTraits<DelegateExtractor*> : public DefaultDOTGraphTraits {
+  template<>
+  struct DOTGraphTraits<DelegateExtractor*> : public DefaultDOTGraphTraits {
     DOTGraphTraits(bool simple=false): DefaultDOTGraphTraits(simple) {}
     
     using FTraits = DOTGraphTraits<const Function*>;

@@ -375,15 +375,15 @@ Function* DelegateExtractor::extractFunction() {
   return new_fn;
 }
 
-bool DelegateExtractor::valid_in_delegate(Instruction* inst, Value* gptr, ValueSet& available_vals) {
+bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available_vals) {
   if (auto gld = dyn_cast_global<LoadInst>(inst)) {
-    if (gld->getPointerOperand() == gptr) {
+    if (gptrs.count(gld->getPointerOperand())) {
       available_vals.insert(gld);
       DEBUG( outs() << "load to same gptr: ok\n" );
       return true;
     }
   } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
-    if (g->getPointerOperand() == gptr) {
+    if (gptrs.count(g->getPointerOperand())) {
       DEBUG( outs() << "store to same gptr: great!\n" );
       return true;
     } else {
@@ -393,7 +393,7 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, Value* gptr, ValueS
   } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
     DEBUG( outs() << "load/store to normal memory: " << *inst << "\n" );
     return false;
-  } else if (auto ge = dyn_cast<GetElementPtrInst>(inst)) {
+  } else if ( isa<GetElementPtrInst>(inst) ) {
     // TODO: fix this, some GEP's should be alright...
     return false;
   } else if ( isa<PHINode>(inst) ) {
@@ -463,7 +463,7 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   
   auto i = bb->begin();
   
-  while ( i != bb->end() && DelegateExtractor::valid_in_delegate(i,gptr,vals) ) i++;
+  while ( i != bb->end() && valid_in_delegate(i,vals) ) i++;
   
   if (i == bb->begin()) {
     return false;
