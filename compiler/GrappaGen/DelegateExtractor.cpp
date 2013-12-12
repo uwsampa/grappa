@@ -492,7 +492,6 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   }
   
   auto i = bb->begin();
-  
   while ( i != bb->end() && valid_in_delegate(i,vals) ) {
     errs() << "++" << *i << "\n";
     i++;
@@ -502,10 +501,10 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   if (i == bb->begin()) {
     // unable to consume any instructions
     return false;
-  } else {
-    // otherwise we know at least this block will be included (though maybe split)
-    bbs.insert(bb);
   }
+  
+  // otherwise we know at least this block will be included (though maybe split)
+  bbs.insert(bb);
   
   if (i != bb->end()) {
     // stopped in middle of bb
