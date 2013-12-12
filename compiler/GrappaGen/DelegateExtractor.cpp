@@ -355,9 +355,8 @@ Function* DelegateExtractor::extractFunction() {
       DEBUG( errs() << *inst << "  (parent: " << inst->getParent()->getParent()->getName() << ") " );
       if (inst->getParent()->getParent() != new_fn) {
         inst->replaceUsesOfWith(v, ld);
-        DEBUG( errs() << " !!" );
       } else {
-        DEBUG( errs() << " ??" );
+        DEBUG( errs() << " !! wrong function!" );
       }
       DEBUG( errs() << "\n" );
     }
@@ -365,6 +364,14 @@ Function* DelegateExtractor::extractFunction() {
 
   // verify that all uses of these bbs are contained
   for (auto bb : bbs) {
+    for (auto u = bb->use_begin(), ue = bb->use_end(); u != ue; u++) {
+      if (auto uu = dyn_cast<Instruction>(*u)) {
+        if (bbs.count(uu->getParent()) == 0) {
+          errs() << "use escaped => " << *uu << *bb;
+          assert(false);
+        }
+      }
+    }
     for (auto& i : *bb) {
       for (auto u = i.use_begin(), ue = i.use_end(); u != ue; u++) {
         if (auto uu = dyn_cast<Instruction>(*u)) {
