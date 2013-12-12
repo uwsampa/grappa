@@ -512,13 +512,33 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
     exits.insert({newbb, bb});
     
   } else {
+    // track exits from *this* bb
+    SmallSetVector<std::pair<BasicBlock*,BasicBlock*>,4> local_exits;
+    
     // recurse on successors
     for (auto s = succ_begin(bb), se = succ_end(bb); s != se; s++) {
       if (bbs.count(*s) > 0) continue;
-//      DEBUG( errs() << ">>>>>> (from " << bb->getName() << ")" << **s );
+      
       if ( !expand(*s) ) {
-        exits.insert({*s, bb});
+        local_exits.insert({*s, bb});
       } // else: exits added by recursive `expand` call
+    }
+    // it's a problem if we have more than one exit from the same bb
+    if (local_exits.size() > 1) {
+      auto term = bb->getTerminator();
+      if (term->getNumSuccessors() == local_exits.size()) {
+        // if all the successors were exits, then we can just stop right before this terminator
+        auto brbb = bb->splitBasicBlock(term);
+        exits.insert({brbb,bb});
+      } else if (term->getNumSuccessors() == local_exits.size() + 1) {
+        // we have to split the branch, use conditional jump
+        assert(false && "unhandled case");
+      } else {
+        // use switch
+        assert(false && "unhandled case");
+      }
+    } else if (local_exits.size() == 1) {
+      exits.insert(local_exits[0]);
     }
   }
   
