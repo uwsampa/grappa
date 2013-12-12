@@ -87,6 +87,9 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
   }
 }
 
+void DelegateExtractor::viewUnextracted() {
+  ViewGraph(this, "Delegate(Unextracted)");
+}
 
 Function* DelegateExtractor::extractFunction() {
   assert( gptrs.size() == 1 );
@@ -97,6 +100,20 @@ Function* DelegateExtractor::extractFunction() {
   // because of how we construct regions, should not begin with Phi
   // (should start with global load/store...)
   assert( ! isa<PHINode>(*bbin->begin()) );
+  
+  SmallSet<BasicBlock*,4> external_preds;
+  for (auto bb : bbs) {
+    for_each(p, bb, pred) {
+      if (bbs.count(*p) == 0) {
+        external_preds.insert(*p);
+      }
+    }
+  }
+  if (external_preds.size() > 1) {
+    errs() << "!! more than one entry into extracted region!\n";
+    viewUnextracted();
+    assert(false);
+  }
   
   Instruction* first = bbin->begin();
   auto& dl = first->getDebugLoc();
@@ -428,6 +445,8 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
       if (i != bb->begin()) {
         bb = bb->splitBasicBlock(i, bb->getName()+".dstart");
       }
+      
+      outer_fn = bb->getParent();
       
       return bb;
     }

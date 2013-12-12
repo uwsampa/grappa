@@ -36,6 +36,8 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/Analysis/Dominators.h>
 #include <llvm/Analysis/DomPrinter.h>
+#include <llvm/Analysis/CFGPrinter.h>
+#include <llvm/Support/GraphWriter.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 
@@ -106,6 +108,8 @@ namespace llvm {
     DataLayout* layout;
     GlobalPtrInfo& ginfo;
     
+    Function* outer_fn;
+    
   public:
     
     DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo);
@@ -140,11 +144,49 @@ namespace llvm {
 //        return true;
 //      }
 //    }
-
+    
+    void viewUnextracted();
   };
 
   inline raw_ostream& operator<<(raw_ostream& o, const DelegateExtractor& r) {
     r.print(o);
     return o;
   }
+  
+  template <> struct GraphTraits<DelegateExtractor*> : public GraphTraits<const BasicBlock*> {
+    static NodeType *getEntryNode(DelegateExtractor *d) { return &d->outer_fn->getEntryBlock(); }
+    
+    // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
+    typedef Function::iterator nodes_iterator;
+    static nodes_iterator nodes_begin(DelegateExtractor *d) { return d->outer_fn->begin(); }
+    static nodes_iterator nodes_end  (DelegateExtractor *d) { return d->outer_fn->end(); }
+    static size_t         size       (DelegateExtractor *d) { return d->outer_fn->size(); }
+  };
+  
+  template<> struct DOTGraphTraits<DelegateExtractor*> : public DefaultDOTGraphTraits {
+    DOTGraphTraits(bool simple=false): DefaultDOTGraphTraits(simple) {}
+    
+    using FTraits = DOTGraphTraits<const Function*>;
+    
+    static std::string getGraphName(DelegateExtractor *f) { return "Delegate"; }
+    
+    std::string getNodeLabel(const BasicBlock *Node, DelegateExtractor* dex) {
+      return FTraits::getCompleteNodeLabel(Node, dex->outer_fn);
+    }
+    
+    template< typename T >
+    static std::string getEdgeSourceLabel(const BasicBlock *Node, T I) {
+      return FTraits::getEdgeSourceLabel(Node, I);
+    }
+    
+    static std::string getNodeAttributes(const BasicBlock* Node, DelegateExtractor* dex) {
+      auto bb = const_cast<BasicBlock*>(Node);
+      if (dex->bbs.count(bb)) {
+        return "color=\"blue\",style=\"filled\"";
+      } else {
+        return "";
+      }
+    }
+  };
+  
 }
