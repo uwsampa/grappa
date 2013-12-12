@@ -389,19 +389,19 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
   if (auto gld = dyn_cast_global<LoadInst>(inst)) {
     if (gptrs.count(gld->getPointerOperand())) {
       available_vals.insert(gld);
-      DEBUG( outs() << "load to same gptr: ok\n" );
+      DEBUG( errs() << "load to same gptr: ok\n" );
       return true;
     }
   } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
     if (gptrs.count(g->getPointerOperand())) {
-      DEBUG( outs() << "store to same gptr: great!\n" );
+      DEBUG( errs() << "store to same gptr: great!\n" );
       return true;
     } else {
-      DEBUG( outs() << "store to different gptr: not supported yet.\n" );
+      DEBUG( errs() << "store to different gptr: not supported yet.\n" );
       return false;
     }
   } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
-    DEBUG( outs() << "load/store to normal memory: " << *inst << "\n" );
+    DEBUG( errs() << "load/store to normal memory: " << *inst << "\n" );
     return false;
   } else if ( isa<GetElementPtrInst>(inst) ) {
     // TODO: fix this, some GEP's should be alright...
@@ -473,11 +473,17 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
   
   auto i = bb->begin();
   
-  while ( i != bb->end() && valid_in_delegate(i,vals) ) i++;
+  while ( i != bb->end() && valid_in_delegate(i,vals) ) {
+    errs() << "++" << *i << "\n";
+    i++;
+  }
+  if (i != bb->end()) errs() << "--" << *i << "\n";
   
   if (i == bb->begin()) {
+    // unable to consume any instructions
     return false;
   } else {
+    // otherwise we know at least this block will be included (though maybe split)
     bbs.insert(bb);
   }
   
@@ -490,7 +496,7 @@ bool DelegateExtractor::expand(BasicBlock *bb) {
     // recurse on successors
     for (auto s = succ_begin(bb), se = succ_end(bb); s != se; s++) {
       if (bbs.count(*s) > 0) continue;
-      DEBUG( errs() << ">>>>>> (from " << bb->getName() << ")" << **s );
+//      DEBUG( errs() << ">>>>>> (from " << bb->getName() << ")" << **s );
       if ( !expand(*s) ) {
         exits.insert({*s, bb});
       } // else: exits added by recursive `expand` call
