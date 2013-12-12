@@ -375,10 +375,6 @@ Function* DelegateExtractor::extractFunction() {
   DEBUG(
     errs() << "----------------\nconstructed delegate fn:\n" << *new_fn;
     errs() << "----------------\ncall site:\n" << *callbb;
-    errs() << "@bh inblock preds:\n";
-    for (auto p = pred_begin(bbin), pe = pred_end(bbin); p != pe; ++p) {
-      errs() << (*p)->getName() << "\n";
-    }
   );
   
   outs() << "-------------------\n";
