@@ -90,7 +90,6 @@ set(SYSTEM_SOURCES
   MessageBase.hpp
   MessageBaseImpl.hpp
   MessagePool.hpp
-  MutableHeap.hpp
   Mutex.hpp
   ParallelLoop.hpp
   PerformanceTools.hpp
