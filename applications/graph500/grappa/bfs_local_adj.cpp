@@ -95,7 +95,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   double t = walltime();
   
   // initialize bfs_tree to -1, parent of root is root, and init frontier with root
-  forall_localized(g->vs, g->nv, [root](int64_t i, VertexP& v){
+  forall(g->vs, g->nv, [root](int64_t i, VertexP& v){
     if (i == root) {
       v.parent(root);
       frontier_push(root);
@@ -143,7 +143,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   // VLOG(2) << "after bfs";
   
   t = walltime();
-  forall_localized(g->vs, g->nv, [](int64_t i, VertexP& v){
+  forall(g->vs, g->nv, [](int64_t i, VertexP& v){
     delegate::write(bfs_tree+i, v.parent());
   });
   VLOG(3) << "bfs_tree_write_time: " << walltime() - t;

@@ -144,7 +144,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
  
   privateTask<&impl::local_gce>([] {
   // finding the abc, and hashing to h(a,c)
-  forall_localized_async( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
+  forall<async>( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
     VLOG(5) << "a iteration " << ai;
       forall_here_async( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
@@ -178,7 +178,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
 
   privateTask<&impl::local_gce>([] {
   // finding the cda, and hashing to h(a,c)
-  forall_localized_async( E3_index->vs, E3_index->nv, [](int64_t ci, Vertex& c) {
+  forall<async>( E3_index->vs, E3_index->nv, [](int64_t ci, Vertex& c) {
     VLOG(5) << "c iteration " << ci;
       forall_here_async<&impl::local_gce>( 0, c.nadj, [c,ci](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for

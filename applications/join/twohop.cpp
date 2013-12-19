@@ -82,7 +82,7 @@ Results_type results;
 
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
+  forall( tuples, num, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[0];
 
     VLOG(2) << "insert " << key << " | " << t;
@@ -133,7 +133,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
   //on_all_cores([]{Grappa_start_profiling();});
   start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
+  forall( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[1];
    
     // will pass on this first vertex to compare in the select 

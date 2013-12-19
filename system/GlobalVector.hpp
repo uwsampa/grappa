@@ -442,13 +442,13 @@ public:
     auto self = this->self;
     auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
     if (a.size == self->capacity) {
-      forall_localized_async<GCE,Threshold>(self->base, self->capacity, func);
+      forall<async,GCE,Threshold>(self->base, self->capacity, func);
     } else if (a.start < a.end) {
       Range r = {a.start, a.end};
-      forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+      forall<async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
     } else if (a.start > a.end) {
       for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
-        forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+        forall<async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
       }
     }
     GCE->wait();
@@ -461,7 +461,7 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
           typename T = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall_localized(GlobalAddress<GlobalVector<T>> self, F func) {
+void forall(GlobalAddress<GlobalVector<T>> self, F func) {
   self->forall_elements(func);
 }
 

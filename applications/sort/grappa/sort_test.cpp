@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
     int log2maxkey = 10;
 
     GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>( nelems );
-    forall_localized(array, nelems, [nelems,log2maxkey](int64_t i, uint64_t& e) {
+    forall(array, nelems, [nelems,log2maxkey](int64_t i, uint64_t& e) {
       e = (nelems-i) % log2maxkey;
     });
     print_array("before-sort", array, nelems);
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
 
     // test S = keyed-tuple
     GlobalAddress<KeyedTuple> tuples = Grappa::global_alloc<KeyedTuple>( nelems );
-    forall_localized(tuples, nelems, [nelems,log2maxkey](int64_t i, KeyedTuple& e) {
+    forall(tuples, nelems, [nelems,log2maxkey](int64_t i, KeyedTuple& e) {
       e.key = (nelems-i) % log2maxkey;
       CHECK( sprintf( e.val, "S-%lu", e.key ) > 0 );
     });

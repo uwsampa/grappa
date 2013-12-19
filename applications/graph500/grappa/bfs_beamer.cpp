@@ -168,7 +168,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   });
   
   // initialize bfs_tree to -1
-  forall_localized(_bfs_tree, NV, [](int64_t i, bfs_tree_entry& b){
+  forall(_bfs_tree, NV, [](int64_t i, bfs_tree_entry& b){
     b.depth = -1;
     b.parent = -1;
   });
@@ -201,14 +201,14 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
     if (top_down) {
       VLOG(2) << "top_down";
       // top-down level
-      forall_localized(vlist+k1, k2-k1, [](int64_t i, int64_t& v){
+      forall(vlist+k1, k2-k1, [](int64_t i, int64_t& v){
         ++bfs_vertex_visited;
         
         int64_t buf[2];
         Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
         const int64_t vstart = cxoff[0], vend = cxoff[1];
         
-        forall_localized_async(xadj+vstart, vend-vstart, [v](int64_t ji, int64_t& j) {
+        forall<async>(xadj+vstart, vend-vstart, [v](int64_t ji, int64_t& j) {
           ++bfs_edge_visited;
           
           // TODO: feed-forward-ize
@@ -221,7 +221,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
       });
     } else {
       // bottom-up level
-      forall_localized(bfs_tree, NV, [](int64_t v, bfs_tree_entry& p){
+      forall(bfs_tree, NV, [](int64_t v, bfs_tree_entry& p){
         if (p.depth != -1) return;
         
         ++bfs_vertex_visited;
@@ -269,7 +269,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   Grappa::global_free(_vlist);
   
   // clean up bfs_tree depths
-  forall_localized(_bfs_tree, NV, [](bfs_tree_entry& e){
+  forall(_bfs_tree, NV, [](bfs_tree_entry& e){
     int64_t * t = reinterpret_cast<int64_t*>(&e);
     if (e.depth == -1) {
       *t = -1;

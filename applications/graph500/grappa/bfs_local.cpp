@@ -153,7 +153,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
     VLOG(2) << "k1=" << k1 << ", k2=" << _k2;
     const int64_t oldk2 = _k2;
     
-    forall_localized(_vlist+k1, _k2-k1, [](int64_t index, int64_t& source_v) {
+    forall(_vlist+k1, _k2-k1, [](int64_t index, int64_t& source_v) {
       DVLOG(4) << "[" << index << "] source_v = " << source_v;
       ++bfs_vertex_visited;
       
@@ -170,7 +170,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
       //}
       
       //  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
-      forall_localized_async(xadj+vstart, vend-vstart, [source_v](int64_t index, int64_t& ev){
+      forall<async>(xadj+vstart, vend-vstart, [source_v](int64_t index, int64_t& ev){
         ++bfs_neighbors_visited;
         
         DCHECK( source_v < nv ) << "| v = " << source_v << ", nv = " << nv;

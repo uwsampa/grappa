@@ -64,7 +64,7 @@ class HashSet {
         *globally_valid_local_pointer = HashSet<K,HF,GCE>( base, capacity );
       });
 
-      Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
         new(&c) Cell();
       });
     }
@@ -167,7 +167,7 @@ class HashSet {
 
       Grappa::on_all_cores([] { size_reducer.reset(); });
 
-      Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
         size_reducer.accumulate(c.entries.size());
       });
 

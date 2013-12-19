@@ -189,7 +189,7 @@ void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, v
   });
 
   // forall rows
-  forall_localized<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
+  forall<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
     double yaccum = 0;
     
     forall_here(0, v.nadj, [&v,&yaccum](int64_t j){

@@ -209,7 +209,7 @@ void rank(int iteration) {
   // key_array, nkeys already available on all cores
   
   if (iteration == 0) {
-    forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+    forall<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
       // (global malloc doesn't call constructors)
       new (&bucket) bucket_t();
     });
@@ -229,7 +229,7 @@ void rank(int iteration) {
   _time = Grappa::walltime();
 
   // histogram to find out how many fall into each bucket  
-  forall_localized<&gce>(key_array, nkeys, [](int64_t i, key_t& k){
+  forall<&gce>(key_array, nkeys, [](int64_t i, key_t& k){
     size_t b = k >> BSHIFT;
     counts[b]++;
   });
@@ -291,7 +291,7 @@ void rank(int iteration) {
   // print_array("bucket_cores", bucket_cores);
   
   // allocate space in buckets
-  forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+  forall<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
     // (global malloc doesn't call constructors)
     bucket.reserve(counts[id]);
     bucket.nelems = 0;
@@ -301,7 +301,7 @@ void rank(int iteration) {
   _time = Grappa::walltime();
   
   // scatter into buckets
-  forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
+  forall<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
     size_t nbuckets = counts.size();
     // char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
     // MessagePool pool(msg_buf, sizeof(msg_buf));
@@ -410,7 +410,7 @@ void full_verify() {
   auto sorted_keys = Grappa::global_alloc<key_t>(nkeys);
   Grappa::memset(sorted_keys, -1, nkeys);
   
-  forall_localized<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
+  forall<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
     auto key_ranks = b.key_ranks - (b_id<<BSHIFT);
     
     for (int64_t i=0; i<b.size(); i++) {
@@ -423,7 +423,7 @@ void full_verify() {
   
   // print_array("sorted_keys", sorted_keys, nkeys);
   
-  forall_localized(sorted_keys, nkeys-1, [](int64_t i, key_t& k){
+  forall(sorted_keys, nkeys-1, [](int64_t i, key_t& k){
     key_t o = delegate::read(make_linear(&k)+1);
     CHECK_LE(k, o) << "sorted_keys[" << i << ":" << i+1 << "] = " << k << ", " << o;
   });
@@ -468,7 +468,7 @@ int main(int argc, char* argv[]) {
 
     // Generate random number sequence and subsequent keys on all procs
     // Note: the distribution should be roughly Gaussian
-    forall_localized(key_array, nkeys, [](int64_t i, key_t& key){
+    forall(key_array, nkeys, [](int64_t i, key_t& key){
       key = next_seq_element();
     });
   

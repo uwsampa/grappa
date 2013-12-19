@@ -158,7 +158,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
 
   // do local bucket counts
   // forall_local<uint64_t,histogram>(array, nelems);
-  forall_localized(array, nelems, [lobits,LOBITS](int64_t i, S& v) {
+  forall(array, nelems, [lobits,LOBITS](int64_t i, S& v) {
     size_t b = lobits(v, LOBITS); // TODO decide how to compare general in pieces
     counts[b]++;
   });
@@ -189,7 +189,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
   // allocate space in buckets
   VLOG(3) << "allocating space...";
   // forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
-  forall_localized(bucketlist, nbuckets, [](int64_t id, bucket_t<S>& bucket){
+  forall(bucketlist, nbuckets, [](int64_t id, bucket_t<S>& bucket){
     // (global malloc doesn't call constructors)
     new (&bucket) bucket_t<S>();
     bucket.reserve(counts[id]);
@@ -200,7 +200,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
 
   // scatter into buckets
   // forall_local<uint64_t,scatter>(array, nelems);
-  forall_localized(array, nelems, [bucketlist,lobits,LOBITS](int64_t s, int64_t n, S * first){
+  forall(array, nelems, [bucketlist,lobits,LOBITS](int64_t s, int64_t n, S * first){
     size_t nbuckets = counts.size();
     char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t<S> >,S)>>)*n];
     MessagePool pool(msg_buf, sizeof(msg_buf));
@@ -224,7 +224,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
   // sort buckets locally
   // forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
   /// Do some kind of local serial sort of a bucket
-  forall_localized(bucketlist, nbuckets, [Scmp](int64_t bucket_id, bucket_t<S>& bucket){
+  forall(bucketlist, nbuckets, [Scmp](int64_t bucket_id, bucket_t<S>& bucket){
     if (bucket.size() == 0) return;
     qsort(&bucket[0], bucket.size(), sizeof(S), Scmp);
   });
@@ -236,7 +236,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
   // redistribute buckets back into global array  
   // forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
   /// Redistribute sorted buckets back into global array
-  forall_localized(bucketlist, nbuckets, [array,bucketlist](int64_t b, bucket_t<S>& bucket) {
+  forall(bucketlist, nbuckets, [array,bucketlist](int64_t b, bucket_t<S>& bucket) {
     const size_t NBUF = BUFSIZE / sizeof(S);
     DCHECK( b < counts.size() );
 

@@ -101,12 +101,12 @@ struct Graph {
   }
   
   /// Cast graph to new type, and allow user to re-initialize each V by providing a 
-  /// functor (the body of a forall_localized() over the vertices)
+  /// functor (the body of a forall() over the vertices)
   template< typename VNew, typename VOld, typename InitFunc = decltype(nullptr) >
   static GlobalAddress<Graph<VNew>> transform_vertices(GlobalAddress<Graph<VOld>> o, InitFunc init) {
     static_assert(sizeof(VNew) == sizeof(V), "transformed vertex size must be the unchanged.");
     auto g = static_cast<GlobalAddress<Graph<VNew>>>(o);
-    forall_localized(g->vs, g->nv, init);
+    forall(g->vs, g->nv, init);
     return g;
   }
   
@@ -117,7 +117,7 @@ struct Graph {
   
     // find nv
         t = walltime();
-    forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g](packed_edge& e){
       if (e.v0 > g->nv) { g->nv = e.v0; }
       if (e.v1 > g->nv) { g->nv = e.v1; }
     });
@@ -148,7 +148,7 @@ struct Graph {
     });
                                                               t = walltime();
     // count the outgoing/undirected edges per vertex
-    forall_localized(tg.edges, tg.nedge, [g,directed](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       CHECK_LT(e.v0, g->nv); CHECK_LT(e.v1, g->nv);
   #ifdef SMALL_GRAPH
       // g->scratch[e.v0]++;
@@ -184,7 +184,7 @@ struct Graph {
   #endif // SMALL_GRAPH  
   
     // allocate space for each vertex's adjacencies (+ duplicates)
-    forall_localized(g->vs, g->nv, [g](int64_t i, V& v) {
+    forall(g->vs, g->nv, [g](int64_t i, V& v) {
   #ifdef SMALL_GRAPH
       // adjust b/c allreduce didn't account for having 1 instance per locale
       v.local_sz = g->scratch[i] / locale_cores();
@@ -196,7 +196,7 @@ struct Graph {
     VLOG(3) << "after adj allocs";
   
     // scatter
-    forall_localized(tg.edges, tg.nedge, [g,directed](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       auto scatter = [g](int64_t vi, int64_t adj) {
         auto vaddr = g->vs+vi;
         delegate::call_async(vaddr.core(), [vaddr,adj]{
@@ -210,7 +210,7 @@ struct Graph {
     VLOG(3) << "after scatter, nv = " << g->nv;
   
     // sort & de-dup
-    forall_localized(g->vs, g->nv, [g](int64_t vi, V& v){
+    forall(g->vs, g->nv, [g](int64_t vi, V& v){
       CHECK_EQ(v.nadj, v.local_sz);
       std::sort(v.local_adj, v.local_adj+v.nadj);
     

@@ -69,7 +69,7 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
   graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
   
   enroll(owner, c[1]-c[0]);
-  forall_localized_async<nullptr>(g.endVertex+c[0], c[1]-c[0], [mycolor,owner](graphint& ev){
+  forall<async,nullptr>(g.endVertex+c[0], c[1]-c[0], [mycolor,owner](graphint& ev){
     // TODO: make async
     Core origin = mycore();
     auto colors_ev = colors+ev;
@@ -104,7 +104,7 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
 template< GlobalCompletionEvent * GCE = &impl::local_gce >
 void search(graphint v, graphint mycolor) {
   graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
-  forall_localized_async<GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
+  forall<async,GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
     if (d::fetch_and_add(visited+ev, 1) == 0) {
       d::write(colors+ev, mycolor);
       publicTask<GCE>([ev,mycolor]{ search(ev, mycolor); });
@@ -195,12 +195,12 @@ graphint connectedComponents(graph * in_g) {
   // Find component edges
   
   t = walltime();
-  forall_localized(colors, NV, [](int64_t v, graphint& c){ c = -v-1; });
+  forall(colors, NV, [](int64_t v, graphint& c){ c = -v-1; });
   
   size_t current_root = 0;
   auto root_addr = make_global(&current_root);
   
-  // forall_localized<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
+  // forall<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
   on_all_cores([root_addr]{
     range_t r = blockDist(0, FLAGS_cc_concurrent_roots, mycore(), cores());
     auto nlocalroots = r.end - r.start;
@@ -256,7 +256,7 @@ graphint connectedComponents(graph * in_g) {
   DVLOG(3) << util::array_str("colors: ", colors, NV, 32);
   
   auto nca = GlobalCounter::create();
-  forall_localized(colors, NV, [nca](int64_t v, graphint& c){ if (c == v) nca->incr(); });
+  forall(colors, NV, [nca](int64_t v, graphint& c){ if (c == v) nca->incr(); });
   graphint ncomponents = nca->count();
   nca->destroy();
   return ncomponents;

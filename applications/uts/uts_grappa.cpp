@@ -380,12 +380,12 @@ void search_vertex( int64_t id ) {
 
 void verify_generation( uint64_t num_vert ) {
   // do checks on child array
-  forall_localized(Child, num_vert-1, [](int64_t i, int64_t& c) {
+  forall(Child, num_vert-1, [](int64_t i, int64_t& c) {
     CHECK( c > 0 ) << "Child[" << i << "] = " << c; // > 0 because root is never c
   });
 
   // do checks on vertex_t array
-  forall_localized(Vertex, num_vert, [](int64_t i, vertex_t& v) {
+  forall(Vertex, num_vert, [](int64_t i, vertex_t& v) {
     CHECK( v.numChildren >= 0 ) << "Vertex[" << i << "].numChildren = " << v.numChildren;
     CHECK( v.childIndex >= 0 )  << "Vertex[" << i << "].childIndex = "  << v.childIndex;
 

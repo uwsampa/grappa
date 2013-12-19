@@ -31,7 +31,6 @@
 
 DECLARE_uint64( num_starting_workers );
 
-
 ///
 /// Task routines
 ///
@@ -45,8 +44,8 @@ void Grappa_end_tasks();
 // forward declare master thread from scheduler
 
 
-namespace Grappa {
-
+namespace Grappa {  
+  
   extern Worker * master_thread;
 
   /// @addtogroup Tasking
@@ -148,7 +147,24 @@ namespace Grappa {
     Grappa::impl::global_scheduler.ready( th );
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
-
+  
+  
+  enum class BalancingMode { fixed, balancing };
+  
+// #ifdef GRAPPA_ABBREV
+  using BalancingMode::fixed;
+  using BalancingMode::balancing;
+// #endif
+  
+  template< BalancingMode B = BalancingMode::fixed, typename F = decltype(nullptr) >
+  void spawn(F f) {
+    if (B == BalancingMode::fixed) {
+      privateTask(f);
+    } else if (B == BalancingMode::balancing) {
+      publicTask(f);
+    }
+  }
+  
 template< typename FP >
 void run(FP fp) {
 #ifdef GRAPPA_TRACE  

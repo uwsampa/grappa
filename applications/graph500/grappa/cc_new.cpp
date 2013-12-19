@@ -237,7 +237,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   // Propagate colors out to the rest of the vertices
   GRAPPA_TIME_LOG("cc_propagate_time") {
     // reset 'visited' flag
-    forall_localized(g->vs, g->nv, [](VertexCC& v){ v.visited(false); });
+    forall(g->vs, g->nv, [](VertexCC& v){ v.visited(false); });
     
     component_edges->forall_keys<GCE>([](Edge& e){
       auto mycolor = color(g->vs+e.start);
@@ -261,7 +261,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
     
   } // cc_propagate_time
 
-  forall_localized(g->vs, g->nv, [](int64_t i, VertexCC& v){ if (v.color() == i) ncomponents++; });
+  forall(g->vs, g->nv, [](int64_t i, VertexCC& v){ if (v.color() == i) ncomponents++; });
   long nc = reduce<long,collective_add>(&ncomponents);
   
   t = walltime() - t;

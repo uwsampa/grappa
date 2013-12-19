@@ -100,7 +100,7 @@ void test_correctness() {
     ha->insert(i, 42);
   });
 
-  forall_localized(ha, [](long key, long& val){
+  forall(ha, [](long key, long& val){
     BOOST_CHECK_EQUAL(val, 42);
   });
   

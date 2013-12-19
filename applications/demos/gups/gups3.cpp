@@ -27,13 +27,13 @@ int main( int argc, char * argv[] ) {
       Grappa::memset( A, 0, FLAGS_sizeA );
 
       auto B = global_alloc<int64_t>(FLAGS_sizeB);
-      forall_localized( B, FLAGS_sizeB, []( int64_t i, int64_t& b ) {
+      forall( B, FLAGS_sizeB, []( int64_t i, int64_t& b ) {
           b = random() % FLAGS_sizeA;
         } );
 
       double start = walltime();
 
-      forall_localized(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
+      forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
           delegate::increment_async( A + b, 1);
         });
 

@@ -369,7 +369,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   // all-reduce everyone's deltas
   on_all_cores([]{ allreduce_inplace<double,collective_add>(c.bctemp, g.numVertices); });
   // put them into the global "centrality" array
-  forall_localized(bc, g.numVertices, [](int64_t i, double& e){
+  forall(bc, g.numVertices, [](int64_t i, double& e){
     e = c.bctemp[i];
   });
   
@@ -393,7 +393,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   
   double bc_total = 0;
   Core origin = mycore();
-  // TODO: use array reduction op, or mutable "forall_localized"-held state
+  // TODO: use array reduction op, or mutable "forall"-held state
   on_all_cores([bc, &bc_total, origin]{
     auto b = bc.localize();
     auto local_end  = (bc+g.numVertices).localize();

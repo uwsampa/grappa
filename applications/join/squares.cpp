@@ -114,8 +114,8 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
   // 3. selection by < degree
   //
 
-  // the forall_localized(forall(...)) here is really just a scan of the E1 edge relation
-  forall_localized( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
+  // the forall(forall(...)) here is really just a scan of the E1 edge relation
+  forall( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
       forall_here_async<&impl::local_gce>( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
         ir1_count++; // count(E1)

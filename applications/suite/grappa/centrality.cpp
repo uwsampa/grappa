@@ -42,7 +42,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
     d_phase = d_phase_;
   });
 
-  forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
+  forall(c.Q+start, end-start, [](int64_t i, graphint& v){
     CHECK(v < g.numVertices) << v << " < " << g.numVertices;
     
     int64_t bufEdgeStart[2];
@@ -55,7 +55,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
  
     nedge_traversed += vend - vstart;
     DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
-    forall_localized_async(g.endVertex+vstart, vend-vstart,
+    forall<async>(g.endVertex+vstart, vend-vstart,
                     [v](int64_t kstart, int64_t kiters, int64_t * kfirst) {
       DVLOG(3) << "neighbors " << v << ": " << kstart << " -> " << kstart+kiters;
 
@@ -93,7 +93,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
 }
 
 void do_bfs_pop(graphint start, graphint end) {
-  forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
+  forall(c.Q+start, end-start, [](int64_t i, graphint& v){
     // TODO: overlap reads
     graphint myStart = delegate::read(g.edgeStart+v);
     graphint myEnd   = myStart + delegate::read(c.child_count+v);
@@ -102,7 +102,7 @@ void do_bfs_pop(graphint start, graphint end) {
     DVLOG(4) << "pop " << v << " (" << i << ")";
     
     // pop children
-    forall_localized_async(c.child+myStart, myEnd-myStart,
+    forall<async>(c.child+myStart, myEnd-myStart,
         [v](int64_t kstart, int64_t kiters, graphint * kchildren){
 
       int64_t sigma_v = delegate::read(c.sigma+v);
@@ -122,7 +122,7 @@ void do_bfs_pop(graphint start, graphint end) {
   });
   
   DVLOG(4) << "###################";
-  forall_localized(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
+  forall(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
 
     for (int64_t j=0; j<jiters; j++) {
       const graphint v = cQ[j];
@@ -299,7 +299,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   
   double bc_total = 0;
   Core origin = mycore();
-  // TODO: use array reduction op, or mutable "forall_localized"-held state
+  // TODO: use array reduction op, or mutable "forall"-held state
   on_all_cores([&bc_total, origin]{
     auto b = bc.localize();
     auto local_end  = (bc+g.numVertices).localize();

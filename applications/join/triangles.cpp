@@ -124,7 +124,7 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
   GlobalAddress<Tuple> base = Grappa::global_alloc<Tuple>( nedge );
 
   // copy and transform from edge representation to Tuple representation
-  forall_localized(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
+  forall(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
     // FIXME: I know write_async messages are one globaladdress 
     // and one tuple, but make it encapsulated
     int64_t num_messages =  FLAGS_undirected ? 2*n : n;
@@ -160,7 +160,7 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
 }
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
+  forall( tuples, num, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Left];
 
     VLOG(2) << "insert " << key << " | " << t;
@@ -214,7 +214,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
 
   start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
+  forall( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Right];
    
     // will pass on this first vertex to compare in the select 
