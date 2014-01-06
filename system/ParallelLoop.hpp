@@ -239,7 +239,7 @@ namespace Grappa {
     Core nc = cores();
     Core fc;
     int64_t nbytes = nelem*sizeof(T);
-    GlobalAddress<int64_t> end = base+nelem;
+    auto end = base+nelem;
     if (nelem > 0) { fc = 1; }
   
     size_t block_elems = block_size / sizeof(T);
