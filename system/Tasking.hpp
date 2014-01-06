@@ -128,8 +128,7 @@ namespace Grappa {
   template < typename TF >
   void publicTask( TF tf ) {
     // TODO: implement automatic heap allocation and caching to handle larger functors
-    static_assert(sizeof(tf) <= 24,
-        "Functor argument to publicTask too large to be automatically coerced.");
+    CHECK_LE( sizeof(tf), 24) << "Functor argument to publicTask too large to be automatically coerced.";
     
     DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
     
