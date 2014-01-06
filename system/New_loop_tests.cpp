@@ -62,7 +62,7 @@ void test_loop_decomposition_global() {
   int N = 160000;
   
   my_gce.enroll();
-  impl::loop_decomposition<balancing,&my_gce>(0, N, [](int64_t start, int64_t iters) {
+  impl::loop_decomposition<balancing,GlobalCompletionEvent,&my_gce>(0, N, [](int64_t start, int64_t iters) {
     if ( start%10000==0 ) {
       VLOG(1) << "loop(" << start << ", " << iters << ")";
     }

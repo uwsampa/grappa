@@ -66,8 +66,9 @@ namespace Grappa {
     /// user-defined storage.
     ///
     /// warning: truncates int64_t's to 48 bits--should be enough for most problem sizes.
-    template< BalancingMode B, 
-              GlobalCompletionEvent * GCE = nullptr,
+    template< BalancingMode B,
+              typename CompletionType,
+              CompletionType * C = nullptr,
               int64_t Threshold = USE_LOOP_THRESHOLD_FLAG,
               typename F = decltype(nullptr) >
     void loop_decomposition(int64_t start, int64_t iterations, F loop_body) {
@@ -88,22 +89,23 @@ namespace Grappa {
         // (also need to count 2 bytes from lambda overhead or something)
         struct { long rstart:48, riters:48, origin:16; } packed = { rstart, riters, origin };
         
-        if (GCE) GCE->enroll();
+        if (C) C->enroll();
         spawn<B>([packed, loop_body] {
-          loop_decomposition<B,GCE,Threshold,F>(packed.rstart, packed.riters, loop_body);
-          if (GCE) complete(make_global(GCE,packed.origin));
+          loop_decomposition<B,CompletionType,C,Threshold,F>(packed.rstart, packed.riters, loop_body);
+          if (C) complete(make_global(C,packed.origin));
         });
         
         // left side here
-        loop_decomposition<B,GCE,Threshold,F>(start, (iterations+1)/2, loop_body);
+        loop_decomposition<B,CompletionType,C,Threshold,F>(start, (iterations+1)/2, loop_body);
       }
     }
 
     template< BalancingMode B, int64_t Threshold,
-              GlobalCompletionEvent * GCE = nullptr,
+              typename CompletionType = CompletionEvent,
+              CompletionType * C = nullptr,
               typename F = decltype(nullptr) >
     void loop_decomposition(int64_t start, int64_t iterations, F loop_body) {
-      loop_decomposition<B,GCE,Threshold>(start, iterations, loop_body);
+      loop_decomposition<B,CompletionType,C,Threshold>(start, iterations, loop_body);
     }
     
   }
@@ -114,7 +116,7 @@ namespace Grappa {
                      void (F::*mf)(int64_t,int64_t) const)
     {
       if (C) C->enroll();
-      impl::loop_decomposition<B,C,Threshold>(start, iters,
+      impl::loop_decomposition<B,CompletionType,C,Threshold>(start, iters,
         [loop_body](int64_t start, int64_t iters) {
           loop_body(start, iters);
         });
@@ -126,11 +128,12 @@ namespace Grappa {
     void forall_here(int64_t start, int64_t iters, F loop_body,
                      void (F::*mf)(int64_t) const)
     {
-      impl::forall_here<B,S,CompletionType,C,Threshold>([loop_body](int64_t s, int64_t n){
+      auto f = [loop_body](int64_t s, int64_t n){
         for (int64_t i=0; i < n; i++) {
           loop_body(s+i);
         }
-      });
+      };
+      impl::forall_here<B,S,CompletionType,C,Threshold>(start, iters, f, &decltype(f)::operator());
     }
     
   }
@@ -301,7 +304,7 @@ namespace Grappa {
                      "balancing tasks with localized forall not supported yet" );
       
       on_cores_localized_async(base, nelems, [loop_body](T* local_base, size_t nlocal){
-        forall_here<B,GCE,Threshold>(0, nlocal, [loop_body,local_base](int64_t s, int64_t n){
+        Grappa::forall_here<B,S,GCE,Threshold>(0, nlocal, [loop_body,local_base](int64_t s, int64_t n){
           loop_body(s, n, local_base+s);
         });
       });
