@@ -91,12 +91,12 @@ namespace Grappa {
         
         if (C) C->enroll();
         spawn<B>([packed, loop_body] {
-          loop_decomposition<B,CompletionType,C,Threshold,F>(packed.rstart, packed.riters, loop_body);
-          if (C) complete(make_global(C,packed.origin));
+          loop_decomposition<B,CompletionType,C,Threshold>(packed.rstart, packed.riters, loop_body);
+          if (C) C->send_completion(packed.origin);
         });
         
         // left side here
-        loop_decomposition<B,CompletionType,C,Threshold,F>(start, (iterations+1)/2, loop_body);
+        loop_decomposition<B,CompletionType,C,Threshold>(start, (iterations+1)/2, loop_body);
       }
     }
 
@@ -115,12 +115,7 @@ namespace Grappa {
     void forall_here(int64_t start, int64_t iters, F loop_body,
                      void (F::*mf)(int64_t,int64_t) const)
     {
-      if (C) C->enroll();
-      impl::loop_decomposition<B,CompletionType,C,Threshold>(start, iters,
-        [loop_body](int64_t start, int64_t iters) {
-          loop_body(start, iters);
-        });
-      if (C) C->complete();
+      impl::loop_decomposition<B,CompletionType,C,Threshold>(start, iters, loop_body);
       if (S == SyncMode::blocking && C) C->wait();
     }
     
@@ -216,6 +211,15 @@ namespace Grappa {
     forall<B,S,GCE,Threshold>(start,iters,loop_body);
   }
     
+  /// Overload
+  template< BalancingMode B,
+            GlobalCompletionEvent * GCE,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            SyncMode S = SyncMode::blocking,
+            typename F = decltype(nullptr) >
+  void forall(int64_t start, int64_t iters, F loop_body) {
+    forall<B,S,GCE,Threshold>(start,iters,loop_body);
+  }
   
   namespace impl {
     
@@ -278,7 +282,7 @@ namespace Grappa {
     Core origin = mycore();
     MessagePool pool(cores() * sizeof(Message<std::function<void(GlobalAddress<T>,int64_t,F)>>));
     
-    GCE->enroll(fc);
+    if (GCE) GCE->enroll(fc);
     struct { int64_t nelems : 48, origin : 16; } packed = { nelems, mycore() };
     
     for (Core i=0; i<fc; i++) {
@@ -288,7 +292,7 @@ namespace Grappa {
           T* local_end = (base+packed.nelems).localize();
           size_t n = local_end - local_base;
           do_on_core(local_base, n);
-          complete(make_global(GCE,packed.origin));
+          if (GCE) complete(make_global(GCE,packed.origin));
         });
       });
     }
