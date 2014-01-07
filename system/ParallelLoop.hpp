@@ -308,9 +308,11 @@ namespace Grappa {
       static_assert( B == BalancingMode::fixed,
                      "balancing tasks with localized forall not supported yet" );
       
-      on_cores_localized_async(base, nelems, [loop_body](T* local_base, size_t nlocal){
-        Grappa::forall_here<B,S,GCE,Threshold>(0, nlocal, [loop_body,local_base](int64_t s, int64_t n){
-          loop_body(s, n, local_base+s);
+      on_cores_localized_async<GCE,Threshold>(base, nelems,
+      [loop_body,base](T* local_base, size_t nlocal){
+        Grappa::forall_here<B,SyncMode::async,GCE,Threshold>(0, nlocal, 
+            [loop_body,local_base,base](int64_t s, int64_t n){
+          loop_body( make_linear(local_base+s)-base, n, local_base+s );
         });
       });
       
