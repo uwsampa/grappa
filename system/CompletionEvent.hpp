@@ -63,6 +63,9 @@ namespace Grappa {
       CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
       count = 0;
     }
+    
+    void send_completion(Core origin, int64_t decr = 1);
+  
   };
   
   /// Match ConditionVariable-style function call.
@@ -94,6 +97,14 @@ namespace Grappa {
           ce.pointer()->complete(decr);
         });
       }
+    }
+  }
+  
+  inline void CompletionEvent::send_completion(Core origin, int64_t decr) {
+    if (origin == mycore()) {
+      this->complete(decr);
+    } else {
+      Grappa::complete(make_global(this,origin), decr);
     }
   }
   
