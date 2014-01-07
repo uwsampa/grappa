@@ -138,7 +138,7 @@ namespace Grappa {
     
   }
   
-  template< BalancingMode B = BalancingMode::balancing,
+  template< BalancingMode B = BalancingMode::fixed,
             SyncMode S = SyncMode::blocking,
             CompletionEvent * CE = &impl::local_ce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
@@ -158,7 +158,7 @@ namespace Grappa {
   
   template< CompletionEvent * CE,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            BalancingMode B = BalancingMode::balancing,
+            BalancingMode B = BalancingMode::fixed,
             SyncMode S = SyncMode::blocking,
             typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
@@ -168,7 +168,7 @@ namespace Grappa {
   // Overload for specifying GCE first
   template< GlobalCompletionEvent * GCE,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            BalancingMode B = BalancingMode::balancing,
+            BalancingMode B = BalancingMode::fixed,
             SyncMode S = SyncMode::blocking,
             typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
@@ -178,7 +178,7 @@ namespace Grappa {
   // Overload for specifying Threshold first
   template< int64_t Threshold,
             GlobalCompletionEvent * GCE = &impl::local_gce,
-            BalancingMode B = BalancingMode::balancing,
+            BalancingMode B = BalancingMode::fixed,
             SyncMode S = SyncMode::blocking,
             typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
