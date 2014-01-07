@@ -97,13 +97,14 @@ void test_forall_here() {
     BOOST_CHECK_EQUAL(x, N);
   }
 
-  { LOG(INFO) << "Testing forall_here overload";
+  { VLOG(1) << "Testing forall_here overload";
     int x = 0;
     forall_here<&my_ce,2>(0, N, [&x](int64_t i) {
       CHECK(mycore() == 0);
       x++;
     });
     BOOST_CHECK_EQUAL(x, N);
+    call_on_all_cores([]{ VLOG(1) << ".. done"; });
   }
   
 }
@@ -113,11 +114,16 @@ void test_forall_global_private() {
   const int64_t N = 1 << 8;
   
   BOOST_MESSAGE("  private");
+  
+  VLOG(1) << "forall_global_private {";
+  
   forall<fixed>(0, N, [](int64_t start, int64_t iters) {
     for (int i=0; i<iters; i++) {
       test_global++;
     }
   });
+  
+  VLOG(1) << "forall_global_private }";
   
   on_all_cores([]{
     range_t r = blockDist(0,N,mycore(),cores());
@@ -125,11 +131,13 @@ void test_forall_global_private() {
     test_global = 0;
   });
 
-  forall<&my_gce>(0, N, [](int64_t i) {
+  forall<fixed,&my_gce>(0, N, [](int64_t i) {
     test_global++;
   });
   auto total = reduce<decltype(test_global),collective_add>(&test_global);
-  BOOST_CHECK_EQUAL(total, N);  
+  BOOST_CHECK_EQUAL(total, N);
+  
+  call_on_all_cores([]{ VLOG(1) << "  -- done 'forall_global_private'"; });
 }
 
 void test_forall_global_public() {
@@ -141,10 +149,17 @@ void test_forall_global_public() {
   forall<balancing>(0, N, [](int64_t s, int64_t n) {
     test_global += n;
   });
+  
+  for (int i=0; i<cores(); i++) {
+    VLOG(1) << "test_global => " << delegate::call(i, []{ return test_global; });
+  }
+  
   {
     auto total = reduce<decltype(test_global),collective_add>(&test_global);
     BOOST_CHECK_EQUAL(total, N);
   }
+  
+  VLOG(1) << "-- done";
   
   BOOST_MESSAGE("  with nested spawns"); VLOG(1) << "nested spawns";
   on_all_cores([]{ test_global = 0; });
@@ -164,10 +179,15 @@ void test_forall_global_public() {
 }
 
 void test_forall() {
-  BOOST_MESSAGE("Testing forall..."); VLOG(1) << "testing forall";
+  BOOST_MESSAGE("Testing forall (localized)..."); VLOG(1) << "testing forall (localized)";
   const int64_t N = 100;
   
   auto array = Grappa::global_alloc<int64_t>(N);
+  
+  VLOG(1) << "checking 'on_cores_localized'";
+  on_cores_localized_async(array, N, [](int64_t* local_base, size_t nelem){
+    VLOG(1) << "local_base => " << local_base <<"\nnelem => " << nelem;
+  });
   
   forall(array, N, [](int64_t i, int64_t& e) {
     e = 1;
@@ -224,7 +244,8 @@ void test_forall() {
   }
   
   VLOG(1) << ">> forall_async";
-  Grappa::memset(array, 0, N);  
+  VLOG(1) << ">>   my_gce => " << &my_gce;
+  Grappa::memset(array, 0, N);
   forall<async,&my_gce>(array, N, [](int64_t i, int64_t& e){ e = i; });
   my_gce.wait();
   
@@ -265,7 +286,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
     CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
-
+    
+    VLOG(1) << "my_gce => " << &my_gce;
+    
     test_on_all_cores();
   
     test_loop_decomposition();
