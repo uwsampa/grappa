@@ -191,18 +191,19 @@ namespace Grappa {
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = decltype(nullptr) >
   void forall(int64_t start, int64_t iters, F loop_body) {
-    // note: loop_decomp uses 2*8-byte values to specify range. We additionally track originating
-    // core. So to avoid exceeding 3*8-byte task size, we save the loop body once on each core
-    // (on `on_all_cores` task's stack) and embed the pointer to it in GCE, so each public task
-    // can look it up when run, wherever it is.
-        
-    on_all_cores([start,iters,loop_body]{
-      range_t r = blockDist(start, start+iters, mycore(), cores());
-
+    if (GCE) GCE->enroll(cores());
+    
+    struct { long s:48, n:48, o:16; } pack = { start, iters, mycore() };
+    
+    on_all_cores([pack,loop_body]{
+      range_t r = blockDist(pack.s, pack.s+pack.n, mycore(), cores());
+      
       forall_here<B,SyncMode::async,GCE,Threshold>(r.start, r.end-r.start, loop_body);
-            
-      if (S == SyncMode::blocking && GCE) GCE->wait(); // keeps captured `loop_body` around for child tasks from any core to use
+      
+      if (GCE) GCE->send_completion(pack.o);
     });
+    
+    if (S == SyncMode::blocking && GCE) GCE->wait();
   }
   
   /// Overload
