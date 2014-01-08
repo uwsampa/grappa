@@ -62,7 +62,7 @@ void test_loop_decomposition_global() {
   int N = 160000;
   
   my_gce.enroll();
-  impl::loop_decomposition<balancing,GlobalCompletionEvent,&my_gce>(0, N, [](int64_t start, int64_t iters) {
+  impl::loop_decomposition<balancing,&my_gce>(0, N, [](int64_t start, int64_t iters) {
     if ( start%10000==0 ) {
       VLOG(1) << "loop(" << start << ", " << iters << ")";
     }
@@ -88,7 +88,7 @@ void test_forall_here() {
   
   {
     int x = 0;
-    forall_here<&my_ce,2>(0, N, [&x](int64_t start, int64_t iters) {
+    forall_here<2>(0, N, [&x](int64_t start, int64_t iters) {
       CHECK(mycore() == 0);
       for (int64_t i=0; i<iters; i++) {
         x++;
@@ -99,7 +99,7 @@ void test_forall_here() {
 
   { VLOG(1) << "Testing forall_here overload";
     int x = 0;
-    forall_here<&my_ce,2>(0, N, [&x](int64_t i) {
+    forall_here<2>(0, N, [&x](int64_t i) {
       CHECK(mycore() == 0);
       x++;
     });
@@ -164,7 +164,7 @@ void test_forall_global_public() {
   BOOST_MESSAGE("  with nested spawns"); VLOG(1) << "nested spawns";
   on_all_cores([]{ test_global = 0; });
   
-  forall<balancing,blocking,&my_gce>(0, N, [](int64_t s, int64_t n){
+  forall<balancing,&my_gce>(0, N, [](int64_t s, int64_t n){
     for (int i=s; i<s+n; i++) {
       publicTask<&my_gce>([]{
         test_global++;
@@ -301,6 +301,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     test_forall();
 
     test_forall_here_async();
+    
+    Statistics::merge_and_dump_to_file();
   });
   Grappa::finalize();
 }
