@@ -46,6 +46,12 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
 #define for_each(var, arg, prefix) \
   for (auto var = prefix##_begin(arg), var##_end = prefix##_end(arg); var != var##_end; var++)
 
+#define for_each_op(var, arg) \
+  for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
+
+#define for_each_use(var, arg) \
+  for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
+
 DelegateExtractor::DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo):
   mod(mod), ginfo(ginfo)
 {
@@ -71,13 +77,13 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
         gptrs[p].stores++;
       }
       
-      for (auto op = ii.op_begin(), opend = ii.op_end(); op != opend; op++) {
+      for_each_op(op, ii) {
         if (definedInCaller(bbs, *op)) inputs.insert(*op);
         if (gvals.count(*op) > 0) {
           gptrs[gvals[*op]].uses++;
         }
       }
-      for (auto use = ii.use_begin(), useend = ii.use_end(); use != useend; use++) {
+      for_each_use(use, ii) {
         if (!definedInRegion(bbs, *use)) {
           outputs.insert(&ii);
           break;
