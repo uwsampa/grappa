@@ -67,8 +67,7 @@ namespace Grappa {
     ///
     /// warning: truncates int64_t's to 48 bits--should be enough for most problem sizes.
     template< BalancingMode B,
-              typename CompletionType,
-              CompletionType * C = nullptr,
+              GlobalCompletionEvent * C = nullptr,
               int64_t Threshold = USE_LOOP_THRESHOLD_FLAG,
               typename F = decltype(nullptr) >
     void loop_decomposition(int64_t start, int64_t iterations, F loop_body) {
@@ -91,35 +90,68 @@ namespace Grappa {
         
         if (C) C->enroll();
         spawn<B>([packed, loop_body] {
-          loop_decomposition<B,CompletionType,C,Threshold>(packed.rstart, packed.riters, loop_body);
+          loop_decomposition<B,C,Threshold>(packed.rstart, packed.riters, loop_body);
           if (C) C->send_completion(packed.origin);
         });
         
         // left side here
-        loop_decomposition<B,CompletionType,C,Threshold>(start, (iterations+1)/2, loop_body);
+        loop_decomposition<B,C,Threshold>(start, (iterations+1)/2, loop_body);
       }
     }
 
     template< BalancingMode B, int64_t Threshold,
-              typename CompletionType = CompletionEvent,
-              CompletionType * C = nullptr,
+              GlobalCompletionEvent * C = nullptr,
               typename F = decltype(nullptr) >
     void loop_decomposition(int64_t start, int64_t iterations, F loop_body) {
-      loop_decomposition<B,CompletionType,C,Threshold>(start, iterations, loop_body);
+      loop_decomposition<B,C,Threshold>(start, iterations, loop_body);
     }
     
   }
     
   namespace impl {
-    template<BalancingMode B, SyncMode S, typename CompletionType, CompletionType * C, int64_t Threshold, typename F>
+    
+    template<BalancingMode B, SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename F>
     void forall_here(int64_t start, int64_t iters, F loop_body,
                      void (F::*mf)(int64_t,int64_t) const)
     {
-      impl::loop_decomposition<B,CompletionType,C,Threshold>(start, iters, loop_body);
-      if (S == SyncMode::blocking && C) C->wait();
+      struct HeapF {
+       const F loop_body;
+       int64_t refs;
+       HeapF(F loop_body, int64_t refs): loop_body(std::move(loop_body)), refs(refs) {}
+       void ref(int64_t delta) {
+         refs += delta;
+         if (refs == 0) delete this;
+       }
+      };
+      
+      if (C == nullptr && S == SyncMode::blocking) {
+        if (B == BalancingMode::fixed) {
+          CompletionEvent ce(iters);
+          impl::loop_decomposition<B,C,Threshold>(start, iters,
+          [&loop_body,&ce](int64_t s, int64_t n){
+            loop_body(s, n);
+            ce.complete(n);
+          });
+          ce.wait();
+        } else {
+          CHECK(false) << "unimplemented, sorry!";
+        }
+      } else if (C && S == async && B == BalancingMode::fixed
+          && sizeof(F) > 8
+          && C->get_shared_ptr<F>() == nullptr) {
+        auto hf = new HeapF(loop_body, iters);
+        impl::loop_decomposition<B,C,Threshold>(start, iters,
+            [hf](int64_t s, int64_t n){
+          hf->loop_body(s, n);
+          hf->ref(-n);
+        });
+      } else {
+        impl::loop_decomposition<B,C,Threshold>(start, iters, loop_body);
+        if (S == SyncMode::blocking && C) C->wait();
+      }
     }
     
-    template<BalancingMode B, SyncMode S, typename CompletionType, CompletionType * C, int64_t Threshold, typename F>
+    template<BalancingMode B, SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename F>
     void forall_here(int64_t start, int64_t iters, F loop_body,
                      void (F::*mf)(int64_t) const)
     {
@@ -128,99 +160,124 @@ namespace Grappa {
           loop_body(s+i);
         }
       };
-      impl::forall_here<B,S,CompletionType,C,Threshold>(start, iters, f, &decltype(f)::operator());
+      impl::forall_here<B,S,C,Threshold>(start, iters, f, &decltype(f)::operator());
+    }
+    
+    template<BalancingMode B, SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename F>
+    void forall_here(int64_t start, int64_t iters, F loop_body) {
+      forall_here<B,S,C,Threshold>(start, iters, loop_body, &F::operator());
     }
     
   }
   
-  template< BalancingMode B = BalancingMode::fixed,
-            SyncMode S = SyncMode::blocking,
-            CompletionEvent * CE = &impl::local_ce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,CompletionEvent,CE,Threshold>(start, iters, loop_body, &F::operator());
-  }
-
-  template< BalancingMode B,
-            SyncMode S,
-            GlobalCompletionEvent * GCE,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GlobalCompletionEvent,GCE,Threshold>(start, iters, loop_body, &F::operator());
-  }
-  
-  template< CompletionEvent * CE,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+  template< SyncMode S = SyncMode::blocking,
             BalancingMode B = BalancingMode::fixed,
-            SyncMode S = SyncMode::blocking,
+            GlobalCompletionEvent * GCE = nullptr,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,CompletionEvent,CE,Threshold>(start, iters, loop_body, &F::operator());
+    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
   }
   
-  // Overload for specifying GCE first
+  /// Overload
+  template< BalancingMode B,
+            SyncMode S = SyncMode::blocking,
+            GlobalCompletionEvent * GCE = nullptr,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename F = decltype(nullptr) >
+  void forall_here(int64_t start, int64_t iters, F loop_body) {
+    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
+  }
+    
+  /// Overload for specifying GCE first
   template< GlobalCompletionEvent * GCE,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             BalancingMode B = BalancingMode::fixed,
             SyncMode S = SyncMode::blocking,
             typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GlobalCompletionEvent,GCE,Threshold>(start, iters, loop_body, &F::operator());
+    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
   }
   
-  // Overload for specifying Threshold first
+  /// Overload for specifying Threshold first
   template< int64_t Threshold,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
+            GlobalCompletionEvent * GCE = nullptr,
             BalancingMode B = BalancingMode::fixed,
             SyncMode S = SyncMode::blocking,
             typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body, &F::operator());
+    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
   }
   
+  namespace impl {
+  
+    template< BalancingMode B, GlobalCompletionEvent * C, int64_t Threshold, typename F >
+    void forall(int64_t start, int64_t iters, F loop_body,
+        void (F::*mf)(int64_t,int64_t) const) {
+      static_assert( C != nullptr, "GCE template arg cannot be null; need the GCE to store shared args");
+    
+      Core origin = mycore();
+      C->enroll(cores());
+      
+      on_all_cores([start,iters,origin,loop_body]{
+        
+        range_t r = blockDist(start, start+iters, mycore(), cores());
+        
+        if (sizeof(loop_body) > 8) {
+          
+          // initialize this on all cores before starting any tasks
+          C->set_shared_ptr(&loop_body);
+          barrier();
+          
+          forall_here<B,async,C,Threshold>(r.start, r.end-r.start, [](int64_t s, int64_t n){
+            auto& loop_body = *C->get_shared_ptr<F>();
+            loop_body(s,n);
+          });
+        
+          C->send_completion(origin);
+          C->wait();
+          C->set_shared_ptr(nullptr);
+          
+        } else {
+          
+          forall_here<B,async,C,Threshold>(r.start, r.end-r.start, loop_body);
+          C->send_completion(origin);
+          C->wait();
+          
+        }
+      });    
+    }
+    
+    // Convert lambda to `void(i64,i64)`
+    template< BalancingMode B, GlobalCompletionEvent * C, int64_t Threshold, typename F >
+    void forall(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t) const) {
+      auto f = [loop_body](int64_t s, int64_t n){
+        for (int64_t i=0; i < n; i++) {
+          loop_body(s+i);
+        }
+      };
+      impl::forall<B,C,Threshold>(start, iters, f, &decltype(f)::operator());
+    }
+  }
+  
+  /// Overload
   template< BalancingMode B = BalancingMode::balancing,
-            SyncMode S = SyncMode::blocking,
             GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = decltype(nullptr) >
   void forall(int64_t start, int64_t iters, F loop_body) {
-    if (GCE) GCE->enroll(cores());
-    
-    struct { long s:48, n:48, o:16; } pack = { start, iters, mycore() };
-    
-    on_all_cores([pack,loop_body]{
-      range_t r = blockDist(pack.s, pack.s+pack.n, mycore(), cores());
-      
-      forall_here<B,SyncMode::async,GCE,Threshold>(r.start, r.end-r.start, loop_body);
-      
-      if (GCE) GCE->send_completion(pack.o);
-    });
-    
-    if (S == SyncMode::blocking && GCE) GCE->wait();
+    impl::forall<B,GCE,Threshold>(start, iters, loop_body, &F::operator());
   }
   
   /// Overload
   template< GlobalCompletionEvent * GCE,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             BalancingMode B = BalancingMode::balancing,
-            SyncMode S = SyncMode::blocking,
             typename F = decltype(nullptr) >
   void forall(int64_t start, int64_t iters, F loop_body) {
-    forall<B,S,GCE,Threshold>(start,iters,loop_body);
+    forall<B,GCE,Threshold>(start,iters,loop_body);
   }
     
-  /// Overload
-  template< BalancingMode B,
-            GlobalCompletionEvent * GCE,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            SyncMode S = SyncMode::blocking,
-            typename F = decltype(nullptr) >
-  void forall(int64_t start, int64_t iters, F loop_body) {
-    forall<B,S,GCE,Threshold>(start,iters,loop_body);
-  }
-  
   namespace impl {
     
     template< GlobalCompletionEvent * GCE, int64_t Threshold, typename T, typename F >
@@ -306,11 +363,11 @@ namespace Grappa {
                                 void (F::*mf)(int64_t,int64_t,T*) const)
     {
       static_assert( B == BalancingMode::fixed,
-                     "balancing tasks with localized forall not supported yet" );
+                     "balancing tasks with localized forall not supported yet" );      
       
       on_cores_localized_async<GCE,Threshold>(base, nelems,
       [loop_body,base](T* local_base, size_t nlocal){
-        Grappa::forall_here<B,SyncMode::async,GCE,Threshold>(0, nlocal, 
+        Grappa::forall_here<B,async,GCE,Threshold>(0, nlocal, 
             [loop_body,local_base,base](int64_t s, int64_t n){
           loop_body( make_linear(local_base+s)-base, n, local_base+s );
         });
