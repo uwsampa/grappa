@@ -31,6 +31,9 @@
 
 DECLARE_uint64( num_starting_workers );
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, tasks_heap_allocated);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, tasks_created);
+
 ///
 /// Task routines
 ///
@@ -100,8 +103,10 @@ namespace Grappa {
   /// @endcode
   template < typename TF >
   void privateTask( TF tf ) {
+    tasks_created++;
     if( sizeof( tf ) > 24 ) { // if it's too big to fit in a task queue entry
       DVLOG(4) << "Heap allocated task of size " << sizeof(tf);
+      tasks_heap_allocated++;
       
       struct __attribute__((deprecated("heap allocating private task functor"))) Warning {};
       
@@ -127,6 +132,7 @@ namespace Grappa {
   /// @see Grappa::privateTask for usage.
   template < typename TF >
   void publicTask( TF tf ) {
+    tasks_created++;
     // TODO: implement automatic heap allocation and caching to handle larger functors
     CHECK_LE( sizeof(tf), 24) << "Functor argument to publicTask too large to be automatically coerced.";
     

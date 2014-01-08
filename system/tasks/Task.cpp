@@ -63,6 +63,9 @@ GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, private_queue_size, []() {
     });
 
 
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, tasks_heap_allocated, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, tasks_created, 0);
+
 namespace Grappa {
   namespace impl {
 
