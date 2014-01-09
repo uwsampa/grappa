@@ -51,7 +51,7 @@ namespace Grappa {
   ///   forall<unbound>(...)
   ///   forall<unbound,async>(...)
   /// @endcode
-  #define unbound TaskMode::Unbound
+  #define unbound Grappa::TaskMode::Unbound
 #endif
   
 #ifndef GRAPPA_NO_ABBREV
@@ -62,7 +62,7 @@ namespace Grappa {
   ///   delegate::call<async>(...)
   ///   delegate::write<async>(...)
   /// @endcode
-  #define async SyncMode::Async
+  #define async Grappa::SyncMode::Async
 #endif
   
 }
