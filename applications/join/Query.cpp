@@ -76,7 +76,7 @@ void user_main( int * ignore ) {
   tuple_graph tg;
 
   if (FLAGS_fin.compare("") != 0) {
-    tg = readTuples( FLAGS_fin, FLAGS_finNumTuples );
+    tg = readEdges( FLAGS_fin, FLAGS_finNumTuples );
   } else {
     int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
     int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;

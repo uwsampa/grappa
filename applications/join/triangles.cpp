@@ -335,7 +335,7 @@ void user_main( int * ignore ) {
     VLOG(1) << "Reading data from " << FLAGS_fin;
     
     tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
-    readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
+    readEdges( FLAGS_fin, tuples, FLAGS_file_num_tuples );
     num_tuples = FLAGS_file_num_tuples;
     
     print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );

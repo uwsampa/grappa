@@ -236,7 +236,7 @@ void user_main( int * ignore ) {
     
     tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
     read_start = Grappa_walltime();
-    readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
+    readEdges( FLAGS_fin, tuples, FLAGS_file_num_tuples );
     read_end = Grappa_walltime();
     num_tuples = FLAGS_file_num_tuples;
     

@@ -189,7 +189,7 @@ void user_main( int * ignore ) {
     generate_data( tuples, FLAGS_numTuples );
   } else {
     VLOG(1) << "Reading data from " << FLAGS_in;
-    readTuples( FLAGS_in, tuples, FLAGS_numTuples );
+    readEdges( FLAGS_in, tuples, FLAGS_numTuples );
   }
 
   DHT_type::init_global_DHT( &joinTable, 64 );
