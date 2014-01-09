@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "AsyncDelegate.hpp"

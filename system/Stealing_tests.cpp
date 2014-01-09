@@ -90,16 +90,16 @@ void task_local( task1_arg * arg ) {
     // this task should not have been stolen and running on 0 
     BOOST_CHECK_EQUAL( 0, Grappa::mycore() );
 
-    BOOST_MESSAGE( CURRENT_THREAD << " with task(local) " << mynum << " about to enter multi barrier" );
-    threads[mynum] = CURRENT_THREAD; // store my Worker ptr in local global array
+    BOOST_MESSAGE( Grappa::current_worker() << " with task(local) " << mynum << " about to enter multi barrier" );
+    threads[mynum] = Grappa::current_worker(); // store my Worker ptr in local global array
     multiBarrier( mynum );
     
     // increment the global counter
     GlobalAddress<int64_t> nf_addr = GlobalAddress<int64_t>::TwoDimensional( &num_finished, 0 );
     int64_t result = Grappa_delegate_fetch_and_add_word( nf_addr, 1 );
-    BOOST_MESSAGE( CURRENT_THREAD << " with task(local) called fetch add=" << result );
+    BOOST_MESSAGE( Grappa::current_worker() << " with task(local) called fetch add=" << result );
     if ( result == num_tasks-1 ) {
-        BOOST_MESSAGE( CURRENT_THREAD << " with task(local) " << mynum << " result=" << result );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task(local) " << mynum << " result=" << result );
         Grappa::wake( parent );
     }
 }
@@ -125,16 +125,16 @@ void task_stolen( task1_arg * arg ) {
     }
 
     // wake the corresponding task on Core 0
-    BOOST_MESSAGE( CURRENT_THREAD << " with task(stolen) " << mynum << " about to enter multi barrier" );
-    threads[mynum] = CURRENT_THREAD; // store my Worker ptr in local global array
+    BOOST_MESSAGE( Grappa::current_worker() << " with task(stolen) " << mynum << " about to enter multi barrier" );
+    threads[mynum] = Grappa::current_worker(); // store my Worker ptr in local global array
     multiBarrier( mynum );
     
     // increment the global counter
     GlobalAddress<int64_t> nf_addr = GlobalAddress<int64_t>::TwoDimensional( &num_finished, 0 );
     int64_t result = Grappa_delegate_fetch_and_add_word( nf_addr, 1 );
-    BOOST_MESSAGE( CURRENT_THREAD << " with task(stolen) called fetch add=" << result );
+    BOOST_MESSAGE( Grappa::current_worker() << " with task(stolen) called fetch add=" << result );
     if ( result == num_tasks-1 ) {
-        BOOST_MESSAGE( CURRENT_THREAD << " with task(stolen) " << mynum << " result=" << result );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task(stolen) " << mynum << " result=" << result );
         wake_arg wwarg = { parent };
         Grappa_call_on( 0, &wake_f, &wwarg );
     }     
@@ -145,7 +145,7 @@ void dummy_f( task1_arg * arg ) {
     // must wait until all stolen tasks start
     BOOST_MESSAGE( "dummy start" );
     while ( num_stolen_started < (Grappa::cores()-1)*tasks_per_node) {
-        dummy_thr = CURRENT_THREAD;
+        dummy_thr = Grappa::current_worker();
         Grappa::suspend();
     }
     BOOST_MESSAGE( "dummy done" );
@@ -164,7 +164,7 @@ void user_main(void * args )
       }
   }
   for (int ta = 0; ta<tasks_per_node; ta++) {
-    argss[ta] = { ta, CURRENT_THREAD };
+    argss[ta] = { ta, Grappa::current_worker() };
     Grappa_publicTask( &task_local, &argss[ta] );
   }
   // another task to allow the last steal to happen ( localdepth > 2*chunkize)

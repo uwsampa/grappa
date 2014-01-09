@@ -1,7 +1,6 @@
 #ifndef BUFFER_VECTOR
 #define BUFFER_VECTOR
 
-#include "Grappa.hpp"
 #include "LocaleSharedMemory.hpp"
 
 #include <stdlib.h>

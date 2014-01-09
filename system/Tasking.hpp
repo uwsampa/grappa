@@ -9,7 +9,6 @@
 
 // This file contains the Grappa task spawning API
 
-//#include "Grappa.hpp"
 #include "tasks/Task.hpp"
 #include "tasks/TaskingScheduler.hpp"
 #include "StateTimer.hpp"

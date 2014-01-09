@@ -11,7 +11,6 @@
 #include <gperftools/heap-checker.h>
 #endif
 
-#include "Grappa.hpp"
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
 #include "Cache.hpp"
@@ -32,6 +31,8 @@
 #include "Statistics.hpp"
 
 #include <fstream>
+
+#include "Grappa.hpp"
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -60,7 +61,6 @@ using namespace Grappa;
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
-double Grappa::tick_rate = 0.0;
 static int jobid = 0;
 static const char * nodelist_str = NULL;
 
@@ -71,6 +71,8 @@ HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
 namespace Grappa {
+  
+  double tick_rate = 0.0;
   
   static Worker * barrier_thread = NULL;
 
@@ -86,7 +88,20 @@ namespace Grappa {
     int64_t global_bytes_per_core = 0;
     int64_t global_bytes_per_locale = 0;
 
+    /// Tell all nodes that we are ready to exit.
+    /// This will terminate the automatic portions of the communication layer
+    void signal_done() { 
+      VLOG(5) << "mark done";
+      Grappa_done_flag = true;
+    }
   }
+
+  
+}
+
+/// Check whether we are ready to exit.
+bool Grappa_done() {
+  return Grappa_done_flag;
 }
 
 /// Body of the polling thread.
@@ -153,16 +168,15 @@ static void stats_dump_sighandler( int signum ) {
 
 // function to call when google logging library detect a failure
 namespace Grappa {
-namespace impl {
-
-void  failure_function() {
-  google::FlushLogFiles(google::GLOG_INFO);
-  google::DumpStackTrace();
-  gasnett_freezeForDebuggerErr();
-  gasnet_exit(1);
-}
-
-}
+  namespace impl {
+    /// called on failures to backtrace and pause for debugger
+    void failure_function() {
+      google::FlushLogFiles(google::GLOG_INFO);
+      google::DumpStackTrace();
+      gasnett_freezeForDebuggerErr();
+      gasnet_exit(1);
+    }
+  }
 }
 
 DECLARE_bool( global_memory_use_hugepages );
@@ -403,11 +417,6 @@ bool Grappa_global_queue_isInit() {
 /// Job exit routines
 ///
 
-/// Check whether we are ready to exit.
-bool Grappa_done() {
-  return Grappa_done_flag;
-}
-
 //// termination fork join declaration
 //LOOP_FUNCTION(signal_task_termination_func,nid) {
 //    global_task_manager.signal_termination();
@@ -473,15 +482,6 @@ int Grappa_finish( int retval )
 }
 
 namespace Grappa {
-
-  namespace impl {
-    /// Tell all nodes that we are ready to exit.
-    /// This will terminate the automatic portions of the communication layer
-    void signal_done() { 
-      VLOG(5) << "mark done";
-      Grappa_done_flag = true;
-    }
-  }
 
   void init( int * argc_p, char ** argv_p[], size_t size ) {
     Grappa_init( argc_p, argv_p, size );

@@ -14,7 +14,6 @@
 #include <boost/scoped_ptr.hpp>
 
 
-#include "Grappa.hpp"
 #include "Allocator.hpp"
 
 #include "Delegate.hpp"

@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include "Grappa.hpp"
 #include "Message.hpp"
 #include "FullEmptyLocal.hpp"
 #include "Message.hpp"

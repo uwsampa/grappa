@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
-#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "Tasking.hpp"
 #include "ParallelLoop.hpp"

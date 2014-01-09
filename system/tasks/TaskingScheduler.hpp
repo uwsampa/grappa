@@ -572,8 +572,8 @@ extern TaskingScheduler global_scheduler;
 /// @{
 
 
-inline Worker& current_worker() {
-  return *impl::global_scheduler.get_current_thread();
+inline Worker* current_worker() {
+  return impl::global_scheduler.get_current_thread();
 }
 
 /// Yield to scheduler, placing current Worker on run queue.

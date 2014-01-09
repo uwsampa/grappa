@@ -8,7 +8,6 @@
 #ifndef COLLECTIVE_HPP
 #define COLLECTIVE_HPP
 
-//#include "Grappa.hpp"
 //#include "common.hpp"
 #include "CompletionEvent.hpp"
 #include "Message.hpp"

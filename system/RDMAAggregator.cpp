@@ -16,8 +16,8 @@
 
 namespace Grappa {
   namespace impl {
-    // defined in Grappa.hpp
-    void failure_function();
+    // defined in Grappa.cpp
+    extern void failure_function();
   }
 }
 

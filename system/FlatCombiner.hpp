@@ -165,7 +165,7 @@ public:
     Grappa::wait(&s->cv);
     
     // on wake...
-    if (&current_worker() == s->sender) { // I was assigned to send
+    if (Grappa::current_worker() == s->sender) { // I was assigned to send
       if (s == current) {
         current = get_flusher(s);
       }
@@ -177,7 +177,7 @@ public:
   }
 
   void flush(Flusher * s) {
-    s->sender = &current_worker(); // (if not set already)
+    s->sender = Grappa::current_worker(); // (if not set already)
     DVLOG(4) << "flushing (" << s->sender << "), s(" << s << ") (this:" << this << ")";
     
     s->id->sync();
