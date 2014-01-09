@@ -263,23 +263,25 @@ namespace Grappa {
     }
   }
   
-  /// Overload
-  template< TaskMode B = TaskMode::Unbound,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename F = decltype(nullptr) >
-  void forall(int64_t start, int64_t iters, F loop_body) {
-    impl::forall<B,GCE,Threshold>(start, iters, loop_body, &F::operator());
+#define FORALL_OVERLOAD(...) \
+  template< __VA_ARGS__, typename F = decltype(nullptr) > \
+  void forall(int64_t start, int64_t iters, F loop_body) { \
+    impl::forall<B,GCE,Threshold>(start, iters, loop_body, &F::operator()); \
   }
   
-  /// Overload
-  template< GlobalCompletionEvent * GCE,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            TaskMode B = TaskMode::Unbound,
-            typename F = decltype(nullptr) >
-  void forall(int64_t start, int64_t iters, F loop_body) {
-    forall<B,GCE,Threshold>(start,iters,loop_body);
-  }
+  FORALL_OVERLOAD(TaskMode B = TaskMode::Unbound,
+                  GlobalCompletionEvent * GCE = &impl::local_gce,
+                  int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
+  
+  FORALL_OVERLOAD(GlobalCompletionEvent * GCE,
+                  int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+                  TaskMode B = TaskMode::Unbound);
+
+  FORALL_OVERLOAD(int64_t Threshold,
+                  GlobalCompletionEvent * GCE = &impl::local_gce,
+                  TaskMode B = TaskMode::Unbound);
+  
+#undef FORALL_OVERLOAD
     
   namespace impl {
     
