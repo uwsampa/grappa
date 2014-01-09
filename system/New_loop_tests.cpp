@@ -50,7 +50,7 @@ void test_loop_decomposition() {
   
   CompletionEvent ce(N);
   
-  impl::loop_decomposition<fixed,2>(0, N, [&ce](int64_t start, int64_t iters) {
+  impl::loop_decomposition<TaskMode::Bound,2>(0, N, [&ce](int64_t start, int64_t iters) {
     VLOG(1) << "loop(" << start << ", " << iters << ")";
     ce.complete(iters);
   });
@@ -62,7 +62,7 @@ void test_loop_decomposition_global() {
   int N = 160000;
   
   my_gce.enroll();
-  impl::loop_decomposition<balancing,&my_gce>(0, N, [](int64_t start, int64_t iters) {
+  impl::loop_decomposition<unbound,&my_gce>(0, N, [](int64_t start, int64_t iters) {
     if ( start%10000==0 ) {
       VLOG(1) << "loop(" << start << ", " << iters << ")";
     }
@@ -117,7 +117,7 @@ void test_forall_global_private() {
   
   VLOG(1) << "forall_global_private {";
   
-  forall<fixed>(0, N, [](int64_t start, int64_t iters) {
+  forall(0, N, [](int64_t start, int64_t iters) {
     for (int i=0; i<iters; i++) {
       test_global++;
     }
@@ -131,7 +131,7 @@ void test_forall_global_private() {
     test_global = 0;
   });
 
-  forall<fixed,&my_gce>(0, N, [](int64_t i) {
+  forall<&my_gce>(0, N, [](int64_t i) {
     test_global++;
   });
   auto total = reduce<decltype(test_global),collective_add>(&test_global);
@@ -146,7 +146,7 @@ void test_forall_global_public() {
   
   on_all_cores([]{ test_global = 0; });
   
-  forall<balancing>(0, N, [](int64_t s, int64_t n) {
+  forall<unbound>(0, N, [](int64_t s, int64_t n) {
     test_global += n;
   });
   
@@ -164,7 +164,7 @@ void test_forall_global_public() {
   BOOST_MESSAGE("  with nested spawns"); VLOG(1) << "nested spawns";
   on_all_cores([]{ test_global = 0; });
   
-  forall<balancing,&my_gce>(0, N, [](int64_t s, int64_t n){
+  forall<unbound,&my_gce>(0, N, [](int64_t s, int64_t n){
     for (int i=s; i<s+n; i++) {
       publicTask<&my_gce>([]{
         test_global++;
@@ -178,7 +178,7 @@ void test_forall_global_public() {
   }
 }
 
-void test_forall() {
+void test_forall_localized() {
   BOOST_MESSAGE("Testing forall (localized)..."); VLOG(1) << "testing forall (localized)";
   const int64_t N = 100;
   
@@ -270,7 +270,7 @@ void test_forall_here_async() {
   char * y = new char[N];
 // test with different loop_thresholds
   impl::local_gce.enroll(1);
-  forall_here<fixed,async,&impl::local_gce>( 0, N, [x,y](int64_t s, int64_t i) {
+  forall_here<async,&impl::local_gce>( 0, N, [x,y](int64_t s, int64_t i) {
     for (int ii=0; ii<i; ii++) {
       y[s+ii] = (char) 0xff & x;
     }
@@ -298,7 +298,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     test_forall_global_private();
     test_forall_global_public();
   
-    test_forall();
+    test_forall_localized();
 
     test_forall_here_async();
     

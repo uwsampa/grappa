@@ -153,19 +153,12 @@ namespace Grappa {
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
   
-  
-  enum class BalancingMode { fixed, balancing };
-  
-// #ifdef GRAPPA_ABBREV
-  using BalancingMode::fixed;
-  using BalancingMode::balancing;
-// #endif
-  
-  template< BalancingMode B = BalancingMode::fixed, typename F = decltype(nullptr) >
+    
+  template< TaskMode B = TaskMode::Bound, typename F = decltype(nullptr) >
   void spawn(F f) {
-    if (B == BalancingMode::fixed) {
+    if (B == TaskMode::Bound) {
       privateTask(f);
-    } else if (B == BalancingMode::balancing) {
+    } else if (B == TaskMode::Unbound) {
       publicTask(f);
     }
   }

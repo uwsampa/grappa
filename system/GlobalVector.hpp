@@ -442,13 +442,13 @@ public:
     auto self = this->self;
     auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
     if (a.size == self->capacity) {
-      forall<async,GCE,Threshold>(self->base, self->capacity, func);
+      forall<SyncMode::Async,GCE,Threshold>(self->base, self->capacity, func);
     } else if (a.start < a.end) {
       Range r = {a.start, a.end};
-      forall<async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+      forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
     } else if (a.start > a.end) {
       for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
-        forall<async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+        forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
       }
     }
     GCE->wait();

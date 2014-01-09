@@ -30,7 +30,14 @@
 #define GRAPPA_DEPRECATED __attribute__((deprecated))
 
 namespace Grappa {
-
+  
+  /// Specify whether tasks are bound to the core they're spawned on, or if they can be load-balanced (via work-stealing).
+  enum class TaskMode { Bound /*default*/, Unbound };
+    
+  /// Specify whether an operation blocks until complete, or returns "immediately".
+  enum class SyncMode { Blocking /*default*/, Async };
+    
+  
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
 inline double walltime(void) {
 #if defined(__MTA__)
