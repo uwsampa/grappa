@@ -259,17 +259,17 @@ namespace Grappa {
     impl::forall<B,GCE,Threshold>(start, iters, loop_body, &F::operator()); \
   }
   
-  FORALL_OVERLOAD(TaskMode B = TaskMode::Unbound,
+  FORALL_OVERLOAD(TaskMode B = TaskMode::Bound,
                   GlobalCompletionEvent * GCE = &impl::local_gce,
                   int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
   
   FORALL_OVERLOAD(GlobalCompletionEvent * GCE,
                   int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-                  TaskMode B = TaskMode::Unbound);
+                  TaskMode B = TaskMode::Bound);
 
   FORALL_OVERLOAD(int64_t Threshold,
                   GlobalCompletionEvent * GCE = &impl::local_gce,
-                  TaskMode B = TaskMode::Unbound);
+                  TaskMode B = TaskMode::Bound);
   
 #undef FORALL_OVERLOAD
     
