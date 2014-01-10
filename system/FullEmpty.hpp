@@ -43,7 +43,7 @@ namespace Grappa {
       }
       
       DVLOG(2) << "setting up to block (" << fe_addr << ")";
-      auto* c = new_suspended_delegate([&fe,result_addr]{
+      auto* c = SuspendedDelegate::create([&fe,result_addr]{
         VLOG(0) << "suspended_delegate!";
         fill_remote(result_addr, fe.readFF());
       });

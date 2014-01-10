@@ -106,7 +106,7 @@ public:
             invoke(m->deq_q.pop());
           }
           DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
-          m->ce.wait(new_suspended_delegate([self,m,c] {
+          m->ce.wait(SuspendedDelegate::create([self,m,c] {
             switch (c) {
               case Choice::PUSH: m->tail = m->tail_allocator; break;
               case Choice::POP:  m->tail_allocator = m->tail; break;
@@ -136,7 +136,7 @@ public:
         m->ce.enroll();
         invoke(m->deq_q.pop());
       }
-      m->ce.wait(new_suspended_delegate([self,m,ncombined] {
+      m->ce.wait(SuspendedDelegate::create([self,m,ncombined] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
         m->tail = m->tail_allocator;
         m->head = m->head_allocator;
@@ -147,7 +147,7 @@ public:
           invoke(m->pop_q.pop());
         }
         global_vector_master_combined += ncombined2;
-        m->ce.wait(new_suspended_delegate([self,m] {
+        m->ce.wait(SuspendedDelegate::create([self,m] {
           DVLOG(2) << "after pops: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
           m->tail_allocator = m->tail;
           // find new combiner...
@@ -169,7 +169,7 @@ public:
       auto do_call = [self,result_addr,yield_q,func]{
         auto m = &self->master;
         auto q = yield_q(m);
-        q->push(new_suspended_delegate([result_addr,func]{
+        q->push(SuspendedDelegate::create([result_addr,func]{
           auto val = func();
           auto set_result = [result_addr,val]{ result_addr->writeXF(val); };
           

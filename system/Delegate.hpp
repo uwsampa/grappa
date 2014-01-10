@@ -188,7 +188,7 @@ namespace Grappa {
             // lock(l);
             set_result(func(l));
           } else {
-            add_waiter(l, new_suspended_delegate([set_result,func,l]{
+            add_waiter(l, SuspendedDelegate::create([set_result,func,l]{
               // lock(l);
               CHECK(is_unlocked(l));
               set_result(func(l));
