@@ -26,6 +26,13 @@
 
 #include "Message.hpp"
 
+#include "Delegate.hpp"
+#include "AsyncDelegate.hpp"
+#include "Collective.hpp"
+#include "ParallelLoop.hpp"
+#include "GlobalAllocator.hpp"
+// #include "Cache.hpp"
+
 //#include <typeinfo>
 //#include <cxxabi.h>
 
