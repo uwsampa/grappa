@@ -56,10 +56,10 @@ GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields );
 
 GRAPPA_DECLARE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time );
 
-extern double tick_rate;
-
 
 namespace Grappa {
+  
+  extern double tick_rate;
 
   typedef Core Core;
 
