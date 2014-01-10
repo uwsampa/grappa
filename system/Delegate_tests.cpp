@@ -21,13 +21,13 @@ int64_t some_data = 1234;
 
 double some_double = 123.0;
 
-// int64_t other_data __attribute__ ((aligned (2048))) = 0;
+int64_t other_data __attribute__ ((aligned (2048))) = 0;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
     
-    BOOST_CHECK_EQUAL( 2, Grappa::cores() );
+    // BOOST_CHECK_EQUAL( 2, Grappa::cores() );
     // try read
     some_data = 1111;
     int64_t remote_data = delegate::read( make_global(&some_data,1) );
@@ -67,14 +67,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( 3333, remote_data );
   
     // try linear global address
-
+    
     // initialize
     auto i64_per_block = block_size / sizeof(int64_t);
-    auto other_data_addr = global_alloc<int64_t>( i64_per_block * 2 );
-    auto& other_data = *other_data_addr.pointer();
     
-    delegate::write(other_data_addr, 0);
-    delegate::write(other_data_addr+i64_per_block, 1);
+    call_on_all_cores([]{ other_data = mycore(); });
     
     int * foop = new int;
     *foop = 1234;
@@ -82,13 +79,16 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
 
     // hack the test
-    void* prev_base = Grappa::impl::global_memory_chunk_base;
-    Grappa::impl::global_memory_chunk_base = 0;
+    // void* prev_base = Grappa::impl::global_memory_chunk_base;
+    call_on_all_cores([]{
+      Grappa::impl::global_memory_chunk_base = 0;
+    });
 
     // make address
     BOOST_MESSAGE( "pointer is " << &other_data );
-    GlobalAddress< int64_t > la = make_linear( &other_data );
 
+    GlobalAddress< int64_t > la = make_linear( &other_data );
+    
     // check pointer computation
     BOOST_CHECK_EQUAL( la.node(), 0 );
     BOOST_CHECK_EQUAL( la.pointer(), &other_data );
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( 0, other_data );
     remote_data = delegate::read( la );
     BOOST_CHECK_EQUAL( 0, remote_data );
-
+    
     // change pointer and check computation
     ++la;
     BOOST_CHECK_EQUAL( la.node(), 0 );
@@ -106,16 +106,16 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     // change pointer and check computation
     la += (i64_per_block-1);
     BOOST_CHECK_EQUAL( la.node(), 1 );
-
+    
     // check remote data
     remote_data = delegate::read( la );
     BOOST_CHECK_EQUAL( 1, remote_data );
-  
+
     // check template read
     // try read
     remote_data = delegate::read( make_global(&some_data,1) );
     BOOST_CHECK_EQUAL( 3333, remote_data );
-
+    
   });
   Grappa::finalize();
 }
