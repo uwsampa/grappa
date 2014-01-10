@@ -173,44 +173,34 @@ namespace Grappa {
   }
   
   /// Overload
-  template< TaskMode B,
-            SyncMode S = SyncMode::Blocking,
-            GlobalCompletionEvent * GCE = nullptr,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
+#define FORALL_HERE_OVERLOAD(...)  \
+  template< __VA_ARGS__, typename F = decltype(nullptr) > \
+  void forall_here(int64_t start, int64_t iters, F loop_body) { \
+    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body); \
   }
 
-  /// Overload
-  template< SyncMode S,
-            GlobalCompletionEvent * GCE = nullptr,
-            TaskMode B = TaskMode::Bound,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
-  }
+  FORALL_HERE_OVERLOAD(TaskMode B,
+                       SyncMode S = SyncMode::Blocking,
+                       GlobalCompletionEvent * GCE = nullptr,
+                       int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
+
+  FORALL_HERE_OVERLOAD(SyncMode S,
+                       GlobalCompletionEvent * GCE = nullptr,
+                       TaskMode B = TaskMode::Bound,
+                       int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
     
-  /// Overload for specifying GCE first
-  template< GlobalCompletionEvent * GCE,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            TaskMode B = TaskMode::Bound,
-            SyncMode S = SyncMode::Blocking,
-            typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
-  }
+                  
+  FORALL_HERE_OVERLOAD(GlobalCompletionEvent * GCE,
+                       int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+                       TaskMode B = TaskMode::Bound,
+                       SyncMode S = SyncMode::Blocking);
   
-  /// Overload for specifying Threshold first
-  template< int64_t Threshold,
-            GlobalCompletionEvent * GCE = nullptr,
-            TaskMode B = TaskMode::Bound,
-            SyncMode S = SyncMode::Blocking,
-            typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    impl::forall_here<B,S,GCE,Threshold>(start, iters, loop_body);
-  }
+  FORALL_HERE_OVERLOAD(int64_t Threshold,
+                       GlobalCompletionEvent * GCE = nullptr,
+                       TaskMode B = TaskMode::Bound,
+                       SyncMode S = SyncMode::Blocking);
+  
+#undef FORALL_HERE_OVERLOAD
   
   namespace impl {
   
