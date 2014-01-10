@@ -170,7 +170,7 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
     DVLOG(4) << "key " << *t << " finds (" << results << ", " << num_results << ")";
     
     async_parallel_for<Tuple, secondJoin, joinerSpawn<Tuple,secondJoin,ASYNC_PAR_FOR_DEFAULT>, ASYNC_PAR_FOR_DEFAULT >( results, num_results );
-    forall_here_async_public( resultsIndex, num_results 
+    forall_here<unbound,async>(resultsIndex, num_results 
 
     });
 

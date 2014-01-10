@@ -61,7 +61,7 @@ template< Exp EXP >
 double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
   double t = Grappa::walltime();
   
-  forall_global_private(0, FLAGS_nelems, [qa](int64_t i){
+  forall(0, FLAGS_nelems, [qa](int64_t i){
     if (EXP == Exp::QUEUE) {
       
       if (choose_random(FLAGS_fraction_push)) {

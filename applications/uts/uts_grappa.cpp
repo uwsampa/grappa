@@ -318,7 +318,7 @@ void tj_create_children( uts::Node * parent ) {
   DVLOG(5) << "[done] released vertex " << vvert_storage << " id=" << parent->id;
 
   int64_t parentID = parent->id;
-  forall_here_async_public< &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
+  forall_here<unbound,async, &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
     tj_create_vertex( start, iters, parentID );
   });   
 }
@@ -347,7 +347,7 @@ void search_vertex( int64_t id ) {
   }
 
   // iterate over my children 
-  forall_here_async_public< &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
+  forall_here<unbound,async, &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
       int64_t c0;
       {
         // all iterations in the range share the relevant chunk of the child list

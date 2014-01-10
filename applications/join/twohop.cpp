@@ -148,7 +148,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
    
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
-    forall_here_async_public( results_idx, num_results, [x1](int64_t start, int64_t iters) {
+    forall_here<unbound,async>(results_idx, num_results, [x1](int64_t start, int64_t iters) {
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( IndexBase+start, iters, &subset_stor );
 #else // MATCHES_DHT
@@ -158,8 +158,8 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
     
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
-    /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
-    forall_here_async( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
+    /* not yet supported: forall_here<unbound,async, GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
+    forall_here<async>( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif

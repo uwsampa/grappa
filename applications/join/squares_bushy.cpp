@@ -146,7 +146,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   // finding the abc, and hashing to h(a,c)
   forall<async>( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
     VLOG(5) << "a iteration " << ai;
-      forall_here_async( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
+      forall_here<async>( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
         ir1_count++; // count(E1)
         auto b_ind = a.local_adj[i];
@@ -157,7 +157,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
           auto b = *(b_ptr.pointer());
           ir2_count += b.nadj; // count(E1xE2)
           // forall neighbors of b
-          forall_here_async<&impl::local_gce>( 0, b.nadj, [ai,b,b_ind](int64_t start, int64_t iters) {
+          forall_here<async,&impl::local_gce>( 0, b.nadj, [ai,b,b_ind](int64_t start, int64_t iters) {
             for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto c_ind = b.local_adj[i];
             auto owner = h(ai, c_ind);
@@ -180,7 +180,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   // finding the cda, and hashing to h(a,c)
   forall<async>( E3_index->vs, E3_index->nv, [](int64_t ci, Vertex& c) {
     VLOG(5) << "c iteration " << ci;
-      forall_here_async<&impl::local_gce>( 0, c.nadj, [c,ci](int64_t start, int64_t iters) {
+      forall_here<async,&impl::local_gce>( 0, c.nadj, [c,ci](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
         auto d_ind = c.local_adj[i];
         auto d_ptr = E4_index->vs + d_ind;
@@ -190,7 +190,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
           auto d = *(d_ptr.pointer());
           ir3_count += d.nadj; // count(E3xE4)
           // forall neighbors of d
-          forall_here_async<&impl::local_gce>( 0, d.nadj, [ci,d,d_ind](int64_t start, int64_t iters) {
+          forall_here<async,&impl::local_gce>( 0, d.nadj, [ci,d,d_ind](int64_t start, int64_t iters) {
             for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto a_ind = d.local_adj[i];
             auto owner = h(a_ind, ci);

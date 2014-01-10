@@ -45,7 +45,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
   });
 
   // forall rows
-  forall_global_public<&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
+  forall<unbound,&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
     // serialized chunk of rows
     DVLOG(5) << "rows [" << start << ", " << start+iters << ")";
     for (int64_t i=start; i<start+iters; i++ ) {
@@ -56,7 +56,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
       int64_t kend = cxoff[1];
 
       // forall non-zero columns (parallel dot product)
-      forall_here_async_public<&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
+      forall_here<unbound,async,&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
         double yaccum = 0;
 
         // serialized chunk of columns

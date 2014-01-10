@@ -82,7 +82,7 @@ tuple_graph readTuples( std::string fn, int64_t numTuples ) {
 //  std::regex rgx("\\s+");
 
   // synchronous IO with asynchronous write
-  Grappa::forall_here_async<&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+  Grappa::forall_here<async,&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );

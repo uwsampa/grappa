@@ -65,12 +65,11 @@ enum class Exp { INSERT };
 
 template< Exp EXP,
           typename K, typename V,
-          CompletionEvent* CE = &impl::local_ce,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
 double test_insert_throughput(GlobalAddress<GlobalHashMap<K,V>> ha) {
   double t = Grappa::walltime();
 
-  forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
+  forall<TH>(0, FLAGS_nelems, [ha](int64_t i){
     auto k = next_random<long>() % FLAGS_max_key;
     if (choose_random(FLAGS_fraction_lookups)) {
       K v;
@@ -96,7 +95,7 @@ void test_correctness() {
     BOOST_CHECK_EQUAL(val, 42);
   }
   
-  forall_global_private(10, FLAGS_nelems-10, [ha](int64_t i){
+  forall(10, FLAGS_nelems-10, [ha](int64_t i){
     ha->insert(i, 42);
   });
 
@@ -130,21 +129,20 @@ void test_set_correctness() {
   sa->destroy();
 }
 
-CompletionEvent lce;
-
 double test_set_insert_throughput() {
   auto sa = GlobalHashSet<long>::create(FLAGS_global_hash_size);
   
   double t = walltime();
   
-  forall_global_private<&lce>(0, FLAGS_nelems, [sa](int64_t i){
+  forall(0, FLAGS_nelems, [sa](int64_t i){
     auto k = next_random<long>() % FLAGS_max_key;
     if (choose_random(FLAGS_fraction_lookups)) {
       sa->lookup(k);
     } else {
       if (FLAGS_insert_async) {
-        lce.enroll();
-        sa->insert_async(k, []{ lce.complete(); });
+        default_gce().enroll();
+        auto origin = mycore();
+        sa->insert_async(k, [origin]{ default_gce().send_completion(origin); });
       } else {
         sa->insert(k);
       }
@@ -169,7 +167,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         trial_time += test_insert_throughput<Exp::INSERT>(ha);
         ha->clear();
       }
-    
+      
       ha->destroy();
     
     } else if (FLAGS_set_perf) { 

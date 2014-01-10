@@ -117,7 +117,7 @@ Instead of spawning tasks individually, it's almost always better to use a paral
 
 Basic loops include:
 * `forall_global()`: launches public (stealable) tasks on all cores in the system.
-* `forall_global_private()`: launches private tasks on all cores, regardless of locality.
+* `forall()`: launches private tasks on all cores, regardless of locality.
 * `forall(GlobalAddress,size_t,lambda)`: launches private tasks with iterations corresponding to a range of global address space to allow sequential access to array elements without excess communication.
 
 See Doxygen for more details.

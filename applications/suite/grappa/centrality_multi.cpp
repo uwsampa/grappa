@@ -103,7 +103,7 @@ void do_bfs_push_multi(graphint d_phase_, int64_t start, int64_t end) {
       DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
       
       ce.enroll(vend-vstart);
-      forall_here_async(vstart, vend-vstart, [v,&ce](int64_t vs, int64_t kiters) {
+      forall_here<async>(vstart, vend-vstart, [v,&ce](int64_t vs, int64_t kiters) {
         // TODO: overlap these      
         graphint sigmav = local::read(c.sigma+v);
         graphint vStart = delegate::read(g.edgeStart+v);
@@ -149,7 +149,7 @@ void do_bfs_pop_multi(graphint start, graphint end) {
       // pop children, TODO: try with very coarse decomp, cache large blocks at a time
       ce.enroll(myEnd-myStart);
       // TODO: make sure lambda's not being heap-allocated?
-      forall_here_async(myStart, myEnd-myStart, [v,&ce](int64_t kstart, int64_t kiters){
+      forall_here<async>(myStart, myEnd-myStart, [v,&ce](int64_t kstart, int64_t kiters){
       
         int64_t sigma_v = local::read(c.sigma+v);
         
