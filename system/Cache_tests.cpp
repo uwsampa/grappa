@@ -7,16 +7,9 @@
 
 /// Tests for Explicit Caches
 
-#include "Cache.hpp"
-
-#include "GlobalAllocator.hpp"
-#include "Delegate.hpp"
-#include "Tasking.hpp"
-
-#include "LocaleSharedMemory.hpp"
-#include "GlobalMemoryChunk.hpp"
-
 #include <boost/test/unit_test.hpp>
+#include <Grappa.hpp>
+#include <Cache.hpp>
 
 namespace Grappa {
 namespace impl {

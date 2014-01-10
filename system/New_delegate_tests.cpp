@@ -6,11 +6,7 @@
 // Energy. The Government has certain rights in the software.
 
 #include <boost/test/unit_test.hpp>
-#include "Delegate.hpp"
-#include "AsyncDelegate.hpp"
-#include "GlobalCompletionEvent.hpp"
-#include "MessagePool.hpp"
-#include "Collective.hpp"
+#include "Grappa.hpp"
 #include "PerformanceTools.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_delegate_tests );
