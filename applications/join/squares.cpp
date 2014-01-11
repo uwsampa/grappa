@@ -123,7 +123,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
         auto b_ptr = E2_index->vs + b_ind;
         edges_transfered++;
         // lookup b vertex
-        remotePrivateTask<&impl::local_gce>(b_ptr.core(), [ai,b_ptr] {
+        spawnRemote(b_ptr.core(), [ai,b_ptr] {
           auto b = *(b_ptr.pointer());
           ir2_count += b.nadj; // count(E1xE2)
           // forall neighbors of b
@@ -133,7 +133,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
             auto c_ptr = E3_index->vs + c_ind;
             edges_transfered++;
             // lookup c vertex
-            remotePrivateTask<&impl::local_gce>(c_ptr.core(), [ai,b,c_ptr] {
+            spawnRemote(c_ptr.core(), [ai,b,c_ptr] {
               auto c = *(c_ptr.pointer());
               ir4_count += c.nadj; // count(E1xE2xE3)
               // forall neighbors of c
@@ -143,7 +143,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
                 auto d_ptr = E4_index->vs + d_ind;
                 edges_transfered++;
                 // lookup d vertex
-                remotePrivateTask<&impl::local_gce>(d_ptr.core(), [ai,b,c,d_ptr] {
+                spawnRemote(d_ptr.core(), [ai,b,c,d_ptr] {
                   auto d = *(d_ptr.pointer());
                   ir6_count += d.nadj; // count(E1xE2xE3xE4)
                   // forall neighbors of d
