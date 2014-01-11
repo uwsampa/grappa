@@ -103,9 +103,9 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
   VLOG(1) << "insertions: " << (e2.nedge+e3.nedge+e4.nedge)/(end-start) << " per sec";
   index_runtime = end - start;
 
-#if DEBUG
-  printAll(E1_index);
-#endif
+// #if DEBUG
+//   printAll(E1_index);
+// #endif
 
   //
   //TODO: there are plenty of corrections/ optimizations to do here
