@@ -7,10 +7,10 @@ BOOST_AUTO_TEST_SUITE( ThreadQueue_tests );
 using namespace Grappa;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-  #ifndef DEBUG
-    BOOST_MESSAGE( "This test requires -DDEBUG for full checks" );
-    BOOST_CHECK( false );
-#endif
+  // #ifndef DEBUG
+  //   BOOST_MESSAGE( "This test requires -DDEBUG for full checks" );
+  //   BOOST_CHECK( false );
+  // #endif
 
   Worker * ws[100];
   for(int i=0; i< 100; i++) {
