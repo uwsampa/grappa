@@ -202,8 +202,6 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
   // forall_local<uint64_t,scatter>(array, nelems);
   forall(array, nelems, [bucketlist,lobits,LOBITS](int64_t s, int64_t n, S * first){
     size_t nbuckets = counts.size();
-    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t<S> >,S)>>)*n];
-    MessagePool pool(msg_buf, sizeof(msg_buf));
     
     for (int i=0; i<n; i++) {
       auto v = first[i];
@@ -211,7 +209,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call<async>(pool, destb.core(), [destb,v]{
+      delegate::call<async>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }

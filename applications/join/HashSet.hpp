@@ -11,7 +11,8 @@
 
 // for all hash tables
 //GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length, 0);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
+
 
 // for naming the types scoped in HashSet
 #define HS_TYPE(type) typename HashSet<K,HF,GCE>::type
@@ -127,11 +128,11 @@ class HashSet {
     // Inserts the key if not already in the set
     //
     // asynchronous operation
-    void insert_async( K key, Grappa::MessagePool& pool ) {
+    void insert_async( K key ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call<async,GCE>(pool, target.node(), [key,target]() {
+      Grappa::delegate::call<async,GCE>(target.node(), [key,target]() {
 
         Cell * c = target.pointer();
         
@@ -182,14 +183,6 @@ class HashSet {
       });
 
       return total;
-    }
-
-   
-   // FIXME: this is fragile if AsyncDelegate changes or
-   // insert_async changes. Relying on writes being same
-   // size as insert (you are sending one value in a call)
-    size_t insertion_pool_size( uint64_t numInsertions ) {
-      return sizeof(Grappa::delegate::write_msg_proxy<K>)*numInsertions;
     }
 
 };// </HashTable>

@@ -183,10 +183,14 @@ namespace Grappa {
                        int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
 
   FORALL_HERE_OVERLOAD(SyncMode S,
-                       GlobalCompletionEvent * GCE = nullptr,
+                       GlobalCompletionEvent * GCE,
                        TaskMode B = TaskMode::Bound,
                        int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
-    
+                       
+  FORALL_HERE_OVERLOAD(SyncMode S,
+                       GlobalCompletionEvent * GCE,
+                       int64_t Threshold,
+                       TaskMode B = TaskMode::Bound);
                   
   FORALL_HERE_OVERLOAD(GlobalCompletionEvent * GCE,
                        int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,

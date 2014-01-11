@@ -3,9 +3,7 @@
 #include <iostream>
 
 //TODO: proper path
-//#include <glog/logging.hpp>
-#include "../../tools/build/glog/src/glog/logging.h"
-
+#include <glog/logging.h>
 
 /*
  * Hypercube implementation

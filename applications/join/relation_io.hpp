@@ -44,7 +44,7 @@ void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples
   int fin = 0;
 
   // synchronous IO with asynchronous write
-  Grappa::forall_here<&Grappa::impl::local_ce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+  Grappa::forall_here<1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );

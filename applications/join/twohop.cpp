@@ -183,18 +183,12 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
 
       join_result_count += iters; 
 
-#if ASYNCHRONOUS_RESULT
-      // allocate space for asynchronous insertions
-      char pool_storage[results.insertion_pool_size( iters )];
-      MessagePool pool( pool_storage, sizeof(pool_storage) );
-#endif
-
       for ( int64_t i=0; i<iters; i++ ) {
 
         int64_t x3 = subset[i].columns[1];
         IntPair r = {x1,x3}; 
 #if ASYNCHRONOUS_RESULT
-        results.insert_async( r, pool );
+        results.insert_async( r );
 #else
         //if ( !results.insert_unique( r ) ) { // hard-to-predict branch? Could change to conditional increment
           twohop_count += 1;

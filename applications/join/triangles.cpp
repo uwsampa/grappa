@@ -129,8 +129,6 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
     // and one tuple, but make it encapsulated
     int64_t num_messages =  FLAGS_undirected ? 2*n : n;
 
-    char msg_buf[num_messages * sizeof(Message<std::function<void(GlobalAddress<Tuple>, Tuple)>>)];
-    MessagePool write_pool(msg_buf, sizeof(msg_buf));
     for (int64_t i=0; i<n; i++) {
       auto e = first[i];
 
@@ -139,12 +137,12 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
       t.columns[1] = get_v1_from_edge( &e );
 
       if ( FLAGS_undirected ) {
-        delegate::write<async>( write_pool, base+start+2*i, t ); 
+        delegate::write<async>(base+start+2*i, t ); 
         t.columns[0] = get_v1_from_edge( &e );
         t.columns[1] = get_v0_from_edge( &e );
-        delegate::write<async>( write_pool, base+start+2*i+1, t ); 
+        delegate::write<async>(base+start+2*i+1, t ); 
       } else {
-        delegate::write<async>( write_pool, base+start+i, t ); 
+        delegate::write<async>(base+start+i, t ); 
       }
       // optimally I'd like async WO cache op since this will coalesce the write as well
      }

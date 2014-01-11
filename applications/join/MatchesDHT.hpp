@@ -113,7 +113,8 @@ class MatchesDHT {
         for (i = entries->begin(); i!=entries->end(); ++i) {
           const Entry e = *i;
           if ( e.key == key ) {  // typename K must implement operator==
-            lr.matches = e.vs->getReadBuffer();
+            // FIXME: currently discarding 'const' qualifier...
+            lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
             lr.num = e.vs->getLength();
             break;
           }
