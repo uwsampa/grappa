@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
           task_barrier = new CompletionEvent(FLAGS_num_test_workers);
 
           for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-            privateTask( [&start] {
+            spawn( [&start] {
               // wait for all to start (to hack scheduler yield)
             //  task_barrier->complete();
              // task_barrier->wait();
@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
           numst = 0;
 
           for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-            privateTask( [asleep,&start,cvs] {
+            spawn( [asleep,&start,cvs] {
               // wait for all to start (to hack scheduler yield)
               //task_barrier->complete();
               //task_barrier->wait();
@@ -238,7 +238,7 @@ int main(int argc, char* argv[]) {
         double start = Grappa::walltime();
 
         for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-          privateTask( [t] {
+          spawn( [t] {
             // wait for all to start (to hack scheduler yield)
             task_barrier->complete();
             task_barrier->wait();
@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
         double start = Grappa::walltime();
 
         for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-          privateTask( [t] {
+          spawn( [t] {
               // wait for all to start (to hack scheduler yield)
               task_barrier->complete();
               task_barrier->wait();
@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
         double start = Grappa::walltime();
 
         for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-          privateTask( [t] {
+          spawn( [t] {
               uint64_t myarray[FLAGS_private_array_size];
 
               // wait for all to start (to hack scheduler yield)
@@ -339,7 +339,7 @@ int main(int argc, char* argv[]) {
         double start = Grappa::walltime();
 
         for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-          privateTask( [t] {
+          spawn( [t] {
               Cacheline myarray[FLAGS_private_array_size];
 
               // wait for all to start (to hack scheduler yield)

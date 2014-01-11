@@ -27,7 +27,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     Worker * t = impl::global_scheduler.get_current_thread();
 
-    privateTask([&] { 
+    spawn([&] { 
       lock( &m ); 
       data++; 
       unlock( &m ); 

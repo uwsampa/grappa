@@ -18,7 +18,7 @@ using namespace Grappa;
 
 void yield() {
   Worker * thr = impl::global_scheduler.get_current_thread();
-  privateTask( [thr] {
+  spawn( [thr] {
       impl::global_scheduler.thread_wake( thr );
     });
   impl::global_scheduler.thread_suspend();
@@ -34,7 +34,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     int data = 1;
     int count = 0;
 
-    privateTask( [&s,&data,&count] { 
+    spawn( [&s,&data,&count] { 
         for( int i = 0; i < 3; ++i ) {
           decrement( &s );
           data <<= 1;
@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         }
       } );
 
-    privateTask( [&s,&data,&count] { 
+    spawn( [&s,&data,&count] { 
         for( int i = 0; i < 3; ++i ) {
           decrement( &s );
           data <<= 1;

@@ -53,7 +53,7 @@ void check_remote() {
   auto gw = make_global(&w);
   
   send_message(1, [ga, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::read(ga), 0);
       signal(gw);
     });
@@ -63,7 +63,7 @@ void check_remote() {
   
   // write
   send_message(1, [ga, gw] {
-    privateTask([=]{
+    spawn([=]{
       delegate::write(ga, 7);
       signal(gw);
     });
@@ -75,7 +75,7 @@ void check_remote() {
   double b = 3.14;
   auto gb = make_global(&b);
   send_message(1, [gb, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::compare_and_swap(gb, 3.14, 2.0), true);
       signal(gw);
     });
@@ -83,7 +83,7 @@ void check_remote() {
   wait(&w);
   BOOST_CHECK_EQUAL(b, 2.0);
   send_message(1, [gb, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::compare_and_swap(gb, 3.14, 3.0), false);
       signal(gw);
     });
@@ -95,7 +95,7 @@ void check_remote() {
   uint64_t c = 1;
   auto gc = make_global(&c);
   send_message(1, [gc, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::fetch_and_add(gc, 1), 1);
       signal(gw);
     });
@@ -103,7 +103,7 @@ void check_remote() {
   wait(&w);
   BOOST_CHECK_EQUAL(c, 2);
   send_message(1, [gc, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::fetch_and_add(gc, -2), 2);
       signal(gw);
     });
@@ -170,7 +170,7 @@ void check_fetch_add_combining() {
   
   uint64_t actual_total = 0;
   for (int i=0; i<N; i++) {
-    privateTask([&fc,&actual_total,&done] {
+    spawn([&fc,&actual_total,&done] {
       fc.promise();
       // just find a reason to suspend
       // to make fetch_and_add likely to aggregate
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   
     send_message(1, [seed_addr, waiter_addr] {
       // on node 1
-      privateTask([seed_addr, waiter_addr] {
+      spawn([seed_addr, waiter_addr] {
         int64_t vseed = delegate::read(seed_addr);
         BOOST_CHECK_EQUAL(111, vseed);
       

@@ -155,7 +155,7 @@ namespace Grappa {
         send_message(dest, [&result, origin, func, &network_time, start_time] {
           delegate_targets++;
           
-          privateTask([&result, origin, func, &network_time, start_time] {
+          spawn([&result, origin, func, &network_time, start_time] {
             R val = func();
             // TODO: replace with handler-safe send_message
             send_heap_message(origin, [&result, val, &network_time, start_time] {

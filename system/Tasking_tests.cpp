@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     for (int ta = 0; ta<num_tasks; ta++) {
       auto parent = Grappa::current_worker();
     
-      privateTask([ta,parent,nf_addr]{
+      spawn([ta,parent,nf_addr]{
         int mynum = ta;
 
         BOOST_MESSAGE( Grappa::current_worker() << " with task " << mynum << " about to yield 1" );
@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     for (int64_t i=0; i<num_tasks; i++) {
       joiner.enroll();
-      privateTask([i,a,&joiner,g_nf]{
+      spawn([i,a,&joiner,g_nf]{
         BOOST_MESSAGE( Grappa::current_worker() << " with task " << i );
 
         int64_t result = delegate::fetch_and_add(g_nf, 1);

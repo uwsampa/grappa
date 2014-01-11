@@ -292,43 +292,27 @@ namespace Grappa {
   
   /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
   /// does local `complete` when done (if GCE is non-null).
-  template<typename TF>
-  void privateTask(GlobalCompletionEvent * gce, TF tf) {
-    gce->enroll();
-    privateTask([gce,tf] {
-      tf();
-      gce->complete();
-    });
-  }
-
-  /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
-  /// does local `complete` when done (if GCE is non-null).
   /// In this version, GCE is a template parameter to avoid taking up space in the task's args.
-  template<GlobalCompletionEvent * GCE, typename TF>
-  void privateTask(TF tf) {
-    if (GCE) GCE->enroll();
+  template< TaskMode B,
+            GlobalCompletionEvent * C,
+            typename TF = decltype(nullptr) >
+  void spawn(TF tf) {
+    if (C) C->enroll();
     Core origin = mycore();
-    privateTask([tf] {
+    spawn<B>([tf,origin] {
       tf();
-      if (GCE) GCE->complete();
+      if (C) C->send_completion(origin);
     });
   }
-
-  /// Synchronizing public task spawn. Automatically enrolls task with GlobalCompletionEvent and
-  /// sends `complete`  message when done (if GCE is non-null).
-  template<GlobalCompletionEvent * GCE, typename TF>
-  inline void publicTask(TF tf) {
-    if (GCE) GCE->enroll();
-    Core origin = mycore();
-    publicTask([origin,tf] {
-      DVLOG(5) << "in public task";
-      tf();
-      if (GCE) complete(make_global(GCE,origin));
-    });
-  }
-
+  
   ///@}
   
+  /// Overload
+  template< GlobalCompletionEvent * C,
+            TaskMode B = TaskMode::Bound,
+            typename TF = decltype(nullptr) >
+  void spawn(TF tf) { spawn<B,C>(tf); }
+    
   namespace impl {
     extern GlobalCompletionEvent local_gce;
   }

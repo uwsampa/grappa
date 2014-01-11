@@ -115,14 +115,13 @@ namespace Grappa {
   /// Spawn Grappa::privateTask and implicitly synchronize with the given CompletionEvent 
   /// (or GlobalCompletionEvent, though if using GlobalCompletionEvent, it may be better 
   /// to use the verison that takes the GCE pointer as a template parameter only).
-  template<typename CompletionType, typename TF>
-  void privateTask(CompletionType * ce, TF tf) {
-    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
-                  "Synchronizing privateTask spawn must take subclass of CompletionEvent as argument");
+  template< TaskMode B = TaskMode::Bound, typename TF = decltype(nullptr) >
+  void spawn(CompletionEvent * ce, TF tf) {
     ce->enroll();
-    privateTask([ce,tf] {
+    Core origin = mycore();
+    spawn<B>([origin,ce,tf] {
       tf();
-      ce->complete();
+      ce->send_completion(origin);
     });
   }
   

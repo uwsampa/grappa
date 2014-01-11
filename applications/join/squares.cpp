@@ -39,7 +39,7 @@ void SquareQuery::preprocessing(std::vector<tuple_graph> relations) {
   auto e1 = relations[0];
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f1;
-  privateTask( [&f1,e1] {
+  spawn( [&f1,e1] {
       f1.writeXF( Graph<Vertex>::create(e1, /*directed=*/true) );
       });
   auto l_E1_index = f1.readFE();
@@ -63,7 +63,7 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
 
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f2;
-  privateTask( [&f2,e2] {
+  spawn( [&f2,e2] {
       f2.writeXF( Graph<Vertex>::create(e2, /*directed=*/true) );
       });
   // TODO: the create() calls should be in parallel but,
@@ -72,13 +72,13 @@ void SquareQuery::execute(std::vector<tuple_graph> relations) {
   auto l_E2_index = f2.readFE();
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f3;
-  privateTask( [&f3,e3] {
+  spawn( [&f3,e3] {
       f3.writeXF( Graph<Vertex>::create(e3, /*directed=*/true) );
       });
   auto l_E3_index = f3.readFE();
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f4;
-  privateTask( [&f4,e4] {
+  spawn( [&f4,e4] {
       f4.writeXF( Graph<Vertex>::create(e4, /*directed=*/true) );
       });
   auto l_E4_index = f4.readFE();

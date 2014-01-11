@@ -78,7 +78,7 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
       size_t ev = colors_ev - colors;
       if (*ec < 0) {
         *ec = mycolor;
-        publicTask([ev,mycolor,owner]{
+        spawn<unbound>([ev,mycolor,owner]{
           explore(ev,mycolor,owner);
           complete(owner);
         });
@@ -89,7 +89,7 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
         if (FLAGS_cc_insert_async) {
           component_edges->insert_async(edge, [owner]{ complete(owner); });
         } else {
-          privateTask([edge,owner]{
+          spawn([edge,owner]{
             component_edges->insert(edge);
             complete(owner);
           });
@@ -107,7 +107,7 @@ void search(graphint v, graphint mycolor) {
   forall<async,GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
     if (d::fetch_and_add(visited+ev, 1) == 0) {
       d::write(colors+ev, mycolor);
-      publicTask<GCE>([ev,mycolor]{ search(ev, mycolor); });
+      spawn<unbound,GCE>([ev,mycolor]{ search(ev, mycolor); });
     }
   });
 }
@@ -206,7 +206,7 @@ graphint connectedComponents(graph * in_g) {
     auto nlocalroots = r.end - r.start;
     
     for (size_t i = 0; i < nlocalroots; i++) {  
-      privateTask<&gce>([root_addr]{
+      spawn<&gce>([root_addr]{
         CompletionEvent ce;
         auto cea = make_global(&ce);
         graphint v;
@@ -244,7 +244,7 @@ graphint connectedComponents(graph * in_g) {
   component_edges->forall_keys([](Edge& e){
     auto mycolor = d::read(colors+e.start);
     for (auto ev : {e.start, e.end}) {
-      publicTask([ev,mycolor]{
+      spawn<unbound>([ev,mycolor]{
         if (d::fetch_and_add(visited+ev, 1) == 0) {
           search(ev,mycolor);
         }

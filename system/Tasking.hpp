@@ -98,7 +98,7 @@ namespace Grappa {
   /// Example:
   /// @code
   ///   int data = 0;
-  ///   Grappa::privateTask( [&data] { data++; } );
+  ///   Grappa::spawn( [&data] { data++; } );
   /// @endcode
   template < typename TF >
   void privateTask( TF tf ) {
@@ -128,7 +128,7 @@ namespace Grappa {
   /// Spawn a task that may be stolen between cores. The task is specified as a functor or lambda,
   /// and must be 24 bytes or less (currently).
   ///
-  /// @see Grappa::privateTask for usage.
+  /// @see Grappa::spawn for usage.
   template < typename TF >
   void publicTask( TF tf ) {
     tasks_created++;
@@ -180,7 +180,7 @@ void run(FP fp) {
 
     // create user_main as a private task
     //Grappa_privateTask( &user_main_wrapper<A>, fp, args );
-    Grappa::privateTask( [&fp] {
+    Grappa::spawn( [&fp] {
         Grappa_global_queue_initialize();
         fp();
         Grappa_end_tasks();
@@ -212,7 +212,7 @@ void run(FP fp) {
 }
 
 
-/// @deprecated see Grappa::privateTask()
+/// @deprecated see Grappa::spawn()
 ///
 /// Spawn a task visible to this Core only
 ///
@@ -233,7 +233,7 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Grappa::impl::global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
 }
 
-/// @deprecated see Grappa::privateTask()
+/// @deprecated see Grappa::spawn()
 /// 
 /// Spawn a task visible to this Core only
 ///
@@ -249,7 +249,7 @@ void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
   Grappa_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
-/// @deprecated see Grappa::privateTask()
+/// @deprecated see Grappa::spawn()
 ///
 /// Spawn a task visible to this Core only
 ///
@@ -262,7 +262,7 @@ inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
   Grappa_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
-/// @deprecated see Grappa::publicTask()
+/// @deprecated see Grspawn<unbound>(cTask()
 ///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed on any Core.

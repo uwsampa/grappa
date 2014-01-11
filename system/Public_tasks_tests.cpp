@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     for (int i=0; i<FLAGS_N; i++) {
   //    BOOST_MESSAGE("Spawn " << i);
-      publicTask( [i] () {
+      spawn<unbound>( [i] () {
   //      BOOST_MESSAGE("Run " << i << " on " << Grappa::mycore());
         finished_local++;
         finished[i] = 1;

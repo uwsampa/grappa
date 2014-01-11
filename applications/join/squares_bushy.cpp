@@ -43,7 +43,7 @@ void SquareBushyPlan::preprocessing(std::vector<tuple_graph> relations) {
   auto e1 = relations[0];
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f1;
-  privateTask( [&f1,e1] {
+  spawn( [&f1,e1] {
       f1.writeXF( Graph<Vertex>::create(e1, /*directed=*/true) );
       });
   auto l_E1_index = f1.readFE();
@@ -52,7 +52,7 @@ void SquareBushyPlan::preprocessing(std::vector<tuple_graph> relations) {
   //for iterating over c-d
   auto e3 = relations[2];
   FullEmpty<GlobalAddress<Graph<Vertex>>> f3;
-  privateTask( [&f3,e3] {
+  spawn( [&f3,e3] {
       f3.writeXF( Graph<Vertex>::create(e3, /*directed=*/true) );
       });
   auto l_E3_index = f3.readFE();
@@ -97,7 +97,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
 
   // hash on (b)-c
   FullEmpty<GlobalAddress<Graph<Vertex>>> f2;
-  privateTask( [&f2,e2] {
+  spawn( [&f2,e2] {
       f2.writeXF( Graph<Vertex>::create(e2, /*directed=*/true) );
       });
   // TODO: the create() calls should be in parallel but,
@@ -108,7 +108,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
 
   // hash on (d)-a
   FullEmpty<GlobalAddress<Graph<Vertex>>> f4;
-  privateTask( [&f4,e4] {
+  spawn( [&f4,e4] {
       f4.writeXF( Graph<Vertex>::create(e4, /*directed=*/true) );
       });
   auto l_E4_index = f4.readFE();
@@ -142,7 +142,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   // 2. moving data that is needed only
   // 3. selection by < degree
  
-  privateTask<&impl::local_gce>([] {
+  spawn<&impl::local_gce>([] {
   // finding the abc, and hashing to h(a,c)
   forall<async>( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
     VLOG(5) << "a iteration " << ai;
@@ -176,7 +176,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   }); // private 
 
 
-  privateTask<&impl::local_gce>([] {
+  spawn<&impl::local_gce>([] {
   // finding the cda, and hashing to h(a,c)
   forall<async>( E3_index->vs, E3_index->nv, [](int64_t ci, Vertex& c) {
     VLOG(5) << "c iteration " << ci;

@@ -166,7 +166,7 @@ void test_forall_global_public() {
   
   forall<unbound,&my_gce>(0, N, [](int64_t s, int64_t n){
     for (int i=s; i<s+n; i++) {
-      publicTask<&my_gce>([]{
+      spawn<unbound,&my_gce>([]{
         test_global++;
       });
     }

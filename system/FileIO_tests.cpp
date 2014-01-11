@@ -48,7 +48,7 @@ void test_single_read() {
   size_t offset = 0;
   
   for_buffered(i, n, 0, N, nbuf) {
-    privateTask(&ce, [=]{
+    spawn(&ce, [=]{
       auto f = static_cast<impl::FileDesc>(fdesc);
       int64_t * buf = new int64_t[n];
       

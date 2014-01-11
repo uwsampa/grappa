@@ -27,7 +27,7 @@ void test_remote_fe(int trial) {
   auto ce = make_global(&_ce);
   
   CompletionEvent ce1(1);
-  privateTask([fe,ce,&ce1,trial]{
+  spawn([fe,ce,&ce1,trial]{
     ce1.complete();
     auto val = readFF(fe);
     BOOST_CHECK_EQUAL(val, 42);
@@ -37,8 +37,8 @@ void test_remote_fe(int trial) {
    if (perturb) ce1.wait();
   
   send_message(1, [fe,ce,trial]{
-    privateTask([fe,ce,trial]{
-      privateTask([fe,ce,trial]{
+    spawn([fe,ce,trial]{
+      spawn([fe,ce,trial]{
         writeXF(fe, 42);
         complete(ce);
         DVLOG(2) << "task<" << trial << ",3> done";
@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     return;
 
-    Grappa::privateTask( [&] { 
+    Grappa::spawn( [&] { 
         int64_t temp = 0;
         while( (temp = fe_int.readFE()) != 1 ) { 
   	fe_int.writeEF( temp ); 

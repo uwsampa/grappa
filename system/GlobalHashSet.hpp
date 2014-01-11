@@ -213,7 +213,7 @@ public:
     proxy->insert(key);
     if (proxy->is_full()) {
       ++hashset_insert_msgs;
-      privateTask([this,sync]{
+      spawn([this,sync]{
         this->proxy.combine([](Proxy& p){ return FCStatus::BLOCKED; });
         sync();
       });

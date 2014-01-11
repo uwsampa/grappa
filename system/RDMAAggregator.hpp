@@ -698,7 +698,7 @@ namespace Grappa {
         // } else {            // yes
         //   // rdma_capacity_flushes++;
         //   // if( disable_flush_ && send_would_block( core ) ) {
-        //   //   Grappa::privateTask( [core, new_ml, size] {
+        //   //   Grappa::spawn( [core, new_ml, size] {
         //   //     global_rdma_aggregator.send_rdma( core, new_ml, size );
         //   //     });
         //   // } else {

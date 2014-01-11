@@ -341,7 +341,7 @@ namespace Grappa {
     
     for (Core i=0; i<fc; i++) {
       pool.send_message((r.first+i)%nc, [base,packed,do_on_core] {
-        privateTask([base,packed,do_on_core] {
+        spawn([base,packed,do_on_core] {
           T* local_base = base.localize();
           T* local_end = (base+packed.nelems).localize();
           size_t n = local_end - local_base;
