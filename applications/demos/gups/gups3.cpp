@@ -34,7 +34,7 @@ int main( int argc, char * argv[] ) {
       double start = walltime();
 
       forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
-          delegate::increment_async( A + b, 1);
+          delegate::increment<async>( A + b, 1);
         });
 
       gups_runtime = walltime() - start;

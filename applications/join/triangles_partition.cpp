@@ -156,7 +156,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       auto locs_xy = Loc3d(sidelength, hf(from), hf(to), Loc3d::ALL);    
       for (auto l : locs_xy) {
         Edge e(from, to);
-        delegate::call_async( *shared_pool, l, [e] { 
+        delegate::call<async>( *shared_pool, l, [e] { 
 #if DIFFERENT_RELATIONS
           localAssignedEdges_R1.push_back(e); 
 #else
@@ -170,7 +170,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       auto locs_yz = Loc3d(sidelength, Loc3d::ALL, hf(from), hf(to));
       for (auto l : locs_yz) {
         Edge e(from, to);
-        delegate::call_async( *shared_pool, l, [e] { 
+        delegate::call<async>( *shared_pool, l, [e] { 
 #if DIFFERENT_RELATIONS
           localAssignedEdges_R2.push_back(e); 
 #else
@@ -184,7 +184,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       auto locs_zx = Loc3d(sidelength, hf(to), Loc3d::ALL, hf(from));
       for (auto l : locs_zx) {
         Edge e(from, to);
-        delegate::call_async( *shared_pool, l, [e] { 
+        delegate::call<async>( *shared_pool, l, [e] { 
 #if DIFFERENT_RELATIONS
           localAssignedEdges_R3.push_back(e); 
 #else

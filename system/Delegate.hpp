@@ -9,20 +9,14 @@
 
 #include "Message.hpp"
 #include "FullEmptyLocal.hpp"
-#include "Message.hpp"
 #include "ConditionVariable.hpp"
 #include "MessagePool.hpp"
+#include "DelegateBase.hpp"
+#include "GlobalCompletionEvent.hpp"
+#include "AsyncDelegate.hpp"
 #include <type_traits>
 
 GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_short_circuits);
-
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_roundtrip_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_network_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_wakeup_latency);
-
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_targets);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_reads);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_read_targets);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_writes);
@@ -33,129 +27,65 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_fetchadds);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_fetchadd_targets);
 
 
-
 namespace Grappa {
     /// @addtogroup Delegates
     /// @{
     
   namespace impl {
-    
-    inline void record_network_latency(int64_t start_time) {
-      auto latency = Grappa::timestamp() - start_time;
-      delegate_network_latency += latency;
-    }
-    
-    inline void record_wakeup_latency(int64_t start_time, int64_t network_time) {
-      auto current_time = Grappa::timestamp();
-      auto blocked_time = current_time - start_time;
-      auto wakeup_latency = current_time - network_time;
-      delegate_roundtrip_latency += blocked_time;
-      delegate_wakeup_latency += wakeup_latency;
-    }
-    
-    /// Overloaded version for func with void return type.
-    template <typename F>
-    inline void call(Core dest, F func, void (F::*mf)() const) {
-      delegate_ops++;
-      Core origin = Grappa::mycore();
-    
-      if (dest == origin) {
-        // short-circuit if local
-        delegate_short_circuits++;
-        return func();
-      } else {
-        int64_t network_time = 0;
-        int64_t start_time = Grappa::timestamp();
-        FullEmpty<bool> result;
-        send_message(dest, [&result, origin, func, &network_time, start_time] {
+            
+    template< SyncMode S, GlobalCompletionEvent * C, typename F >
+    struct Specializer {
+      // async call with void return type
+      static void call(Core dest, F func, void (F::*mf)() const) {
+        delegate_ops++;
+        delegate_async_ops++;
+        Core origin = Grappa::mycore();
+      
+        if (dest == origin) {
+          // short-circuit if local
           delegate_targets++;
-        
+          delegate_short_circuits++;
           func();
+        } else {
+          if (C) C->enroll();
         
-          // TODO: replace with handler-safe send_message
-          send_heap_message(origin, [&result, &network_time, start_time] {
-            network_time = Grappa::timestamp();
-            record_network_latency(start_time);
-            result.writeXF(true);
+          send_heap_message(dest, [origin, func] {
+            delegate_targets++;
+            func();
+            if (C) C->send_completion(origin);
           });
-        }); // send message
-      
-        // ... and wait for the call to complete
-        result.readFF();
-        record_wakeup_latency(start_time, network_time);
-        return;
+        }
       }
-    }
-  
-    template <typename F, typename TT >
-    inline auto call(Core dest, F func, TT (F::*mf)() const) -> TT {
-      static_assert(std::is_convertible< decltype(func()), TT >(),
-                    "lambda doesn't return the expected type");
-      // Note: code below (calling call_async) could be used to avoid duplication of code,
-      // but call_async adds some overhead (object creation overhead, especially for short
-      // -circuit case and extra work in MessagePool)
-      //   AsyncHandle<decltype(func())> a;
-      //   MessagePool<sizeof(Message<F>)> pool;
-      //   a.call_async(pool, dest, func);
-      //   return a.get_result();
-      // TODO: find a way to implement using async version that doesn't introduce overhead
+      
+      // async call with return val (via Promise)
+      template< typename T >
+      static delegate::Promise<T> call(Core dest, F f, T (F::*mf)() const) {
+        static_assert(std::is_same<void,T>::value, "not implemented yet");
+        // return std::move(Promise<T>(f()));
+      }
+      
+    };
     
-      delegate_ops++;
-      using R = decltype(func());
-      Core origin = Grappa::mycore();
-      
-      if (dest == origin) {
-        // short-circuit if local
-        delegate_targets++;
-        delegate_short_circuits++;
-        return func();
-      } else {
-        FullEmpty<R> result;
-        int64_t network_time = 0;
-        int64_t start_time = Grappa::timestamp();
-      
-        send_message(dest, [&result, origin, func, &network_time, start_time] {
-          delegate_targets++;
-          R val = func();
-        
-          // TODO: replace with handler-safe send_message
-          send_heap_message(origin, [&result, val, &network_time, start_time] {
-            network_time = Grappa::timestamp();
-            record_network_latency(start_time);
-            result.writeXF(val); // can't block in message, assumption is that result is already empty
-          });
-        }); // send message
-        // ... and wait for the result
-        R r = result.readFE();
-        record_wakeup_latency(start_time, network_time);
-        return r;
+    template< GlobalCompletionEvent * C, typename F >
+    struct Specializer<SyncMode::Blocking,C,F> {
+      template< typename T >
+      static auto call(Core dest, F f, T (F::*mf)() const) -> T {
+        return impl::call(dest, f, mf); // defined in DelegateBase.hpp
       }
-    }
+    };    
     
   } // namespace impl
   
   namespace delegate {
     
-    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
-    /// function pointer, or functor object) is called from the `dest` core and the return
-    /// value is sent back to the calling task.
-    template <typename F>
-    inline auto call(Core dest, F func) -> decltype(func()) {
-      return impl::call(dest, func, &F::operator());
-    }
+#define INVOCATION impl::Specializer<S,C,F>::call(dest, f, &F::operator())
     
-    /// Helper that makes it easier to implement custom delegate operations on global
-    /// addresses specifically.
-    ///
-    /// Example:
-    /// @code
-    ///   GlobalAddress<int> xa;
-    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
-    /// @endcode
-    template< typename T, typename F >
-    inline auto call(GlobalAddress<T> target, F func) -> decltype(func(target.pointer())) {
-      return call(target.core(), [target,func]{ return func(target.pointer()); });
-    }
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename F = decltype(nullptr) >
+    auto call(Core dest, F f) -> decltype(INVOCATION) { return INVOCATION; }
+    
+#undef INVOCATION
     
     /// Try lock on remote mutex. Does \b not lock or unlock, creates a SuspendedDelegate if lock has already
     /// been taken, which is triggered on unlocking of the Mutex.
@@ -245,30 +175,37 @@ namespace Grappa {
     /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
     /// round-trip communication is complete.
     /// @warning Target object must lie on a single node (not span blocks in global address space).
-    template< typename T >
-    T read(GlobalAddress<T> target) {      
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr) >
+    T read(GlobalAddress<T> target) {
       delegate_reads++;
-      return call(target.node(), [target]() -> T {
-        delegate_read_targets++;
-        return *target.pointer();
-      });
-    }
-    template< typename T >
-    const T read_const(GlobalAddress<const T> target) {      
-      delegate_reads++;
-      return call(target.node(), [target]() -> const T {
+      return call<S,C>(target.node(), [target]() -> T {
         delegate_read_targets++;
         return *target.pointer();
       });
     }
     
+    
+    /// Remove 'const' qualifier to do read.
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr) >
+    T read(GlobalAddress<const T> target) {
+      return read<S,C>(static_cast<GlobalAddress<T>>(target));
+    }
+        
     /// Blocking remote write.
     /// @warning Target object must lie on a single node (not span blocks in global address space).
-    template< typename T, typename U >
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr),
+              typename U = decltype(nullptr) >
     void write(GlobalAddress<T> target, U value) {
+      static_assert(std::is_convertible<T,U>(), "type of value must match GlobalAddress type");
       delegate_writes++;
       // TODO: don't return any val, requires changes to `delegate::call()`.
-      return call(target.node(), [target, value] {
+      return call<S,C>(target.node(), [target, value] {
         delegate_write_targets++;
         *target.pointer() = value;
       });
@@ -277,7 +214,10 @@ namespace Grappa {
     /// Fetch the value at `target`, increment the value stored there with `inc` and return the
     /// original value to blocking thread.
     /// @warning Target object must lie on a single node (not span blocks in global address space).
-    template< typename T, typename U >
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr),
+              typename U = decltype(nullptr) >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
       delegate_fetchadds++;
       return call(target.node(), [target, inc]() -> T {
@@ -407,8 +347,15 @@ namespace Grappa {
     /// If value at `target` equals `cmp_val`, set the value to `new_val` and return `true`,
     /// otherwise do nothing and return `false`.
     /// @warning Target object must lie on a single node (not span blocks in global address space).
-    template< typename T, typename U, typename V >
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr),
+              typename U = decltype(nullptr),
+              typename V = decltype(nullptr) >
     bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
+      static_assert(std::is_convertible<T,U>(), "type of cmp_val must match GlobalAddress type");
+      static_assert(std::is_convertible<T,V>(), "type of new_val must match GlobalAddress type");
+      
       delegate_cmpswaps++;
       return call(target.node(), [target, cmp_val, new_val]() -> bool {
         T * p = target.pointer();
@@ -422,6 +369,61 @@ namespace Grappa {
       });
     }
     
-    /// @}
+    template< SyncMode S = SyncMode::Blocking, 
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr),
+              typename U = decltype(nullptr) >
+    void increment(GlobalAddress<T> target, U inc) {
+      static_assert(std::is_convertible<T,U>(), "type of inc must match GlobalAddress type");
+      delegate_async_increments++;
+      delegate::call<SyncMode::Async,C>(target.core(), [target,inc]{
+        (*target.pointer()) += inc;
+      });
+    }
+    
+        
+    // /// Implements essentially a remote procedure call. Callable object (lambda,
+    // /// function pointer, or functor object) is called from the `dest` core and the return
+    // /// value is sent back to the calling task.
+    // template< SyncMode S = SyncMode::Blocking, typename F = decltype(nullptr) >
+    // inline auto call(Core dest, F func) -> decltype(func()) {
+    //   if (S == SyncMode::Blocking) {
+    //     return impl::call(dest, func, &F::operator());
+    //   } else {
+    //     return impl::call_async()
+    //   }
+    // }
+  
+    /// Helper that makes it easier to implement custom delegate operations on global
+    /// addresses specifically.
+    ///
+    /// Example:
+    /// @code
+    ///   GlobalAddress<int> xa;
+    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
+    /// @endcode
+    template< typename T, typename F >
+    inline auto call(GlobalAddress<T> target, F func) -> decltype(func(target.pointer())) {
+      return call(target.core(), [target,func]{ return func(target.pointer()); });
+    }
+    
   } // namespace delegate
+  
+  /// Synchronizing remote private task spawn. Automatically enrolls task with GlobalCompletionEvent and
+  /// sends `complete`  message when done (if C is non-null).
+  template<GlobalCompletionEvent * C, typename TF>
+  inline void remotePrivateTask(Core dest, TF tf) {
+    if (C) C->enroll();
+    Core origin = mycore();
+    delegate::call<SyncMode::Async,C>(dest, [origin,tf] {
+      privateTask([origin,tf] {
+        tf();
+        if (C) C->send_completion(origin);
+      });
+    });
+  }
+    
 } // namespace Grappa
+/// @}
+
+

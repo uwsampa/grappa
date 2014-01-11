@@ -6,7 +6,7 @@
 #include "Message.hpp"
 #include "Tasking.hpp"
 #include "MessagePool.hpp"
-#include "Delegate.hpp"
+#include "DelegateBase.hpp"
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_remote_completions);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_completions);
@@ -109,7 +109,7 @@ namespace Grappa {
   }
   
   inline void enroll(GlobalAddress<CompletionEvent> ce, int64_t incr = 1) {
-    delegate::call(ce, [incr](CompletionEvent * c){ c->enroll(incr); });
+    impl::call(ce.core(), [ce,incr]{ ce->enroll(incr); });
   }
   
   /// Spawn Grappa::privateTask and implicitly synchronize with the given CompletionEvent 
@@ -127,5 +127,9 @@ namespace Grappa {
   }
   
   /// @}
+  
+  namespace impl {
+    extern CompletionEvent local_ce;
+  }
   
 } // namespace Grappa

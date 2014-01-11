@@ -35,7 +35,7 @@ int main( int argc, char * argv[] ) {
 
       forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
           auto addr = A + b;
-          delegate::call_async( addr.core(), [addr, i] {
+          delegate::call<async>( addr.core(), [addr, i] {
               *(addr.pointer()) ^= i;
             });
         });

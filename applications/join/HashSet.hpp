@@ -131,7 +131,7 @@ class HashSet {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call_async<GCE>(pool, target.node(), [key,target]() {
+      Grappa::delegate::call<async,GCE>(pool, target.node(), [key,target]() {
 
         Cell * c = target.pointer();
         

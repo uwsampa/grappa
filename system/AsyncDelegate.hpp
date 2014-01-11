@@ -4,7 +4,7 @@
 #include "PoolAllocator.hpp"
 #include "FullEmptyLocal.hpp"
 #include "GlobalCompletionEvent.hpp"
-#include "ParallelLoop.hpp"
+// #include "ParallelLoop.hpp"
 #include <type_traits>
 #include "Statistics.hpp"
 
@@ -45,78 +45,6 @@ namespace Grappa {
           if (GCE) complete(make_global(GCE,origin));
         });
       }
-    }
-
-    /// Do asynchronous generic delegate with `void` return type. Uses message pool to allocate
-    /// the message. Enrolls with GCE so you can guarantee all have completed after a global
-    /// GlobalCompletionEvent::wait() call.
-    ///
-    /// Use special Message pool heap (preferred over explicit pool version)
-    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
-    inline void call_async(Core dest, F remote_work) {
-      delegate_ops++;
-      delegate_async_ops++;
-      Core origin = Grappa::mycore();
-      
-      if (dest == origin) {
-        // short-circuit if local
-        delegate_targets++;
-        delegate_short_circuits++;
-        remote_work();
-      } else {
-        if (GCE) GCE->enroll();
-        
-        send_heap_message(dest, [origin, remote_work] {
-          delegate_targets++;
-          remote_work();
-          if (GCE) complete(make_global(GCE,origin));
-        });
-      }
-    }
-
-    
-    /// Uses `call_async()` to write a value asynchronously.
-    ///
-    /// @note The helper struct Grappa::delegate::write_msg_proxy can be used to compute the
-    ///       size of a pool of this kind of delegate.
-    ///
-    /// @b Example:
-    /// @code
-    ///   GlobalAddress<int> array;
-    ///   MessagePool pool(10*sizeof(delegate::write_msg_proxy<int>));
-    ///   for (int i=0; i<10; i++) {
-    ///     write_async(pool, array+i, i);
-    ///   }
-    /// @endcode
-    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
-    inline void write_async(GlobalAddress<T> target, U value) {
-      delegate_async_writes++;
-      delegate::call_async<GCE>(target.core(), [target,value]{
-        (*target.pointer()) = value;
-      });
-    }
-    
-    /// To help calculate pool sizes
-    /// TODO: refactor call_async so it actually uses this struct so we don't have to maintain two
-    template<typename T>
-    struct write_msg_proxy {
-      struct func {
-        Core origin;
-        GlobalAddress<T> target;
-        T value;
-        void operator()() {}
-      };
-      Message<func> msg;
-    };
-    
-    /// Uses `call_async()` to atomically increment a value asynchronously. (uses global Message pool)
-    /// @see Grappa::delegate::write_async for example use.
-    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void >
-    inline void increment_async(GlobalAddress<T> target, U increment) {
-      delegate_async_increments++;
-      delegate::call_async<GCE>(target.core(), [target,increment]{
-        (*target.pointer()) += increment;
-      });
     }
     
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
@@ -199,18 +127,5 @@ namespace Grappa {
    * by async delegate
    */
 
-  /// Synchronizing remote private task spawn. Automatically enrolls task with GlobalCompletionEvent and
-  /// sends `complete`  message when done (if GCE is non-null).
-  template<GlobalCompletionEvent * GCE, typename TF>
-  inline void remotePrivateTask(Core dest, TF tf) {
-    if (GCE) GCE->enroll();
-    Core origin = mycore();
-    delegate::call_async<GCE>(dest, [origin,tf] {
-      privateTask([origin,tf] {
-        tf();
-        if (GCE) complete(make_global(GCE,origin));
-      });
-    });
-  }
   
 } // namespace Grappa

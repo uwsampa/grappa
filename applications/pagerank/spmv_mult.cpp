@@ -75,7 +75,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
         DVLOG(4) << "y[" << i << "] += " << yaccum; 
        
         auto ytarget = spmv::v.a+i; 
-        delegate::call_async<&mmjoiner>(ytarget.core(), [ytarget,yaccum] {
+        delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum] {
           ytarget.pointer()->vp[spmv::y] += yaccum;   // y[i]+= partial dotproduct
         });
         // could force local updates and bulk communication 
@@ -198,7 +198,7 @@ void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, v
     });
     
     auto ytarget = spmv::v.a+i; 
-    delegate::call_async<&mmjoiner>(ytarget.core(), [ytarget,yaccum]{
+    delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum]{
       ytarget->vp[spmv::y] = yaccum;
     });
     // could force local updates and bulk communication 

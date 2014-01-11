@@ -67,6 +67,7 @@ set(SYSTEM_SOURCES
   ConditionVariableLocal.hpp
   CountingSemaphoreLocal.hpp
   Delegate.hpp
+  DelegateBase.hpp
   ExternalCountPayloadMessage.hpp
   FileIO.hpp
   FlatCombiner.hpp

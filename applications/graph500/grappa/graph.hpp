@@ -157,7 +157,7 @@ struct Graph {
       if (!directed) __sync_fetch_and_add(g->scratch+e.v1, 1);
   #else    
       auto count = [](GlobalAddress<V> v){
-        delegate::call_async(v.core(), [v]{ v->local_sz++; });
+        delegate::call<async>(v.core(), [v]{ v->local_sz++; });
       };
       count(g->vs+e.v0);
       if (!directed) count(g->vs+e.v1);
@@ -199,7 +199,7 @@ struct Graph {
     forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       auto scatter = [g](int64_t vi, int64_t adj) {
         auto vaddr = g->vs+vi;
-        delegate::call_async(vaddr.core(), [vaddr,adj]{
+        delegate::call<async>(vaddr.core(), [vaddr,adj]{
           auto& v = *vaddr.pointer();
           v.local_adj[v.nadj++] = adj;
         });

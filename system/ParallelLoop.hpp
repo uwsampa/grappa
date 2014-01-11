@@ -38,8 +38,6 @@ namespace Grappa {
     /// (default for loop decompositions)
     const int64_t USE_LOOP_THRESHOLD_FLAG = 0;
     
-    extern CompletionEvent local_ce;
-    extern GlobalCompletionEvent local_gce;
   } // namespace impl
   
   inline GlobalCompletionEvent& default_gce() { return local_gce; }
@@ -433,7 +431,7 @@ namespace Grappa {
   ///   GlobalAddress<double> array, dest;
   ///   forall<&gce>(array, N, [dest](int64_t start, int64_t niters, double * first){
   ///     for (int64_t i=0; i<niters; i++) {
-  ///       delegate::write_async<&gce>(shared_pool, dest+start+i, 2.0*first+i);
+  ///       delegate::write<async,&gce>(shared_pool, dest+start+i, 2.0*first+i);
   ///     }
   ///   });
   /// @endcode
@@ -452,7 +450,7 @@ namespace Grappa {
   ///   // GlobalCompletionEvent gce declared in global scope
   ///   GlobalAddress<double> array, dest;
   ///   forall<&gce>(array, N, [dest](int64_t i, double& v){
-  ///     delegate::write_async<&gce>(shared_pool, dest+i, 2.0*v);
+  ///     delegate::write<async,&gce>(shared_pool, dest+i, 2.0*v);
   ///   });
   /// @endcode
   template< TaskMode B = TaskMode::Bound,

@@ -73,13 +73,13 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
         // If node has not been visited, set distance and push on Q (but only once)
         if (d < 0) {
           if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
-            delegate::write_async(c.dist+w, d_phase);
+            delegate::write<async>(c.dist+w, d_phase);
             Qbuf.push(w);
           }
           d = d_phase;
         }
         if (d == d_phase) {
-          delegate::increment_async(c.sigma+w, sigmav);
+          delegate::increment<async>(c.sigma+w, sigmav);
           bufChild[ccount++] = w;
         }
       }
@@ -117,7 +117,7 @@ void do_bfs_pop(graphint start, graphint end) {
   
       DVLOG(4) << "v(" << v << ")[" << kstart << "," << kstart+kiters << "] sum: " << sum;
       // TODO: maybe shared pool so we don't have to block on sending message?
-      delegate::increment_async(c.delta+v, sum);
+      delegate::increment<async>(c.delta+v, sum);
     });
   });
   
@@ -130,7 +130,7 @@ void do_bfs_pop(graphint start, graphint end) {
       double d = delegate::read(c.delta+v);
       DVLOG(4) << "updating " << v << " (" << jstart+j << ") <= " << d;
 
-      delegate::increment_async(bc+v, d);
+      delegate::increment<async>(bc+v, d);
     }
   });
 }

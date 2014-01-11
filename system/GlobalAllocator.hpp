@@ -16,7 +16,7 @@
 
 #include "Allocator.hpp"
 
-#include "Delegate.hpp"
+#include "DelegateBase.hpp"
 
 class GlobalAllocator;
 extern GlobalAllocator * global_allocator;
@@ -72,7 +72,7 @@ public:
   /// delegate malloc
   static GlobalAddress< void > remote_malloc( size_t size_bytes ) {
     // ask node 0 to allocate memory
-    auto allocated_address = Grappa::delegate::call( 0, [size_bytes] {
+    auto allocated_address = Grappa::impl::call( 0, [size_bytes] {
         DVLOG(5) << "got malloc request for size " << size_bytes;
         GlobalAddress< void > a = global_allocator->local_malloc( size_bytes );
         DVLOG(5) << "malloc returning pointer " << a.pointer();
@@ -85,7 +85,7 @@ public:
   /// TODO: should free block?
   static void remote_free( GlobalAddress< void > address ) {
     // ask node 0 to free memory
-    auto allocated_address = Grappa::delegate::call( 0, [address] {
+    auto allocated_address = Grappa::impl::call( 0, [address] {
         DVLOG(5) << "got free request for descriptor " << address;
         global_allocator->local_free( address );
         return true;

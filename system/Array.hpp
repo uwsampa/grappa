@@ -14,6 +14,7 @@
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
 #include <type_traits>
+#include "Delegate.hpp"
 
 namespace Grappa {
 /// @addtogroup Containers

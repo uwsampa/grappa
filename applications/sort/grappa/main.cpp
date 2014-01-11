@@ -217,7 +217,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async(destb.core(), [destb,v]{
+      delegate::call<async>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }

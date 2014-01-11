@@ -120,7 +120,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       
       auto val = x[i].start;
       auto offset = b.offset;
-      delegate::call_async<&my_gce>(b.block, [offset,val] {
+      delegate::call<async,&my_gce>(b.block, [offset,val] {
         prefix_temp_base[offset] = val;
       });
     }
@@ -166,7 +166,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     
     // put back into original array
     forall_here(0, nlocal, [xoff,r](int64_t i){
-      delegate::write_async<&my_gce>(xoff+2*(r.start+i), prefix_temp_base[i]);
+      delegate::write<async,&my_gce>(xoff+2*(r.start+i), prefix_temp_base[i]);
     });
     my_gce.complete();
     my_gce.wait();
@@ -189,8 +189,8 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
   forall<&my_gce>(tg->edges, tg->nedge, [](int64_t i, packed_edge& edge) {
     if (edge.v0 != edge.v1) { //skip self-edges
-      delegate::increment_async<&my_gce>(XOFF(edge.v0), 1);
-      delegate::increment_async<&my_gce>(XOFF(edge.v1), 1);
+      delegate::increment<async,&my_gce>(XOFF(edge.v0), 1);
+      delegate::increment<async,&my_gce>(XOFF(edge.v1), 1);
     }
   });
   
@@ -236,7 +236,7 @@ i64cmp (const void *a, const void *b)
 
 inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
   int64_t where = delegate::fetch_and_add(XENDOFF(i), 1);
-  delegate::write_async<&my_gce>(xadj+where, j);
+  delegate::write<async,&my_gce>(xadj+where, j);
   
   DVLOG(5) << "scattering [" << i << "] xendoff[i] " << XENDOFF(i) << " = " << j << " (where: " << where << ")";
 }

@@ -107,7 +107,7 @@ tuple_graph readTuples( std::string fn, int64_t numTuples ) {
 
       // write edge to location
       int myindex = fin++;
-      Grappa::delegate::write_async(edges+myindex, pe);
+      Grappa::delegate::write<async>(edges+myindex, pe);
     }
   });
   Grappa::impl::local_gce.wait();

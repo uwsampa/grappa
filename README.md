@@ -144,7 +144,7 @@ Memory can be allocated out of the heap of memory on a Locale in the cluster. An
 ### Communication & Synchronization
 * Delegate operations are essentially remote procedure calls. They can be blocking (must block if they return a value), or asynchronous. If asynchronous, they will have a synchronization object associated with them (typically a `GlobalCompletionEvent`) which can later be blocked on to ensure completion.
   * `Grappa::delegate::call(Core, lambda)`: the most basic unit of blocking delegate. Takes a destination Core and a lambda. The lambda will be executed atomically at the indicated core, and *must not attempt to block or yield*.
-  * `Grappa::delegate::call_async<Sync>(Core, lambda)`: generic non-blocking delegate. Has a template parameter specifying the GlobalCompletionEvent it synchronizes with.
+  * `Grappa::delegate::call<async,Sync>(Core, lambda)`: generic non-blocking delegate. Has a template parameter specifying the GlobalCompletionEvent it synchronizes with.
   * Many useful helpers exist to do simple delegate operations, such as `read`, `write`, `increment_async`, `write_async`, `fetch_and_add`, etc. Check them out in the Doxygen docs.
 * Synchronization: see Doxygen.
 * Caches: for manually buffering data locally. See "Caches" module in Doxygen.

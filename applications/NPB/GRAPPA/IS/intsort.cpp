@@ -312,7 +312,7 @@ void rank(int iteration) {
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async<&gce>(destb.core(), [destb,v]{
+      delegate::call<async,&gce>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
@@ -416,7 +416,7 @@ void full_verify() {
     for (int64_t i=0; i<b.size(); i++) {
       key_t k = b[i];
       CHECK_LT(key_ranks[k], nkeys);
-      delegate::write_async<&gce>(sorted_keys+key_ranks[k], k);
+      delegate::write<async,&gce>(sorted_keys+key_ranks[k], k);
       key_ranks[k]++;
     }
   });

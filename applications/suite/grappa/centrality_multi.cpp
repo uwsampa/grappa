@@ -180,7 +180,7 @@ void do_bfs_pop_multi(graphint start, graphint end) {
   // MessagePool pool(pool_buf, pool_sz);
   // for (graphint j=start; j<end; j++) {
   //   graphint v = c.Q[j];
-  //   delegate::increment_async(pool, bc+v, d);    
+  //   delegate::increment<async>(pool, bc+v, d);    
   // }
   // 
 }

@@ -5,7 +5,7 @@
 #include "Tasking.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
-#include "Delegate.hpp"
+#include "DelegateBase.hpp"
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
@@ -178,7 +178,7 @@ public:
     if (count == inc) { // count[0 -> inc]
       event_in_progress = true; // optimization to save checking in wait()
       // cancel barrier
-      Core co = delegate::call(master_core, [this] {
+      Core co = impl::call(master_core, [this] {
         cores_out++;
         return cores_out;
       });
@@ -241,8 +241,8 @@ public:
       Grappa::wait(&cv);
     } else {
       // conservative check, in case we're calling `wait` without calling `enroll`
-      if (delegate::call(master_core, [this]{ return cores_out; }) > 0) {
-//      if (delegate::call(master_core, [this]{ return event_in_progress; })) {
+      if (impl::call(master_core, [this]{ return cores_out; }) > 0) {
+//      if (impl::call(master_core, [this]{ return event_in_progress; })) {
         Grappa::wait(&cv);
         DVLOG(3) << "woke from conservative check";
       }
@@ -328,4 +328,9 @@ namespace Grappa {
   }
 
   ///@}
+  
+  namespace impl {
+    extern GlobalCompletionEvent local_gce;
+  }
 } // namespace Grappa
+

@@ -124,18 +124,18 @@ void check_async_delegates() {
   delegate::write(make_global(&global_x,1), 0);
   
   for (int i=0; i<N; i++) {
-    delegate::call_async<&mygce>(1, []{ global_x++; });
+    delegate::call<async,&mygce>(1, []{ global_x++; });
   }
   mygce.wait();
   
   BOOST_CHECK_EQUAL(delegate::read(make_global(&global_x,1)), N);
   
   auto xa = make_global(&global_x,1);
-  delegate::write_async<&mygce>(xa, 0);
+  delegate::write<async,&mygce>(xa, 0);
   mygce.wait();
   
   for (int i=0; i<N; i++) {
-    delegate::increment_async<&mygce>(xa, 1);
+    delegate::increment<async,&mygce>(xa, 1);
   }
   mygce.wait();
   

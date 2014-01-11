@@ -34,7 +34,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       b.setReadMode();
       GlobalAddress<const int64_t> vs = b.getReadBuffer();
 
-      int64_t r = delegate::read_const( vs );
+      int64_t r = delegate::read( vs );
       BOOST_CHECK_EQUAL( r, v1 );
     }
 

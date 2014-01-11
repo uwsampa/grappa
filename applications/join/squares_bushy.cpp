@@ -163,7 +163,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
             auto owner = h(ai, c_ind);
             VLOG(5) << "abc: " << resultStr({ai,b_ind,c_ind});
             edges_transfered++;
-            delegate::call_async( owner, [ai,b,c_ind] {
+            delegate::call<async>( owner, [ai,b,c_ind] {
               localAssignedEdges_abc.push_back( Edge(ai,c_ind) );
             });
             }
@@ -196,7 +196,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
             auto owner = h(a_ind, ci);
             VLOG(5) << "cda: " << resultStr({ci,d_ind,a_ind});
             edges_transfered++;
-            delegate::call_async( owner, [ci,d,a_ind] {
+            delegate::call<async>( owner, [ci,d,a_ind] {
               localAssignedEdges_cda.push_back( Edge(ci, a_ind) );
             });
             }

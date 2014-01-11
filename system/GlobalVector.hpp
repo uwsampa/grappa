@@ -5,6 +5,7 @@
 #include "Cache.hpp"
 #include "FlatCombiner.hpp"
 #include "ParallelLoop.hpp"
+#include "Delegate.hpp"
 #include <queue>
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
