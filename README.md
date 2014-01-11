@@ -82,11 +82,18 @@ int main(int argc, char* argv[]) {
   // launches the single main task, started on core 0
   // when this task exits, the program ends 
   run([]{
-    
+    std::cout << "Hello world!\n";
   });
   finalize();
   return 0;
 }
+```
+
+Output when compiled and run:
+
+```bash
+> bin/grappa_srun.rb --nnode=2 --ppn=2 -- ./hello_world.exe
+# 0: Hello world!
 ```
 
 The call to `Grappa::init()` parses the command-line arguments (with `gflags`), sets up the communication layers, global memory, tasking, etc.
@@ -104,13 +111,11 @@ Physical "nodes" in a cluster have many cores. To avoid the overloaded "node" te
 ### Tasks and workers
 Tasks can be run on any node in the system. They have the ability to "suspend", waiting for a response or event to wake them. They can also "yield" if they know that they are not done with their work but want to give other tasks a chance to run.
 
-There are two kinds of tasks: public tasks, which are made visible to other nodes and can be stolen, and private tasks which run only where they are spawned.
+Tasks are just a functor (a function with some state), and don't constitute an execution context on their own. Tasks get executed by Workers, which essentially just consist of a stack. Workers pull tasks off of a local task queue and execute a single one at a time on their stack. They execute the task to completion (suspending while waiting on remote calls or synchronization).
+
+By default, tasks are "bound" to the core they are created on. That is, they will stay on their local task queue until they are eventually picked up by a worker on that core. Tasks can also be spawned "unbound", which puts them into a different queue. These tasks are load-balanced across all the cores in the cluster (using work-stealing). Therefore these "unbound" tasks have to handle being run from any core, and must be sure to fetch any additional data they need.
 
 One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places such as certain function calls, so no synchronization is ever needed to data local to your core. A fair rule of thumb is that anything that goes to another core may contain a context switch.
-
-Tasks are just a functor. In order to execute them, they must be paired with a stack. This is done by Workers, which pull a task off the public or private task queue, execute it until completion (suspending while waiting on remote references or synchronization), and then going back to pull another task off a queue.
-
-The task scheduler keeps track of all of the workers that are ready to execute or suspended at any given time.
 
 #### Parallel Loops
 Instead of spawning tasks individually, it's almost always better to use a parallel loop of some sort. These spawn loop iterations recursively until hitting a threshold. This prevents over-filling the task buffers for large loops, prevents excessive task overhead, and improves work-stealing by making it more likely that a single steal will generate significantly more work.
