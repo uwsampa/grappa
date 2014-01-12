@@ -50,13 +50,13 @@ void test_single_read() {
   for_buffered(i, n, 0, N, nbuf) {
     spawn(&ce, [=]{
       auto f = static_cast<impl::FileDesc>(fdesc);
-      int64_t * buf = new int64_t[n];
+      int64_t * buf = locale_alloc<int64_t>(n);
       
       fread_blocking(buf, n*sizeof(int64_t), i*sizeof(int64_t), f);
       
       { Incoherent<int64_t>::WO c(array+i, n, buf); }
       
-      delete[] buf;
+      locale_free(buf);
     });
   }
   
@@ -77,7 +77,8 @@ void test_read_save_array(bool asDirectory) {
 
   // create test file to read from
   char fname[256];
-  sprintf(fname, "/scratch/hdfs/tmp/fileio_tests_seq.%ld.bin", NN);
+  // sprintf(fname, "/scratch/hdfs/tmp/fileio_tests_seq.%ld.bin", NN);
+  sprintf(fname, "/sampa/home/bholt/tmp/fileio_tests_seq.%ld.bin", NN);
   Grappa::File f(fname, asDirectory);
 
   // do file io using asynchronous POSIX/suspending IO
@@ -85,13 +86,10 @@ void test_read_save_array(bool asDirectory) {
 
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(int64_t);
 
-  int64_t * buf = new int64_t[NBUF];
-  for_buffered(i, n, 0, NN, NBUF) {
-		for (int64_t j=0; j<n; j++) {
-      buf[j] = i+j;
-    }
-    Incoherent<int64_t>::WO c(array+i, n, buf);
-  }
+  int64_t * buf = locale_alloc<int64_t>(NBUF);
+  
+  forall(array, NN, [](int64_t i, int64_t& e){ e = i; });
+
   save_array(f, asDirectory, array, NN);
   
   Grappa::memset(array, 0, NN);
@@ -99,18 +97,24 @@ void test_read_save_array(bool asDirectory) {
   sleep(5); // having it wait here helps it crash less due to inconsistent FS state
 
   Grappa::read_array(f, array, NN);
-
-  for_buffered(i, n, 0, NN, NBUF) {
-    VLOG(1) << "i = " << i << ", n = " << n;
-    Incoherent<int64_t>::RO c(array+i, n, buf);
-		for (int64_t j=0; j<n; j++) {
-      CHECK(c[j] == i+j) << "i = " << i << ", j = " << j << ", array[i+j] = " << c[j];
-    }
-  }
+  
+  forall(array, NN, [](int64_t i, int64_t& e){
+    // CHECK_EQ(e, i);
+    BOOST_CHECK_EQUAL(e, i);
+  });
+  
+  // for_buffered(i, n, 0, NN, NBUF) {
+  //   VLOG(1) << "i = " << i << ", n = " << n;
+  //   Incoherent<int64_t>::RO c(array+i, n, buf);
+  //     for (int64_t j=0; j<n; j++) {
+  //     CHECK(c[j] == i+j) << "i = " << i << ", j = " << j << ", array[i+j] = " << c[j];
+  //   }
+  // }
 
   // clean up
   Grappa::global_free(array);
-  if (fs::exists(fname)) { fs::remove_all(fname); }
+  locale_free(buf);
+  // if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

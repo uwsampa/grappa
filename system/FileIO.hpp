@@ -264,7 +264,7 @@ namespace impl {
 
     size_t nfiles = std::distance(fs::directory_iterator(dirname), fs::directory_iterator());
   
-    auto args = new read_array_args<T>[nfiles];
+    auto args = locale_alloc< read_array_args<T> >(nfiles);
   
     const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 
@@ -300,7 +300,7 @@ namespace impl {
     t = Grappa::walltime() - t;
     VLOG(1) << "read_array_time: " << t;
     VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
-    delete[] args;
+    locale_free(args);
   }
   
 } // namespace impl
@@ -330,23 +330,34 @@ namespace impl {
     }
 	
     double t = Grappa::walltime();
-
-    Grappa::on_all_cores([dirname,array,nelems]{
-      range_t r = blockDist(0, nelems, Grappa::mycore(), Grappa::cores());
-      char fname[FNAME_LENGTH]; array_dir_fname(fname, dirname, r.start, r.end);
-      std::fstream fo(fname, std::ios::out | std::ios::binary);
     
+    size_t namelen = strlen(dirname);
+    
+    char dir[256]; strcpy(dir, dirname);
+    auto g_dir = make_global(dir);
+    
+    Grappa::on_all_cores([g_dir,namelen,array,nelems]{
+      range_t r = blockDist(0, nelems, Grappa::mycore(), Grappa::cores());
+      
+      char dir[256];
+      Incoherent<char>::RO c(g_dir,namelen+1,dir);
+      
+      char fname[FNAME_LENGTH]; array_dir_fname(fname, &c[0], r.start, r.end);
+      std::fstream fo(fname, std::ios::out | std::ios::binary);
+      
+      VLOG(1) << "saving to " << fname;
+      
       const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
       T * buf = Grappa::locale_alloc<T>(NBUF);
-		
+          
       for_buffered (i, n, r.start, r.end, NBUF) {
         typename Incoherent<T>::RO c(array+i, n, buf);
         c.block_until_acquired();
         fo.write((char*)buf, sizeof(T)*n);
-        //VLOG(1) << "wrote " << n << " bytes";
+        VLOG(1) << "wrote " << i << ".." << i+n << " (" << n << ")";
       }
-  		Grappa::locale_free(buf);
-
+          Grappa::locale_free(buf);
+      
       fo.close();
       VLOG(1) << "finished saving array[" << r.start << ":" << r.end << "]";
     });
