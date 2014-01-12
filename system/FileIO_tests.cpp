@@ -77,8 +77,7 @@ void test_read_save_array(bool asDirectory) {
 
   // create test file to read from
   char fname[256];
-  // sprintf(fname, "/scratch/hdfs/tmp/fileio_tests_seq.%ld.bin", NN);
-  sprintf(fname, "/sampa/home/bholt/tmp/fileio_tests_seq.%ld.bin", NN);
+  sprintf(fname, "/scratch/hdfs/tmp/fileio_tests_seq.%ld.bin", NN);
   Grappa::File f(fname, asDirectory);
 
   // do file io using asynchronous POSIX/suspending IO
@@ -106,7 +105,7 @@ void test_read_save_array(bool asDirectory) {
   // clean up
   Grappa::global_free(array);
   locale_free(buf);
-  if (fs::exists(fname)) { fs::remove_all(fname); }
+  // if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -114,8 +113,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::run([]{
     test_single_read();
     
-    LOG(INFO) << "testing file read/write";
-    test_read_save_array(false);
+    // LOG(INFO) << "testing file read/write";
+    // test_read_save_array(false);
     
     sleep(1);
     
