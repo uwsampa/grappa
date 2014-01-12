@@ -103,26 +103,23 @@ void test_read_save_array(bool asDirectory) {
     BOOST_CHECK_EQUAL(e, i);
   });
   
-  // for_buffered(i, n, 0, NN, NBUF) {
-  //   VLOG(1) << "i = " << i << ", n = " << n;
-  //   Incoherent<int64_t>::RO c(array+i, n, buf);
-  //     for (int64_t j=0; j<n; j++) {
-  //     CHECK(c[j] == i+j) << "i = " << i << ", j = " << j << ", array[i+j] = " << c[j];
-  //   }
-  // }
-
   // clean up
   Grappa::global_free(array);
   locale_free(buf);
-  // if (fs::exists(fname)) { fs::remove_all(fname); }
+  if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
     test_single_read();
-    //test_read_save_array(false);
+    
+    LOG(INFO) << "testing file read/write";
+    test_read_save_array(false);
+    
     sleep(1);
+    
+    LOG(INFO) << "testing dir read/write";
     test_read_save_array(true);
   });
   Grappa::finalize();

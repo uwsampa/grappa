@@ -363,8 +363,8 @@ namespace impl {
     });
 	
     t = Grappa::walltime() - t;
-    LOG(INFO) << "save_array_time: " << t;
-    LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
+    VLOG(2) << "save_array_time: " << t;
+    VLOG(2) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
   }
 
   template< typename T >
@@ -384,8 +384,8 @@ namespace impl {
 
     t = Grappa::walltime() - t;
     fo.close();
-    LOG(INFO) << "save_array_time: " << t;
-    LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
+    VLOG(2) << "save_array_time: " << t;
+    VLOG(2) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
   }
 } // namespace impl
 
