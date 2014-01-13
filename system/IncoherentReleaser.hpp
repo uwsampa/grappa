@@ -64,7 +64,7 @@ public:
       released_ = true;
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
-      if( request_address_->node() == Grappa::mycore() ) {
+      if( request_address_->core() == Grappa::mycore() ) {
         release_started_ = true;
         released_ = true;
       }
