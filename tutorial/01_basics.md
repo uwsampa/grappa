@@ -250,43 +250,211 @@ The most basic unit of parallelism in Grappa is the *task*. A *task* is a unit o
 
 *Workers* are lightweight user-level threads that are *cooperatively scheduled* (sometimes also known as *fibers*), which means that they run uninterrupted on a core until they choose to *yield* or *suspend*. A worker takes an un-started task off the queue, executes it to completion, suspending or yielding as the task specifies. When the task finishes (returns from the lambda/functor), the worker goes off to find another task to execute.
 
-### Individual spawns
+One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places such as certain function calls, so no synchronization is ever needed to data local to your core. A fair rule of thumb is that anything that goes to another core may contain a context switch.
 
+### Bound/unbound tasks
 
-Tasks are spawned onto one of two queues: the *private* queue, which resides on a particular core, restricting the task to only run on that same core it was spawned; or the *public* queue, allowing the task to be automatically load-balanced to another core (until it is started on a worker, at which time it is no longer movable). The two functions to do the these spawns are:
+By default, tasks are "bound" to the core they are created on. That is, they will stay on their local task queue until they are eventually picked up by a worker on that core. Tasks can also be spawned "unbound", which puts them into a different queue. These tasks are load-balanced across all the cores in the cluster (using work-stealing). Therefore these "unbound" tasks have to handle being run from any core, and must be sure to fetch any additional data they need.
 
-- `privateTask([/*capture state*/]{ /* task code */ })`: spawn task to run only on the same core; because it is executed locally, state can be captured by reference if desired
-- `publicTask([/*capture state*/]{ /* task code */ })`: spawn a task that may be executed on another core
+### Spawning tasks
+
+The `spawn` command creates a new task and automatically adds it to the queue of tasks which Workers pull from:
+
+```cpp
+// 'bound' task, will run on the same core
+spawn([]{ /* task code */ });
+
+// 'unbound' task, may be load-balanced to any core
+spawn<unbound>([]{ /* task code */ });
+```
 
 ### Task synchronization
-Tasks can currently be synchronized with ("joined") in a couple different ways.
+Spawns happen "asynchronously". That is, the task that called "spawn" continues right away, not waiting for the spawned task to get run. To ensure that a task has been executed before performing some operation, it must be synchronized with explicitly. 
 
-We will cover synchronization more fully in a later section. Tasks may use any of the synchronization primitives directly, but here we will demonstrate just one way: using a `CompletionEvent`. Remember that the Grappa program terminates when the "run" task completes, so if that task does not block on spawned tasks completing, then they may not execute.
+Grappa provides a number of different options for synchronization, which we will cover more fully in a later section. Tasks may use any of the synchronization primitives directly, but here we will demonstrate just one way: using a `CompletionEvent`. Remember that the Grappa program terminates when the "run" task completes, so if that task does not block on spawned tasks completing, then they may not execute.
 
 ```cpp
 run([]{
+  LOG(INFO) << "'main' task started";
   
   CompletionEvent joiner;
   
-  publicTask(&joiner, []{
-    LOG(INFO) << "public task ran on " << mycore();
+  spawn(&joiner, []{
+    LOG(INFO) << "task ran on " << mycore();
   });
   
-  privateTask(&joiner, []{
-    LOG(INFO) << "private task ran on " << mycore();
+  spawn<unbound>(&joiner, []{
+    LOG(INFO) << "task ran on " << mycore();
   });
   
-  joiner.wait();  
+  joiner.wait();
+  
+  LOG(INFO) << "all tasks completed, exiting...";
 });
 ```
 
+Possible output:
+
+```
+0: 'main' task started
+1: task ran on 1
+0: task ran on 0
+0: all tasks completed, exiting
+```
+
+When the *main* task spawned the two other tasks, it passed in a pointer to the CompletionEvent it made. This caused "spawn" to enroll the tasks with the CompletionEvent, and causes them to automatically signal their "completion" when they finish. This allows the main task, after enrolling the two spawned tasks, to suspend, until the last enrolled task (could be either of them) signals completion, which then wakes the main task, and when the main task completes, this signals the Grappa program to come to an end.
 
 ### Parallel loops
+Instead of spawning tasks individually, it's almost always better to use a parallel loop of some sort. In addition to just looking better, these parallel loops also go to a significant amount of effort to run efficiently. For instance, they spawn loop iterations recursively until hitting a threshold. This prevents over-filling the task buffers for large loops, prevents excessive task overhead, and improves work-stealing by making it more likely that a single steal will generate significantly more work. They also spread out spawns across cores in the system, and when iterating over a region of linear global addresses, schedule the iterations to be as close to their data as possible.
+
+The basic parallel loop is `forall()`, but it can be invoked in a couple different ways. First, the iteration range can be specified in a couple different ways:
+
+- `forall(startIndex, nIterations, [](int64_t i){ })`: Specify a start index and a number of iterations. The iterations will be split evenly across all the cores, broken up into evenly-sized blocks.
+- `forall(address, nElements, [](T&){ })`: Specify a linear address (start of an allocation from the global heap, for instance), and a number of elements. Iterations will be executed *at the core where the corresponding element lives*, and the lambda will be passed a simple reference to the element.
+- `forall_here(startIndex, nIterations, [](int64_t i){ })`: Like the above forall, except instead of spreading iterations across all cores, it spawns them all locally (though if spawning unbound tasks, they may be moved).
+
+Each `forall` loop accepts a couple different forms of lambda, allowing for a bit more control. For instance, a `forall` over elements in an array of `double`s, for instance, could be invoked:
+
+```cpp
+// just a reference to the element
+forall(array, 100, [](double& e){ /* ... */ });
+
+// reference + the absolute index of the element
+forall(array, 100, [](int64_t i, double& e){ /* ... */ });
+
+// a range of 'n' iterations, starting with 'start', and a pointer to the first one.
+// (not often used outside of library implementations)
+forall(array, 100, [](int64_t start, int64_t n, double * e){ /* ... */ });
+```
+
+Finally, each of the parallel loops allows specifying template parameters which affect how they run. The most notable of which are:
+- TaskMode (Bound/Unbound): Just as `spawn` can optionally spawn "unbound" tasks which are load-balanced, parallel loops take the same parameter and use it when spawning tasks.
+- SyncMode (Blocking/Async): By default, loops block the caller until complete, but one can specify "async" to make the call non-blocking. Most parallel loops use a GlobalCompletionEvent for synchronization. To ensure all "async" loops have run, a task can call `wait` on the GlobalCompletionEvent used for the loop (specified by another template parameter). By default, all `forall`s use the same GCE, so best practice is to use `async` inside of an outer blocking `forall` (or a call to `finish()`), which will ensure all the inner asyncs have finished before continuing.
+- Threshold: This specifies how many iterations are run serially by a single task. Parallel loops recursively spawn tasks to split the iterations evenly, and stop recursing only when reaching this Threshold. By default, loops use the command-line flag `--parallel_loop_threshold`, but a different threshold can be specified statically if needed (for instance, if you want to ensure that each iteration gets its own task, you would specify Threshold=1).
+- GlobalCompletionEvent: this parameter statically specifies a GCE to use for synchronizing the iterations of the loop. Change this only if you cannot use the default GCE for some reason (e.g. you are already using the default GCE concurrently in another context).
+
+Because of a bunch of overloaded declarations, these template parameters can be specified in roughly any order, with the rest being left as default. So each of these is valid: `forall<unbound>`, `forall<async>`, `forall<async,unbound>`, `forall<unbound,async,1>`, `forall<&my_gce>`, ...
 
 ## Bringing it all together: GUPS
 
-We will use a simple benchmark to illustrate the use of parallel loops and delegate operations.
+We will use a simple benchmark to illustrate the use of parallel loops and delegate operations. "GUPS", which stands for "Giga-Updates Per Second" is a measure and a benchmark for random access rate. The basic premise is to see how quickly you can issue updates to a global array, but the updates are indexed by another array.
 
+```cpp
+// applications/demos/gups/gups.cpp
+// make -j TARGET=gups4.exe mpi_run GARGS=" --sizeB=$(( 1 << 28 )) --loop_threshold=1024" PPN=8 NNODE=12
+
+#include <Grappa.hpp>
+
+using namespace Grappa;
+
+// define command-line flags (third-party 'gflags' library)
+DEFINE_int64( sizeA, 1 << 30, "Size of array that GUPS increments" );
+DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
+
+// define custom statistics which are logged by the runtime
+// (here we're not using these features, just printing them ourselves)
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0.0 );
+
+int main(int argc, char * argv[]) {
+  init( &argc, &argv );
+  run([]{
+
+    // allocate target array from the global heap
+    auto A = global_alloc<int64_t>(FLAGS_sizeA);
+    // fill the array with all 0's (happens in parallel on all cores)
+    Grappa::memset( A, 0, FLAGS_sizeA );
+    
+    // allocate another array
+    auto B = global_alloc<int64_t>(FLAGS_sizeB);
+    // initialize the array with random indices 
+    forall( B, FLAGS_sizeB, [](int64_t& b) {
+      b = random() % FLAGS_sizeA;
+    });
+
+    double start = walltime();
+
+    // GUPS algorithm:
+    // for (int i = 0; i < sizeB; i++) {
+    //   A[B[i]] += 1;
+    // }
+
+    gups_runtime = walltime() - start;
+    gups_throughput = FLAGS_sizeB / gups_runtime;
+
+    LOG(INFO) << gups_throughput.value() << " UPS in " << gups_runtime.value() << " seconds";
+    
+    global_free(B);
+    global_free(A);
+    
+  });
+  finalize();
+}
+```
+
+Here we've setup the GUPS benchmark, but left out the main loop that does the updates. We first initialized Grappa, then `run` the main task. This task will allocate two arrays from the global heap: A, which is the array we'll update, and B, which we fill with random numbers which will index into the A array. Next, we will step through a couple different implementations of the main GUPS loop to demonstrate the features we've discussed so far.
+
+### Simple `forall`
+```cpp
+// applications/demos/gups/gups1.cpp
+forall(0, FLAGS_sizeB, [=](int64_t i){
+  delegate::fetch_and_add( A + delegate::read(B+i), 1);
+});
+```
+This implementation uses the form of `forall` that takes a start index and a number of iterations. Then we specify with a lambda what to do with each iteration, knowing that the parallel loop will instantiate tasks on all the cores to execute the iterations. Note how we're using the implicit capture-by-value form of lambda (`[=]`). This means that copies of the GlobalAddresses `A` and `B` will be used in the tasks.
+
+We use the simplest delegate operation: `read` to load the random target index from the B array, and then we use another helper delegate `fetch_and_add` to increment the indicated element in A. 
+
+A minor variant of the above implementation could use `forall<unbound>()` instead, which would allow iterations to be load-balanced, so that if random variation caused some iterations to take longer, other cores could help out by taking some work themselves.
+
+### Localized `forall`
+The previous implementation is inefficient in one glaringly obvious way: iterations are scheduled blindly onto cores, without considering what data they will touch. We happen to be iterating consecutively over all the elements in the `B` array. We don't know where each iteration will run, so we must do a remote `read` to fetch `B[i]`. Instead, we could use another form of `forall` to tell the runtime to schedule iterations to line up with elements in the B array:
+
+```cpp
+// applications/demos/gups/gups2.cpp
+forall(B, FLAGS_sizeB, [=](int64_t& b){
+  delegate::fetch_and_add( A + b, 1 );
+});
+```
+
+In this version, we no longer need to do a remote reference to get an element of `B`, each iteration gets a reference to one automatically. We then just do the one remote delegate call to increment that random element in `A`, wherever it is.
+
+### Asynchronous delegates
+Another wasteful practice in the previous implementations is in using a blocking `delegate::fetch_and_add` to increment the remote value. As indicated by the name, `fetch_and_add` doesn't just increment, it also returns the previous value to the caller, which we then promptly ignore. We could save that return trip, and all the nuisance of suspending and waking the calling task, if we invoked a delegate operation that just did the increment asynchronously. Luckily such a call exists:
+
+```cpp
+// applications/demos/gups/gups3.cpp
+forall(B, FLAGS_sizeB, [=](int64_t& b){
+  delegate::increment<async>( A + b, 1);
+});
+```
+
+This `delegate::increment()` does *not* return the resulting value, which means we can invoke the `async` version of it, using the template parameter. This means we issue the increment delegate, and immediately go on to run the next iteration. To ensure all these updates complete before continuing, we must synchronize with these async delegates. By default, specifying `<async>` enrolls the delegate with the default GlobalCompletionEvent, which is the same GCE that `forall` uses to synchronize itself, so this "magically" means that the enclosing `forall` waits until all increments have completed before waking the *main* task it was called from.
+  
+This final version of GUPS is doing an amortized single message per iteration (it takes some messages to setup the parallel loops on all cores, and some combined completion messages to detect when the increments are all completed), which is about as good as we can do. The rest is up to the Grappa runtime to perform these messages as efficiently as possible.
+
+### Custom delegate operations
+Just as an aside, we "lucked out" in our GUPS implementations above in that we had already had a delegate operation to do the increment. If, instead, GUPS called for some other arbitrary operation, it would actually be nearly as simple to implement that just using the generic `delegate::call()`:
+
+```cpp
+// applications/demos/gups/gups4.cpp
+forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
+  auto addr = A + b;
+  delegate::call<async>(addr.core(), [addr, i] {
+    *(addr.pointer()) ^= i;
+  });
+});
+```
+
+Here, we use the index in the B array to xor the existing value in A. We compute the address of the element (`addr`), then use it to tell `call` which core to run on (remember because `A` is a linear address, the elements are automatically striped across cores). Finally, on the correct core, we ask `addr` for the local pointer, and use it to update the value. Like `delegate::increment`, `delegate::call` can be made "async" in the same way, and it uses the default GCE, too, so we know that all of these will be complete when the `forall` returns.
+
+Because it is common to do delegates on a single GlobalAddress, we have an alternate form of `call` that takes a GlobalAddress, gets the `core()` from it, and then passes the `pointer()` to the provided lambda. Using this version simplifies the implementation nicely:
+
+```cpp
+forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
+  delegate::call<async>(A+b, [i](int64_t* a){ *a ^= i; });
+});
+```
 
 ### Irregular parallelism
 
