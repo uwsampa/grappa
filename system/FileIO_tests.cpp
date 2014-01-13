@@ -82,7 +82,7 @@ void test_read_save_array(bool asDirectory) {
 
   // do file io using asynchronous POSIX/suspending IO
   array = global_alloc<int64_t>(NN);
-
+  
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(int64_t);
 
   int64_t * buf = locale_alloc<int64_t>(NBUF);
@@ -105,7 +105,7 @@ void test_read_save_array(bool asDirectory) {
   // clean up
   Grappa::global_free(array);
   locale_free(buf);
-  // if (fs::exists(fname)) { fs::remove_all(fname); }
+  if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
