@@ -207,6 +207,8 @@ Some simple helper delegates for common operations are provided; they are implem
 - `T fetch_and_add(GlobalAddress<T>, T inc)`: increments the value in memory and returns the previous value
 - `bool compare_and_swap(GlobalAddress<T>, T cmp, T val)`: if value is equal to `cmp`, sets it to `val` and returns `true`, else returns `false`
 
+Delegate operations have some template parameters that allow their behavior to be customized, such as making them "asynchronous". This will be covered in the "Intermediate" part of the tutorial.
+
 The following example demonstrates using delegates to access memory in the global heap, distributed among all the cores.
 
 ```cpp
@@ -249,6 +251,8 @@ The most basic unit of parallelism in Grappa is the *task*. A *task* is a unit o
 *Workers* are lightweight user-level threads that are *cooperatively scheduled* (sometimes also known as *fibers*), which means that they run uninterrupted on a core until they choose to *yield* or *suspend*. A worker takes an un-started task off the queue, executes it to completion, suspending or yielding as the task specifies. When the task finishes (returns from the lambda/functor), the worker goes off to find another task to execute.
 
 ### Individual spawns
+
+
 Tasks are spawned onto one of two queues: the *private* queue, which resides on a particular core, restricting the task to only run on that same core it was spawned; or the *public* queue, allowing the task to be automatically load-balanced to another core (until it is started on a worker, at which time it is no longer movable). The two functions to do the these spawns are:
 
 - `privateTask([/*capture state*/]{ /* task code */ })`: spawn task to run only on the same core; because it is executed locally, state can be captured by reference if desired
