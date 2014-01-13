@@ -33,38 +33,39 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     // bit vector
     int data = 1;
     int count = 0;
+    CompletionEvent ce(6);
+    
+    spawn([&s,&data,&count,&ce]{
+      for( int i = 0; i < 3; ++i ) {
+        decrement( &s );
+        VLOG(1) << "Task 1 running.";
+        data <<= 1;
+        data |= 1;
+        count++;
+        ce.complete();
+        increment( &s );
+        yield();
+      }
+    });
 
-    spawn( [&s,&data,&count] { 
-        for( int i = 0; i < 3; ++i ) {
-          decrement( &s );
-          data <<= 1;
-          data |= 1;
-          count++;
-          increment( &s );
-          yield();
-        }
-      } );
+    spawn([&s,&data,&count,&ce]{
+      for( int i = 0; i < 3; ++i ) {
+        decrement( &s );
+        VLOG(1) << "Task 2 running.";
+        data <<= 1;
+        count++;
+        ce.complete();
+        increment( &s );
+        yield();
+      }
+    });
 
-    spawn( [&s,&data,&count] { 
-        for( int i = 0; i < 3; ++i ) {
-          decrement( &s );
-          data <<= 1;
-          count++;
-          increment( &s );
-          yield();
-        }
-      } );
-
-    // other thread runs and blocks
-    while( count < 6 ) {
-      DVLOG(5) << impl::global_scheduler.get_current_thread() << ": Checking count=" << count;
-      yield();
-    }
+    ce.wait();    
+    
 
     BOOST_CHECK_EQUAL( count, 6 );
   
-    Statistics::merge_and_print();
-    //Statistics::print();
+    Statistics::merge_and_dump_to_file();
   });
   Grappa::finalize();
 }

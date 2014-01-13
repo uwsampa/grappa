@@ -183,7 +183,7 @@ DECLARE_bool( global_memory_use_hugepages );
 
 /// Initialize Grappa components. We are not ready to run until the
 /// user calls Grappa_activate().
-void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
+void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_bytes)
 {
   // std::cerr << "Argc is " << *argc_p << std::endl;
   // for( int i = 0; i < *argc_p; ++i ) {
@@ -315,6 +315,10 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
     Grappa::impl::global_bytes_per_core = bytes_per_proc;
     Grappa::impl::global_bytes_per_locale = bytes_per_node;
+  } else {
+    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
+    Grappa::impl::global_bytes_per_core = global_memory_size_bytes / cores();
+    Grappa::impl::global_bytes_per_locale = global_memory_size_bytes / locales();
   }
   
   VLOG(1) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
@@ -483,7 +487,7 @@ int Grappa_finish( int retval )
 
 namespace Grappa {
 
-  void init( int * argc_p, char ** argv_p[], size_t size ) {
+  void init( int * argc_p, char ** argv_p[], int64_t size ) {
     Grappa_init( argc_p, argv_p, size );
     Grappa_activate();
   }
