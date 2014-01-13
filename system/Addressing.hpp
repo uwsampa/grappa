@@ -19,7 +19,7 @@
 ///
 /// Linear addresses are block cyclic across all the cores in the system.
 ///
-/// TODO: update "node" to mean "core" in all the right places.  
+/// TODO: update "core" to mean "core" in all the right places.  
 ///
 /// TODO:Some of this code implies that linear addresses have a "pool"
 /// field. This is not how it works right now; instead, all non-tag
@@ -53,17 +53,17 @@ static const int tag_bits = 1;
 /// How many address bits?
 static const int pointer_bits = 48;
 /// How many 
-static const int node_bits = 64 - pointer_bits - tag_bits;
+static const int core_bits = 64 - pointer_bits - tag_bits;
 /// How many bits of memory poll tag? TODO: not currently used.
 static const int pool_bits = 64 - pointer_bits - tag_bits;
 
 static const int tag_shift_val = 64 - tag_bits;
 static const int pointer_shift_val = 64 - pointer_bits;
-static const int node_shift_val = pointer_bits;
+static const int core_shift_val = pointer_bits;
 static const int pool_shift_val = pointer_bits;
 
 static const intptr_t tag_mask = (1L << tag_shift_val);
-static const intptr_t node_mask = (1L << node_bits) - 1;
+static const intptr_t core_mask = (1L << core_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 
@@ -94,13 +94,13 @@ private:
   std::ostream& dump( std::ostream& o ) const {
     if( is_2D() ) {
       return o << "<GA 2D " << (void*)storage_ 
-               << ": node " << node() 
+               << ": core " << core() 
                << " pointer " << static_cast<void *>( pointer() )
                << ">";
     } else {
         return o << "<GA Linear " << (void*)storage_ 
 //                 << ": pool " << pool() 
-                 << " node " << node()
+                 << " core " << core()
                  << " pointer " << static_cast<void *>( pointer()  )
                  << ">";
     }
@@ -108,11 +108,11 @@ private:
 
   // GlobalAddress( T * p, Core n = global_communicator.mycore() )
   //   : storage_( ( 1L << tag_shift_val ) |
-  //               ( ( n & node_mask) << node_shift_val ) |
+  //               ( ( n & core_mask) << core_shift_val ) |
   //               ( reinterpret_cast<intptr_t>( p ) ) )
   // {
-  //   assert( global_communicator.mycore() <= node_mask );
-  //   assert( reinterpret_cast<intptr_t>( p ) >> node_shift_val == 0 );
+  //   assert( global_communicator.mycore() <= core_mask );
+  //   assert( reinterpret_cast<intptr_t>( p ) >> core_shift_val == 0 );
   // }
 
 public:
@@ -120,15 +120,15 @@ public:
   /// Construct a global address, initialized to a null pointer
   GlobalAddress( ) : storage_( 0 ) { }
 
-  /// Construct a 2D global address with an initial pointer and node.
+  /// Construct a 2D global address with an initial pointer and core.
   static GlobalAddress TwoDimensional( T * t, Core n = global_communicator.mycore() )
   {
     GlobalAddress g;
     g.storage_ = ( ( 1L << tag_shift_val ) |
-                   ( ( n & node_mask) << node_shift_val ) |
+                   ( ( n & core_mask) << core_shift_val ) |
                    ( reinterpret_cast<intptr_t>( t ) ) );
-    assert( global_communicator.mycore() <= node_mask );
-    assert( reinterpret_cast<intptr_t>( t ) >> node_shift_val == 0 );
+    assert( global_communicator.mycore() <= core_mask );
+    assert( reinterpret_cast<intptr_t>( t ) >> core_shift_val == 0 );
     return g;
   }
 
@@ -142,18 +142,18 @@ public:
 
     intptr_t offset = tt % block_size;
     intptr_t block = tt / block_size;
-    // intptr_t node_from_address = block % global_communicator.cores();
-    // CHECK_EQ( node_from_address, 0 ) << "Core from address should be zero. (Check alignment?)";
+    // intptr_t core_from_address = block % global_communicator.cores();
+    // CHECK_EQ( core_from_address, 0 ) << "Core from address should be zero. (Check alignment?)";
     intptr_t ga = ( block * global_communicator.cores() + global_communicator.mycore() ) * block_size + offset;
     
     T * ttt = reinterpret_cast< T * >( ga );
     
     GlobalAddress g;
     g.storage_ = ( ( 0L << tag_shift_val ) |
-                   //( ( n & node_mask) << node_shift_val ) |
+                   //( ( n & core_mask) << core_shift_val ) |
                    ( reinterpret_cast<intptr_t>( ttt ) ) );
 
-    CHECK_EQ( g.core(), global_communicator.mycore() ) << "converted linear address node doesn't match";
+    CHECK_EQ( g.core(), global_communicator.mycore() ) << "converted linear address core doesn't match";
     CHECK_EQ( g.pointer(), t ) << "converted linear address local pointer doesn't match";
     
     return g;
@@ -172,20 +172,19 @@ public:
     return storage_;
   }
 
-  /// Return the home node of a global address
-  inline Core node() const {
+  /// Return the home core of a global address
+  inline Core core() const {
     if( is_2D() ) {
-      return (storage_ >> node_shift_val) & node_mask;
+      return (storage_ >> core_shift_val) & core_mask;
     } else {
       intptr_t offset = storage_ % block_size;
-      intptr_t node = (storage_ / block_size) % global_communicator.cores();
-      intptr_t node_block = (storage_ / block_size) / global_communicator.cores();
-      return node;
+      intptr_t core = (storage_ / block_size) % global_communicator.cores();
+      intptr_t core_block = (storage_ / block_size) / global_communicator.cores();
+      return core;
     }
   }
-  inline Core core() const { return node(); }
-
-  /// Return the home node of a global address
+  
+  /// Return the home core of a global address
   /// TODO: implement this.
   inline Pool pool() const {
     CHECK( false ) << "Not implemented.";
@@ -200,9 +199,9 @@ public:
     } else {
       intptr_t offset = storage_ % block_size;
       intptr_t block = (storage_ / block_size);
-      intptr_t node = (storage_ / block_size) % global_communicator.cores();
-      intptr_t node_block = (storage_ / block_size) / global_communicator.cores();
-      intptr_t address = node_block * block_size + offset + 
+      intptr_t core = (storage_ / block_size) % global_communicator.cores();
+      intptr_t core_block = (storage_ / block_size) / global_communicator.cores();
+      intptr_t address = core_block * block_size + offset + 
         reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
       return reinterpret_cast< T * >( address );
     }
@@ -217,9 +216,9 @@ public:
     T * local_base;
     size_t block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
-    if (nid < node()) {
+    if (nid < core()) {
       local_base = block_base+block_elems;
-    } else if (nid > node()) {
+    } else if (nid > core()) {
       local_base = block_base;
     } else {
       local_base = pointer();
@@ -242,12 +241,12 @@ public:
     if( is_2D() ) {
       //intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
       //GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
-      return GlobalAddress< T >::TwoDimensional( (T*) 0, node() );
+      return GlobalAddress< T >::TwoDimensional( (T*) 0, core() );
     } else {
       intptr_t first_byte = storage_;
       intptr_t first_byte_offset = first_byte % block_size;
-      intptr_t node = (first_byte / block_size) %   global_communicator.cores();
-      intptr_t node_block = (first_byte / block_size) / global_communicator.cores();
+      intptr_t core = (first_byte / block_size) %   global_communicator.cores();
+      intptr_t core_block = (first_byte / block_size) / global_communicator.cores();
       return GlobalAddress< T >::Raw( this->raw_bits() - first_byte_offset );
     }
   }
@@ -267,14 +266,14 @@ public:
     if( is_2D() ) {
       intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
       //return reinterpret_cast< T * >( -1 ); 
-      return GlobalAddress< T >::TwoDimensional( (T*) 1, node() );
+      return GlobalAddress< T >::TwoDimensional( (T*) 1, core() );
     } else {
       intptr_t first_byte = storage_;
       intptr_t first_byte_offset = first_byte % block_size;
       intptr_t last_byte = first_byte + sizeof(T) - 1;
       intptr_t last_byte_offset = last_byte % block_size;
-      intptr_t node = (last_byte / block_size) % global_communicator.cores();
-      intptr_t node_block = (last_byte / block_size) / global_communicator.cores();
+      intptr_t core = (last_byte / block_size) % global_communicator.cores();
+      intptr_t core_block = (last_byte / block_size) / global_communicator.cores();
       return GlobalAddress< T >::Raw( this->raw_bits() + sizeof(T) + block_size - (last_byte_offset + 1) );
     }
   }
@@ -404,14 +403,14 @@ inline ptrdiff_t operator-<char>( const GlobalAddress< char >& t, const GlobalAd
   return t.raw_bits() - u.raw_bits();
 }
 
-/// return a 2d global pointer to a local pointer on a particular node
+/// return a 2d global pointer to a local pointer on a particular core
 template< typename T >
 GlobalAddress< T > make_global( T * t, Core n = Grappa::mycore() ) {
   return GlobalAddress< T >::TwoDimensional( t, n );
 }
 
 /// takes a local pointer to a block-cyclic distributed chuck of
-/// memory allocated at the same base address on all nodes, and makes
+/// memory allocated at the same base address on all cores, and makes
 /// a linear global pointer pointing to that byte.
 template< typename T >
 GlobalAddress< T > make_linear( T * t ) {
