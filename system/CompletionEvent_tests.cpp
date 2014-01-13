@@ -176,6 +176,19 @@ void try_global_ce_recursive() {
     BOOST_CHECK_EQUAL(y, N);
   });
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
+  
+  BOOST_MESSAGE("test finish block syntactic sugar");
+  
+  long xx = 0;
+  auto a = make_global(&xx);
+  
+  finish([=]{
+    forall<unbound,async>(0, N, [=](int64_t i){
+      delegate::increment<async>(a, 1);
+    });
+  });
+
+  BOOST_CHECK_EQUAL(xx, N);
 }
 
 static int global_x;

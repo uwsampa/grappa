@@ -312,9 +312,17 @@ namespace Grappa {
             TaskMode B = TaskMode::Bound,
             typename TF = decltype(nullptr) >
   void spawn(TF tf) { spawn<B,C>(tf); }
-    
+  
   namespace impl {
     extern GlobalCompletionEvent local_gce;
   }
+  
+  template< GlobalCompletionEvent * C = &impl::local_gce,
+            typename F = decltype(nullptr) >
+  void finish(F f) {
+    f();
+    C->wait();
+  }
+  
 } // namespace Grappa
 
