@@ -206,7 +206,7 @@ namespace Grappa {
   
   namespace impl {
   
-    template< TaskMode B, GlobalCompletionEvent * C, int64_t Threshold, typename F >
+    template< TaskMode B, SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename F >
     void forall(int64_t start, int64_t iters, F loop_body,
         void (F::*mf)(int64_t,int64_t) const) {
       static_assert( C != nullptr, "GCE template arg cannot be null; need the GCE to store shared args");
@@ -219,6 +219,8 @@ namespace Grappa {
         range_t r = blockDist(start, start+iters, mycore(), cores());
         
         if (sizeof(loop_body) > 8) {
+          
+          CHECK(S != SyncMode::Async) << "Cannot do 'async' with a lambda > 8 bytes.";
           
           // initialize this on all cores before starting any tasks
           C->set_shared_ptr(&loop_body);
@@ -237,41 +239,49 @@ namespace Grappa {
           
           forall_here<B,SyncMode::Async,C,Threshold>(r.start, r.end-r.start, loop_body);
           C->send_completion(origin);
-          C->wait();
+          if (S == SyncMode::Blocking) C->wait();
           
         }
       });    
     }
     
     // Convert lambda to `void(i64,i64)`
-    template< TaskMode B, GlobalCompletionEvent * C, int64_t Threshold, typename F >
+    template< TaskMode B, SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename F >
     void forall(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t) const) {
       auto f = [loop_body](int64_t s, int64_t n){
         for (int64_t i=0; i < n; i++) {
           loop_body(s+i);
         }
       };
-      impl::forall<B,C,Threshold>(start, iters, f, &decltype(f)::operator());
+      impl::forall<B,S,C,Threshold>(start, iters, f, &decltype(f)::operator());
     }
   }
   
 #define FORALL_OVERLOAD(...) \
   template< __VA_ARGS__, typename F = decltype(nullptr) > \
   void forall(int64_t start, int64_t iters, F loop_body) { \
-    impl::forall<B,GCE,Threshold>(start, iters, loop_body, &F::operator()); \
+    impl::forall<B,S,C,Threshold>(start, iters, loop_body, &F::operator()); \
   }
   
   FORALL_OVERLOAD(TaskMode B = TaskMode::Bound,
-                  GlobalCompletionEvent * GCE = &impl::local_gce,
+                  SyncMode S = SyncMode::Blocking,
+                  GlobalCompletionEvent * C = &impl::local_gce,
+                  int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
+
+  FORALL_OVERLOAD(SyncMode S,
+                  TaskMode B = TaskMode::Bound,
+                  GlobalCompletionEvent * C = &impl::local_gce,
                   int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
   
-  FORALL_OVERLOAD(GlobalCompletionEvent * GCE,
+  FORALL_OVERLOAD(GlobalCompletionEvent * C,
                   int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-                  TaskMode B = TaskMode::Bound);
+                  TaskMode B = TaskMode::Bound,
+                  SyncMode S = SyncMode::Blocking);
 
   FORALL_OVERLOAD(int64_t Threshold,
-                  GlobalCompletionEvent * GCE = &impl::local_gce,
-                  TaskMode B = TaskMode::Bound);
+                  GlobalCompletionEvent * C = &impl::local_gce,
+                  TaskMode B = TaskMode::Bound,
+                  SyncMode S = SyncMode::Blocking);
   
 #undef FORALL_OVERLOAD
     
