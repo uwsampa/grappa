@@ -216,7 +216,7 @@ void try_synchronizing_spawns() {
     int x = 0;
     
     for (int i=0; i<N; i++) {
-      spawn(&gce, [&x] {
+      spawn<&gce>([&x]{
         x++;
       });
     }
