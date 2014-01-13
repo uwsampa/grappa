@@ -318,7 +318,7 @@ void tj_create_children( uts::Node * parent ) {
   DVLOG(5) << "[done] released vertex " << vvert_storage << " id=" << parent->id;
 
   int64_t parentID = parent->id;
-  forall_here_async_public< &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
+  forall_here<unbound,async, &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
     tj_create_vertex( start, iters, parentID );
   });   
 }
@@ -347,7 +347,7 @@ void search_vertex( int64_t id ) {
   }
 
   // iterate over my children 
-  forall_here_async_public< &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
+  forall_here<unbound,async, &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
       int64_t c0;
       {
         // all iterations in the range share the relevant chunk of the child list
@@ -357,7 +357,7 @@ void search_vertex( int64_t id ) {
         // spawn tasks serially for the first nc-1 chilren
         for ( int64_t i=0; i<iters-1; i++ ) {
           int64_t c = childids[i];
-          publicTask<&s_joiner>( [c]() {
+          spawn<unbound,&s_joiner>( [c]() {
             search_vertex( c );
           });
         }
@@ -380,12 +380,12 @@ void search_vertex( int64_t id ) {
 
 void verify_generation( uint64_t num_vert ) {
   // do checks on child array
-  forall_localized(Child, num_vert-1, [](int64_t i, int64_t& c) {
+  forall(Child, num_vert-1, [](int64_t i, int64_t& c) {
     CHECK( c > 0 ) << "Child[" << i << "] = " << c; // > 0 because root is never c
   });
 
   // do checks on vertex_t array
-  forall_localized(Vertex, num_vert, [](int64_t i, vertex_t& v) {
+  forall(Vertex, num_vert, [](int64_t i, vertex_t& v) {
     CHECK( v.numChildren >= 0 ) << "Vertex[" << i << "].numChildren = " << v.numChildren;
     CHECK( v.childIndex >= 0 )  << "Vertex[" << i << "].childIndex = "  << v.childIndex;
 

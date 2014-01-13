@@ -123,9 +123,19 @@ Before building, you must set up a Slurm allocation and launch distcc daemons. B
 
     # in, for example, build/Make+Release:
     bin/distcc_make -j <target>
-    
-    # or to control the allocation (such as number of nodes),
-    # invoke the salloc job with make manually:
+    # or for Ninja configurations:
+    bin/distcc_ninja <target>
+
+It is possible to control the number of nodes and the Slurm partition to be used by setting environment variables:
+
+|------------------|------------------------------------|
+| DISTCC_NNODE     | number of 'distccd' nodes to setup |
+|------------------|------------------------------------|
+| SALLOC_PARTITION | Slurm partition to use             |
+|------------------|------------------------------------|
+
+Or just invoke salloc directly; e.g.:
+
     salloc -N8 bin/distcc.sh make -j <target>
 
 Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds or if distcc daemons are not loading correctly using the distcc_make option above.

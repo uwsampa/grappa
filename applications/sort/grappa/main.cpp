@@ -166,7 +166,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 
   // do local bucket counts
   // forall_local<uint64_t,histogram>(array, nelems);
-  forall_localized(array, nelems, [](int64_t i, uint64_t& v){
+  forall(array, nelems, [](int64_t i, uint64_t& v){
     size_t b = v >> LOBITS;
     counts[b]++;
   });
@@ -197,7 +197,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   // allocate space in buckets
   VLOG(3) << "allocating space...";
   // forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
-  forall_localized(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+  forall(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
     // (global malloc doesn't call constructors)
     new (&bucket) bucket_t();
     bucket.reserve(counts[id]);
@@ -208,7 +208,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 
   // scatter into buckets
   // forall_local<uint64_t,scatter>(array, nelems);
-  forall_localized(array, nelems, [bucketlist](int64_t s, int64_t n, uint64_t * first){
+  forall(array, nelems, [bucketlist](int64_t s, int64_t n, uint64_t * first){
     size_t nbuckets = counts.size();
     
     for (int i=0; i<n; i++) {
@@ -217,7 +217,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async(destb.core(), [destb,v]{
+      delegate::call<async>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
@@ -230,7 +230,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   // sort buckets locally
   // forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
   /// Do some kind of local serial sort of a bucket
-  forall_localized(bucketlist, nbuckets, [](int64_t bucket_id, bucket_t& bucket){
+  forall(bucketlist, nbuckets, [](int64_t bucket_id, bucket_t& bucket){
     if (bucket.size() == 0) return;
     qsort(&bucket[0], bucket.size(), sizeof(uint64_t), &ui64cmp);
   });
@@ -242,7 +242,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   // redistribute buckets back into global array  
   // forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
   /// Redistribute sorted buckets back into global array
-  forall_localized(bucketlist, nbuckets, [array](int64_t b, bucket_t& bucket) {
+  forall(bucketlist, nbuckets, [array](int64_t b, bucket_t& bucket) {
     const size_t NBUF = BUFSIZE / sizeof(uint64_t);
     DCHECK( b < counts.size() );
 
@@ -292,7 +292,7 @@ int main(int argc, char* argv[]) {
 
       // fill vector with random 64-bit integers
       // forall_local<uint64_t,set_random>(array, nelems);
-      forall_localized(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
+      forall(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
 
       rand_time = Grappa::walltime() - t;
       LOG(INFO) << "fill_random_time: " << rand_time;

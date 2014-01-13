@@ -86,7 +86,7 @@ static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, Grapp
   
   // call_on_all_cores([]{ shared_pool.reset(); });
   
-  forall_localized<&ckpt_gce>(xoffr, nv, [xadj,endVertex,edgeStart](int64_t i, range_t& o) {
+  forall<&ckpt_gce>(xoffr, nv, [xadj,endVertex,edgeStart](int64_t i, range_t& o) {
     auto ndeg = o.end-o.start;
 
     // indices in endVertex    
@@ -167,7 +167,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   tt = timer();
   call_on_all_cores([]{ actual_nadj = 0; });
   auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
-  forall_localized(xoffr, nv, [](int64_t i, range_t& o) {
+  forall(xoffr, nv, [](int64_t i, range_t& o) {
     actual_nadj += o.end - o.start;
   });
   on_all_cores([]{ actual_nadj = allreduce<int64_t,collective_add>(actual_nadj); });  
@@ -232,7 +232,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   tt = timer();
   auto edgeStart = g->edgeStart;
   auto startVertex = g->startVertex;
-  forall_localized<&ckpt_gce>(g->edgeStart, g->numVertices, [edgeStart,startVertex](int64_t v, graphint& estart) {
+  forall<&ckpt_gce>(g->edgeStart, g->numVertices, [edgeStart,startVertex](int64_t v, graphint& estart) {
     auto degree = delegate::read(edgeStart+v+1) - estart;
     Grappa::memset(startVertex+estart, (graphint)v, degree);
   });
@@ -260,7 +260,7 @@ int64_t calc_nnz(const graph& g) {
   static int64_t sum;
   call_on_all_cores([]{ sum = 0; });
   auto es = g.edgeStart;
-  forall_localized(g.edgeStart, g.numVertices, [es](int64_t i, graphint& e){
+  forall(g.edgeStart, g.numVertices, [es](int64_t i, graphint& e){
     sum += delegate::read(es+i+1) - e;
   });
   return reduce<int64_t,collective_add>(&sum);

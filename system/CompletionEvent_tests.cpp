@@ -31,7 +31,7 @@ void try_one_task() {
   
   int foo = 0;
   
-  privateTask(&ce, [&foo] {
+  spawn(&ce, [&foo] {
     foo++;
   });
   
@@ -47,7 +47,7 @@ void try_many_tasks() {
   int foo = 0;
 
   for (int i=0; i<N; i++) {
-    privateTask(&ce, [&foo] {
+    spawn(&ce, [&foo] {
       foo++;
     });
   }
@@ -71,7 +71,7 @@ void try_global_ce() {
     Core origin = mycore();
     gce.enroll(N+1);
     for (int i=0; i<N; i++) {
-      publicTask([xa,origin]{
+      spawn<unbound>([xa,origin]{
         delegate::fetch_and_add(xa, 1);
         complete(make_global(&gce,origin));
       });
@@ -95,7 +95,7 @@ void try_global_ce() {
     Core origin = mycore();
     gce.enroll(N);
     for (int i=0; i<N; i++) {
-      publicTask([xa,ya,origin]{
+      spawn<unbound>([xa,ya,origin]{
         delegate::fetch_and_add(xa, 1);
         delegate::fetch_and_add(ya, 1);
         complete(make_global(&gce,origin));
@@ -111,7 +111,7 @@ void rec_spawn(GlobalAddress<int64_t> xa, int N) {
   Core origin = mycore();
   for (int i=0; i<N/2+1; i++) {
     gce.enroll();
-    publicTask([xa,origin]{
+    spawn<unbound>([xa,origin]{
       delegate::fetch_and_add(xa, 1);
       complete(make_global(&gce,origin));
     });
@@ -133,7 +133,7 @@ void try_global_ce_recursive() {
     Core origin = mycore();
     for (int i=0; i<N; i++) {
       gce.enroll();
-      publicTask([xa,origin]{
+      spawn<unbound>([xa,origin]{
         delegate::fetch_and_add(xa, 1);
         complete(make_global(&gce,origin));
       });
@@ -160,7 +160,7 @@ void try_global_ce_recursive() {
     Core origin = mycore();
     gce.enroll(N);
     for (int i=0; i<N; i++) {
-      publicTask([xa,ya,origin]{
+      spawn<unbound>([xa,ya,origin]{
         delegate::fetch_and_add(xa, 1);
         delegate::fetch_and_add(ya, 1);
         complete(make_global(&gce,origin));
@@ -188,7 +188,7 @@ void try_synchronizing_spawns() {
   CompletionEvent ce;
   int x = 0;
   for (int i=0; i<N; i++) {
-    privateTask(&ce, [&x]{
+    spawn(&ce, [&x]{
       x++;
     });
   }
@@ -203,7 +203,7 @@ void try_synchronizing_spawns() {
     int x = 0;
     
     for (int i=0; i<N; i++) {
-      privateTask(&gce, [&x] {
+      spawn(&gce, [&x] {
         x++;
       });
     }
@@ -217,7 +217,7 @@ void try_synchronizing_spawns() {
   
 //  gce.reset_all();
   for (int i=0; i<N; i++) {
-    publicTask<&gce>([]{
+    spawn<unbound,&gce>([]{
       global_x++;
     });
   }

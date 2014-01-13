@@ -82,7 +82,7 @@ Results_type results;
 
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
+  forall( tuples, num, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[0];
 
     VLOG(2) << "insert " << key << " | " << t;
@@ -133,7 +133,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
   //on_all_cores([]{Grappa_start_profiling();});
   start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
+  forall( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[1];
    
     // will pass on this first vertex to compare in the select 
@@ -148,7 +148,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
    
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
-    forall_here_async_public( results_idx, num_results, [x1](int64_t start, int64_t iters) {
+    forall_here<unbound,async>(results_idx, num_results, [x1](int64_t start, int64_t iters) {
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( IndexBase+start, iters, &subset_stor );
 #else // MATCHES_DHT
@@ -158,8 +158,8 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
     
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
-    /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
-    forall_here_async( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
+    /* not yet supported: forall_here<unbound,async, GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
+    forall_here<async>( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
@@ -183,18 +183,12 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
 
       join_result_count += iters; 
 
-#if ASYNCHRONOUS_RESULT
-      // allocate space for asynchronous insertions
-      char pool_storage[results.insertion_pool_size( iters )];
-      MessagePool pool( pool_storage, sizeof(pool_storage) );
-#endif
-
       for ( int64_t i=0; i<iters; i++ ) {
 
         int64_t x3 = subset[i].columns[1];
         IntPair r = {x1,x3}; 
 #if ASYNCHRONOUS_RESULT
-        results.insert_async( r, pool );
+        results.insert_async( r );
 #else
         //if ( !results.insert_unique( r ) ) { // hard-to-predict branch? Could change to conditional increment
           twohop_count += 1;

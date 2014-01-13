@@ -8,7 +8,6 @@
 #ifndef __INCOHERENT_ACQUIRER_HPP__
 #define __INCOHERENT_ACQUIRER_HPP__
 
-#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
@@ -121,7 +120,7 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent start_acquire");
 #endif
-      DVLOG(5) << "Worker " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << Grappa::current_worker() 
               << " issuing acquire for " << *request_address_ 
               << " * " << *count_ ;
       acquire_started_ = true;
@@ -131,8 +130,8 @@ public:
       size_t nmsg = total_bytes / block_size + 2;
       size_t msg_size = sizeof(Grappa::Message<RequestArgs>);
       
-      if (nmsg*msg_size < Grappa::current_worker().stack_remaining()-8192) {
-        CHECK_LT(Grappa::current_worker().stack_remaining(), STACK_SIZE);
+      if (nmsg*msg_size < Grappa::current_worker()->stack_remaining()-8192) {
+        CHECK_LT(Grappa::current_worker()->stack_remaining(), STACK_SIZE);
         // try to put message storage on stack if there's space
         char msg_buf[nmsg*msg_size];
         Grappa::MessagePool pool(msg_buf, sizeof(msg_buf));
@@ -170,13 +169,13 @@ public:
 
       pool.send_message(args.request_address.core(), [args]{
         IAStatistics::count_acquire_ams( args.request_bytes );
-        DVLOG(5) << "Worker " << CURRENT_THREAD
+        DVLOG(5) << "Worker " << Grappa::current_worker()
         << " received acquire request to " << args.request_address
         << " size " << args.request_bytes
         << " offset " << args.offset
         << " reply to " << args.reply_address;
           
-        DVLOG(5) << "Worker " << CURRENT_THREAD
+        DVLOG(5) << "Worker " << Grappa::current_worker()
         << " sending acquire reply to " << args.reply_address
         << " offset " << args.offset
         << " request address " << args.request_address
@@ -190,7 +189,7 @@ public:
           
         Grappa::send_heap_message(args.reply_address.node(),
           [reply_address, offset](void * payload, size_t payload_size) {
-            DVLOG(5) << "Worker " << CURRENT_THREAD
+            DVLOG(5) << "Worker " << Grappa::current_worker()
             << " received acquire reply to " << reply_address
             << " offset " << offset
             << " payload size " << payload_size;
@@ -199,7 +198,7 @@ public:
           args.request_address.pointer(), args.request_bytes
         );
           
-        DVLOG(5) << "Worker " << CURRENT_THREAD
+        DVLOG(5) << "Worker " << Grappa::current_worker()
         << " sent acquire reply to " << args.reply_address
         << " offset " << args.offset
         << " request address " << args.request_address
@@ -219,7 +218,7 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent block_until_acquired");
 #endif
-      DVLOG(5) << "Worker " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << Grappa::current_worker() 
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       if( !acquired_ ) {
@@ -228,15 +227,15 @@ public:
         start_time_ = 0;
       }
       while( !acquired_ ) {
-      DVLOG(5) << "Worker " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << Grappa::current_worker() 
               << " blocking on " << *request_address_ 
               << " * " << *count_ ;
         if( !acquired_ ) {
-          thread_ = CURRENT_THREAD;
+          thread_ = Grappa::current_worker();
           Grappa::suspend();
           thread_ = NULL;
         }
-        DVLOG(5) << "Worker " << CURRENT_THREAD 
+        DVLOG(5) << "Worker " << Grappa::current_worker() 
                  << " woke up for " << *request_address_ 
                  << " * " << *count_ ;
       }
@@ -245,7 +244,7 @@ public:
   }
 
   void acquire_reply( size_t offset, void * payload, size_t payload_size ) { 
-    DVLOG(5) << "Worker " << CURRENT_THREAD 
+    DVLOG(5) << "Worker " << Grappa::current_worker() 
              << " copying reply payload of " << payload_size
              << " and waking Worker " << thread_;
     memcpy( ((char*)(*pointer_)) + offset, payload, payload_size );

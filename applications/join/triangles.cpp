@@ -124,13 +124,11 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
   GlobalAddress<Tuple> base = Grappa::global_alloc<Tuple>( nedge );
 
   // copy and transform from edge representation to Tuple representation
-  forall_localized(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
+  forall(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
     // FIXME: I know write_async messages are one globaladdress 
     // and one tuple, but make it encapsulated
     int64_t num_messages =  FLAGS_undirected ? 2*n : n;
 
-    char msg_buf[num_messages * sizeof(Message<std::function<void(GlobalAddress<Tuple>, Tuple)>>)];
-    MessagePool write_pool(msg_buf, sizeof(msg_buf));
     for (int64_t i=0; i<n; i++) {
       auto e = first[i];
 
@@ -139,12 +137,12 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
       t.columns[1] = get_v1_from_edge( &e );
 
       if ( FLAGS_undirected ) {
-        delegate::write_async( write_pool, base+start+2*i, t ); 
+        delegate::write<async>(base+start+2*i, t ); 
         t.columns[0] = get_v1_from_edge( &e );
         t.columns[1] = get_v0_from_edge( &e );
-        delegate::write_async( write_pool, base+start+2*i+1, t ); 
+        delegate::write<async>(base+start+2*i+1, t ); 
       } else {
-        delegate::write_async( write_pool, base+start+i, t ); 
+        delegate::write<async>(base+start+i, t ); 
       }
       // optimally I'd like async WO cache op since this will coalesce the write as well
      }
@@ -160,7 +158,7 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
 }
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
+  forall( tuples, num, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Left];
 
     VLOG(2) << "insert " << key << " | " << t;
@@ -214,7 +212,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
 
   start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
+  forall( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Right];
    
     // will pass on this first vertex to compare in the select 
@@ -230,7 +228,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
     edges_transfered += num_results;
-    forall_here_async_public( results_idx, num_results, [x1](int64_t start, int64_t iters) {
+    forall_here<unbound,async>(results_idx, num_results, [x1](int64_t start, int64_t iters) {
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( IndexBase+start, iters, &subset_stor );
 #else // MATCHES_DHT
@@ -240,9 +238,9 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
-    /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
+    /* not yet supported: forall_here<unbound,async, GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
     edges_transfered += num_results;
-    forall_here_async( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
+    forall_here<async>( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
@@ -268,7 +266,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
           // iterate over the second join results in parallel
           // (iterations must spawn with synch object `local_gce`)
           edges_transfered += num_results;
-          forall_here_async_public( results_idx, num_results, [x1](int64_t start, int64_t iters) {
+          forall_here<unbound,async>(results_idx, num_results, [x1](int64_t start, int64_t iters) {
             Tuple subset_stor[iters];
             Incoherent<Tuple>::RO subset( IndexBase+start, iters, subset_stor );
 #else // MATCHES_DHT
@@ -280,9 +278,9 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
           
           // iterate over the second join results in parallel
           // (iterations must spawn with synch object `local_gce`)
-          /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
+          /* not yet supported: forall_here<unbound,async, GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
           edges_transfered += num_results;
-          forall_here_async( 0, num_results, [x1,x2,results_addr](int64_t start, int64_t iters) {
+          forall_here<async>( 0, num_results, [x1,x2,results_addr](int64_t start, int64_t iters) {
             Tuple subset_stor[iters];
             Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif

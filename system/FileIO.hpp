@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
-#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "Tasking.hpp"
 #include "ParallelLoop.hpp"
@@ -238,7 +237,7 @@ namespace impl {
       CHECK( i+n <= nelem) << "nelem = " << nelem << ", i+n = " << i+n;
     
       io_joiner.enroll();
-      publicTask([arg_addr, i, n]{
+      spawn<TaskMode::Unbound>([arg_addr, i, n]{
         read_array_args<T>::task(arg_addr, i, n);
       });
     }
@@ -287,7 +286,7 @@ namespace impl {
         CHECK( i+n <= nelem) << "nelem = " << nelem << ", i+n = " << i+n;
       
         io_joiner.enroll();
-        publicTask([arg_addr, i, n]{
+        spawn<TaskMode::Unbound>([arg_addr, i, n]{
           read_array_args<T>::task(arg_addr, i, n);
         });
       }

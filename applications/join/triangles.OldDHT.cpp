@@ -49,7 +49,7 @@ Column local_joinIndex1, local_joinIndex2, local_joinIndex3;
 
 // TODO: incorporate the edge tuples generation (although only does triples)
 void generate_data( GlobalAddress<Tuple> base, size_t num ) {
-  forall_localized(base, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
+  forall(base, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
     Tuple r;
     for ( uint64_t i=0; i<TUPLE_LEN; i++ ) {
       r.columns[i] = rand()%FLAGS_numTuples; 
@@ -59,7 +59,7 @@ void generate_data( GlobalAddress<Tuple> base, size_t num ) {
 }
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
+  forall( tuples, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
     int64_t key = t->columns[local_joinIndex1];
     Tuple val = *t;
 
@@ -162,7 +162,7 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
   start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
   // we use the system default GlobalCompletionEvent
-  forall_localized( tuples, FLAGS_numTuples, [](GlobalAddress<Tuple> t_g, Tuple * t) {
+  forall( tuples, FLAGS_numTuples, [](GlobalAddress<Tuple> t_g, Tuple * t) {
     int64_t key = t->columns[local_joinIndex2];
 
     GlobalAddress<Tuple> results;
@@ -170,7 +170,7 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
     DVLOG(4) << "key " << *t << " finds (" << results << ", " << num_results << ")";
     
     async_parallel_for<Tuple, secondJoin, joinerSpawn<Tuple,secondJoin,ASYNC_PAR_FOR_DEFAULT>, ASYNC_PAR_FOR_DEFAULT >( results, num_results );
-    forall_here_async_public( resultsIndex, num_results 
+    forall_here<unbound,async>(resultsIndex, num_results 
 
     });
 

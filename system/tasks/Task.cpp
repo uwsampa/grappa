@@ -6,7 +6,6 @@
 
 #include "TaskingScheduler.hpp"
 #include "Task.hpp"
-#include "../Grappa.hpp"
 #include "../PerformanceTools.hpp"
 #include "common.hpp"
 #include "Statistics.hpp"
@@ -14,6 +13,7 @@
 // #include "GlobalQueue.hpp"
 
 #include "StealQueue.hpp"
+#include "../Grappa.hpp"
 
 DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" );
 DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
@@ -62,6 +62,9 @@ GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, private_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPrivateTasks();
     });
 
+
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, tasks_heap_allocated, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, tasks_created, 0);
 
 namespace Grappa {
   namespace impl {
@@ -264,7 +267,7 @@ inline void TaskManager::checkPull() {
       // only one Worker is allowed to steal
       stealLock = false;
 
-      VLOG(5) << CURRENT_THREAD << " trying to steal";
+      VLOG(5) << Grappa::current_worker() << " trying to steal";
       int goodSteal = 0;
       Core victimId = -1;
 
@@ -286,7 +289,7 @@ inline void TaskManager::checkPull() {
 
       // if finished because succeeded in stealing
       if ( goodSteal ) {
-        VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
+        VLOG(5) << Grappa::current_worker() << " steal " << goodSteal
           << " from Core" << victimId;
         VLOG(5) << *this; 
         TaskManagerStatistics::record_successful_steal_session();
@@ -294,7 +297,7 @@ inline void TaskManager::checkPull() {
         // publicQ should have had some elements in it
         // at some point after successful steal
       } else {
-        VLOG(5) << CURRENT_THREAD << " failed to steal";
+        VLOG(5) << Grappa::current_worker() << " failed to steal";
 
         TaskManagerStatistics::record_failed_steal_session();
 
@@ -317,7 +320,7 @@ inline void TaskManager::checkPull() {
   //     // blocking
   //     gqPullLock = false;
   // 
-  //     TaskManagerStatistics::record_globalq_pull_start( );  // record the start separately because pull_global() may block CURRENT_THREAD indefinitely
+  //     TaskManagerStatistics::record_globalq_pull_start( );  // record the start separately because pull_global() may block Grappa::current_worker() indefinitely
   //     uint64_t num_received = publicQ.pull_global(); 
   //     TaskManagerStatistics::record_globalq_pull( num_received ); 
   // 
@@ -344,7 +347,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     if ( !Grappa::thread_idle() ) { // TODO: change to directly use scheduler thread idle
       Grappa::yield(); // TODO: remove this, since thread_idle now suspends always
     } else {
-      DVLOG(5) << CURRENT_THREAD << " un-idled";
+      DVLOG(5) << Grappa::current_worker() << " un-idled";
     }
     GRAPPA_PROFILE_STOP( prof );
   }
@@ -366,12 +369,15 @@ std::ostream& operator<<( std::ostream& o, const Task& t ) {
   return t.dump( o );
 }
 
+// defined in Grappa.cpp
+extern void signal_done();
+
 /// Tell the TaskManager that it should terminate.
 /// Any tasks that are still in the queues are
 /// not guarenteed to be executed after this returns.
 void TaskManager::signal_termination( ) {
   workDone = true;
-  impl::signal_done();
+  signal_done();
 }
 
 /// Teardown.

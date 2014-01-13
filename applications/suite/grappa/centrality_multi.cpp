@@ -103,7 +103,7 @@ void do_bfs_push_multi(graphint d_phase_, int64_t start, int64_t end) {
       DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
       
       ce.enroll(vend-vstart);
-      forall_here_async(vstart, vend-vstart, [v,&ce](int64_t vs, int64_t kiters) {
+      forall_here<async>(vstart, vend-vstart, [v,&ce](int64_t vs, int64_t kiters) {
         // TODO: overlap these      
         graphint sigmav = local::read(c.sigma+v);
         graphint vStart = delegate::read(g.edgeStart+v);
@@ -149,7 +149,7 @@ void do_bfs_pop_multi(graphint start, graphint end) {
       // pop children, TODO: try with very coarse decomp, cache large blocks at a time
       ce.enroll(myEnd-myStart);
       // TODO: make sure lambda's not being heap-allocated?
-      forall_here_async(myStart, myEnd-myStart, [v,&ce](int64_t kstart, int64_t kiters){
+      forall_here<async>(myStart, myEnd-myStart, [v,&ce](int64_t kstart, int64_t kiters){
       
         int64_t sigma_v = local::read(c.sigma+v);
         
@@ -180,7 +180,7 @@ void do_bfs_pop_multi(graphint start, graphint end) {
   // MessagePool pool(pool_buf, pool_sz);
   // for (graphint j=start; j<end; j++) {
   //   graphint v = c.Q[j];
-  //   delegate::increment_async(pool, bc+v, d);    
+  //   delegate::increment<async>(pool, bc+v, d);    
   // }
   // 
 }
@@ -369,7 +369,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   // all-reduce everyone's deltas
   on_all_cores([]{ allreduce_inplace<double,collective_add>(c.bctemp, g.numVertices); });
   // put them into the global "centrality" array
-  forall_localized(bc, g.numVertices, [](int64_t i, double& e){
+  forall(bc, g.numVertices, [](int64_t i, double& e){
     e = c.bctemp[i];
   });
   
@@ -393,7 +393,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   
   double bc_total = 0;
   Core origin = mycore();
-  // TODO: use array reduction op, or mutable "forall_localized"-held state
+  // TODO: use array reduction op, or mutable "forall"-held state
   on_all_cores([bc, &bc_total, origin]{
     auto b = bc.localize();
     auto local_end  = (bc+g.numVertices).localize();

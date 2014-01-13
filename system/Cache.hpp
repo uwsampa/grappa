@@ -10,7 +10,6 @@
 #ifndef __CACHE_HPP__
 #define __CACHE_HPP__
 
-#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "common.hpp"
 

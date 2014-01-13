@@ -31,20 +31,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     auto nf_addr = make_global( &num_finished );
 
     for (int ta = 0; ta<num_tasks; ta++) {
-      auto parent = CURRENT_THREAD;
+      auto parent = Grappa::current_worker();
     
-      privateTask([ta,parent,nf_addr]{
+      spawn([ta,parent,nf_addr]{
         int mynum = ta;
 
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 1" );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << mynum << " about to yield 1" );
         Grappa::yield( );
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 2" );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << mynum << " about to yield 2" );
         Grappa::yield( );
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << mynum << " is done" );
 
         // int fetch add to address on Core1
         int64_t result = delegate::fetch_and_add( nf_addr, 1 );
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << mynum << " result=" << result );
         if ( result == num_tasks-1 ) {
             Grappa::wake( parent );
         }
@@ -65,17 +65,17 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     for (int64_t i=0; i<num_tasks; i++) {
       joiner.enroll();
-      privateTask([i,a,&joiner,g_nf]{
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << i );
+      spawn([i,a,&joiner,g_nf]{
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << i );
 
         int64_t result = delegate::fetch_and_add(g_nf, 1);
         a[i] = result;
 
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << i << " about to yield" );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << i << " about to yield" );
         Grappa::yield();
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << i << " is done" );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << i << " is done" );
 
-        BOOST_MESSAGE( CURRENT_THREAD << " with task " << i << " result=" << result );
+        BOOST_MESSAGE( Grappa::current_worker() << " with task " << i << " result=" << result );
   
         joiner.complete();
       });

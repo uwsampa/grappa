@@ -2,4 +2,7 @@
 # calls 'salloc', launches distcc on each of the nodes of the allocation, 
 # and fires up a new bash shell with  DISTCC_HOSTS set up
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-exec salloc -N8 "$DIR/distcc.sh" ninja "$@"
+
+nnode=${DISTCC_NNODE-8}
+
+exec salloc -N$nnode "$DIR/distcc.sh" ninja "$@"

@@ -66,14 +66,14 @@ class MatchesDHT {
         *globally_valid_local_pointer = MatchesDHT<K,V,HF>( base, capacity );
       });
 
-      Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
         Cell empty;
         c = empty;
       });
     }
 
     static void set_RO_global( MatchesDHT<K,V,HF> * globally_valid_local_pointer ) {
-      Grappa::forall_localized( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = c.entries;
 
@@ -113,7 +113,8 @@ class MatchesDHT {
         for (i = entries->begin(); i!=entries->end(); ++i) {
           const Entry e = *i;
           if ( e.key == key ) {  // typename K must implement operator==
-            lr.matches = e.vs->getReadBuffer();
+            // FIXME: currently discarding 'const' qualifier...
+            lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
             lr.num = e.vs->getLength();
             break;
           }

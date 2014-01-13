@@ -9,7 +9,6 @@
 #define __GLOBAL_MEMORY_HPP__
 
 #include <glog/logging.h>
-#include "Grappa.hpp"
 
 #include "GlobalMemoryChunk.hpp"
 #include "GlobalAllocator.hpp"

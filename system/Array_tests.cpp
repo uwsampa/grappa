@@ -33,7 +33,7 @@ void test_memset_memcpy(bool test_async = false) {
   GlobalAddress<T> ys = Grappa::global_alloc<T>(NN);
 
   Grappa::memset(xs, Val, NN);
-  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+  Grappa::forall(xs, NN, [](int64_t i, T& v) {
     BOOST_CHECK_EQUAL(v, Val);
   });
 
@@ -44,7 +44,7 @@ void test_memset_memcpy(bool test_async = false) {
     Grappa::memcpy(ys, xs, NN);
   }
 
-  Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
+  Grappa::forall(ys, NN, [](int64_t i, T& v) {
     CHECK_EQ(v, Val);
   });
 
@@ -56,7 +56,7 @@ void test_memset_memcpy(bool test_async = false) {
   } else {
     Grappa::memcpy(xs, ys, NN);
   }
-  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+  Grappa::forall(xs, NN, [](int64_t i, T& v) {
     BOOST_CHECK_EQUAL(v, Val);
   });
 
@@ -69,13 +69,13 @@ void test_complex() {
   GlobalAddress< complex<double> > ys = Grappa::global_alloc< complex<double> >(NN);
 
   Grappa::memset(xs, complex<double>(7.0,1.0), NN);
-  Grappa::forall_localized(xs, NN, [](int64_t i, complex<double>& v) {
+  Grappa::forall(xs, NN, [](int64_t i, complex<double>& v) {
     BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
   });
 
   Grappa::memcpy(ys, xs, NN);
 
-  Grappa::forall_localized(ys, NN, [](int64_t i, complex<double>& v) {
+  Grappa::forall(ys, NN, [](int64_t i, complex<double>& v) {
     BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
   });
 
@@ -94,7 +94,7 @@ void test_prefix_sum() {
 //  }
   Grappa::prefix_sum(xs, N);
   
-  Grappa::forall_localized(xs, N, [](int64_t i, int64_t& v){
+  Grappa::forall(xs, N, [](int64_t i, int64_t& v){
     BOOST_CHECK_EQUAL(v, i);
   });
   Grappa::global_free(xs);
@@ -120,7 +120,7 @@ void test_push_buffer() {
     
     pusher.flush();
   });
-  Grappa::forall_localized(xs, N*Grappa::cores(), [](int64_t i, int64_t& v) {
+  Grappa::forall(xs, N*Grappa::cores(), [](int64_t i, int64_t& v) {
     BOOST_CHECK_EQUAL(v, 1);
   });
   

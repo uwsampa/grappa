@@ -8,7 +8,6 @@
 #ifndef COLLECTIVE_HPP
 #define COLLECTIVE_HPP
 
-//#include "Grappa.hpp"
 //#include "common.hpp"
 #include "CompletionEvent.hpp"
 #include "Message.hpp"
@@ -101,7 +100,7 @@ namespace Grappa {
     
     for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [ce_addr, work] {
-        privateTask([ce_addr, work] {
+        spawn([ce_addr, work] {
           work();
           complete(ce_addr);
         });

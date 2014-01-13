@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     // BOOST_CHECK( Grappa::cores() == 1 );
     BOOST_CHECK( FLAGS_lines <= MAX_ARRAY_SIZE );
-      privateTask( [] {
+      spawn( [] {
 
         // wait for all to start (to hack scheduler yield)
         task_barrier->complete();
@@ -62,7 +62,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           final->complete();
           });
 
-      privateTask( [] {
+      spawn( [] {
         // wait for all to start (to hack scheduler yield)
         task_barrier->complete();
         task_barrier->wait();

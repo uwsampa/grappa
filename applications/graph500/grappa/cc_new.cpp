@@ -142,7 +142,7 @@ void explore(long root_index, long mycolor, GlobalAddress<CompletionEvent> ce) {
       
       if (v.color() < 0) { // unclaimed
         v.color(mycolor);
-        privateTask([ev,mycolor,ce]{
+        spawn([ev,mycolor,ce]{
           explore(ev, mycolor, ce);
         });
       } else { // already had color
@@ -150,7 +150,7 @@ void explore(long root_index, long mycolor, GlobalAddress<CompletionEvent> ce) {
         if (FLAGS_cc_insert_async) {
           component_edges->insert_async(edge, [ce]{ complete(ce); });
         } else {
-          privateTask([edge,ce]{
+          spawn([edge,ce]{
             component_edges->insert(edge);
             complete(ce);
           });
@@ -175,7 +175,7 @@ void search(long v, long mycolor) {
       if (!v.visited()) {
         v.visited(true);
         v.color(mycolor);
-        privateTask([ev,mycolor,origin]{
+        spawn([ev,mycolor,origin]{
           search(ev, mycolor);
           GCE->send_completion(origin);
         });
@@ -210,7 +210,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
     for (size_t i = 0; i < g->nv; i++) {
       sem->decrement(); // (after filling, blocks until an exploration finishes)
       send_heap_message((g->vs+i).core(), [i,sem]{
-        privateTask([i,sem]{
+        spawn([i,sem]{
           CompletionEvent ce(1);
           explore(i, (g->vs+i)->color(), make_global(&ce));
           ce.wait();
@@ -237,7 +237,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   // Propagate colors out to the rest of the vertices
   GRAPPA_TIME_LOG("cc_propagate_time") {
     // reset 'visited' flag
-    forall_localized(g->vs, g->nv, [](VertexCC& v){ v.visited(false); });
+    forall(g->vs, g->nv, [](VertexCC& v){ v.visited(false); });
     
     component_edges->forall_keys<GCE>([](Edge& e){
       auto mycolor = color(g->vs+e.start);
@@ -248,7 +248,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
           auto& v = *(g->vs+ev).pointer();
           if (!v.visited()) {
             v.visited(true);
-            privateTask([ev,mycolor,origin]{
+            spawn([ev,mycolor,origin]{
               search(ev, mycolor);
               GCE->send_completion(origin);
             });
@@ -261,7 +261,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
     
   } // cc_propagate_time
 
-  forall_localized(g->vs, g->nv, [](int64_t i, VertexCC& v){ if (v.color() == i) ncomponents++; });
+  forall(g->vs, g->nv, [](int64_t i, VertexCC& v){ if (v.color() == i) ncomponents++; });
   long nc = reduce<long,collective_add>(&ncomponents);
   
   t = walltime() - t;

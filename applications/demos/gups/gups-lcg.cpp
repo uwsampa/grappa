@@ -32,9 +32,9 @@ int main( int argc, char * argv[] ) {
 
       double start = walltime();
 
-      forall_global_public(0, FLAGS_sizeB, [=](int64_t i){
+      forall<unbound>(0, FLAGS_sizeB, [=](int64_t i){
           uint64_t b = (lcgM * i + lcgB) % FLAGS_sizeA;
-          delegate::increment_async( A + b, 1);
+          delegate::increment<async>( A + b, 1);
         });
 
       gups_runtime = walltime() - start;

@@ -67,6 +67,7 @@ set(SYSTEM_SOURCES
   ConditionVariableLocal.hpp
   CountingSemaphoreLocal.hpp
   Delegate.hpp
+  DelegateBase.hpp
   ExternalCountPayloadMessage.hpp
   FileIO.hpp
   FlatCombiner.hpp
@@ -152,55 +153,55 @@ add_dependencies(Grappa all-tools)
 
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
-macro(check_all test_cpp nnode ppn target)
+macro(add_check test_cpp nnode ppn target)
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
   add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
   add_dependencies( check-all-${target} check-${test_name} )
+  add_dependencies( check-all-${target}-compile-only ${test})
 endmacro()
 
-# compile and run all passing tests
-add_custom_target(check-all-pass)
-set_property(TARGET check-all-pass PROPERTY FOLDER "Tests")
-
-# targets known to be failing
-add_custom_target(check-all-fail)
-set_property(TARGET check-all-fail PROPERTY FOLDER "Tests")
+# create separate targets for compiling/runnning all passing/failing tests
+foreach(target  pass pass-compile-only fail fail-compile-only)
+  add_custom_target(check-all-${target})
+  set_property(TARGET check-all-${target} PROPERTY FOLDER "Tests")
+endforeach()
 
 
-check_all( Addressing_tests.cpp              2 2  pass )
-check_all( Allocator_tests.cpp               2 2  pass )
-check_all( Array_tests.cpp                   2 2  pass )
-check_all( BufferVector_tests.cpp            2 2  pass )
-check_all( Cache_tests.cpp                   2 1  pass )
-check_all( Collective_tests.cpp              2 2  pass )
-check_all( CompletionEvent_tests.cpp         2 2  pass )
-check_all( ContextSwitchLatency_tests.cpp    1 1  pass )
-check_all( Delegate_tests.cpp                2 1  pass )
-check_all( FileIO_tests.cpp                  2 1  fail )
-check_all( FlatCombiner_tests.cpp            2 2  pass )
-check_all( GlobalAllocator_tests.cpp         1 1  fail )
-check_all( GlobalHash_tests.cpp              2 1  pass )
-check_all( GlobalMemoryChunk_tests.cpp       2 1  pass )
-check_all( GlobalMemory_tests.cpp            2 1  pass )
-check_all( GlobalVector_tests.cpp            2 1  pass )
-check_all( Gups_tests.cpp                    2 1  pass )
-check_all( LocaleSharedMemory_tests.cpp      2 1  pass )
-check_all( Message_tests.cpp                 2 1  fail )
-check_all( Mutex_tests.cpp                   2 1  pass )
-check_all( New_delegate_tests.cpp            2 2  pass )
-check_all( New_loop_tests.cpp                2 2  pass )
-check_all( PoolAllocator_tests.cpp           2 1  pass )
-check_all( Public_tasks_tests.cpp            2 1  pass )
-check_all( RDMAAggregator_tests.cpp          2 1  pass )
-check_all( RateMeasure_tests.cpp             2 1  pass )
-check_all( Reducer_tests.cpp                 2 1  pass )
-check_all( Scheduler_benchmarking_tests.cpp  2 1  pass )
-check_all( Semaphore_tests.cpp               2 1  fail )
-check_all( Statistics_tests.cpp              2 1  pass )
-check_all( Stealing_tests.cpp                2 1  fail )
-check_all( Tasking_tests.cpp                 2 1  pass )
-check_all( ThreadQueue_tests.cpp             2 1  pass )
+add_check( Addressing_tests.cpp              2 2  pass )
+add_check( Allocator_tests.cpp               2 2  pass )
+add_check( Array_tests.cpp                   2 2  pass )
+add_check( BufferVector_tests.cpp            2 2  pass )
+add_check( Cache_tests.cpp                   2 1  pass )
+add_check( Collective_tests.cpp              2 2  pass )
+add_check( CompletionEvent_tests.cpp         2 2  pass )
+add_check( ContextSwitchLatency_tests.cpp    1 1  pass )
+add_check( Delegate_tests.cpp                2 1  pass )
+add_check( FileIO_tests.cpp                  2 1  fail )
+add_check( FlatCombiner_tests.cpp            2 2  pass )
+add_check( FullEmpty_tests.cpp               2 2  pass )
+add_check( GlobalAllocator_tests.cpp         1 1  fail )
+add_check( GlobalHash_tests.cpp              2 1  pass )
+add_check( GlobalMemoryChunk_tests.cpp       2 1  pass )
+add_check( GlobalMemory_tests.cpp            2 1  pass )
+add_check( GlobalVector_tests.cpp            2 1  pass )
+add_check( Gups_tests.cpp                    2 1  pass )
+add_check( LocaleSharedMemory_tests.cpp      2 1  pass )
+add_check( Message_tests.cpp                 2 1  fail )
+add_check( Mutex_tests.cpp                   2 1  pass )
+add_check( New_delegate_tests.cpp            2 2  pass )
+add_check( New_loop_tests.cpp                2 2  pass )
+add_check( PoolAllocator_tests.cpp           2 1  pass )
+add_check( Public_tasks_tests.cpp            2 1  pass )
+add_check( RDMAAggregator_tests.cpp          2 1  pass )
+add_check( RateMeasure_tests.cpp             2 1  pass )
+add_check( Reducer_tests.cpp                 2 1  pass )
+add_check( Scheduler_benchmarking_tests.cpp  2 1  pass )
+add_check( Semaphore_tests.cpp               2 1  fail )
+add_check( Statistics_tests.cpp              2 1  pass )
+add_check( Stealing_tests.cpp                2 1  fail )
+add_check( Tasking_tests.cpp                 2 1  pass )
+add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 
 # add a target to generate API documentation with Doxygen

@@ -45,7 +45,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
   });
 
   // forall rows
-  forall_global_public<&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
+  forall<unbound,&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
     // serialized chunk of rows
     DVLOG(5) << "rows [" << start << ", " << start+iters << ")";
     for (int64_t i=start; i<start+iters; i++ ) {
@@ -56,7 +56,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
       int64_t kend = cxoff[1];
 
       // forall non-zero columns (parallel dot product)
-      forall_here_async_public<&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
+      forall_here<unbound,async,&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
         double yaccum = 0;
 
         // serialized chunk of columns
@@ -75,7 +75,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
         DVLOG(4) << "y[" << i << "] += " << yaccum; 
        
         auto ytarget = spmv::v.a+i; 
-        delegate::call_async<&mmjoiner>(ytarget.core(), [ytarget,yaccum] {
+        delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum] {
           ytarget.pointer()->vp[spmv::y] += yaccum;   // y[i]+= partial dotproduct
         });
         // could force local updates and bulk communication 
@@ -189,7 +189,7 @@ void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, v
   });
 
   // forall rows
-  forall_localized<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
+  forall<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
     double yaccum = 0;
     
     forall_here(0, v.nadj, [&v,&yaccum](int64_t j){
@@ -198,7 +198,7 @@ void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, v
     });
     
     auto ytarget = spmv::v.a+i; 
-    delegate::call_async<&mmjoiner>(ytarget.core(), [ytarget,yaccum]{
+    delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum]{
       ytarget->vp[spmv::y] = yaccum;
     });
     // could force local updates and bulk communication 

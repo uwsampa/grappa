@@ -61,7 +61,7 @@ template< Exp EXP >
 double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
   double t = Grappa::walltime();
   
-  forall_global_private(0, FLAGS_nelems, [qa](int64_t i){
+  forall(0, FLAGS_nelems, [qa](int64_t i){
     if (EXP == Exp::QUEUE) {
       
       if (choose_random(FLAGS_fraction_push)) {
@@ -123,8 +123,8 @@ void test_global_vector() {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
-  // forall_localized(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
-  forall_localized(qa, [](int64_t& e){ e = 9; });
+  // forall(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
+  forall(qa, [](int64_t& e){ e = 9; });
     
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 9);
@@ -164,7 +164,7 @@ void test_dequeue() {
 void test_stack() {
   LOG(INFO) << "testing stack...";
   auto sa = GlobalVector<long>::create(N);
-  forall_localized(sa->storage(), N, [](long& e){ e = -1; });
+  forall(sa->storage(), N, [](long& e){ e = -1; });
   
   on_all_cores([sa]{
     forall_here(0, 100, [sa](int64_t i) {

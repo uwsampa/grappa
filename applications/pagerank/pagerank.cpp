@@ -54,7 +54,7 @@ void calculate_dM( weighted_csr_graph m, double d ) {
   //  if sum == 0 { set all m[,j] to 1/N }
   //  else set m[,j] to m[,j]/sum
 
-  forall_localized( m.adjweight, m.nadj, [d]( int64_t i, double& weight ) {
+  forall( m.adjweight, m.nadj, [d]( int64_t i, double& weight ) {
     weight = weight * d;
   });
 }
@@ -76,7 +76,7 @@ double two_norm_diff(vector vs, vindex j2, vindex j1) {
   });
 
   /* This line is the only one that really required the element_pair hack */
-  forall_localized( vs.a, vs.length, [j2,j1]( int64_t i, element_pair& ele ) {
+  forall( vs.a, vs.length, [j2,j1]( int64_t i, element_pair& ele ) {
     double diff = ele.vp[j2] - ele.vp[j1];
       /* NOTFORPAIR *///VLOG(5) << "diff[" << i << "] = " << *cv2 << " - " << *cv1 << " = " << diff;
       diff_sum_sq.accumulate(diff*diff);
@@ -99,7 +99,7 @@ double sqrt_total_sum_sq; // instead of a file-global could also pass to on_all_
 void normalize( vector v, vindex j ) {
   // calculate sum of squares
   on_all_cores( [] { sum_sq.reset(); } );
-  forall_localized( v.a, v.length, [j]( int64_t i, element_pair& ele ) {
+  forall( v.a, v.length, [j]( int64_t i, element_pair& ele ) {
     //VLOG(5) << "normalize sum += " << ele;
     double ej = ele.vp[j];
     sum_sq.accumulate(ej * ej);
@@ -112,7 +112,7 @@ void normalize( vector v, vindex j ) {
   VLOG(4) << "normalize sum total = " << sqrt_total_sum_sq;
 
   // normalize
-  forall_localized( v.a, v.length, [j]( int64_t i, element_pair& ele) {
+  forall( v.a, v.length, [j]( int64_t i, element_pair& ele) {
     ele.vp[j] /= sqrt_total_sum_sq;
   });
 }
@@ -122,7 +122,7 @@ void normalize( vector v, vindex j ) {
 double damp_vector_val;
 
 void add_constant_vector( vector v, vindex j ) {
-  forall_localized( v.a, v.length, [j]( int64_t i, element_pair& e ) {
+  forall( v.a, v.length, [j]( int64_t i, element_pair& e ) {
     e.vp[j] += damp_vector_val;
   });
 }
@@ -159,7 +159,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     v.length = m.nv;
     v.a = Grappa::global_alloc<element_pair>(v.length);
     on_all_cores( [] { srand(0); } );
-    forall_localized( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
+    forall( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
       ele.vp[V] = ((double)rand()/RAND_MAX); //[0,1]
       });
 
@@ -167,7 +167,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     normalize( v, V );
 
     // last pagerank vector: initialize to -inf
-    forall_localized( v.a, v.length, [LAST_V]( int64_t i, element_pair& ele ) {
+    forall( v.a, v.length, [LAST_V]( int64_t i, element_pair& ele ) {
       ele.vp[LAST_V] = -1000.0f;
     });
 
@@ -197,7 +197,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     V = temp;
     
     // initialize target to zero
-    forall_localized( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
+    forall( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
       ele.vp[V] = 0.0f;
     });
 
@@ -288,7 +288,7 @@ int main(int argc, char* argv[]) {
     // add weights to the csr graph
     weighted_csr_graph g( unweighted_g );
     g.adjweight = Grappa::global_alloc<double>(g.nadj);
-    forall_localized( g.adjweight, g.nadj, [](int64_t i, double& w) {
+    forall( g.adjweight, g.nadj, [](int64_t i, double& w) {
       // TODO random
       w = 0.2f;
     });

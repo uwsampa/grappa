@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "Statistics.hpp"
@@ -163,7 +162,7 @@ public:
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashMap(self, base, total_capacity);
     });
-    forall_localized(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
+    forall(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
     return self;
   }
   
@@ -171,12 +170,12 @@ public:
   size_t ncells() { return this->capacity; }
   
   void clear() {
-    forall_localized(base, capacity, [](Cell& c){ c.clear(); });
+    forall(base, capacity, [](Cell& c){ c.clear(); });
   }
   
   void destroy() {
     auto self = this->self;
-    forall_localized(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
+    forall(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
     global_free(this->base);
     call_on_all_cores([self]{ self->~GlobalHashMap(); });
     global_free(self);
@@ -184,7 +183,7 @@ public:
   
   template< typename F >
   void forall_entries(F visit) {
-    forall_localized(base, capacity, [visit](int64_t i, Cell& c){
+    forall(base, capacity, [visit](int64_t i, Cell& c){
       // if cell is not hit then no action
       if (c.entries == nullptr) return;
       DVLOG(3) << "c<" << &c << "> entries:" << c.entries << " size: " << c.entries->size();
@@ -242,8 +241,8 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           typename T = decltype(nullptr),
           typename V = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall_localized(GlobalAddress<GlobalHashMap<T,V>> self, F visit) {
-  forall_localized<GCE,Threshold>(self->begin(), self->ncells(),
+void forall(GlobalAddress<GlobalHashMap<T,V>> self, F visit) {
+  forall<GCE,Threshold>(self->begin(), self->ncells(),
   [visit](typename GlobalHashMap<T,V>::Cell& c){
     for (auto& e : c.entries) {
       visit(e.key, e.val);

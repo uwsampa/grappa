@@ -5,6 +5,7 @@
 #include "Cache.hpp"
 #include "FlatCombiner.hpp"
 #include "ParallelLoop.hpp"
+#include "Delegate.hpp"
 #include <queue>
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
@@ -106,7 +107,7 @@ public:
             invoke(m->deq_q.pop());
           }
           DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
-          m->ce.wait(new_suspended_delegate([self,m,c] {
+          m->ce.wait(SuspendedDelegate::create([self,m,c] {
             switch (c) {
               case Choice::PUSH: m->tail = m->tail_allocator; break;
               case Choice::POP:  m->tail_allocator = m->tail; break;
@@ -136,7 +137,7 @@ public:
         m->ce.enroll();
         invoke(m->deq_q.pop());
       }
-      m->ce.wait(new_suspended_delegate([self,m,ncombined] {
+      m->ce.wait(SuspendedDelegate::create([self,m,ncombined] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
         m->tail = m->tail_allocator;
         m->head = m->head_allocator;
@@ -147,7 +148,7 @@ public:
           invoke(m->pop_q.pop());
         }
         global_vector_master_combined += ncombined2;
-        m->ce.wait(new_suspended_delegate([self,m] {
+        m->ce.wait(SuspendedDelegate::create([self,m] {
           DVLOG(2) << "after pops: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
           m->tail_allocator = m->tail;
           // find new combiner...
@@ -169,7 +170,7 @@ public:
       auto do_call = [self,result_addr,yield_q,func]{
         auto m = &self->master;
         auto q = yield_q(m);
-        q->push(new_suspended_delegate([result_addr,func]{
+        q->push(SuspendedDelegate::create([result_addr,func]{
           auto val = func();
           auto set_result = [result_addr,val]{ result_addr->writeXF(val); };
           
@@ -442,13 +443,13 @@ public:
     auto self = this->self;
     auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
     if (a.size == self->capacity) {
-      forall_localized_async<GCE,Threshold>(self->base, self->capacity, func);
+      forall<SyncMode::Async,GCE,Threshold>(self->base, self->capacity, func);
     } else if (a.start < a.end) {
       Range r = {a.start, a.end};
-      forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+      forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
     } else if (a.start > a.end) {
       for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
-        forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+        forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
       }
     }
     GCE->wait();
@@ -461,7 +462,7 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
           typename T = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall_localized(GlobalAddress<GlobalVector<T>> self, F func) {
+void forall(GlobalAddress<GlobalVector<T>> self, F func) {
   self->forall_elements(func);
 }
 

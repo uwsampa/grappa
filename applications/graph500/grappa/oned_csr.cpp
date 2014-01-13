@@ -87,7 +87,7 @@ inline std::string graph_str(csr_graph* g) {
 
 
 static void find_nv(const tuple_graph* const tg) {
-  forall_localized(tg->edges, tg->nedge, [](int64_t i, packed_edge& e){
+  forall(tg->edges, tg->nedge, [](int64_t i, packed_edge& e){
     if (e.v0 > maxvtx) { maxvtx = e.v0; }
     else if (e.v1 > maxvtx) { maxvtx = e.v1; }
   });
@@ -110,7 +110,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   
   auto offsets = static_cast<GlobalAddress<range_t>>(xoff);
   
-  forall_localized<&my_gce>(offsets, nv, [offsets,nv](int64_t s, int64_t n, range_t * x){
+  forall<&my_gce>(offsets, nv, [offsets,nv](int64_t s, int64_t n, range_t * x){
     for (int i=0; i<n; i++) {
       int64_t index = make_linear(x+i)-offsets;
       block_offset_t b = indexToBlock(index, nv, cores());
@@ -120,7 +120,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       
       auto val = x[i].start;
       auto offset = b.offset;
-      delegate::call_async<&my_gce>(b.block, [offset,val] {
+      delegate::call<async,&my_gce>(b.block, [offset,val] {
         prefix_temp_base[offset] = val;
       });
     }
@@ -166,7 +166,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     
     // put back into original array
     forall_here(0, nlocal, [xoff,r](int64_t i){
-      delegate::write_async<&my_gce>(xoff+2*(r.start+i), prefix_temp_base[i]);
+      delegate::write<async,&my_gce>(xoff+2*(r.start+i), prefix_temp_base[i]);
     });
     my_gce.complete();
     my_gce.wait();
@@ -187,16 +187,16 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // count occurrences of each vertex in edges
   VLOG(2) << "degree func";
   // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
-  forall_localized<&my_gce>(tg->edges, tg->nedge, [](int64_t i, packed_edge& edge) {
+  forall<&my_gce>(tg->edges, tg->nedge, [](int64_t i, packed_edge& edge) {
     if (edge.v0 != edge.v1) { //skip self-edges
-      delegate::increment_async<&my_gce>(XOFF(edge.v0), 1);
-      delegate::increment_async<&my_gce>(XOFF(edge.v1), 1);
+      delegate::increment<async,&my_gce>(XOFF(edge.v0), 1);
+      delegate::increment<async,&my_gce>(XOFF(edge.v1), 1);
     }
   });
   
   VLOG(2) << "minvect func";
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
-  forall_localized<&my_gce>(xoff, g->nv, [](int64_t& vo) {
+  forall<&my_gce>(xoff, g->nv, [](int64_t& vo) {
     if (vo < MINVECT_SIZE) { vo = MINVECT_SIZE; }
   });
   
@@ -208,7 +208,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   //initialize XENDOFF to be the same as XOFF
   auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
-  forall_localized<&my_gce>(xoffr, g->nv, [](range_t& o){
+  forall<&my_gce>(xoffr, g->nv, [](range_t& o){
     o.end = o.start;
   });
   
@@ -236,7 +236,7 @@ i64cmp (const void *a, const void *b)
 
 inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
   int64_t where = delegate::fetch_and_add(XENDOFF(i), 1);
-  delegate::write_async<&my_gce>(xadj+where, j);
+  delegate::write<async,&my_gce>(xadj+where, j);
   
   DVLOG(5) << "scattering [" << i << "] xendoff[i] " << XENDOFF(i) << " = " << j << " (where: " << where << ")";
 }
@@ -245,7 +245,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g_ptr) {
   auto& g = *g_ptr;
   VLOG(2) << "scatter edges";
   
-  forall_localized<&my_gce>(tg->edges, tg->nedge, [g](packed_edge& e) {
+  forall<&my_gce>(tg->edges, tg->nedge, [g](packed_edge& e) {
     int64_t i = e.v0, j = e.v1;
     
     if (i >= 0 && j >= 0 && i != j) {
@@ -256,7 +256,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g_ptr) {
   
   VLOG(2) << "pack_vtx_edges";
   auto xoffr = static_cast<GlobalAddress<range_t>>(g.xoff);
-  forall_localized<&my_gce>(xoffr, g.nv, [g](int64_t i, range_t& xi) {
+  forall<&my_gce>(xoffr, g.nv, [g](int64_t i, range_t& xi) {
     auto xoi = xi.start;
     auto xei = xi.end;
     

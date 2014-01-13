@@ -73,7 +73,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     VLOG(1) << "testing histogram sampling";
     int64_t N = 1<<20;  
     auto xs = Grappa::global_alloc<int64_t>(N);
-    forall_localized(xs, N, [N](int64_t i, int64_t& x) { x = rand() % N; });
+    forall(xs, N, [N](int64_t i, int64_t& x) { x = rand() % N; });
   
     on_all_cores([xs,N]{
       for (int64_t i=0; i<N; i++) {
