@@ -35,6 +35,7 @@ LocalAdjListGraph::LocalAdjListGraph(std::unordered_set<Edge, Edge_hasher>& edge
   DVLOG(5) << "local construction: ";
   for (auto e : edges) {
     DVLOG(5) << "  " << e;
+    VLOG_EVERY_N(4, 100000) << "edges: " << google::COUNTER;
     auto& val = adjs[e.src];
     val.push_back(e.dst);
   }

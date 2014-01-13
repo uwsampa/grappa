@@ -14,6 +14,7 @@
 #include "squares.hpp"
 #include "squares_partition.hpp"
 #include "squares_bushy.hpp"
+#include "squares_partition_bushy.hpp"
 
 // graph gen
 #include "generator/make_graph.h"
@@ -77,11 +78,11 @@ int main(int argc, char** argv) {
   
     tuple_graph tg;
 
-    if (FLAGS_fin.compare("") != 0) {
-      tg = readTuples( FLAGS_fin, FLAGS_finNumTuples );
-    } else {
-      int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
-      int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
+  if (FLAGS_fin.compare("") != 0) {
+    tg = readEdges( FLAGS_fin, FLAGS_finNumTuples );
+  } else {
+    int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
+    int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
 
       LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
 
@@ -96,11 +97,12 @@ int main(int argc, char** argv) {
     }
 
   
-    std::unordered_map<std::string, Query*> qm( {
-        {"SquareQuery", new SquareQuery()}, 
-        {"SquarePartition4way", new SquarePartition4way()},
-        {"SquareBushyPlan", new SquareBushyPlan()}
-        });
+  std::unordered_map<std::string, Query*> qm( {
+      {"SquareQuery", new SquareQuery()}, 
+      {"SquarePartition4way", new SquarePartition4way()},
+      {"SquarePartitionBushy4way", new SquarePartitionBushy4way()},
+      {"SquareBushyPlan", new SquareBushyPlan()}
+      });
 
     Query& q = *(qm[FLAGS_query]);
 

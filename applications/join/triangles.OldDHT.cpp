@@ -186,21 +186,21 @@ int main(int argc, char* argv[]) {
 
     GlobalAddress<Tuple> tuples = Grappa::global_alloc<Tuple>( FLAGS_numTuples );
 
-    if ( FLAGS_in == "" ) {
-      VLOG(1) << "Generating some data";
-      generate_data( tuples, FLAGS_numTuples );
-    } else {
-      VLOG(1) << "Reading data from " << FLAGS_in;
-      readTuples( FLAGS_in, tuples, FLAGS_numTuples );
-    }
+  if ( FLAGS_in == "" ) {
+    VLOG(1) << "Generating some data";
+    generate_data( tuples, FLAGS_numTuples );
+  } else {
+    VLOG(1) << "Reading data from " << FLAGS_in;
+    readEdges( FLAGS_in, tuples, FLAGS_numTuples );
+  }
 
-    DHT_type::init_global_DHT( &joinTable, 64 );
+  DHT_type::init_global_DHT( &joinTable, 64 );
 
-    Column joinIndex1 = 0; // subject
-    Column joinIndex2 = 1; // object
+  Column joinIndex1 = 0; // subject
+  Column joinIndex2 = 1; // object
 
-    // triangle (assume one index to build)
-    triangles( tuples, joinIndex1, joinIndex2, joinIndex2 ); 
+  // triangle (assume one index to build)
+  triangles( tuples, joinIndex1, joinIndex2, joinIndex2 ); 
   });
   Grappa::finalize();
 }

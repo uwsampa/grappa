@@ -28,6 +28,7 @@ class MatchesDHT {
       K key;
       BufferVector<V> * vs;
       Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
+      Entry ( ) {}
     };
 
     struct Cell {
@@ -53,6 +54,25 @@ class MatchesDHT {
     MatchesDHT( GlobalAddress<Cell> base, size_t capacity ) {
       this->base = base;
       this->capacity = capacity;
+    }
+
+    static bool lookup_local( K key, Cell * target, Entry * result ) {
+        std::list<MDHT_TYPE(Entry)> * entries = target->entries;
+
+        // first check if the cell has any entries;
+        // if not then the lookup returns nothing
+        if ( entries == NULL ) return false;
+
+        typename std::list<MDHT_TYPE(Entry)>::iterator i;
+        for (i = entries->begin(); i!=entries->end(); ++i) {
+          const Entry e = *i;
+          if ( e.key == key ) {  // typename K must implement operator==
+            *result = e;
+            return true;
+          }
+        }
+
+        return false;
     }
     
   public:
@@ -95,29 +115,21 @@ class MatchesDHT {
       });
     }
 
+
     uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      lookup_result result = Grappa::delegate::call( target.core(), [key,target]() {
+      // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
+      lookup_result result = Grappa::delegate::call( target.core(), [key,target,this]() {
 
-        std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
         MDHT_TYPE(lookup_result) lr;
         lr.num = 0;
 
-        // first check if the cell has any entries;
-        // if not then the lookup returns nothing
-        if ( entries == NULL ) return lr;
-
-        typename std::list<MDHT_TYPE(Entry)>::iterator i;
-        for (i = entries->begin(); i!=entries->end(); ++i) {
-          const Entry e = *i;
-          if ( e.key == key ) {  // typename K must implement operator==
-            // FIXME: currently discarding 'const' qualifier...
-            lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
-            lr.num = e.vs->getLength();
-            break;
-          }
+        Entry e;
+        if (lookup_local( key, target.pointer(), &e)) {
+          lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
+          lr.num = e.vs->getLength();
         }
 
         return lr;
@@ -126,6 +138,47 @@ class MatchesDHT {
       *vals = result.matches;
       return result.num;
     } 
+
+
+    // version of lookup that takes a continuation instead of returning results back
+    template< typename CF, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    void lookup_iter ( K key, CF f ) {
+      uint64_t index = computeIndex( key );
+      GlobalAddress< Cell > target = base + index; 
+
+      // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
+      //TODO optimization where only need to do remotePrivateTask instead of call_async
+      //if you are going to do more suspending ops (comms) inside the loop
+      remotePrivateTask<GCE>( target.node(), [key, target, f, this]() {
+        Entry e;
+        if (lookup_local( key, target.pointer(), &e)) {
+          V * results = e.vs->getReadBuffer().pointer(); // global address to local array
+          forall_here_async<GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
+            for  (int64_t i=start; i<start+iters; i++) {
+              // call the continuation with the lookup result
+              f(results[i]); 
+            }
+          });
+        }
+      });
+    }
+
+    // version of lookup that takes a continuation instead of returning results back
+    template< typename CF, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    void lookup ( K key, CF f ) {
+      uint64_t index = computeIndex( key );
+      GlobalAddress< Cell > target = base + index; 
+
+      Grappa::delegate::call_async( target.node(), [key, target, f]() {
+        Entry e;
+        if (lookup_local( key, target.pointer(), &e)) {
+          V * results = e.vs->getReadBuffer().pointer(); // global address to local array
+          uint64_t len = e.vs->getLength();
+          f(results, len); 
+        }
+      });
+    }
+
 
     // Inserts the key if not already in the set
     // Shouldn't be used with `insert`.

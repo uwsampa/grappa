@@ -26,6 +26,21 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
+if(TRACING)
+  # TODO:Fix VampirTrace support
+  
+  set(GOOGLE_PROFILER ON)
+
+  add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
+
+  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
+  
+  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
+  set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+endif()
+
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
@@ -95,6 +110,13 @@ if(TRACING)
   # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
   # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
 
+<<<<<<< HEAD
+=======
+  # set(CMAKE_C_COMPILER "${THIRD_PARTY_ROOT}/bin/vtcc")
+  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+>>>>>>> master
 endif()
 
 
