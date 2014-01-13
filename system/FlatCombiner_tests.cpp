@@ -23,44 +23,35 @@ struct Foo {
   double z;
 } GRAPPA_BLOCK_ALIGNED;
 
-void user_main( void * ignore ) {
-  CHECK_EQ(sizeof(Foo), block_size);
-  auto f = symmetric_global_alloc<Foo>();
-  on_all_cores([f]{
-    f->x = 1;
-    f->y = 2;
-    f->z = 3;
-  });
-  
-  auto c = GlobalCounter::create();
-  
-  on_all_cores([c]{
-    for (int i=0; i<10; i++) {
-      c->incr();
-    }
-  });
-  
-  // auto count = c->([](GlobalCounter * self){ return self->master.count; });
-  // BOOST_CHECK_EQUAL(count, c->count());
-  // c->on_master([](GlobalCounter * self){ VLOG(0) << self; });
-  
-  BOOST_CHECK_EQUAL(c->count(), 10*cores());
-  LOG(INFO) << "count = " << c->count();
-  
-  Statistics::merge_and_print();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-
-  Grappa_activate();
-
-  Grappa_run_user_main( &user_main, (void*)NULL );
-
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    CHECK_EQ(sizeof(Foo), block_size);
+    auto f = symmetric_global_alloc<Foo>();
+    on_all_cores([f]{
+      f->x = 1;
+      f->y = 2;
+      f->z = 3;
+    });
+  
+    auto c = GlobalCounter::create();
+  
+    on_all_cores([c]{
+      for (int i=0; i<10; i++) {
+        c->incr();
+      }
+    });
+  
+    // auto count = c->([](GlobalCounter * self){ return self->master.count; });
+    // BOOST_CHECK_EQUAL(count, c->count());
+    // c->on_master([](GlobalCounter * self){ VLOG(0) << self; });
+  
+    BOOST_CHECK_EQUAL(c->count(), 10*cores());
+    LOG(INFO) << "count = " << c->count();
+  
+    Statistics::merge_and_print();
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
-

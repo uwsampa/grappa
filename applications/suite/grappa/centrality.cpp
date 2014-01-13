@@ -3,14 +3,12 @@
 
 #include "defs.hpp"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <GlobalAllocator.hpp>
 #include <Delegate.hpp>
 #include <AsyncDelegate.hpp>
 #include <Collective.hpp>
 #include <common.hpp>
 #include <Cache.hpp>
-#include <GlobalTaskJoiner.hpp>
 #include <PushBuffer.hpp>
 #include <Array.hpp>
 #include <Statistics.hpp>
@@ -44,7 +42,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
     d_phase = d_phase_;
   });
 
-  forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
+  forall(c.Q+start, end-start, [](int64_t i, graphint& v){
     CHECK(v < g.numVertices) << v << " < " << g.numVertices;
     
     int64_t bufEdgeStart[2];
@@ -57,8 +55,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
  
     nedge_traversed += vend - vstart;
     DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
-    // async_parallel_for_hack(bfs_push_visit_neighbor, vstart, vend-vstart, v);
-    forall_localized_async(g.endVertex+vstart, vend-vstart,
+    forall<async>(g.endVertex+vstart, vend-vstart,
                     [v](int64_t kstart, int64_t kiters, int64_t * kfirst) {
       DVLOG(3) << "neighbors " << v << ": " << kstart << " -> " << kstart+kiters;
 
@@ -76,13 +73,13 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
         // If node has not been visited, set distance and push on Q (but only once)
         if (d < 0) {
           if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
-            delegate::write_async(c.dist+w, d_phase);
+            delegate::write<async>(c.dist+w, d_phase);
             Qbuf.push(w);
           }
           d = d_phase;
         }
         if (d == d_phase) {
-          delegate::increment_async(c.sigma+w, sigmav);
+          delegate::increment<async>(c.sigma+w, sigmav);
           bufChild[ccount++] = w;
         }
       }
@@ -96,8 +93,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
 }
 
 void do_bfs_pop(graphint start, graphint end) {
-  // global_async_parallel_for_thresh(bfs_pop_vertex, start, end-start, 1);
-  forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
+  forall(c.Q+start, end-start, [](int64_t i, graphint& v){
     // TODO: overlap reads
     graphint myStart = delegate::read(g.edgeStart+v);
     graphint myEnd   = myStart + delegate::read(c.child_count+v);
@@ -106,8 +102,7 @@ void do_bfs_pop(graphint start, graphint end) {
     DVLOG(4) << "pop " << v << " (" << i << ")";
     
     // pop children
-    // async_parallel_for_hack(bfs_pop_children, myStart, myEnd-myStart, v);
-    forall_localized_async(c.child+myStart, myEnd-myStart,
+    forall<async>(c.child+myStart, myEnd-myStart,
         [v](int64_t kstart, int64_t kiters, graphint * kchildren){
 
       int64_t sigma_v = delegate::read(c.sigma+v);
@@ -122,13 +117,12 @@ void do_bfs_pop(graphint start, graphint end) {
   
       DVLOG(4) << "v(" << v << ")[" << kstart << "," << kstart+kiters << "] sum: " << sum;
       // TODO: maybe shared pool so we don't have to block on sending message?
-      delegate::increment_async(c.delta+v, sum);
+      delegate::increment<async>(c.delta+v, sum);
     });
   });
   
   DVLOG(4) << "###################";
-  // global_async_parallel_for_thresh(bc_add_delta, start, end-start, 1);
-  forall_localized(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
+  forall(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
 
     for (int64_t j=0; j<jiters; j++) {
       const graphint v = cQ[j];
@@ -136,7 +130,7 @@ void do_bfs_pop(graphint start, graphint end) {
       double d = delegate::read(c.delta+v);
       DVLOG(4) << "updating " << v << " (" << jstart+j << ") <= " << d;
 
-      delegate::increment_async(bc+v, d);
+      delegate::increment<async>(bc+v, d);
     }
   });
 }
@@ -174,14 +168,14 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   
   graphint QHead[100 * SCALE];
   
-  c.delta       = Grappa_typed_malloc<double>  (g_in->numVertices);
-  c.dist        = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  c.Q           = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  c.sigma       = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  c.marks       = Grappa_typed_malloc<graphint>(g_in->numVertices+2);
-  c.child       = Grappa_typed_malloc<graphint>(g_in->numEdges);
-  c.child_count = Grappa_typed_malloc<graphint>(g_in->numVertices);
-  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);
+  c.delta       = Grappa::global_alloc<double>  (g_in->numVertices);
+  c.dist        = Grappa::global_alloc<graphint>(g_in->numVertices);
+  c.Q           = Grappa::global_alloc<graphint>(g_in->numVertices);
+  c.sigma       = Grappa::global_alloc<graphint>(g_in->numVertices);
+  c.marks       = Grappa::global_alloc<graphint>(g_in->numVertices+2);
+  c.child       = Grappa::global_alloc<graphint>(g_in->numEdges);
+  c.child_count = Grappa::global_alloc<graphint>(g_in->numVertices);
+  if (!computeAllVertices) c.explored = Grappa::global_alloc<graphint>(g_in->numVertices);
   c.Qnext       = make_global(&Qnext);
   
   double t; t = timer();
@@ -294,18 +288,18 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   
   VLOG(1) << "centrality rngtime = " << rngtime;
   
-  Grappa_free(c.delta);
-  Grappa_free(c.dist);
-  Grappa_free(c.Q);
-  Grappa_free(c.sigma);
-  Grappa_free(c.marks);
-  Grappa_free(c.child);
-  Grappa_free(c.child_count);
-  Grappa_free(c.explored);
+  Grappa::global_free(c.delta);
+  Grappa::global_free(c.dist);
+  Grappa::global_free(c.Q);
+  Grappa::global_free(c.sigma);
+  Grappa::global_free(c.marks);
+  Grappa::global_free(c.child);
+  Grappa::global_free(c.child_count);
+  Grappa::global_free(c.explored);
   
   double bc_total = 0;
   Core origin = mycore();
-  // TODO: use array reduction op, or mutable "forall_localized"-held state
+  // TODO: use array reduction op, or mutable "forall"-held state
   on_all_cores([&bc_total, origin]{
     auto b = bc.localize();
     auto local_end  = (bc+g.numVertices).localize();

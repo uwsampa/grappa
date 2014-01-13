@@ -10,7 +10,7 @@
 using namespace Grappa;
 
 GlobalAddress<Graph<VertexP>> g;
-GlobalAddress<long> bfs_tree;
+GlobalAddress<int64_t> bfs_tree;
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
@@ -80,7 +80,6 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   } else {
     LOG_FIRST_N(INFO,1) << "bfs_version: 'grappa_adj'";
   }
-  GRAPPA_TRACER("make_bfs_tree()");
   
   call_on_all_cores([g_in,_bfs_tree]{
     g = g_in;
@@ -96,7 +95,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   double t = walltime();
   
   // initialize bfs_tree to -1, parent of root is root, and init frontier with root
-  forall_localized(g->vs, g->nv, [root](int64_t i, VertexP& v){
+  forall(g->vs, g->nv, [root](int64_t i, VertexP& v){
     if (i == root) {
       v.parent(root);
       frontier_push(root);
@@ -123,7 +122,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
         auto& src_v = *(g->vs+sv).pointer();
         for (auto& ev : src_v.adj_iter()) {
           if (FLAGS_cas_flatten == false || combiner->not_done_before(g->vs+ev)) {
-            delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
+            delegate::call<async,&joiner>((g->vs+ev).core(), [sv,ev]{
               auto& end_v = *(g->vs+ev).pointer();
               if (end_v.parent() == -1) {
                 end_v.parent(sv);       // set as parent
@@ -144,8 +143,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   // VLOG(2) << "after bfs";
   
   t = walltime();
-  forall_localized(g->vs, g->nv, [](int64_t i, VertexP& v){
-    // delegate::write_async(*pool, bfs_tree+i, v.parent);
+  forall(g->vs, g->nv, [](int64_t i, VertexP& v){
     delegate::write(bfs_tree+i, v.parent());
   });
   VLOG(3) << "bfs_tree_write_time: " << walltime() - t;

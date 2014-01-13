@@ -18,27 +18,39 @@ extern HeapLeakChecker * Grappa_heapchecker;
 
 #include "Communicator.hpp"
 
+// histogram buckets
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_0_to_255_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_256_to_511_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_512_to_767_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_768_to_1023_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1024_to_1279_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1280_to_1535_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1536_to_1791_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1792_to_2047_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2048_to_2303_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2304_to_2559_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2560_to_2815_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2816_to_3071_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3072_to_3327_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3328_to_3583_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3584_to_3839_bytes, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3840_to_4095_bytes, 0);
+
+// other metrics
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_messages, 0);
+GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_bytes, 0);
+GRAPPA_DEFINE_STAT( CallbackStatistic<double>, communicator_start_time, []() {
+    // initialization value
+    return Grappa::walltime();
+    });
+GRAPPA_DEFINE_STAT( CallbackStatistic<double>, communicator_end_time, []() {
+    // sampling value
+    return Grappa::walltime();
+    });
+
 /// Global communicator instance
 Communicator global_communicator;
   
-/// declare labels for histogram
-std::string CommunicatorStatistics::hist_labels[16] = {
-    "\"comm_0_to_255_bytes\"",
-    "\"comm_256_to_511_bytes\"",
-    "\"comm_512_to_767_bytes\"",
-    "\"comm_768_to_1023_bytes\"",
-    "\"comm_1024_to_1279_bytes\"",
-    "\"comm_1280_to_1535_bytes\"",
-    "\"comm_1536_to_1791_bytes\"",
-    "\"comm_1792_to_2047_bytes\"",
-    "\"comm_2048_to_2303_bytes\"",
-    "\"comm_2304_to_2559_bytes\"",
-    "\"comm_2560_to_2815_bytes\"",
-    "\"comm_2816_to_3071_bytes\"",
-    "\"comm_3072_to_3327_bytes\"",
-    "\"comm_3328_to_3583_bytes\"",
-    "\"comm_3584_to_3839_bytes\"",
-    "\"comm_3840_to_4095_bytes\"" };
 
 /// Construct communicator
 Communicator::Communicator( )
@@ -72,9 +84,9 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 #ifdef HEAPCHECK_ENABLE
   }
 #endif
-  // make sure the Node type is big enough for our system
-  assert( static_cast< int64_t >( gasnet_nodes() ) <= (1L << sizeof(Node) * 8) && 
-          "Node type is too small for number of nodes in job" );
+  // make sure the Core type is big enough for our system
+  assert( static_cast< int64_t >( gasnet_nodes() ) <= (1L << sizeof(Core) * 8) && 
+          "Core type is too small for number of nodes in job" );
 
   // initialize job geometry
   mycore_ = gasnet_mynode();
@@ -145,3 +157,29 @@ void Communicator::finish(int retval) {
   atexit(finalise_mpi);
 }
 
+
+CommunicatorStatistics::CommunicatorStatistics() 
+    : histogram_()
+  { 
+    histogram_[0] = &comm_0_to_255_bytes;
+    histogram_[1] = &comm_256_to_511_bytes;
+    histogram_[2] = &comm_512_to_767_bytes;
+    histogram_[3] = &comm_768_to_1023_bytes;
+    histogram_[4] = &comm_1024_to_1279_bytes;
+    histogram_[5] = &comm_1280_to_1535_bytes;
+    histogram_[6] = &comm_1536_to_1791_bytes;
+    histogram_[7] = &comm_1792_to_2047_bytes;
+    histogram_[8] = &comm_2048_to_2303_bytes;
+    histogram_[9] = &comm_2304_to_2559_bytes;
+    histogram_[10] = &comm_2560_to_2815_bytes;
+    histogram_[11] = &comm_2816_to_3071_bytes;
+    histogram_[12] = &comm_3072_to_3327_bytes;
+    histogram_[13] = &comm_3328_to_3583_bytes;
+    histogram_[14] = &comm_3584_to_3839_bytes;
+    histogram_[15] = &comm_3840_to_4095_bytes;
+  }
+
+void CommunicatorStatistics::reset_clock() {
+  communicator_start_time.reset();
+}
+  

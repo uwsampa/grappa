@@ -79,7 +79,7 @@ char * impl_getName() { return "Grappa"; }
 int    impl_paramsToStr(char * strBuf, int ind) {
   ind += sprintf(strBuf+ind, "Execution strategy:  ");
 
-  ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa_nodes());
+  ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa::cores());
   ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
 
   if ( FLAGS_load_balance.compare(        "none" ) != 0 ) {
@@ -318,7 +318,7 @@ void tj_create_children( uts::Node * parent ) {
   DVLOG(5) << "[done] released vertex " << vvert_storage << " id=" << parent->id;
 
   int64_t parentID = parent->id;
-  forall_here_async_public< &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
+  forall_here<unbound,async, &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
     tj_create_vertex( start, iters, parentID );
   });   
 }
@@ -347,7 +347,7 @@ void search_vertex( int64_t id ) {
   }
 
   // iterate over my children 
-  forall_here_async_public< &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
+  forall_here<unbound,async, &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
       int64_t c0;
       {
         // all iterations in the range share the relevant chunk of the child list
@@ -357,7 +357,7 @@ void search_vertex( int64_t id ) {
         // spawn tasks serially for the first nc-1 chilren
         for ( int64_t i=0; i<iters-1; i++ ) {
           int64_t c = childids[i];
-          publicTask<&s_joiner>( [c]() {
+          spawn<unbound,&s_joiner>( [c]() {
             search_vertex( c );
           });
         }
@@ -380,12 +380,12 @@ void search_vertex( int64_t id ) {
 
 void verify_generation( uint64_t num_vert ) {
   // do checks on child array
-  forall_localized(Child, num_vert-1, [](int64_t i, int64_t& c) {
+  forall(Child, num_vert-1, [](int64_t i, int64_t& c) {
     CHECK( c > 0 ) << "Child[" << i << "] = " << c; // > 0 because root is never c
   });
 
   // do checks on vertex_t array
-  forall_localized(Vertex, num_vert, [](int64_t i, vertex_t& v) {
+  forall(Vertex, num_vert, [](int64_t i, vertex_t& v) {
     CHECK( v.numChildren >= 0 ) << "Vertex[" << i << "].numChildren = " << v.numChildren;
     CHECK( v.childIndex >= 0 )  << "Vertex[" << i << "].childIndex = "  << v.childIndex;
 
@@ -403,8 +403,8 @@ void safe_initialize_data() {
   vertex_t reset_vertex;
   reset_vertex.numChildren = -2;
   reset_vertex.childIndex  = -3;
-  Grappa_memset_local( Child, -1L, FLAGS_vertices_size );
-  Grappa_memset_local( Vertex, reset_vertex, FLAGS_vertices_size );
+  Grappa::memset( Child, -1L, FLAGS_vertices_size );
+  Grappa::memset( Vertex, reset_vertex, FLAGS_vertices_size );
 }
 
 
@@ -445,199 +445,185 @@ struct user_main_args {
 #define BILLION 1000000000
 
 /// Grappa UTS-mem
-void user_main ( user_main_args * args ) {
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([=]{
 
-  // allocate tree structures 
-  LOG(INFO) << "Allocating global structures...\n"
-    << "\tVertex= " << ((double)sizeof(vertex_t)*FLAGS_vertices_size)/BILLION << " GB\n"
-    << "\tChild= " << ((double)sizeof(int64_t)*FLAGS_vertices_size)/BILLION << " GB\n"
-    << "\tTree_Nodes= "<< ((double)sizeof(uts::Node)*FLAGS_vertices_size)/BILLION << " GB\n"
-    << "\tTotal= " << ((double)((sizeof(vertex_t)*FLAGS_vertices_size)
-          +(sizeof(int64_t)*FLAGS_vertices_size)
-          +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION << " GB";
+    // allocate tree structures 
+    LOG(INFO) << "Allocating global structures...\n"
+      << "\tVertex= " << ((double)sizeof(vertex_t)*FLAGS_vertices_size)/BILLION << " GB\n"
+      << "\tChild= " << ((double)sizeof(int64_t)*FLAGS_vertices_size)/BILLION << " GB\n"
+      << "\tTree_Nodes= "<< ((double)sizeof(uts::Node)*FLAGS_vertices_size)/BILLION << " GB\n"
+      << "\tTotal= " << ((double)((sizeof(vertex_t)*FLAGS_vertices_size)
+            +(sizeof(int64_t)*FLAGS_vertices_size)
+            +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION << " GB";
 
-  GlobalAddress<vertex_t> Vertex_l = Grappa_typed_malloc<vertex_t>( FLAGS_vertices_size); 
-  GlobalAddress<int64_t> Child_l =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size);
-  VLOG(2) << "Vertex = " << Vertex_l;
-  VLOG(2) << "Child = " << Child_l;
+    GlobalAddress<vertex_t> Vertex_l = Grappa::global_alloc<vertex_t>( FLAGS_vertices_size); 
+    GlobalAddress<int64_t> Child_l =  Grappa::global_alloc<int64_t>( FLAGS_vertices_size);
+    VLOG(2) << "Vertex = " << Vertex_l;
+    VLOG(2) << "Child = " << Child_l;
 
-  // allocate space for uts::Nodes just for the tree creation
-  GlobalAddress<uts::Node> Tree_Nodes_l;
-  Tree_Nodes_l = Grappa_typed_malloc<uts::Node>( FLAGS_vertices_size );
-  VLOG(2) << "Tree_Nodes = " << Tree_Nodes_l;
+    // allocate space for uts::Nodes just for the tree creation
+    GlobalAddress<uts::Node> Tree_Nodes_l;
+    Tree_Nodes_l = Grappa::global_alloc<uts::Node>( FLAGS_vertices_size );
+    VLOG(2) << "Tree_Nodes = " << Tree_Nodes_l;
 
-  // initialization on each node
-  on_all_cores( [Child_l, Vertex_l, Tree_Nodes_l] {
-    global_id_ga = make_global( &global_id, 0 );
-    global_child_index_ga = make_global( &global_child_index, 0 );
+    // initialization on each node
+    on_all_cores( [Child_l, Vertex_l, Tree_Nodes_l] {
+      global_id_ga = make_global( &global_id, 0 );
+      global_child_index_ga = make_global( &global_child_index, 0 );
 
-    global_id_ga_FC = new Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t>(global_id_ga, FLAGS_flat_combine_threshold, 0);
-    global_child_index_ga_FC = new Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t>(global_child_index_ga, FLAGS_flat_combine_threshold, 0);
+      global_id_ga_FC = new Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t>(global_id_ga, FLAGS_flat_combine_threshold, 0);
+      global_child_index_ga_FC = new Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t>(global_child_index_ga, FLAGS_flat_combine_threshold, 0);
 
-    Child = Child_l;
-    Vertex = Vertex_l;
-    Tree_Nodes = Tree_Nodes_l;
+      Child = Child_l;
+      Vertex = Vertex_l;
+      Tree_Nodes = Tree_Nodes_l;
 
-    // initialize UTS with args
-    LOG(INFO) << "Initializing UTS";
-    uts_parseParams(global_argc, global_argv);
-  });
+      // initialize UTS with args
+      LOG(INFO) << "Initializing UTS";
+      uts_parseParams(argc, argv);
+    });
 
-  // initialization to support verification
-  if ( FLAGS_verify_tree ) {
-    LOG(INFO) << "initializing arrays to support verification";
-    safe_initialize_data();
-  }
+    // initialization to support verification
+    if ( FLAGS_verify_tree ) {
+      LOG(INFO) << "initializing arrays to support verification";
+      safe_initialize_data();
+    }
 
-  // print tree/search parameters
-  uts_printParams();
+    // print tree/search parameters
+    uts_printParams();
 
-  // initialize root of the tree
-  uts::Node root;
-  uts_initRoot(&root, type);
+    // initialize root of the tree
+    uts::Node root;
+    uts_initRoot(&root, type);
 
-  // root
-  global_id = 1;
-  root.id = 0;
+    // root
+    global_id = 1;
+    root.id = 0;
 
-  // run times
-  double t1=0.0, t2=0.0;
+    // run times
+    double t1=0.0, t2=0.0;
 
-  //Grappa_reset_stats_all_nodes();
+    //Grappa_reset_stats_all_nodes();
 
-  //
-  // 1. start tree generation (traditional UTS with storing the tree)
-  //
-  LOG(INFO) << "starting tree generation";
-  Result r_gen;
-  Grappa::Statistics::start_tracing();
-  t1 = uts_wctime();
-
-  par_create_tree();
-
-  r_gen.maxdepth = 0; // don't care
-  r_gen.leaves = 0; // don't care
-  r_gen.size = -1; // will calculate with a reduce
-
-  t2 = uts_wctime();
-  //Grappa::Statistics::merge_and_print();
-  // Grappa::Statitics::stop_tracing();
-
-
-  // count nodes generated
-  on_all_cores( [] {
-    local_generated = uts_num_gen_nodes.value();
-    VLOG(3) << "Core " << Grappa::mycore() << " generated " << local_generated;
-  });
-  r_gen.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_generated );
-  LOG(INFO) << "Total generated: " << r_gen.size;
-
-  // only needed for generation
-  Grappa_free( Tree_Nodes );
-
-  // show tree stats 
-  counter_t maxTreeDepth = r_gen.maxdepth;
-  counter_t nNodes  = r_gen.size;
-  counter_t nLeaves = r_gen.leaves;
-
-  double local_gen_runtime = t2-t1;
-
-  uts_showStats(Grappa::cores(), FLAGS_chunk_size, local_gen_runtime, nNodes, nLeaves, maxTreeDepth);
-
-
-  //
-  // 2. verify generated tree
-  // 
-  if ( FLAGS_verify_tree ) {
-    LOG(INFO) << "starting tree verify";
+    //
+    // 1. start tree generation (traditional UTS with storing the tree)
+    //
+    LOG(INFO) << "starting tree generation";
+    Result r_gen;
+    Grappa::Statistics::start_tracing();
     t1 = uts_wctime();
 
-    verify_generation( r_gen.size );
+    par_create_tree();
+
+    r_gen.maxdepth = 0; // don't care
+    r_gen.leaves = 0; // don't care
+    r_gen.size = -1; // will calculate with a reduce
 
     t2 = uts_wctime();
-    double veri_runtime = t2-t1;
-
-    LOG(INFO) << "verify runtime: " << veri_runtime << " s";
-  } else {
-    LOG(INFO) <<  "WARNING: not verifying generated tree";
-  }
+    //Grappa::Statistics::merge_and_print();
+    // Grappa::Statitics::stop_tracing();
 
 
-  // TODO Payload =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size );
-  // on_all_cores([Payload_addr] {
-  //  Payload = Payload_addr;
-  // });
-  // payload initialization on each node
+    // count nodes generated
+    on_all_cores( [] {
+      local_generated = uts_num_gen_nodes.value();
+      VLOG(3) << "Core " << Grappa::mycore() << " generated " << local_generated;
+    });
+    r_gen.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_generated );
+    LOG(INFO) << "Total generated: " << r_gen.size;
+
+    // only needed for generation
+    Grappa::global_free( Tree_Nodes );
+
+    // show tree stats 
+    counter_t maxTreeDepth = r_gen.maxdepth;
+    counter_t nNodes  = r_gen.size;
+    counter_t nLeaves = r_gen.leaves;
+
+    double local_gen_runtime = t2-t1;
+
+    uts_showStats(Grappa::cores(), FLAGS_chunk_size, local_gen_runtime, nNodes, nLeaves, maxTreeDepth);
 
 
-  //
-  // 3. traverse the in-memory tree
-  //
-  LOG(INFO) << "starting tree search";
-  Result r_search;
-  //Grappa::Statistics::start_tracing();
-  Grappa::Statistics::reset_all_cores();
-  t1 = uts_wctime();
+    //
+    // 2. verify generated tree
+    // 
+    if ( FLAGS_verify_tree ) {
+      LOG(INFO) << "starting tree verify";
+      t1 = uts_wctime();
+
+      verify_generation( r_gen.size );
+
+      t2 = uts_wctime();
+      double veri_runtime = t2-t1;
+
+      LOG(INFO) << "verify runtime: " << veri_runtime << " s";
+    } else {
+      LOG(INFO) <<  "WARNING: not verifying generated tree";
+    }
+
+
+    // TODO Payload =  Grappa::global_alloc<int64_t>( FLAGS_vertices_size );
+    // on_all_cores([Payload_addr] {
+    //  Payload = Payload_addr;
+    // });
+    // payload initialization on each node
+
+
+    //
+    // 3. traverse the in-memory tree
+    //
+    LOG(INFO) << "starting tree search";
+    Result r_search;
+    //Grappa::Statistics::start_tracing();
+    Grappa::Statistics::reset_all_cores();
+    t1 = uts_wctime();
  
-  par_search_tree( 0 );
+    par_search_tree( 0 );
 
-  r_search.maxdepth = 0; // don't care
-  r_search.leaves = 0; // don't care
-  r_search.size = -1; // will calculate with reduce
+    r_search.maxdepth = 0; // don't care
+    r_search.leaves = 0; // don't care
+    r_search.size = -1; // will calculate with reduce
   
-  t2 = uts_wctime();
-  // Grappa::Statistics::stop_tracing();
+    t2 = uts_wctime();
+    // Grappa::Statistics::stop_tracing();
   
-  double local_search_runtime = t2-t1;
-  generate_runtime = local_gen_runtime; // write performance output
-  search_runtime = local_search_runtime; // write performance output
+    double local_search_runtime = t2-t1;
+    generate_runtime = local_gen_runtime; // write performance output
+    search_runtime = local_search_runtime; // write performance output
 
-  Grappa::Statistics::merge_and_print(LOG(INFO));
+    Grappa::Statistics::merge_and_print(LOG(INFO));
 
-  // count nodes searched
-  on_all_cores( [] {
-    local_searched = uts_num_searched_nodes.value();
-    VLOG(3) << "Node " << Grappa::mycore() << " searched " << local_searched;
+    // count nodes searched
+    on_all_cores( [] {
+      local_searched = uts_num_searched_nodes.value();
+      VLOG(3) << "Node " << Grappa::mycore() << " searched " << local_searched;
+    });
+    r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
+
+
+    Grappa::global_free( Vertex );
+    Grappa::global_free( Child );
+    //TODO Grappa::global_free( Payload );
+
+    if ( !FLAGS_human_output )  {
+      LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
+      CHECK(r_gen.size == r_search.size);
+
+      LOG(INFO) << "uts: {"
+        << "gen_runtime: " << local_gen_runtime << ","
+        << "nNodes: " << nNodes
+        << "}";
+
+      std::cout << "uts: {"
+        << "search_runtime: " << local_search_runtime << ","
+        << "nNodes: " << nNodes
+        << "}" << std::endl;
+
+      LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
+    }
   });
-  r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
-
-
-  Grappa_free( Vertex );
-  Grappa_free( Child );
-  //TODO Grappa_free( Payload );
-
-  if ( !FLAGS_human_output )  {
-    LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
-    CHECK(r_gen.size == r_search.size);
-
-    LOG(INFO) << "uts: {"
-      << "gen_runtime: " << local_gen_runtime << ","
-      << "nNodes: " << nNodes
-      << "}";
-
-    std::cout << "uts: {"
-      << "search_runtime: " << local_search_runtime << ","
-      << "nNodes: " << nNodes
-      << "}" << std::endl;
-
-    LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
-  }
-}
-
-
-/// Main() entry
-int main (int argc, char** argv) {
-    Grappa_init( &argc, &argv ); 
-    Grappa_activate();
-
-    // TODO: would be good to give user interface to get the args as pass to this Node; to avoid this
-    // (sometimes all nodes parse their own args instead of passing variable size argv)
-    global_argc = argc;
-    global_argv = argv;
-
-    user_main_args uargs = { argc, argv };
-
-    Grappa_run_user_main( &user_main, &uargs );
-    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-    Grappa_finish( 0 );
+  Grappa::finalize();
 }

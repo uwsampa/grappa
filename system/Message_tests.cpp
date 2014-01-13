@@ -36,8 +36,8 @@ void user_main( void * args )
       m0.enqueue();
       x0 = true;
     }
-    Grappa_flush( 0 );
-    Grappa_poll( );
+    Grappa::flush( 0 );
+    Grappa::impl::poll( );
   }
 
   LOG(INFO) << "Test -1";
@@ -48,8 +48,8 @@ void user_main( void * args )
     m0.enqueue();
     x0 = true;
   }
-  Grappa_flush( 0 );
-  Grappa_poll( );
+  Grappa::flush( 0 );
+  Grappa::impl::poll( );
   
   LOG(INFO) << "Test 0";
   x0 = false;
@@ -66,8 +66,8 @@ void user_main( void * args )
     
     x0 = true;
   }
-  Grappa_flush( 0 );
-  Grappa_poll( );
+  Grappa::flush( 0 );
+  Grappa::impl::poll( );
   
 
   LOG(INFO) << "Test 1";
@@ -80,8 +80,8 @@ void user_main( void * args )
       //auto m1 = Grappa::message( 0, [&]{ x1 = true; } );
       m1.enqueue();
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
     BOOST_CHECK_EQUAL( x1, true );
   }
   
@@ -92,8 +92,8 @@ void user_main( void * args )
     //auto m2 = Grappa::message( 0, Check() );
     m2->x = true;
     m2.enqueue();
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
   }
 
   LOG(INFO) << "Test 4";
@@ -105,8 +105,8 @@ void user_main( void * args )
       auto f4 = [&]{ x4 = true; };
       auto m4 = Grappa::send_message( 0, f4 );
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
     BOOST_CHECK_EQUAL( x4, true );
   }
 
@@ -123,15 +123,15 @@ void user_main( void * args )
       //Grappa::SendPayloadMessage< decltype(f5) > m5( 0, f5, &x5, sizeof(x5) );
       auto m5 = Grappa::send_message( 0, f5, &x5, sizeof(x5) );
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
 
     {
       x5 = true;
       auto m5a = Grappa::send_message( 0, f5, &x5, sizeof(x5) );
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
   }
 
   LOG(INFO) << "Test 6";
@@ -140,16 +140,16 @@ void user_main( void * args )
     Grappa::ConditionVariable * cvp = &cv;
 
     auto m6 = Grappa::send_heap_message( 1, [cvp] { 
-        BOOST_CHECK_EQUAL( Grappa_mynode(), 1 );
+        BOOST_CHECK_EQUAL( Grappa::mycore(), 1 );
         auto m6a = Grappa::send_heap_message( 0, [cvp] {
-            BOOST_CHECK_EQUAL( Grappa_mynode(), 0 );
+            BOOST_CHECK_EQUAL( Grappa::mycore(), 0 );
             Grappa::signal( cvp );
           } );
-        Grappa_flush( 0 );
-        Grappa_poll();
+        Grappa::flush( 0 );
+        Grappa::impl::poll();
       } );
-    Grappa_flush( 1 );
-    Grappa_poll();
+    Grappa::flush( 1 );
+    Grappa::impl::poll();
     Grappa::wait( cvp );
     LOG(INFO) << "Test 6 done";
   }

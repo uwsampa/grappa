@@ -2,10 +2,8 @@
 #include "Addressing.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
-#include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
 #include "Collective.hpp"
-#include "GlobalTaskJoiner.hpp"
 #include "PerformanceTools.hpp"
 #include <ParallelLoop.hpp>
 #include <Array.hpp>
@@ -25,7 +23,7 @@ void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int6
   Grappa::memset(level, (int64_t)-1, nv);
   delegate::write(level+root, 0);
   
-  forall_localized(level, nv, [bfs_tree, level, nv, root] (int64_t k, int64_t& level_k) {
+  forall(level, nv, [bfs_tree, level, nv, root] (int64_t k, int64_t& level_k) {
     if (level_k >= 0) return;
   
     int64_t tree_k = delegate::read(bfs_tree+k);
@@ -126,8 +124,8 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   
   int64_t err = 0;
   
-  GlobalAddress<int64_t> seen_edge = Grappa_typed_malloc<int64_t>(nv);
-  GlobalAddress<int64_t> level = Grappa_typed_malloc<int64_t>(nv);
+  GlobalAddress<int64_t> seen_edge = Grappa::global_alloc<int64_t>(nv);
+  GlobalAddress<int64_t> level = Grappa::global_alloc<int64_t>(nv);
   
   double t;
   TIME(t, compute_levels(level, nv, bfs_tree, root));
@@ -142,7 +140,7 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   
   call_on_all_cores([]{ nedge_traversed = 0; });
     
-  forall_localized(tg->edges, tg->nedge, [seen_edge, bfs_tree, level, max_bfsvtx]
+  forall(tg->edges, tg->nedge, [seen_edge, bfs_tree, level, max_bfsvtx]
       (int64_t e, packed_edge& cedge) {  
     const int64_t i = cedge.v0;
     const int64_t j = cedge.v1;
@@ -188,7 +186,7 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   VLOG(1) << "verify_func time: " << t;
 
   /* Check that every BFS edge was seen and that there's only one root. */
-  forall_localized(bfs_tree, nv, [root, seen_edge](int64_t k, int64_t& tk){
+  forall(bfs_tree, nv, [root, seen_edge](int64_t k, int64_t& tk){
     if (k != root) {
       CHECK(!(tk >= 0 && !delegate::read(seen_edge+k))) << "Error!";
       CHECK_NE(tk, k) << "Error!";
@@ -196,8 +194,8 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   });  
   VLOG(1) << "final_verify_func time: " << t;  
   
-  Grappa_free(seen_edge);
-  Grappa_free(level);
+  Grappa::global_free(seen_edge);
+  Grappa::global_free(level);
     
   // everything checked out...
   if (!verify) save_nedge(root, nedge_traversed, bfs_tree);
@@ -207,7 +205,9 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
 
 ////////////////////////////////////////////////////////////////
 // Graph500 stats output
+#ifndef PRId64
 #define PRId64 "ld"
+#endif
 #define NSTAT 9
 #define PRINT_STATS(lbl, israte)					\
   do {									\

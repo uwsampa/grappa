@@ -1,7 +1,6 @@
 #include "defs.hpp"
 #include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
-#include "ForkJoin.hpp"
 
 LOOP_FUNCTOR( func_set_seq, k, (( GlobalAddress<graphint>, base_addr)) ) {
   Incoherent<graphint>::WO c(base_addr+k, 1);
@@ -26,8 +25,8 @@ static void prand(int64_t n, double * v) {
 
 /// <incomplete>
 double genScalData(graphedges * ge, double a, double b, double c, double d) {
-  GlobalAddress<double> rn = Grappa_typed_malloc<double>(2*numVertices);
-  GlobalAddress<graphint> permV = Grappa_typed_malloc<graphint>(numVertices);
+  GlobalAddress<double> rn = Grappa::global_alloc<double>(2*numVertices);
+  GlobalAddress<graphint> permV = Grappa::global_alloc<graphint>(numVertices);
   
   double t = timer();
   

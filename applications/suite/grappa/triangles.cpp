@@ -3,7 +3,6 @@
 
 #include "defs.hpp"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <Collective.hpp>
 #include <iomanip>
 
@@ -190,7 +189,7 @@ LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) 
 //  NV = NV_;
 //  NE = NE_;
   
-  range_t r = blockDist(0, NV, Grappa_mynode(), Grappa_nodes());
+  range_t r = blockDist(0, NV, Grappa::mycore(), Grappa::cores());
   joiner.reset();
   
   for (graphint i=r.start; i<r.end; i++) {
@@ -202,7 +201,7 @@ LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) 
   VLOG(3) << "ntriangles (local) = " << ntriangles;
   
 //  ntriangles = Grappa_collective_reduce(&collective_add, 0, ntriangles, 0);
-  ntriangles = Grappa_allreduce<graphint,collective_add<graphint>,0>(ntriangles);
+  ntriangles = Grappa::allreduce<graphint,collective_add<graphint>>(ntriangles);
 }
 
 /*	Finds the number of _unique_ triangles in an undirected graph.

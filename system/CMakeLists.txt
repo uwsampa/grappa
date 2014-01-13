@@ -16,35 +16,30 @@ set(SYSTEM_SOURCES
   Aggregator.cpp
   Allocator.cpp
   AsyncDelegate.cpp
-  AsyncParallelFor.cpp
   Barrier.cpp
   Cache.cpp
+  CallbackStatistic.cpp
   Collective.cpp
   Communicator.cpp
-  CurrentThread.cpp
   Delegate.cpp
   FlatCombiner.cpp
-  ForkJoin.cpp
-  Future.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
   GlobalHashMap.cpp
   GlobalHashSet.cpp
   GlobalMemory.cpp
   GlobalMemoryChunk.cpp
-  GlobalTaskJoiner.cpp
   GlobalVector.cpp
   Grappa.cpp
   HistogramStatistic.cpp
   IncoherentAcquirer.cpp
   IncoherentReleaser.cpp
-  LegacySignaler.cpp
   LocaleSharedMemory.cpp
+  MaxStatistic.cpp
   MessageBase.cpp
   MessagePool.cpp
   ParallelLoop.cpp
   PerformanceTools.cpp
-  ProfilerGroups.cpp
   RDMAAggregator.cpp
   SharedMessagePool.cpp
   SimpleStatistic.cpp
@@ -53,17 +48,17 @@ set(SYSTEM_SOURCES
   SummarizingStatistic.cpp
   ThreadQueue.cpp
   Timestamp.cpp
-  Uid.cpp
   Worker.cpp
   Addressing.hpp
   Aggregator.hpp
   Allocator.hpp
   Array.hpp
   AsyncDelegate.hpp
-  AsyncParallelFor.hpp
   Barrier.hpp
   boost_helpers.hpp
   Cache.hpp
+  CallbackStatistic.hpp
+  CallbackStatisticImpl.hpp
   Collective.hpp
   common.hpp
   Communicator.hpp
@@ -71,17 +66,14 @@ set(SYSTEM_SOURCES
   ConditionVariable.hpp
   ConditionVariableLocal.hpp
   CountingSemaphoreLocal.hpp
-  CurrentThread.hpp
   Delegate.hpp
-  Descriptor.hpp
+  DelegateBase.hpp
   ExternalCountPayloadMessage.hpp
   FileIO.hpp
   FlatCombiner.hpp
-  ForkJoin.hpp
   FullEmpty.hpp
   FullEmptyLocal.hpp
   function_traits.hpp
-  Future.hpp
   GlobalAllocator.hpp
   GlobalCompletionEvent.hpp
   GlobalCounter.hpp
@@ -89,27 +81,20 @@ set(SYSTEM_SOURCES
   GlobalHashSet.hpp
   GlobalMemory.hpp
   GlobalMemoryChunk.hpp
-  GlobalTaskJoiner.hpp
   GlobalVector.hpp
   Grappa.hpp
   HistogramStatistic.hpp
   IncoherentAcquirer.hpp
   IncoherentReleaser.hpp
-  LegacyDelegate.hpp
-  LegacySignaler.hpp
   LocaleSharedMemory.hpp
   Message.hpp
   MessageBase.hpp
   MessageBaseImpl.hpp
   MessagePool.hpp
-  MutableHeap.hpp
   Mutex.hpp
   ParallelLoop.hpp
-  ParallelLoop_future.hpp
   PerformanceTools.hpp
   PoolAllocator.hpp
-  ProfilerConfig.hpp
-  ProfilerGroups.hpp
   PushBuffer.hpp
   RDMAAggregator.hpp
   RDMABuffer.hpp
@@ -133,20 +118,18 @@ set(SYSTEM_SOURCES
   Tasking.hpp
   ThreadQueue.hpp
   Timestamp.hpp
-  Uid.hpp
   Worker.hpp
   gasnet_helpers.h
   stack.h
-  thread.h
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
-  tasks/GlobalQueue.hpp
+  # tasks/GlobalQueue.hpp
   tasks/Scheduler.hpp
   tasks/StealQueue.hpp
   tasks/Task.hpp
   tasks/TaskingScheduler.hpp
   tasks/BasicScheduler.cpp
-  tasks/GlobalQueue.cpp
+  # tasks/GlobalQueue.cpp
   tasks/StealQueue.cpp
   tasks/Task.cpp
   tasks/TaskingScheduler.cpp
@@ -158,9 +141,8 @@ if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")
 endif()
 
-# (a bit of a hack) without this, stack.o isn't generated
-# ... could also add custom command, but this seems easier
-set_source_files_properties( stack.S PROPERTIES LANGUAGE C )
+enable_language(ASM)
+set_source_files_properties( stack.S PROPERTIES LANGUAGE ASM )
 
 add_library(Grappa
   ${SYSTEM_SOURCES}
@@ -169,19 +151,57 @@ add_library(Grappa
 target_link_libraries(Grappa ${GRAPPA_LIBS})
 add_dependencies(Grappa all-tools)
 
-# create targets for each test
-foreach(test_cpp ${TEST_SOURCES})  
+add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
+
+macro(add_check test_cpp nnode ppn target)
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${test_cpp})
-  
-  # include Boost test automagic main() generation
-  # add an additional rule if you need to include multiple components
-  
+  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
+  add_dependencies( check-all-${target} check-${test_name} )
+  add_dependencies( check-all-${target}-compile-only ${test})
+endmacro()
+
+# create separate targets for compiling/runnning all passing/failing tests
+foreach(target  pass pass-compile-only fail fail-compile-only)
+  add_custom_target(check-all-${target})
+  set_property(TARGET check-all-${target} PROPERTY FOLDER "Tests")
 endforeach()
 
-add_custom_target(check-all DEPENDS ${GRAPPA_TESTS})
-set_property(TARGET check-all PROPERTY FOLDER "Tests")
+
+add_check( Addressing_tests.cpp              2 2  pass )
+add_check( Allocator_tests.cpp               2 2  pass )
+add_check( Array_tests.cpp                   2 2  pass )
+add_check( BufferVector_tests.cpp            2 2  pass )
+add_check( Cache_tests.cpp                   2 1  pass )
+add_check( Collective_tests.cpp              2 2  pass )
+add_check( CompletionEvent_tests.cpp         2 2  pass )
+add_check( ContextSwitchLatency_tests.cpp    1 1  pass )
+add_check( Delegate_tests.cpp                2 1  pass )
+add_check( FileIO_tests.cpp                  2 1  pass )
+add_check( FlatCombiner_tests.cpp            2 2  pass )
+add_check( FullEmpty_tests.cpp               2 2  pass )
+add_check( GlobalAllocator_tests.cpp         1 1  pass )
+add_check( GlobalHash_tests.cpp              2 1  pass )
+add_check( GlobalMemoryChunk_tests.cpp       2 1  pass )
+add_check( GlobalMemory_tests.cpp            2 1  pass )
+add_check( GlobalVector_tests.cpp            2 1  pass )
+add_check( Gups_tests.cpp                    2 1  pass )
+add_check( LocaleSharedMemory_tests.cpp      2 1  pass )
+add_check( Message_tests.cpp                 2 1  fail )
+add_check( Mutex_tests.cpp                   2 1  pass )
+add_check( New_delegate_tests.cpp            2 2  pass )
+add_check( New_loop_tests.cpp                2 2  pass )
+add_check( PoolAllocator_tests.cpp           2 1  pass )
+add_check( Public_tasks_tests.cpp            2 1  pass )
+add_check( RDMAAggregator_tests.cpp          2 1  pass )
+add_check( RateMeasure_tests.cpp             2 1  pass )
+add_check( Reducer_tests.cpp                 2 1  pass )
+add_check( Scheduler_benchmarking_tests.cpp  2 1  pass )
+add_check( Semaphore_tests.cpp               2 1  pass )
+add_check( Statistics_tests.cpp              2 1  pass )
+add_check( Stealing_tests.cpp                2 1  fail ) # deprecated?
+add_check( Tasking_tests.cpp                 2 1  pass )
+add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 
 # add a target to generate API documentation with Doxygen

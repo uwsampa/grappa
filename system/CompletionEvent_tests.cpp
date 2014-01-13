@@ -31,7 +31,7 @@ void try_one_task() {
   
   int foo = 0;
   
-  privateTask(&ce, [&foo] {
+  spawn(&ce, [&foo] {
     foo++;
   });
   
@@ -47,7 +47,7 @@ void try_many_tasks() {
   int foo = 0;
 
   for (int i=0; i<N; i++) {
-    privateTask(&ce, [&foo] {
+    spawn(&ce, [&foo] {
       foo++;
     });
   }
@@ -71,7 +71,7 @@ void try_global_ce() {
     Core origin = mycore();
     gce.enroll(N+1);
     for (int i=0; i<N; i++) {
-      publicTask([xa,origin]{
+      spawn<unbound>([xa,origin]{
         delegate::fetch_and_add(xa, 1);
         complete(make_global(&gce,origin));
       });
@@ -88,14 +88,14 @@ void try_global_ce() {
   
   x = 0;
 //  gce.reset_all(); (don't need this anymore)
-  on_all_cores([xa]{
+  on_all_cores([xa,N]{
     int y = 0;
     auto ya = make_global(&y);
     
     Core origin = mycore();
     gce.enroll(N);
     for (int i=0; i<N; i++) {
-      publicTask([xa,ya,origin]{
+      spawn<unbound>([xa,ya,origin]{
         delegate::fetch_and_add(xa, 1);
         delegate::fetch_and_add(ya, 1);
         complete(make_global(&gce,origin));
@@ -111,7 +111,7 @@ void rec_spawn(GlobalAddress<int64_t> xa, int N) {
   Core origin = mycore();
   for (int i=0; i<N/2+1; i++) {
     gce.enroll();
-    publicTask([xa,origin]{
+    spawn<unbound>([xa,origin]{
       delegate::fetch_and_add(xa, 1);
       complete(make_global(&gce,origin));
     });
@@ -133,7 +133,7 @@ void try_global_ce_recursive() {
     Core origin = mycore();
     for (int i=0; i<N; i++) {
       gce.enroll();
-      publicTask([xa,origin]{
+      spawn<unbound>([xa,origin]{
         delegate::fetch_and_add(xa, 1);
         complete(make_global(&gce,origin));
       });
@@ -153,14 +153,14 @@ void try_global_ce_recursive() {
   
   x = 0;
 //  gce.reset_all();
-  on_all_cores([xa]{
+  on_all_cores([xa,N]{
     int y = 0;
     auto ya = make_global(&y);
     
     Core origin = mycore();
     gce.enroll(N);
     for (int i=0; i<N; i++) {
-      publicTask([xa,ya,origin]{
+      spawn<unbound>([xa,ya,origin]{
         delegate::fetch_and_add(xa, 1);
         delegate::fetch_and_add(ya, 1);
         complete(make_global(&gce,origin));
@@ -176,6 +176,19 @@ void try_global_ce_recursive() {
     BOOST_CHECK_EQUAL(y, N);
   });
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
+  
+  BOOST_MESSAGE("test finish block syntactic sugar");
+  
+  long xx = 0;
+  auto a = make_global(&xx);
+  
+  finish([=]{
+    forall<unbound,async>(0, N, [=](int64_t i){
+      delegate::increment<async>(a, 1);
+    });
+  });
+
+  BOOST_CHECK_EQUAL(xx, N);
 }
 
 static int global_x;
@@ -188,7 +201,7 @@ void try_synchronizing_spawns() {
   CompletionEvent ce;
   int x = 0;
   for (int i=0; i<N; i++) {
-    privateTask(&ce, [&x]{
+    spawn(&ce, [&x]{
       x++;
     });
   }
@@ -196,14 +209,14 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(x, N);
   
   BOOST_MESSAGE("  private,global");
-  on_all_cores([]{
+  on_all_cores([N]{
 //    gce.reset();
 //    barrier();
     
     int x = 0;
     
     for (int i=0; i<N; i++) {
-      privateTask(&gce, [&x] {
+      spawn<&gce>([&x]{
         x++;
       });
     }
@@ -217,7 +230,7 @@ void try_synchronizing_spawns() {
   
 //  gce.reset_all();
   for (int i=0; i<N; i++) {
-    publicTask<&gce>([]{
+    spawn<unbound,&gce>([]{
       global_x++;
     });
   }
@@ -232,25 +245,21 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(total, N);
 }
 
-void user_main(void * args) {
-  CHECK(cores() >= 2); // at least 2 nodes for these tests...
-
-  try_no_tasks();
-  try_one_task();
-  try_many_tasks();
-  try_global_ce();
-  try_global_ce_recursive();
-  try_synchronizing_spawns();
-  
-  Statistics::merge_and_print();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-              &(boost::unit_test::framework::master_test_suite().argv));
-  Grappa_activate();
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    CHECK(cores() >= 2); // at least 2 nodes for these tests...
+
+    try_no_tasks();
+    try_one_task();
+    try_many_tasks();
+    try_global_ce();
+    try_global_ce_recursive();
+    try_synchronizing_spawns();
+  
+    Statistics::merge_and_dump_to_file();
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

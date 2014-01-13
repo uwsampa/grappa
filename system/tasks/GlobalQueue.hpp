@@ -7,7 +7,6 @@
 #include "../GlobalAllocator.hpp"
 #include "../Delegate.hpp"
 #include "../Cache.hpp"
-#include "../LegacySignaler.hpp"
 #include "../Descriptor.hpp"
 
 #define CAPACITY_PER_NODE (1L<<19)
@@ -123,7 +122,7 @@ class GlobalQueue {
     bool initialized;
 
     static bool isMaster() {
-      return Grappa_mynode() == HOME_NODE;
+      return Grappa::mycore() == HOME_NODE;
     }
 
 
@@ -147,9 +146,9 @@ class GlobalQueue {
 
     void init() {
       if ( isMaster() ) {
-        capacity = (CAPACITY_PER_NODE) * Grappa_nodes();
+        capacity = (CAPACITY_PER_NODE) * Grappa::cores();
         DVLOG(5) << "GlobalQueue capacity: " << capacity;
-        queueBase = Grappa_typed_malloc< QueueEntry<T> > ( capacity );
+        queueBase = Grappa::global_alloc< QueueEntry<T> > ( capacity );
         // TODO could give option just to malloc here, but would be
         // bad for HOME_NODE's memory usage unless chunksize is very large
       }
@@ -204,7 +203,7 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   entry_args.target = loc;
   entry_args.chunk = c;
   DVLOG(5) << "push() sending entry to " << loc;
-  bool had_sleeper = Grappa_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
+  bool had_sleeper = Grappa_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.core() ); 
   size_t entry_msg_bytes = Grappa_sizeof_delegate_func_request< push_entry_args<T>, bool >( );
   Grappa::Statistics::global_queue_stats.record_push_entry_request( entry_msg_bytes, had_sleeper );
 
@@ -242,7 +241,7 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   pull_entry_args<T> entry_args;
   entry_args.target = loc;
   entry_args.descriptor = make_global( &cdesc );
-  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );  // FIXME: call_on deprecated
+  Grappa_call_on( loc.core(), pull_entry_request_g_am, &entry_args );  // FIXME: call_on deprecated
 
   size_t entry_msg_bytes = Grappa_sizeof_message( &entry_args );
   Grappa::Statistics::global_queue_stats.record_pull_entry_request( entry_msg_bytes );
@@ -357,7 +356,7 @@ void GlobalQueue<T>::pull_entry_request( pull_entry_args<T> * args ) {
 }
 
 
-// routines for calling the global GlobalQueue on each Node
+// routines for calling the global GlobalQueue on each Core
 template <typename T>
 A_Entry GlobalQueue<T>::push_reserve_g ( bool ignore ) {
   return global_queue.push_reserve( ignore );

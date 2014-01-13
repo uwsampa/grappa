@@ -184,7 +184,7 @@ void generate_kronecker_range(
 		val1 += mrg_get_uint_orig(&new_state);
 	}
 
-  Grappa::forall_localized(edgeStarts+start_edge, end_edge-start_edge,
+  Grappa::forall(edgeStarts+start_edge, end_edge-start_edge,
     [nverts, logN, state, val0, val1, edgeEnds](int64_t index, graphint& eStart) {
       // copy the random generator state and seek
       mrg_state new_state = state;

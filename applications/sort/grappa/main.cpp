@@ -24,8 +24,6 @@
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <Cache.hpp>
-#include <ForkJoin.hpp>
-#include <GlobalTaskJoiner.hpp>
 #include <Collective.hpp>
 #include <Delegate.hpp>
 #include <FileIO.hpp>
@@ -64,7 +62,7 @@ struct bucket_t {
   uint64_t * v;
   size_t nelems;
   size_t maxelems;
-  bucket_t(): v(NULL), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
+  bucket_t(): v(NULL), nelems(0) {}
   ~bucket_t() { delete [] v; }
   void reserve(size_t nelems) {
     maxelems = nelems;
@@ -114,7 +112,7 @@ bool do_sort;
 inline uint64_t next_random() {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
-  static engine_t engine(12345L*Grappa_mynode());
+  static engine_t engine(12345L*Grappa::mycore());
   static gen_t gen(engine, dist_t(0, maxkey));
   return gen();
 }
@@ -143,16 +141,16 @@ int ui64cmp(const void * a, const void * b) {
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
   double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
-  GlobalAddress<bucket_t> bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
+  GlobalAddress<bucket_t> bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
 
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
     GlobalAddress<bucket_t> bi = bucketlist+i;
-    VLOG(1) << "bucket[" << i << "] on Node " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
+    VLOG(1) << "bucket[" << i << "] on Core " << bi.core() << ", offset = " << bi.pointer() - bucketlist.localize(bi.core()) << ", ptr = " << bi.pointer();
   }
 #endif
 
-  sort_time = Grappa_walltime();
+  sort_time = Grappa::walltime();
 
   // initialize globals and histogram counts
   // { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
@@ -164,18 +162,18 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     }
   });
 
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // do local bucket counts
   // forall_local<uint64_t,histogram>(array, nelems);
-  forall_localized(array, nelems, [](int64_t i, uint64_t& v){
+  forall(array, nelems, [](int64_t i, uint64_t& v){
     size_t b = v >> LOBITS;
     counts[b]++;
   });
 
-  histogram_time = Grappa_walltime() - t;
+  histogram_time = Grappa::walltime() - t;
   LOG(INFO) << "histogram_time: " << histogram_time;
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // allreduce everyone's counts & compute global offsets (prefix sum)
   // { aggregate_counts f; fork_join_custom(&f); }
@@ -193,27 +191,25 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     }
   });
   
-  allreduce_time = Grappa_walltime() - t;
+  allreduce_time = Grappa::walltime() - t;
   LOG(INFO) << "allreduce_time: " << allreduce_time;
 
   // allocate space in buckets
   VLOG(3) << "allocating space...";
   // forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
-  forall_localized(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+  forall(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
     // (global malloc doesn't call constructors)
     new (&bucket) bucket_t();
     bucket.reserve(counts[id]);
   });
   
   VLOG(3) << "scattering...";
-      t = Grappa_walltime();
+      t = Grappa::walltime();
 
   // scatter into buckets
   // forall_local<uint64_t,scatter>(array, nelems);
-  forall_localized(array, nelems, [bucketlist](int64_t s, int64_t n, uint64_t * first){
+  forall(array, nelems, [bucketlist](int64_t s, int64_t n, uint64_t * first){
     size_t nbuckets = counts.size();
-    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,uint64_t)>>)*n];
-    MessagePool pool(msg_buf, sizeof(msg_buf));
     
     for (int i=0; i<n; i++) {
       auto v = first[i];
@@ -221,32 +217,32 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async(pool, destb.core(), [destb,v]{
+      delegate::call<async>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
   });
     
-  scatter_time = Grappa_walltime() - t;
+  scatter_time = Grappa::walltime() - t;
   LOG(INFO) << "scatter_time: " << scatter_time;
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // sort buckets locally
   // forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
   /// Do some kind of local serial sort of a bucket
-  forall_localized(bucketlist, nbuckets, [](int64_t bucket_id, bucket_t& bucket){
+  forall(bucketlist, nbuckets, [](int64_t bucket_id, bucket_t& bucket){
     if (bucket.size() == 0) return;
     qsort(&bucket[0], bucket.size(), sizeof(uint64_t), &ui64cmp);
   });
 
-  local_sort_scatter_time = Grappa_walltime() - t;
+  local_sort_scatter_time = Grappa::walltime() - t;
   LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;  
-  t = Grappa_walltime(); 
+  t = Grappa::walltime(); 
   
   // redistribute buckets back into global array  
   // forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
   /// Redistribute sorted buckets back into global array
-  forall_localized(bucketlist, nbuckets, [array](int64_t b, bucket_t& bucket) {
+  forall(bucketlist, nbuckets, [array](int64_t b, bucket_t& bucket) {
     const size_t NBUF = BUFSIZE / sizeof(uint64_t);
     DCHECK( b < counts.size() );
 
@@ -260,89 +256,84 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
     VLOG(3) << "bucket[" << b << "] release successful";
   });
   
-  put_back_time = Grappa_walltime() - t;
+  put_back_time = Grappa::walltime() - t;
   LOG(INFO) << "put_back_time: " << put_back_time;
   
-  sort_time = Grappa_walltime() - sort_time;
+  sort_time = Grappa::walltime() - sort_time;
   LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
-void user_main(void* ignore) {
-  call_on_all_cores([]{ Statistics::reset(); });
-
-  double t, rand_time;
-
-  LOG(INFO) << "### Sort Benchmark ###";
-  LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
-  LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
-  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
-
-  //LOG(INFO) << "iobufsize_mb = " << (double)BUFSIZE/(1L<<20);
-  LOG(INFO) << "block_size = " << block_size;
-
-  GlobalAddress<uint64_t> array = Grappa_typed_malloc<uint64_t>(nelems);
-
-  char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%ld.%ld", scale, log2maxkey);
-  GrappaFile f(dirname, true);
-
-  if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
-    LOG(INFO) << "generating...";
-    t = Grappa_walltime();
-
-    // fill vector with random 64-bit integers
-    // forall_local<uint64_t,set_random>(array, nelems);
-    forall_localized(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
-
-    rand_time = Grappa_walltime() - t;
-    LOG(INFO) << "fill_random_time: " << rand_time;
-
-    //print_array("generated array", array, nelems);
-  }
-
-  if (write_to_disk || (read_from_disk && !fs::exists(dirname))) {
-    if (fs::exists(dirname)) fs::remove_all(dirname);
-
-    Grappa_save_array(f, true, array, nelems);
-  }
-
-  if (read_from_disk) {
-    Grappa::memset(array, (uint64_t)0, nelems);
-    Grappa_read_array(f, array, nelems);
-    //print_array("read array", array, nelems);
-  }
-
-  /////////
-  // sort
-  /////////
-  if (do_sort) {
-    bucket_sort(array, nelems, nbuckets);
-
-    // verify
-    size_t jump = nelems/17;
-    uint64_t prev;
-    for (size_t i=0; i<nelems; i+=jump) {
-      prev = 0;
-      for (size_t j=1; j<64 && (i+j)<nelems; j++) {
-        uint64_t curr = delegate::read(array+i+j);
-        CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
-        prev = curr;
-      }
-    }
-  }
-
-  Statistics::merge_and_print();
-}
-
 int main(int argc, char* argv[]) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
+  Grappa::init(&argc, &argv);
   
   parseOptions(argc, argv);
   
-  Grappa_run_user_main(&user_main, (void*)NULL);
-  
-  Grappa_finish(0);
-  return 0;
+  Grappa::run([]{
+    call_on_all_cores([]{ Statistics::reset(); });
+
+    double t, rand_time;
+
+    LOG(INFO) << "### Sort Benchmark ###";
+    LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
+    LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
+    LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
+
+    //LOG(INFO) << "iobufsize_mb = " << (double)BUFSIZE/(1L<<20);
+    LOG(INFO) << "block_size = " << block_size;
+
+    GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>(nelems);
+
+    char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%d.%d", scale, log2maxkey);
+    Grappa::File f(dirname, true);
+
+    if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
+      LOG(INFO) << "generating...";
+      t = Grappa::walltime();
+
+      // fill vector with random 64-bit integers
+      // forall_local<uint64_t,set_random>(array, nelems);
+      forall(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
+
+      rand_time = Grappa::walltime() - t;
+      LOG(INFO) << "fill_random_time: " << rand_time;
+
+      //print_array("generated array", array, nelems);
+    }
+
+    if (write_to_disk || (read_from_disk && !fs::exists(dirname))) {
+      if (fs::exists(dirname)) fs::remove_all(dirname);
+
+      Grappa::save_array(f, true, array, nelems);
+    }
+
+    if (read_from_disk) {
+      Grappa::memset(array, (uint64_t)0, nelems);
+      Grappa::read_array(f, array, nelems);
+      //print_array("read array", array, nelems);
+    }
+
+    /////////
+    // sort
+    /////////
+    if (do_sort) {
+      bucket_sort(array, nelems, nbuckets);
+
+      // verify
+      size_t jump = nelems/17;
+      uint64_t prev;
+      for (size_t i=0; i<nelems; i+=jump) {
+        prev = 0;
+        for (size_t j=1; j<64 && (i+j)<nelems; j++) {
+          uint64_t curr = delegate::read(array+i+j);
+          CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
+          prev = curr;
+        }
+      }
+    }
+
+    Statistics::merge_and_print();
+  });
+  Grappa::finalize();
 }
 
 static void printHelp(const char * exe) {
@@ -382,7 +373,7 @@ static void parseOptions(int argc, char ** argv) {
   // at least 2*num_nodes buckets by default
   nbuckets = 2;
   log2buckets = 1;
-  Node nodes = Grappa_nodes();
+  Core nodes = Grappa::cores();
   while (nbuckets < nodes) {
     nbuckets <<= 1;
     log2buckets++;

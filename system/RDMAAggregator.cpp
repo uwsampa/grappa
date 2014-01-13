@@ -11,16 +11,14 @@
 
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
-
+#include "Aggregator.hpp"
 
 
 namespace Grappa {
-namespace impl {
-
-void poll();
-void failure_function();
-
-}
+  namespace impl {
+    // defined in Grappa.cpp
+    extern void failure_function();
+  }
 }
 
 // prefetch two cache lines per message
@@ -127,8 +125,13 @@ namespace Grappa {
         rdma_idle_flushes++;
 
         Core c = Grappa::mycore();
-
-        Grappa::impl::poll();
+        
+        /////////////////////////////////////////////////////
+        // came from old Grappa::impl::poll() in Grappa.cpp
+        // (not sure why it was polling the other aggregator...)
+        global_communicator.poll();
+        global_aggregator.poll();
+        /////////////////////////////////////////////////////
 
         // receive_poll();
         
@@ -226,7 +229,7 @@ namespace Grappa {
 #warning RDMA Aggregator is bypassed!
 #endif
 #ifdef ENABLE_RDMA_AGGREGATOR
-      //cores_.resize( global_communicator.nodes() );
+      //cores_.resize( global_communicator.cores() );
       mycore_ = global_communicator.mycore();
       mynode_ = -1; // gasnet supernode
       total_cores_ = global_communicator.cores();
@@ -694,8 +697,8 @@ void RDMAAggregator::draw_routing_graph() {
       // record when we last sent
       // TODO: should this go earlier? probably not.
       // TODO: should we tick here?
-      Grappa_tick();
-      locale_core->last_sent_ = Grappa_get_timestamp();
+      Grappa::tick();
+      locale_core->last_sent_ = Grappa::timestamp();
 
       // send done! loop!
       active_send_workers_--;

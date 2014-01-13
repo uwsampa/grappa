@@ -101,25 +101,25 @@ struct Graph {
   }
   
   /// Cast graph to new type, and allow user to re-initialize each V by providing a 
-  /// functor (the body of a forall_localized() over the vertices)
+  /// functor (the body of a forall() over the vertices)
   template< typename VNew, typename VOld, typename InitFunc = decltype(nullptr) >
   static GlobalAddress<Graph<VNew>> transform_vertices(GlobalAddress<Graph<VOld>> o, InitFunc init) {
     static_assert(sizeof(VNew) == sizeof(V), "transformed vertex size must be the unchanged.");
     auto g = static_cast<GlobalAddress<Graph<VNew>>>(o);
-    forall_localized(g->vs, g->nv, init);
+    forall(g->vs, g->nv, init);
     return g;
   }
   
   // Constructor
-  static GlobalAddress<Graph> create(tuple_graph& tg) {
+  static GlobalAddress<Graph> create(const tuple_graph& tg, bool directed = false) {
     double t;
     auto g = symmetric_global_alloc<Graph<V>>();
   
     // find nv
         t = walltime();
-    forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g](packed_edge& e){
       if (e.v0 > g->nv) { g->nv = e.v0; }
-      else if (e.v1 > g->nv) { g->nv = e.v1; }
+      if (e.v1 > g->nv) { g->nv = e.v1; }
     });
     on_all_cores([g]{
       g->nv = Grappa::allreduce<int64_t,collective_max>(g->nv) + 1;
@@ -147,19 +147,20 @@ struct Graph {
   #endif
     });
                                                               t = walltime();
-    forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    // count the outgoing/undirected edges per vertex
+    forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       CHECK_LT(e.v0, g->nv); CHECK_LT(e.v1, g->nv);
   #ifdef SMALL_GRAPH
       // g->scratch[e.v0]++;
-      // g->scratch[e.v1]++;
+      // if (!directed) g->scratch[e.v1]++;
       __sync_fetch_and_add(g->scratch+e.v0, 1);
-      __sync_fetch_and_add(g->scratch+e.v1, 1);
+      if (!directed) __sync_fetch_and_add(g->scratch+e.v1, 1);
   #else    
       auto count = [](GlobalAddress<V> v){
-        delegate::call_async(*shared_pool, v.core(), [v]{ v->local_sz++; });
+        delegate::call<async>(v.core(), [v]{ v->local_sz++; });
       };
       count(g->vs+e.v0);
-      count(g->vs+e.v1);
+      if (!directed) count(g->vs+e.v1);
   #endif
     });
     VLOG(1) << "count_time: " << walltime() - t;
@@ -172,7 +173,7 @@ struct Graph {
       MPI_Iallreduce(MPI_IN_PLACE, g->scratch, g->nv, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD, &r);
       do {
         MPI_Test( &r, &done, MPI_STATUS_IGNORE );
-        if(!done) { Grappa_yield(); }
+        if(!done) { Grappa::yield(); }
       } while(!done);
     });
   #else
@@ -183,7 +184,7 @@ struct Graph {
   #endif // SMALL_GRAPH  
   
     // allocate space for each vertex's adjacencies (+ duplicates)
-    forall_localized(g->vs, g->nv, [g](int64_t i, V& v) {
+    forall(g->vs, g->nv, [g](int64_t i, V& v) {
   #ifdef SMALL_GRAPH
       // adjust b/c allreduce didn't account for having 1 instance per locale
       v.local_sz = g->scratch[i] / locale_cores();
@@ -195,21 +196,21 @@ struct Graph {
     VLOG(3) << "after adj allocs";
   
     // scatter
-    forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
       auto scatter = [g](int64_t vi, int64_t adj) {
         auto vaddr = g->vs+vi;
-        delegate::call_async(*shared_pool, vaddr.core(), [vaddr,adj]{
+        delegate::call<async>(vaddr.core(), [vaddr,adj]{
           auto& v = *vaddr.pointer();
           v.local_adj[v.nadj++] = adj;
         });
       };
       scatter(e.v0, e.v1);
-      scatter(e.v1, e.v0);
+      if (!directed) scatter(e.v1, e.v0);
     });
     VLOG(3) << "after scatter, nv = " << g->nv;
   
     // sort & de-dup
-    forall_localized(g->vs, g->nv, [g](int64_t vi, V& v){
+    forall(g->vs, g->nv, [g](int64_t vi, V& v){
       CHECK_EQ(v.nadj, v.local_sz);
       std::sort(v.local_adj, v.local_adj+v.nadj);
     

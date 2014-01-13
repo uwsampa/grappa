@@ -10,32 +10,17 @@
 #include "Tasking.hpp"
 #include "FileIO.hpp"
 #include "Array.hpp"
+#include "Cache.hpp"
+
+using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( FileIO_tests );
-
-#define read Grappa_delegate_read_word
 
 static const size_t N = (1L<<10);
 static const size_t NN = (1L<<10);
 static const size_t BUFSIZE = (1L<<8);
 
-LocalTaskJoiner ljoin;
-
 GlobalAddress<int64_t> array;
-
-void task_read_chunk(size_t offset_elem, size_t nelem, int64_t fdesc_packed) {
-  GrappaFileDesc fdesc = (GrappaFileDesc)fdesc_packed;
-  int64_t * buf = new int64_t[nelem];
-
-  Grappa_fread_suspending(buf, nelem*sizeof(int64_t), offset_elem*sizeof(int64_t), fdesc);
-
-  { 
-    Incoherent<int64_t>::WO c(array+offset_elem, nelem, buf);
-  }
-
-  delete[] buf;
-  ljoin.signal();
-}
 
 void test_single_read() {
   // create test file to read from
@@ -50,35 +35,42 @@ void test_single_read() {
   fclose(fout);
 
   // do file io using asynchronous POSIX/suspending IO
-  array = Grappa_typed_malloc<int64_t>(N);
-  Grappa_memset_local(array, (int64_t)0, N);
-
+  array = global_alloc<int64_t>(N);
+  Grappa::memset(array, 0, N);
+  
   const size_t nbuf = BUFSIZE/sizeof(int64_t);
 
-  GrappaFileDesc fdesc = Grappa_fopen(fname, "r");
+  impl::FileDesc fdesc = file_open(fname, "r");
   const size_t ntasks = N/nbuf;
 
-  ljoin.reset();
+  CompletionEvent ce;
 
   size_t offset = 0;
+  
   for_buffered(i, n, 0, N, nbuf) {
-    ljoin.registerTask();
-    Grappa_privateTask(task_read_chunk, i, n, (int64_t)fdesc);
+    spawn(&ce, [=]{
+      auto f = static_cast<impl::FileDesc>(fdesc);
+      int64_t * buf = locale_alloc<int64_t>(n);
+      
+      fread_blocking(buf, n*sizeof(int64_t), i*sizeof(int64_t), f);
+      
+      { Incoherent<int64_t>::WO c(array+i, n, buf); }
+      
+      locale_free(buf);
+    });
   }
-  ljoin.wait();
+  
+  ce.wait();
 
   for (int64_t i=0; i<N; i++) {
-    CHECK(Grappa_delegate_read_word(array+i) == i);
+    CHECK(delegate::read(array+i) == i);
   }
 
   // clean up
-  Grappa_free(array);
+  global_free(array);
   if (remove(fname)) { fprintf(stderr, "Error removing file: %s.\n", fname); }
 }
 
-LOOP_FUNCTION( func_barrier, nid ) {
-  Grappa_barrier_suspending();
-}
 
 void test_read_save_array(bool asDirectory) {
   FLAGS_io_blocksize_mb = 1;
@@ -86,59 +78,50 @@ void test_read_save_array(bool asDirectory) {
   // create test file to read from
   char fname[256];
   sprintf(fname, "/scratch/hdfs/tmp/fileio_tests_seq.%ld.bin", NN);
-  GrappaFile f(fname, asDirectory);
+  Grappa::File f(fname, asDirectory);
 
   // do file io using asynchronous POSIX/suspending IO
-  array = Grappa_typed_malloc<int64_t>(NN);
-
+  array = global_alloc<int64_t>(NN);
+  
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(int64_t);
 
-  int64_t * buf = new int64_t[NBUF];
-  for_buffered(i, n, 0, NN, NBUF) {
-		for (int64_t j=0; j<n; j++) {
-      buf[j] = i+j;
-    }
-    Incoherent<int64_t>::WO c(array+i, n, buf);
-  }
-  Grappa_save_array(f, asDirectory, array, NN);
+  int64_t * buf = locale_alloc<int64_t>(NBUF);
+  
+  forall(array, NN, [](int64_t i, int64_t& e){ e = i; });
 
-  Grappa_memset_local(array, (int64_t)0, NN);
+  save_array(f, asDirectory, array, NN);
+  
+  Grappa::memset(array, 0, NN);
 
   sleep(5); // having it wait here helps it crash less due to inconsistent FS state
 
-  Grappa_read_array(f, array, NN);
-
-  for_buffered(i, n, 0, NN, NBUF) {
-    VLOG(1) << "i = " << i << ", n = " << n;
-    Incoherent<int64_t>::RO c(array+i, n, buf);
-		for (int64_t j=0; j<n; j++) {
-      CHECK(c[j] == i+j) << "i = " << i << ", j = " << j << ", array[i+j] = " << c[j];
-    }
-  }
-
+  Grappa::read_array(f, array, NN);
+  
+  forall(array, NN, [](int64_t i, int64_t& e){
+    // CHECK_EQ(e, i);
+    BOOST_CHECK_EQUAL(e, i);
+  });
+  
   // clean up
-  Grappa_free(array);
+  Grappa::global_free(array);
+  locale_free(buf);
   if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
-void user_main( void * ignore ) {
-  test_single_read();
-  //test_read_save_array(false);
-  sleep(1);
-  test_read_save_array(true);
-}
-
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-
-  Grappa_activate();
-
-  Grappa_run_user_main( &user_main, (void*)NULL );
-
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    test_single_read();
+    
+    // LOG(INFO) << "testing file read/write";
+    // test_read_save_array(false);
+    
+    sleep(1);
+    
+    LOG(INFO) << "testing dir read/write";
+    test_read_save_array(true);
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

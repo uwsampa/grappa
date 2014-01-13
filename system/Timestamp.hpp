@@ -17,33 +17,42 @@
 /// reduce scheduler overhead.
 DECLARE_uint64( timestamp_tick_freq );
 
-/// Timestamps are 64-bit signed integers. Theoretically this should
-/// allow us to do overflow detection, but we ignore it for now. This
-/// will still allow many years of operation.
-typedef int64_t Grappa_Timestamp;
-extern Grappa_Timestamp Grappa_current_timestamp;
+namespace Grappa {
 
-/// Grab a snapshot of the current value of the timestamp counter.
-static inline Grappa_Timestamp Grappa_tick() {
-  Grappa_Timestamp old_timestamp = Grappa_current_timestamp; 
-  static int64_t count = FLAGS_timestamp_tick_freq;
-  if( count-- <= 0 ) {
-    Grappa_current_timestamp = rdtsc();
-    count = FLAGS_timestamp_tick_freq;
+  /// Timestamps are 64-bit signed integers. Theoretically this should
+  /// allow us to do overflow detection, but we ignore it for now. This
+  /// will still allow many years of operation.
+  typedef int64_t Timestamp;
+
+  namespace impl {
+    
+    extern Grappa::Timestamp current_timestamp;
+    
   }
-  return old_timestamp;
-}
 
-/// Grab a snapshot of the current value of the timestamp counter.
-static inline Grappa_Timestamp Grappa_force_tick() {
-  Grappa_current_timestamp = rdtsc();
-  return Grappa_current_timestamp;
-}
+  /// Grab a snapshot of the current value of the timestamp counter.
+  static inline Grappa::Timestamp tick() {
+    Grappa::Timestamp old_timestamp = impl::current_timestamp; 
+    static int64_t count = FLAGS_timestamp_tick_freq;
+    if( count-- <= 0 ) {
+      impl::current_timestamp = rdtsc();
+      count = FLAGS_timestamp_tick_freq;
+    }
+    return old_timestamp;
+  }
 
-/// Return the current snapshot of the timestamp counter.
-static inline Grappa_Timestamp Grappa_get_timestamp() { 
-  //Grappa_tick();
-  return Grappa_current_timestamp;
+  /// Grab a snapshot of the current value of the timestamp counter.
+  static inline Grappa::Timestamp force_tick() {
+    impl::current_timestamp = rdtsc();
+    return impl::current_timestamp;
+  }
+
+  /// Return the current snapshot of the timestamp counter.
+  static inline Grappa::Timestamp timestamp() { 
+    //Grappa::tick();
+    return impl::current_timestamp;
+  }
+
 }
 
 #endif

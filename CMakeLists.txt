@@ -11,6 +11,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 #   message(FATAL_ERROR "you must set CC & CXX environment variables!")
 # endif()
 
+set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
+
 project(Grappa)
 
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
@@ -24,34 +26,27 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
-if(TRACING)
-  # TODO:Fix VampirTrace support
-  
-  set(GOOGLE_PROFILER ON)
-
-  add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
-
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
-  
-  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
-  set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
-endif()
-
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 # TODO: use -stdlib=libc++ too?
 
+#########################################
+# Determine tools to build
+if(NOT DEFINED THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools")
+endif()
+
+# always need these
+set(tool_list "")
+
 ###########################
 # Use RUNPATH if available
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# when building, don't use the install RPATH already
-# (but later on when installing)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE) 
+# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
@@ -67,38 +62,52 @@ endif("${isSystemDir}" STREQUAL "-1")
 if(NOT APPLE)
   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
 endif()
-##### </RUNPATH> ########
-
-#########################################
-# Determine tools to build
-set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
-
-# always need these
-set(tool_list tool-gasnet tool-gflags tool-glog)
 
 if(TRACING)
-  set(GOOGLE_PROFILER ON)
+  message("-- Tracing enabled.")
+  # explicitly add third-party dir to rpath (only necessary when compiling with vtcxx)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
 
-  list(APPEND GRAPPA_LIBS vt otf z papi dl m)
-
-  add_definitions(-DVTRACE_SAMPLED -DVTRACE)
-
-  # set(CMAKE_C_COMPILER "${TOOLS_INSTALL_DIR}/bin/vtcc")
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+  if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${VAMPIR_ROOT}/lib")
+  endif()
 endif()
+
+##### </RUNPATH> ########
+
+
+
+if(TRACING)
+  
+  set(GOOGLE_PROFILER ON)
+  
+  include_directories("${VAMPIR_ROOT}/include/vampirtrace")
+  link_directories("${VAMPIR_ROOT}/lib")
+  
+  # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -finstrument-functions")
+  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finstrument-functions")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -vt:inst manual")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -vt:inst manual")
+  
+  # list(APPEND GRAPPA_LIBS vt otf z papi dl m)
+  
+  # set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
+  # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
+  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
+
+endif()
+
 
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
-  list(APPEND tool_list tool-gperftools)
+  # list(APPEND tool_list tool-gperftools)
 endif()
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
-include_directories("${TOOLS_INSTALL_DIR}/include")
-link_directories("${TOOLS_INSTALL_DIR}/lib")
+include_directories("${THIRD_PARTY_ROOT}/include")
+link_directories("${THIRD_PARTY_ROOT}/lib")
 list(APPEND GRAPPA_LIBS
   gflags
   glog
@@ -110,17 +119,21 @@ list(APPEND GRAPPA_LIBS
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
 set(Boost_USE_MULTITHREADED OFF)
-find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
+find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
 
 if(NOT Boost_FOUND)
   set(Boost_USE_MULTITHREADED ON)
-  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
-endif()  
+  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
+endif()
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
-  message("-- Boost_LIBRARIES: ${Boost_LIBRARIES}")
-  # sets Boost_LIBRARIES correctly
+  string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
+  message("-- Boost found:  ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION} -- ${BOOST_PREFIX}")
+  # Boost_LIBRARIES set with the libraries to link against
+else()
+  message("-- Boost not found.")
+  message("   !! Will download and build Boost, which may take a while.")
 endif()
 
 ######################################
@@ -153,7 +166,7 @@ add_definitions(
   "-DGASNET_${GASNET_CONDUIT_UP}"
   "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
 )
-include_directories("${TOOLS_INSTALL_DIR}/include/${GASNET_CONDUIT}-conduit")
+include_directories("${THIRD_PARTY_ROOT}/include/${GASNET_CONDUIT}-conduit")
 
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
@@ -183,7 +196,7 @@ macro(add_grappa_exe target exe )
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
   target_link_libraries(${target} Grappa)
   target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
-  target_link_libraries(${target} ${Boost_LIBRARIES})
+  target_link_libraries(${target} ${Boost_LIBRARIES})  
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
@@ -193,7 +206,7 @@ endmacro(add_grappa_application)
 
 set(GRAPPA_TESTS "")
 
-macro(add_grappa_test name)
+macro(add_grappa_test name nnode ppn)
   get_filename_component(base ${name} NAME_WE) # name without extension
   
   add_grappa_exe(${name} ${name} ${ARGN})
@@ -204,9 +217,13 @@ macro(add_grappa_test name)
   
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=2 --ppn=2
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
     DEPENDS Grappa ${name}
   )
+  add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
+  )
+  
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
   list(APPEND GRAPPA_TESTS "check-${base}")
 endmacro(add_grappa_test)
@@ -217,6 +234,8 @@ file(GLOB_RECURSE igor_scripts
   RELATIVE ${CMAKE_SOURCE_DIR}
   igor_*
 )
+string(REGEX REPLACE "build/[^;]+;?" "" igor_scripts "${igor_scripts}") # filter out build directory
+
 foreach(script ${igor_scripts})
   get_filename_component(out_dir "${script}" PATH)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${out_dir})

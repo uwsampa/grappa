@@ -82,15 +82,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Communicator& s = global_communicator;
   s.init( &(boost::unit_test::framework::master_test_suite().argc),
           &(boost::unit_test::framework::master_test_suite().argv) );
-  BOOST_CHECK( s.nodes() >= 2 );
-  BOOST_MESSAGE( "We have " << s.nodes() << " nodes." );
+  BOOST_CHECK( s.cores() >= 2 );
+  BOOST_MESSAGE( "We have " << s.cores() << " nodes." );
   Aggregator& a = global_aggregator;
   a.init();
 
   s.activate();
 
-  BOOST_CHECK( s.nodes() >= 2 );
-  if( s.mynode() == 0 ) {
+  BOOST_CHECK( s.cores() >= 2 );
+  if( s.mycore() == 0 ) {
 
   // make sure we can send something
   first_call_args first_args = { 1, 2.3 };
@@ -155,26 +155,26 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   //Grappa_call_on( 0, &first_call, &first_args, NULL, 0 );
   BOOST_CHECK_EQUAL( 1, first_int );
   int64_t initial_ts, ts;
-  Grappa_tick();
-  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - FLAGS_aggregator_autoflush_ticks/2; ) {
+  Grappa::tick();
+  for( initial_ts = ts = Grappa::timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - FLAGS_aggregator_autoflush_ticks/2; ) {
     a.poll();
     // watch out---the debug allocator slows things way down and makes this fail
 #ifndef STL_DEBUG_ALLOCATOR
     BOOST_CHECK_EQUAL( 1, first_int );
 #endif
     BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );
-    Grappa_tick();
-    ts = Grappa_get_timestamp();
+    Grappa::tick();
+    ts = Grappa::timestamp();
   }
 
   // watch out---the debug allocator slows things way down and makes this fail
 #ifndef STL_DEBUG_ALLOCATOR
   BOOST_CHECK_EQUAL( 1, first_int );
 #endif
-  Grappa_tick();
-  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks; ) {
-    Grappa_tick();
-    ts = Grappa_get_timestamp();
+  Grappa::tick();
+  for( initial_ts = ts = Grappa::timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks; ) {
+    Grappa::tick();
+    ts = Grappa::timestamp();
   }
   a.poll();
   BOOST_CHECK_EQUAL( 2, first_int );
@@ -202,24 +202,24 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // for( int i = 0; i < FLAGS_aggregator_autoflush_ticks - 1; ++i ) {
   //   a.poll();
   // }
-  Grappa_tick();
-  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
+  Grappa::tick();
+  for( initial_ts = ts = Grappa::timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
     BOOST_MESSAGE( "initial " << initial_ts << " current " << ts);
     // nothing has flushed yet
     BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
     BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
     BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
     a.poll();
-    Grappa_tick();
-    ts = Grappa_get_timestamp();
+    Grappa::tick();
+    ts = Grappa::timestamp();
   }
 
   BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
   // one more tick! node 1 flushes
-  Grappa_tick();
-  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 1000; ) {
-    Grappa_tick();
-    ts = Grappa_get_timestamp();
+  Grappa::tick();
+  for( initial_ts = ts = Grappa::timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 1000; ) {
+    Grappa::tick();
+    ts = Grappa::timestamp();
   }
   a.poll();
   BOOST_CHECK_EQUAL( j + 3 + 1, second_int );

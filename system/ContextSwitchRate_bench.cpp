@@ -51,341 +51,327 @@ uint64_t waitCount; // TODO: for traces, change to SimpleStatistic
 bool running;
 
 
-void user_main( void * args ) {
-  srand((unsigned int)Grappa_walltime());
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
+    srand((unsigned int)Grappa::walltime());
 
-  // must have enough threads because they all join a barrier
-  CHECK( FLAGS_num_test_workers < FLAGS_num_starting_workers );
+    // must have enough threads because they all join a barrier
+    CHECK( FLAGS_num_test_workers < FLAGS_num_starting_workers );
 
-  if (FLAGS_test_type.compare("yields")==0) {
-    LOG(INFO) << ( "Test yields" );
-    {
-      struct runtimes_t {
-        double runtime_avg, runtime_min, runtime_max;
-      };
-      runtimes_t r;
+    if (FLAGS_test_type.compare("yields")==0) {
+      LOG(INFO) << ( "Test yields" );
+      {
+        struct runtimes_t {
+          double runtime_avg, runtime_min, runtime_max;
+        };
+        runtimes_t r;
       
-      on_all_cores( [&r] {
-        // per core timing
-        double start, end;
-        running = false;
+        on_all_cores( [&r] {
+          // per core timing
+          double start, end;
+          running = false;
 
-        final = new CompletionEvent(FLAGS_num_test_workers);
-        task_barrier = new CompletionEvent(FLAGS_num_test_workers);
+          final = new CompletionEvent(FLAGS_num_test_workers);
+          task_barrier = new CompletionEvent(FLAGS_num_test_workers);
 
-        for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-          privateTask( [&start] {
-            // wait for all to start (to hack scheduler yield)
-          //  task_barrier->complete();
-           // task_barrier->wait();
+          for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
+            spawn( [&start] {
+              // wait for all to start (to hack scheduler yield)
+            //  task_barrier->complete();
+             // task_barrier->wait();
 
-            // first task to exit the local barrier will start the timer
-            if ( !running ) {
-              Grappa::Statistics::reset();
-              start = Grappa_walltime();
-              running = true;
-            }
-
-            // do the work
-            for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
-              Grappa_yield();
-            }
-
-            final->complete();
-          });
-        }
-        
-        LOG(INFO) << ( "waiting" );
-        final->wait();
-        end = Grappa_walltime();
-        double runtime = end-start;
-        LOG(INFO) << "took time " << runtime;
-
-        Grappa::barrier();
-        LOG(INFO) << ( "all done" );
-
-        // sort out timing 
-
-        double r_sum = Grappa::allreduce<double, collective_add>( runtime );
-        double r_min = Grappa::allreduce<double, collective_min>( runtime );
-        double r_max = Grappa::allreduce<double, collective_max>( runtime );
-        if ( Grappa::mycore()==0 ) {
-          r.runtime_avg = r_sum / Grappa::cores();
-          r.runtime_min = r_min;
-          r.runtime_max = r_max;
-        }
-      });
-      
-      context_switch_test_runtime_avg = r.runtime_avg;
-      context_switch_test_runtime_max = r.runtime_max;
-      context_switch_test_runtime_min = r.runtime_min;
-      Grappa::Statistics::merge_and_print();
-
-//      Streams overlap
-//      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
-//                      << ", cores_time_max = " << r.runtime_max
-//                      << ", cores_time_min = " << r.runtime_min);
-    }
-  } else if (FLAGS_test_type.compare("cvwakes")==0) {
-    LOG(INFO) << ( "Test cv wakes" );
-    {
-      struct runtimes_t {
-        double runtime_avg, runtime_min, runtime_max;
-      };
-      runtimes_t r;
-
-      on_all_cores( [&r] {
-        // per core timing
-        double start, end;
-
-        ConditionVariable * cvs = new ConditionVariable[FLAGS_num_test_workers];
-        bool * asleep = new bool[FLAGS_num_test_workers];
-        for( int i=0; i<FLAGS_num_test_workers; i++) { asleep[i] = false; }
-
-        final = new CompletionEvent(1);
-        task_barrier = new CompletionEvent(FLAGS_num_test_workers);
-
-        running = false;
-        waitCount = 0;
-        numst = 0;
-
-        for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-          privateTask( [asleep,&start,cvs] {
-            // wait for all to start (to hack scheduler yield)
-            //task_barrier->complete();
-            //task_barrier->wait();
-
-            // first task to exit the local barrier will start the timer
-            if ( !running ) {
-              // can safely reset statistics here because
-              // no messages are sent between cores in the
-              // timed portion
-              Grappa::Statistics::reset();
-              start = Grappa_walltime();
-              running = true;
-            }
-
-            uint64_t tid = numst++;
-              
-            uint64_t partner = (tid + FLAGS_num_test_workers/2)%FLAGS_num_test_workers;
-            uint64_t total_iters = FLAGS_iters_per_task*FLAGS_num_test_workers; 
-
-            // do the work
-            while( waitCount++ < total_iters ) {
-              if ( asleep[partner] ) {   // TODO also test just wake up case
-                Grappa::signal( &cvs[partner] );
+              // first task to exit the local barrier will start the timer
+              if ( !running ) {
+                Grappa::Statistics::reset();
+                start = Grappa::walltime();
+                running = true;
               }
-              asleep[tid] = true;
-              Grappa::wait( &cvs[tid] );
-              asleep[tid] = false;
-            }
 
-            // only first 
-            if ( running ) {
-              final->complete();  // signal to finish as soon as the parent task gets scheduled 
-              running = false;
+              // do the work
+              for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
+                Grappa::yield();
+              }
+
+              final->complete();
+            });
+          }
+        
+          LOG(INFO) << ( "waiting" );
+          final->wait();
+          end = Grappa::walltime();
+          double runtime = end-start;
+          LOG(INFO) << "took time " << runtime;
+
+          Grappa::barrier();
+          LOG(INFO) << ( "all done" );
+
+          // sort out timing 
+
+          double r_sum = Grappa::allreduce<double, collective_add>( runtime );
+          double r_min = Grappa::allreduce<double, collective_min>( runtime );
+          double r_max = Grappa::allreduce<double, collective_max>( runtime );
+          if ( Grappa::mycore()==0 ) {
+            r.runtime_avg = r_sum / Grappa::cores();
+            r.runtime_min = r_min;
+            r.runtime_max = r_max;
+          }
+        });
+      
+        context_switch_test_runtime_avg = r.runtime_avg;
+        context_switch_test_runtime_max = r.runtime_max;
+        context_switch_test_runtime_min = r.runtime_min;
+        Grappa::Statistics::merge_and_print();
+
+  //      Streams overlap
+  //      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
+  //                      << ", cores_time_max = " << r.runtime_max
+  //                      << ", cores_time_min = " << r.runtime_min);
+      }
+    } else if (FLAGS_test_type.compare("cvwakes")==0) {
+      LOG(INFO) << ( "Test cv wakes" );
+      {
+        struct runtimes_t {
+          double runtime_avg, runtime_min, runtime_max;
+        };
+        runtimes_t r;
+
+        on_all_cores( [&r] {
+          // per core timing
+          double start, end;
+
+          ConditionVariable * cvs = new ConditionVariable[FLAGS_num_test_workers];
+          bool * asleep = new bool[FLAGS_num_test_workers];
+          for( int i=0; i<FLAGS_num_test_workers; i++) { asleep[i] = false; }
+
+          final = new CompletionEvent(1);
+          task_barrier = new CompletionEvent(FLAGS_num_test_workers);
+
+          running = false;
+          waitCount = 0;
+          numst = 0;
+
+          for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
+            spawn( [asleep,&start,cvs] {
+              // wait for all to start (to hack scheduler yield)
+              //task_barrier->complete();
+              //task_barrier->wait();
+
+              // first task to exit the local barrier will start the timer
+              if ( !running ) {
+                // can safely reset statistics here because
+                // no messages are sent between cores in the
+                // timed portion
+                Grappa::Statistics::reset();
+                start = Grappa::walltime();
+                running = true;
+              }
+
+              uint64_t tid = numst++;
+              
+              uint64_t partner = (tid + FLAGS_num_test_workers/2)%FLAGS_num_test_workers;
+              uint64_t total_iters = FLAGS_iters_per_task*FLAGS_num_test_workers; 
+
+              // do the work
+              while( waitCount++ < total_iters ) {
+                if ( asleep[partner] ) {   // TODO also test just wake up case
+                  Grappa::signal( &cvs[partner] );
+                }
+                asleep[tid] = true;
+                Grappa::wait( &cvs[tid] );
+                asleep[tid] = false;
+              }
+
+              // only first 
+              if ( running ) {
+                final->complete();  // signal to finish as soon as the parent task gets scheduled 
+                running = false;
+              }
+            });
+          }
+        
+          LOG(INFO) << ( "waiting" );
+          final->wait();
+          end = Grappa::walltime();
+          double runtime = end-start;
+          LOG(INFO) << "took time " << runtime;
+
+          // wake all
+          for (int i=0; i<FLAGS_num_test_workers; i++) { Grappa::signal(&cvs[i]); }
+          LOG(INFO) << ( "woke all" );
+
+          Grappa::barrier();
+        
+          LOG(INFO) << ( "all done" );
+
+          // sort out timing 
+
+          double r_sum = Grappa::allreduce<double, collective_add>( runtime );
+          double r_min = Grappa::allreduce<double, collective_min>( runtime );
+          double r_max = Grappa::allreduce<double, collective_max>( runtime );
+          if ( Grappa::mycore()==0 ) {
+            r.runtime_avg = r_sum / Grappa::cores();
+            r.runtime_min = r_min;
+            r.runtime_max = r_max;
+          }
+        });
+        
+        context_switch_test_runtime_avg = r.runtime_avg;
+        context_switch_test_runtime_max = r.runtime_max;
+        context_switch_test_runtime_min = r.runtime_min;
+        Grappa::Statistics::merge_and_print();
+
+  //      Streams overlap
+  //      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
+  //                      << ", cores_time_max = " << r.runtime_max
+  //                      << ", cores_time_min = " << r.runtime_min);
+      }
+  
+    } else if (FLAGS_test_type.compare("sequential_updates")==0) {
+      LOG(INFO) << ( "Test sequential_updates" );
+      {
+
+        final = new CompletionEvent(FLAGS_num_starting_workers);
+        task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
+        values8 = new uint64_t[FLAGS_num_starting_workers];
+
+        double start = Grappa::walltime();
+
+        for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
+          spawn( [t] {
+            // wait for all to start (to hack scheduler yield)
+            task_barrier->complete();
+            task_barrier->wait();
+
+            // do the work
+            for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
+              values8[t] += 1;
+              Grappa::yield();
             }
+            final->complete();
           });
         }
-        
-        LOG(INFO) << ( "waiting" );
+
         final->wait();
-        end = Grappa_walltime();
+        double end = Grappa::walltime();
+
         double runtime = end-start;
-        LOG(INFO) << "took time " << runtime;
+        LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
+      }
+    } else if (FLAGS_test_type.compare("sequential_updates16")==0) {
 
-        // wake all
-        for (int i=0; i<FLAGS_num_test_workers; i++) { Grappa::signal(&cvs[i]); }
-        LOG(INFO) << ( "woke all" );
+      LOG(INFO) << ( "Test sequential_updates16" );
+      {
+        final = new CompletionEvent(FLAGS_num_starting_workers);
+        task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
+        values16 = new SixteenBytes[FLAGS_num_starting_workers];
 
-        Grappa::barrier();
-        
-        LOG(INFO) << ( "all done" );
+        double start = Grappa::walltime();
 
-        // sort out timing 
+        for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
+          spawn( [t] {
+              // wait for all to start (to hack scheduler yield)
+              task_barrier->complete();
+              task_barrier->wait();
 
-        double r_sum = Grappa::allreduce<double, collective_add>( runtime );
-        double r_min = Grappa::allreduce<double, collective_min>( runtime );
-        double r_max = Grappa::allreduce<double, collective_max>( runtime );
-        if ( Grappa::mycore()==0 ) {
-          r.runtime_avg = r_sum / Grappa::cores();
-          r.runtime_min = r_min;
-          r.runtime_max = r_max;
+              // do the work
+              for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
+              values16[t].val1 += 1;
+              values16[t].val2 += 1;
+              Grappa::yield();
+              }
+              final->complete();
+              });
         }
-      });
-        
-      context_switch_test_runtime_avg = r.runtime_avg;
-      context_switch_test_runtime_max = r.runtime_max;
-      context_switch_test_runtime_min = r.runtime_min;
-      Grappa::Statistics::merge_and_print();
 
-//      Streams overlap
-//      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
-//                      << ", cores_time_max = " << r.runtime_max
-//                      << ", cores_time_min = " << r.runtime_min);
-    }
-  
-  } else if (FLAGS_test_type.compare("sequential_updates")==0) {
-    LOG(INFO) << ( "Test sequential_updates" );
-    {
+        final->wait();
+        double end = Grappa::walltime();
 
-      final = new CompletionEvent(FLAGS_num_starting_workers);
-      task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
-      values8 = new uint64_t[FLAGS_num_starting_workers];
-
-      double start = Grappa_walltime();
-
-      for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-        privateTask( [t] {
-          // wait for all to start (to hack scheduler yield)
-          task_barrier->complete();
-          task_barrier->wait();
-
-          // do the work
-          for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
-            values8[t] += 1;
-            Grappa_yield();
-          }
-          final->complete();
-        });
+        double runtime = end-start;
+        LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
       }
+    } else if (FLAGS_test_type.compare("private_array")==0) {
 
-      final->wait();
-      double end = Grappa_walltime();
+      LOG(INFO) << ( "Test private_array" );
+      {
+        final = new CompletionEvent(FLAGS_num_starting_workers);
+        task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
+        values8 = new uint64_t[FLAGS_num_starting_workers];
 
-      double runtime = end-start;
-      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
-    }
-  } else if (FLAGS_test_type.compare("sequential_updates16")==0) {
+        double start = Grappa::walltime();
 
-    LOG(INFO) << ( "Test sequential_updates16" );
-    {
-      final = new CompletionEvent(FLAGS_num_starting_workers);
-      task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
-      values16 = new SixteenBytes[FLAGS_num_starting_workers];
+        for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
+          spawn( [t] {
+              uint64_t myarray[FLAGS_private_array_size];
 
-      double start = Grappa_walltime();
+              // wait for all to start (to hack scheduler yield)
+              task_barrier->complete();
+              task_barrier->wait();
 
-      for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-        privateTask( [t] {
-            // wait for all to start (to hack scheduler yield)
-            task_barrier->complete();
-            task_barrier->wait();
+              // do the work
+              for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
+              for (uint64_t j=0; j<FLAGS_private_array_size; j++) {
+              myarray[j] += 1;
+              }
+              Grappa::yield();
+              }
+              values8[t] = myarray[rand()%FLAGS_private_array_size];
+              final->complete();
+              });
+        }
 
-            // do the work
-            for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
-            values16[t].val1 += 1;
-            values16[t].val2 += 1;
-            Grappa_yield();
-            }
-            final->complete();
-            });
+        final->wait();
+        double end = Grappa::walltime();
+
+        LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
+
+        double runtime = end-start;
+        LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
       }
+    } else if (FLAGS_test_type.compare("private_array_bycache")==0) {
 
-      final->wait();
-      double end = Grappa_walltime();
+      LOG(INFO) << ( "Test private_array_bycache" );
+      {
+        final = new CompletionEvent(FLAGS_num_starting_workers);
+        task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
+        values8 = new uint64_t[FLAGS_num_starting_workers];
 
-      double runtime = end-start;
-      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
-    }
-  } else if (FLAGS_test_type.compare("private_array")==0) {
+        double start = Grappa::walltime();
 
-    LOG(INFO) << ( "Test private_array" );
-    {
-      final = new CompletionEvent(FLAGS_num_starting_workers);
-      task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
-      values8 = new uint64_t[FLAGS_num_starting_workers];
+        for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
+          spawn( [t] {
+              Cacheline myarray[FLAGS_private_array_size];
 
-      double start = Grappa_walltime();
+              // wait for all to start (to hack scheduler yield)
+              task_barrier->complete();
+              task_barrier->wait();
 
-      for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-        privateTask( [t] {
-            uint64_t myarray[FLAGS_private_array_size];
+              // do the work
+              for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
+              for (uint64_t j=0; j<FLAGS_private_array_size; j++) {
+              myarray[j].val += 1;
+              }
+              Grappa::yield();
+              }
+              values8[t] = myarray[rand()%FLAGS_private_array_size].val;
+              final->complete();
+              });
+        }
 
-            // wait for all to start (to hack scheduler yield)
-            task_barrier->complete();
-            task_barrier->wait();
+        final->wait();
+        double end = Grappa::walltime();
 
-            // do the work
-            for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
-            for (uint64_t j=0; j<FLAGS_private_array_size; j++) {
-            myarray[j] += 1;
-            }
-            Grappa_yield();
-            }
-            values8[t] = myarray[rand()%FLAGS_private_array_size];
-            final->complete();
-            });
+        LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
+
+        double runtime = end-start;
+        LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
       }
-
-      final->wait();
-      double end = Grappa_walltime();
-
-      LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
-
-      double runtime = end-start;
-      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
+    } else {
+      CHECK( false ); // Unrecognized test_type
     }
-  } else if (FLAGS_test_type.compare("private_array_bycache")==0) {
-
-    LOG(INFO) << ( "Test private_array_bycache" );
-    {
-      final = new CompletionEvent(FLAGS_num_starting_workers);
-      task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
-      values8 = new uint64_t[FLAGS_num_starting_workers];
-
-      double start = Grappa_walltime();
-
-      for ( uint64_t t=0; t<FLAGS_num_starting_workers; t++ ) {
-        privateTask( [t] {
-            Cacheline myarray[FLAGS_private_array_size];
-
-            // wait for all to start (to hack scheduler yield)
-            task_barrier->complete();
-            task_barrier->wait();
-
-            // do the work
-            for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
-            for (uint64_t j=0; j<FLAGS_private_array_size; j++) {
-            myarray[j].val += 1;
-            }
-            Grappa_yield();
-            }
-            values8[t] = myarray[rand()%FLAGS_private_array_size].val;
-            final->complete();
-            });
-      }
-
-      final->wait();
-      double end = Grappa_walltime();
-
-      LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
-
-      double runtime = end-start;
-      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
-    }
-  } else {
-    CHECK( false ); // Unrecognized test_type
-  }
 
 
-  DVLOG(5) << ( "user main is exiting" );
+    DVLOG(5) << ( "user main is exiting" );
+  });
+  Grappa::finalize();
 }
-
-
-
-int main (int argc, char** argv) {
-
-  Grappa_init( &argc, &argv ); 
-
-  Grappa_activate();
-
-  DVLOG(1) << "Spawning user main Thread....";
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  VLOG(5) << "run_user_main returned";
-  CHECK( Grappa_done() );
-
-  Grappa_finish( 0 );
-}
-
-

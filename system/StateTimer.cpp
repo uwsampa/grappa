@@ -12,7 +12,7 @@ StateTimer * state_timer;
 /// Put the state of the timer into state of the current thread
 void StateTimer::enterState_thread_( ) {
 #if STATE_TIMER_ON
-    switch ( CURRENT_THREAD->state ) {
+    switch ( Grappa::current_worker()->state ) {
         case USER:
             enterState_user_();
             break;
@@ -37,9 +37,9 @@ void StateTimer::enterState_thread_( ) {
 #endif
 }
 
-/// Set the StateTimer state of the Thread
+/// Set the StateTimer state of the Worker
 void StateTimer::setThreadState_( int state ) {
 #if STATE_TIMER_ON
-    CURRENT_THREAD->state = state;
+    Grappa::current_worker()->state = state;
 #endif
 }

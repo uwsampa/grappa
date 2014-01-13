@@ -56,12 +56,12 @@ GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields );
 
 GRAPPA_DECLARE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time );
 
-extern double tick_rate;
-
 
 namespace Grappa {
+  
+  extern double tick_rate;
 
-  typedef Node Core;
+  typedef Core Core;
 
   /// Internal messaging functions
   namespace impl {
@@ -159,7 +159,7 @@ namespace Grappa {
       ConditionVariable send_cv_;
 
       // remember when we were last sent
-      Grappa_Timestamp last_sent_;
+      Grappa::Timestamp last_sent_;
 
       ///
       /// another cache line
@@ -174,7 +174,7 @@ namespace Grappa {
 
       /// racy updates, used only in source core for locale
       size_t locale_byte_count_;
-      Grappa_Timestamp earliest_message_for_locale_;
+      Grappa::Timestamp earliest_message_for_locale_;
 
       int64_t pad2[7];
 
@@ -199,7 +199,7 @@ namespace Grappa {
     public:
       
       Core mycore_;
-      Node mynode_;
+      Core mynode_;
       Core cores_per_node_;
       Core total_cores_;
 
@@ -372,7 +372,7 @@ namespace Grappa {
         CHECK_NE( Grappa::mycore(), c );
 
         // have we timed out?
-        Grappa_Timestamp current_ts = Grappa_get_timestamp();
+        Grappa::Timestamp current_ts = Grappa::timestamp();
         if( current_ts - localeCoreData(c)->last_sent_ > FLAGS_aggregator_autoflush_ticks ) {
           return true;
         }
@@ -486,12 +486,12 @@ namespace Grappa {
           DVLOG(4) << "Polling found messages.raw " << (void*) localeCoreData(c)->messages_.raw_  
                    << " count " << localeCoreData(c)->messages_.count_ ;
             
-          //Grappa_Timestamp start = Grappa_force_tick();
+          //Grappa::Timestamp start = Grappa::force_tick();
             
           Grappa::impl::MessageList ml = grab_locale_messages( c );
           size_t count = deliver_locally( c, ml, localeCoreData( c ) );
 
-          //Grappa_Timestamp elapsed = Grappa_force_tick() - start;
+          //Grappa::Timestamp elapsed = Grappa::force_tick() - start;
           //rdma_local_delivery_time += (double) elapsed / tick_rate;
         }
 
@@ -502,12 +502,12 @@ namespace Grappa {
             DVLOG(4) << "Polling found messages.raw " << (void*) coreData(c,locale_source)->messages_.raw_  
                      << " count " << coreData(c,locale_source)->messages_.count_ ;
             
-            //Grappa_Timestamp start = Grappa_force_tick();
+            //Grappa::Timestamp start = Grappa::force_tick();
             
             Grappa::impl::MessageList ml = grab_messages( c, locale_source );
             size_t count = deliver_locally( c, ml, coreData( c, locale_source ) );
 
-            //Grappa_Timestamp elapsed = Grappa_force_tick() - start;
+            //Grappa::Timestamp elapsed = Grappa::force_tick() - start;
             //rdma_local_delivery_time += (double) elapsed / tick_rate;
           }
         }
@@ -698,7 +698,7 @@ namespace Grappa {
         // } else {            // yes
         //   // rdma_capacity_flushes++;
         //   // if( disable_flush_ && send_would_block( core ) ) {
-        //   //   Grappa::privateTask( [core, new_ml, size] {
+        //   //   Grappa::spawn( [core, new_ml, size] {
         //   //     global_rdma_aggregator.send_rdma( core, new_ml, size );
         //   //     });
         //   // } else {

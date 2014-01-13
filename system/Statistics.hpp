@@ -7,6 +7,8 @@
 #include "StatisticBase.hpp"
 #include "SimpleStatistic.hpp"
 #include "SummarizingStatistic.hpp"
+#include "CallbackStatistic.hpp"
+#include "MaxStatistic.hpp"
 
 /// @addtogroup Utility
 /// @{
@@ -16,11 +18,15 @@ namespace Grappa {
   using StatisticList = std::vector<impl::StatisticBase*>;
   
   namespace impl {
+    /// singleton list of stats
     StatisticList& registered_stats();
+    
+    extern bool take_tracing_sample;
+    void set_exe_name( char * name );
   }
   
   namespace Statistics {
-    // singleton list
+        
     
     /// Print all registered stats in JSON format. Takes another argument for including
     /// legacy stats in output (inside "STATS{  }STATS" bookends)
@@ -50,10 +56,16 @@ namespace Grappa {
     
     /// Begin recording stats using VampirTrace (also enables Google gperf profiling) (also resets stats)
     void start_tracing();
+
+    /// Only call 'start_tracing' on this core (use in SPMD context)
+    void start_tracing_here();
     
     /// Stop recording tracing and profiling information. Trace/profile is written out and aggregated 
     /// at end of execution.
     void stop_tracing();
+    
+    /// Only call 'stop_tracing' on this core (use in SPMD context)
+    void stop_tracing_here();
   }
   
 } // namespace Grappa
@@ -65,11 +77,12 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBa
 
 /// Define a new Grappa Statistic
 /// @param type: supported types include: int, unsigned int, int64_t, uint64_t, float, and double
-#define GRAPPA_DEFINE_STAT(type, name, initial_value) \
-  Grappa::type name(#name, initial_value)
+#define GRAPPA_DEFINE_STAT(type, name, arg1) \
+  Grappa::type name(#name, arg1)
 
 /// Declare a stat (defined in a separate .cpp file) so it can be used
 #define GRAPPA_DECLARE_STAT(type, name) \
   extern Grappa::type name;
+
 
 /// @}

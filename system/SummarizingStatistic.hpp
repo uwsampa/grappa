@@ -16,6 +16,8 @@
 
 #include <math.h>
 
+#include <limits>
+
 namespace Grappa {
 
   template<typename T>
@@ -69,8 +71,8 @@ namespace Grappa {
       , n(0) // TODO: this assumes initial_value is not actually a value
       , mean(initial_value)
       , M2(0)
-      , min(0)
-      , max(0) {
+      , min(std::numeric_limits<T>::max())
+      , max(std::numeric_limits<T>::min()) {
 #ifdef VTRACE_SAMPLED
       if (SummarizingStatistic::vt_type == -1) {
         LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingStatistic.";
@@ -102,6 +104,8 @@ namespace Grappa {
       value_ = initial_value;
       n = 0;
       mean = M2 = 0;
+      min = std::numeric_limits<T>::max();
+      max = std::numeric_limits<T>::min();
     }
     
     virtual std::ostream& json(std::ostream& o) const {

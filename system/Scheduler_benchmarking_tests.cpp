@@ -29,49 +29,37 @@ double wctime() {
   return (tv.tv_sec + 1E-6 * tv.tv_usec);
 }
 
-void user_main( void* args ) 
-{
+BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
 
-  double start, end;
+    double start, end;
 
-  // warmup context switches  
-  for (int64_t i=0; i<warmup_iters; i++) {
-    Grappa_yield();
-  }
+    // warmup context switches  
+    for (int64_t i=0; i<warmup_iters; i++) {
+      Grappa::yield();
+    }
 
-  // time many context switches
-  start = wctime();
-  for (int64_t i=0; i<iters; i++) {
-    Grappa_yield();
-  }
-  end = wctime();
+    // time many context switches
+    start = wctime();
+    for (int64_t i=0; i<iters; i++) {
+      Grappa::yield();
+    }
+    end = wctime();
 
-  double runtime = end - start;
+    double runtime = end - start;
 
-  DictOut d;
-  d.add( "iterations", iters );
-  d.add( "runtime", runtime ); 
-  BOOST_MESSAGE( d.toString() );
+    DictOut d;
+    d.add( "iterations", iters );
+    d.add( "runtime", runtime ); 
+    BOOST_MESSAGE( d.toString() );
 
-  // average time per context switch
-  BOOST_MESSAGE( (runtime / iters) * BILLION << " ns / switch" );
+    // average time per context switch
+    BOOST_MESSAGE( (runtime / iters) * BILLION << " ns / switch" );
 
-  BOOST_MESSAGE( "user main is exiting" );
-}
-
-BOOST_AUTO_TEST_CASE( benchmark_test1) {
-
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-
-  Grappa_activate();
-
-  DVLOG(1) << "Spawning user main Thread....";
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  VLOG(5) << "run_user_main returned";
-  CHECK( Grappa_done() );
-
-  Grappa_finish( 0 );
+    BOOST_MESSAGE( "user main is exiting" );
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
