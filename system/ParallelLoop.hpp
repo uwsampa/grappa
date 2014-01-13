@@ -294,7 +294,7 @@ namespace Grappa {
   /// Return range of cores that have elements for the given linear address range.
   template< typename T >
   std::pair<Core,Core> cores_with_elements(GlobalAddress<T> base, size_t nelem) {
-    Core start_core = base.node();
+    Core start_core = base.core();
     Core nc = cores();
     Core fc;
     int64_t nbytes = nelem*sizeof(T);
@@ -311,7 +311,7 @@ namespace Grappa {
         fc = nc;
       } else {
         fc += nrest;
-        if ((end - end.block_min()) && end.node() != base.node()) {
+        if ((end - end.block_min()) && end.core() != base.core()) {
           fc += 1;
         }
       }

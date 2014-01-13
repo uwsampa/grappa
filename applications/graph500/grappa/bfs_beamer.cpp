@@ -73,7 +73,7 @@ static bool bfs_counters_added = false;
 
 inline bool claim_parenthood(GlobalAddress<bfs_tree_entry> target, int64_t parent) {
 //  cmp_swaps_total++;
-  return delegate::call(target.node(), [target,parent]{
+  return delegate::call(target.core(), [target,parent]{
     bfs_tree_entry * t = target.pointer();
     if (t->depth == -1) {
       t->depth = current_depth;
@@ -87,7 +87,7 @@ inline bool claim_parenthood(GlobalAddress<bfs_tree_entry> target, int64_t paren
 
 inline bool in_frontier(int64_t v) {
   GlobalAddress<bfs_tree_entry> target = bfs_tree+v;
-  return delegate::call(target.node(), [target]{
+  return delegate::call(target.core(), [target]{
     bfs_tree_entry * t = target.pointer();
     if (t->depth == -1) return false;
     return t->depth < current_depth;

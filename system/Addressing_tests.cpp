@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       for( int i = 0; i < array_size * Grappa::cores(); ++i ) {
         GlobalAddress< array_element > gap = l1 + i;
         ptrdiff_t node_base_address = &node_array[ array[i].node ][0] - (array_element *)NULL;
-        BOOST_CHECK_EQUAL( array[i].node, gap.node() );
+        BOOST_CHECK_EQUAL( array[i].node, gap.core() );
 
         array_element * ap = gap.pointer() + node_base_address;
 
@@ -219,27 +219,27 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       GlobalAddress< array_element > l2 = make_linear( &global_array[0] );
       BOOST_MESSAGE( "Pointer is " << l2 );
-      BOOST_CHECK_EQUAL( l2.node(), 0 );
+      BOOST_CHECK_EQUAL( l2.core(), 0 );
       BOOST_CHECK_EQUAL( l2.pointer(), &global_array[0] );
 
       ++l2;
       BOOST_MESSAGE( "After increment, pointer is " << l2 );
-      BOOST_CHECK_EQUAL( l2.node(), 0 );
+      BOOST_CHECK_EQUAL( l2.core(), 0 );
       BOOST_CHECK_EQUAL( l2.pointer(), &global_array[1] );
 
       l2 += 3;
       BOOST_MESSAGE( "After += 3, pointer is " << l2 );
-      BOOST_CHECK_EQUAL( l2.node(), 1 );
+      BOOST_CHECK_EQUAL( l2.core(), 1 );
       BOOST_CHECK_EQUAL( l2.pointer(), &global_array[0] );
 
       ++l2;
       BOOST_MESSAGE( "After increment, pointer is " << l2 );
-      BOOST_CHECK_EQUAL( l2.node(), 1 );
+      BOOST_CHECK_EQUAL( l2.core(), 1 );
       BOOST_CHECK_EQUAL( l2.pointer(), &global_array[1] );
 
       l2 += (Grappa::cores()-1) * block_size / sizeof(array_element);
       BOOST_MESSAGE( "After += 4, pointer is " << l2 );
-      BOOST_CHECK_EQUAL( l2.node(), 0 );
+      BOOST_CHECK_EQUAL( l2.core(), 0 );
       BOOST_CHECK_EQUAL( l2.pointer(), &global_array[5] );
 
       // casting
@@ -254,7 +254,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       GlobalAddress< int > l3block = global_pointer_to_member( l3, &array_element::block );
       BOOST_CHECK_EQUAL( l3block.pointer(), &(global_array[0].block) );
 
-      while( l3.node() == 0 ) {
+      while( l3.core() == 0 ) {
         ++l3;
       }
       ++l3; // one more to put us on second element of second node

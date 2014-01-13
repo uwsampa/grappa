@@ -153,7 +153,7 @@ public:
                    //( ( n & node_mask) << node_shift_val ) |
                    ( reinterpret_cast<intptr_t>( ttt ) ) );
 
-    CHECK_EQ( g.node(), global_communicator.mycore() ) << "converted linear address node doesn't match";
+    CHECK_EQ( g.core(), global_communicator.mycore() ) << "converted linear address node doesn't match";
     CHECK_EQ( g.pointer(), t ) << "converted linear address local pointer doesn't match";
     
     return g;

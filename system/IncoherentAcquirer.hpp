@@ -187,7 +187,7 @@ public:
         auto reply_address = args.reply_address;
         auto offset = args.offset;
           
-        Grappa::send_heap_message(args.reply_address.node(),
+        Grappa::send_heap_message(args.reply_address.core(),
           [reply_address, offset](void * payload, size_t payload_size) {
             DVLOG(5) << "Worker " << Grappa::current_worker()
             << " received acquire reply to " << reply_address

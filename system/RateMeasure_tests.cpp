@@ -76,7 +76,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         int64_t nodes_per_place = Grappa::cores() / FLAGS_num_places;
         Core dest = (Grappa::mycore()+nodes_per_place)%Grappa::cores();
         GlobalAddress<int64_t> addr = make_global( &some_data[0], dest);
-        VLOG(3) << Grappa::mycore() << "sends to " << addr.node();
+        VLOG(3) << Grappa::mycore() << "sends to " << addr.core();
         for ( uint64_t i=0; i<data_size; i++ ) {
             Grappa::delegate::read( addr + i );
         }

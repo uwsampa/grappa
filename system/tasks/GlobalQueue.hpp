@@ -203,7 +203,7 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   entry_args.target = loc;
   entry_args.chunk = c;
   DVLOG(5) << "push() sending entry to " << loc;
-  bool had_sleeper = Grappa_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
+  bool had_sleeper = Grappa_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.core() ); 
   size_t entry_msg_bytes = Grappa_sizeof_delegate_func_request< push_entry_args<T>, bool >( );
   Grappa::Statistics::global_queue_stats.record_push_entry_request( entry_msg_bytes, had_sleeper );
 
@@ -241,7 +241,7 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   pull_entry_args<T> entry_args;
   entry_args.target = loc;
   entry_args.descriptor = make_global( &cdesc );
-  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );  // FIXME: call_on deprecated
+  Grappa_call_on( loc.core(), pull_entry_request_g_am, &entry_args );  // FIXME: call_on deprecated
 
   size_t entry_msg_bytes = Grappa_sizeof_message( &entry_args );
   Grappa::Statistics::global_queue_stats.record_pull_entry_request( entry_msg_bytes );

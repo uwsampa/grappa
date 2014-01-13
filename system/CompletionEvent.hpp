@@ -83,17 +83,17 @@ namespace Grappa {
     //               "complete() can only be called on subclasses of CompletionEvent");
   inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
     DVLOG(5) << "complete CompletionEvent";
-    if (ce.node() == mycore()) {
+    if (ce.core() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
       ce_remote_completions += decr;
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
-        send_heap_message(ce.node(), [ce] {
+        send_heap_message(ce.core(), [ce] {
           ce.pointer()->complete();
         });
       } else {
-        send_heap_message(ce.node(), [ce,decr] {
+        send_heap_message(ce.core(), [ce,decr] {
           ce.pointer()->complete(decr);
         });
       }

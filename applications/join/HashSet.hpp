@@ -74,7 +74,7 @@ class HashSet {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      return Grappa::delegate::call( target.node(), [key,target]() {
+      return Grappa::delegate::call( target.core(), [key,target]() {
 
         Cell * c = target.pointer();
 
@@ -99,7 +99,7 @@ class HashSet {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      return Grappa::delegate::call( target.node(), [key, target]() {   // TODO: have an additional version that returns void
+      return Grappa::delegate::call( target.core(), [key, target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
         Cell * c = target.pointer();
 
@@ -132,7 +132,7 @@ class HashSet {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call<async,GCE>(target.node(), [key,target]() {
+      Grappa::delegate::call<async,GCE>(target.core(), [key,target]() {
 
         Cell * c = target.pointer();
         

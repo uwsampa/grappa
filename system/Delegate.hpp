@@ -180,7 +180,7 @@ namespace Grappa {
               typename T = decltype(nullptr) >
     T read(GlobalAddress<T> target) {
       delegate_reads++;
-      return call<S,C>(target.node(), [target]() -> T {
+      return call<S,C>(target.core(), [target]() -> T {
         delegate_read_targets++;
         return *target.pointer();
       });
@@ -205,7 +205,7 @@ namespace Grappa {
       static_assert(std::is_convertible<T,U>(), "type of value must match GlobalAddress type");
       delegate_writes++;
       // TODO: don't return any val, requires changes to `delegate::call()`.
-      return call<S,C>(target.node(), [target, value] {
+      return call<S,C>(target.core(), [target, value] {
         delegate_write_targets++;
         *target.pointer() = value;
       });
@@ -220,7 +220,7 @@ namespace Grappa {
               typename U = decltype(nullptr) >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
       delegate_fetchadds++;
-      return call(target.node(), [target, inc]() -> T {
+      return call(target.core(), [target, inc]() -> T {
         delegate_fetchadd_targets++;
         T* p = target.pointer();
         T r = *p;
@@ -317,7 +317,7 @@ namespace Grappa {
             uint64_t increment_total = increment;
             flat_combiner_fetch_and_add_amount += increment_total;
             auto t = target;
-            result = call(target.node(), [t, increment_total]() -> U {
+            result = call(target.core(), [t, increment_total]() -> U {
               T * p = t.pointer();
               uint64_t r = *p;
               *p += increment_total;
@@ -357,7 +357,7 @@ namespace Grappa {
       static_assert(std::is_convertible<T,V>(), "type of new_val must match GlobalAddress type");
       
       delegate_cmpswaps++;
-      return call(target.node(), [target, cmp_val, new_val]() -> bool {
+      return call(target.core(), [target, cmp_val, new_val]() -> bool {
         T * p = target.pointer();
         delegate_cmpswap_targets++;
         if (cmp_val == *p) {

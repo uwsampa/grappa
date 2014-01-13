@@ -266,16 +266,16 @@ inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) 
   if (FLAGS_flatten_completions) {
     ce.pointer()->send_completion(ce.core(), decr);
   } else {
-    if (ce.node() == mycore()) {
+    if (ce.core() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
-        send_heap_message(ce.node(), [ce] {
+        send_heap_message(ce.core(), [ce] {
           ce.pointer()->complete();
         });
       } else {
-        send_heap_message(ce.node(), [ce,decr] {
+        send_heap_message(ce.core(), [ce,decr] {
           ce.pointer()->complete(decr);
         });
       }

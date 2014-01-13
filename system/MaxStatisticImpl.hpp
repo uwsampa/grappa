@@ -27,7 +27,7 @@ namespace Grappa {
           MaxStatistic<T>* s = remote_stat.pointer();
           T s_value = s->value_;
           
-          send_heap_message(combined_addr.node(), [combined_addr, s_value, &ce] {
+          send_heap_message(combined_addr.core(), [combined_addr, s_value, &ce] {
               // for this simple MaxStatistic, merging is as simple as accumulating the value
               MaxStatistic<T>* combined_ptr = combined_addr.pointer();
               combined_ptr->value_ = std::max(combined_ptr->value_, s_value);

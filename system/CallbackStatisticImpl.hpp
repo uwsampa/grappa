@@ -28,7 +28,7 @@ namespace Grappa {
           CallbackStatistic<T>* s = remote_stat.pointer();
           T s_value = s->value();
           
-          send_heap_message(combined_addr.node(), [combined_addr, s_value, &ce] {
+          send_heap_message(combined_addr.core(), [combined_addr, s_value, &ce] {
               // merging is as simple as accumulating the value
               CallbackStatistic<T>* combined_ptr = combined_addr.pointer();
               combined_ptr->merging_value_ += s_value;

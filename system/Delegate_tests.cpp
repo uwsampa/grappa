@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     GlobalAddress< int64_t > la = make_linear( &other_data );
     
     // check pointer computation
-    BOOST_CHECK_EQUAL( la.node(), 0 );
+    BOOST_CHECK_EQUAL( la.core(), 0 );
     BOOST_CHECK_EQUAL( la.pointer(), &other_data );
 
     // check data
@@ -100,12 +100,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     // change pointer and check computation
     ++la;
-    BOOST_CHECK_EQUAL( la.node(), 0 );
+    BOOST_CHECK_EQUAL( la.core(), 0 );
     BOOST_CHECK_EQUAL( la.pointer(), &other_data + 1 );
 
     // change pointer and check computation
     la += (i64_per_block-1);
-    BOOST_CHECK_EQUAL( la.node(), 1 );
+    BOOST_CHECK_EQUAL( la.core(), 1 );
     
     // check remote data
     remote_data = delegate::read( la );

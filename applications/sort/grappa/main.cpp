@@ -146,7 +146,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
     GlobalAddress<bucket_t> bi = bucketlist+i;
-    VLOG(1) << "bucket[" << i << "] on Core " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
+    VLOG(1) << "bucket[" << i << "] on Core " << bi.core() << ", offset = " << bi.pointer() - bucketlist.localize(bi.core()) << ", ptr = " << bi.pointer();
   }
 #endif
 

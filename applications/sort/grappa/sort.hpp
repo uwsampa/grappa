@@ -138,7 +138,7 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
     GlobalAddress<bucket_t<S> > bi = bucketlist+i;
-    VLOG(1) << "bucket[" << i << "] on Node " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
+    VLOG(1) << "bucket[" << i << "] on Node " << bi.core() << ", offset = " << bi.pointer() - bucketlist.localize(bi.core()) << ", ptr = " << bi.pointer();
   }
 #endif
 

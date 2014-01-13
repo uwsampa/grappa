@@ -28,7 +28,7 @@ using namespace Grappa;
 // With current low level programming model, the choice to parallelize a loop involves different code
 
 double readv( GlobalAddress<element_pair> target, vindex j ) {
-  return delegate::call( target.node(), [target,j]() {
+  return delegate::call( target.core(), [target,j]() {
     element_pair * e = target.pointer();
     return e->vp[j];
   });

@@ -166,7 +166,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
       ////for (int64_t i=vstart; i<vend; i++) { ss << read(xadj+i) << " "; }
       ////VLOG(1) << ss.str();
       //VLOG(1) << "vstart: " << vstart << ", vend-vstart = " << vend-vstart;
-      //VLOG(1) << "start node: " << (xadj+vstart).node();
+      //VLOG(1) << "start node: " << (xadj+vstart).core();
       //}
       
       //  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));

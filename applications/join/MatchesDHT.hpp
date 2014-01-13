@@ -99,7 +99,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      lookup_result result = Grappa::delegate::call( target.node(), [key,target]() {
+      lookup_result result = Grappa::delegate::call( target.core(), [key,target]() {
 
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
         MDHT_TYPE(lookup_result) lr;
@@ -135,7 +135,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 //FIXME: remove index capture
-      bool result = Grappa::delegate::call( target.node(), [index,key, target]() {   // TODO: have an additional version that returns void
+      bool result = Grappa::delegate::call( target.core(), [index,key, target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
@@ -173,7 +173,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call( target.node(), [key, val, target]() {   // TODO: upgrade to call_async
+      Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
 

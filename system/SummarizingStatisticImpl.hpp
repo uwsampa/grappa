@@ -36,7 +36,7 @@ namespace Grappa {
             s->value_, s->min, s->max, s->n, s->mean, s->M2
           };
           
-          send_heap_message(combined_addr.node(), [combined_addr, sp, &ce] {
+          send_heap_message(combined_addr.core(), [combined_addr, sp, &ce] {
               SummarizingStatistic<T>* combined_ptr = combined_addr.pointer();
               if( sp.n > 0 ) { // update only if we have accumulated samples
                 combined_ptr->value_ += sp.value_;

@@ -702,7 +702,7 @@ void StealQueue<T>::reclaimSpace() {
 ///   pull_global_data_args<T> args;
 ///   args.signal = make_global( &signal );
 ///   args.chunk = data_ptr;
-///   Grappa_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args ); // FIXME: call_on deprecated
+///   Grappa_call_on( data_ptr.base.core(), pull_global_data_request_g_am, &args ); // FIXME: call_on deprecated
 ///   size_t msg_size = Grappa_sizeof_message( &args );
 ///   StealStatistics::record_globalq_data_pull_request( msg_size, data_ptr.amount );
 ///   signal.wait();
@@ -724,7 +724,7 @@ void StealQueue<T>::reclaimSpace() {
 /// 
 ///   CHECK( chunk_base + args->chunk.amount <= stack+bottom ) << "chunk overlaps the local part of the stack";
 /// 
-///   Grappa_call_on_x( args->signal.node(), pull_global_data_reply_g_am, &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) ); // FIXME: call_on deprecated 
+///   Grappa_call_on_x( args->signal.core(), pull_global_data_reply_g_am, &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) ); // FIXME: call_on deprecated 
 ///   size_t msg_size = Grappa_sizeof_message( &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) );
 ///   StealStatistics::record_globalq_data_pull_reply( msg_size, args->chunk.amount );
 /// 
