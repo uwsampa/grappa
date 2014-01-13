@@ -7,11 +7,15 @@ set(SOURCES
   Tuple.hpp
   Tuple.cpp
   relation_io.hpp
-  DHT.hpp
+  relation_io.cpp
+  utils.h
+  MatchesDHT.hpp
   Hypercube.hpp
   Hypercube.cpp
   local_graph.cpp
   local_graph.hpp
+  utility.hpp
+  utility.cpp
   "${APP_BFS}/oned_csr.h"
   "${APP_BFS}/oned_csr.cpp"
   "${APP_BFS}/timer.h"
@@ -36,6 +40,9 @@ set(QUERIES_IND
   triangles
   triangles_partition
   twohop
+  grappa_select
+  grappa_select_then_join
+  grappa_three_path
 )
 
 set(QUERIES_SOURCES

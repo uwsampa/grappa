@@ -1,5 +1,4 @@
-#ifndef RELATIONIO_HPP
-#define RELATIONIO_HPP
+#pragma once
 
 #include <string>
 #include <fstream>
@@ -15,6 +14,7 @@
 
 #include "grappa/graph.hpp"
 
+DECLARE_string(relations);
 
 
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
@@ -36,7 +36,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
 /// src dst
 /// 
 /// create as array of Tuple
-void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples ) {
+void readEdges( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples ) {
   std::ifstream testfile(fn);
   CHECK( testfile.is_open() );
 
@@ -122,8 +122,9 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 
 template <typename T>
 GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
-  std::ifstream testfile(fn, std::ifstream::in);
-  CHECK( testfile.is_open() ) << fn << " failed to open";
+  std::string path = FLAGS_relations+"/"+fn;
+  std::ifstream testfile(path, std::ifstream::in);
+  CHECK( testfile.is_open() ) << path << " failed to open";
 
   // shared by the local tasks reading the file
   int64_t fin = 0;
@@ -172,5 +173,3 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
 }
 
 
-
-#endif // RELATIONIO_HPP
