@@ -3,3 +3,5 @@
 # and fires up a new bash shell with  DISTCC_HOSTS set up
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 exec salloc -N8 "$DIR/distcc.sh" make "$@"
+
+# note: for Bash Completion to work with this, find the bash_completion/make and add 'distcc_make' to the list of make commands to complete for (near the end of the file)

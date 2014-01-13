@@ -33,7 +33,7 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
 
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
+  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   
   set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
   set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
@@ -73,10 +73,12 @@ endif()
 
 #########################################
 # Determine tools to build
-set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
+if(NOT DEFINED THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools")
+endif()
 
 # always need these
-set(tool_list tool-gasnet tool-gflags tool-glog)
+set(tool_list "")
 
 if(TRACING)
   set(GOOGLE_PROFILER ON)
@@ -85,8 +87,8 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE)
 
-  # set(CMAKE_C_COMPILER "${TOOLS_INSTALL_DIR}/bin/vtcc")
-  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
+  # set(CMAKE_C_COMPILER "${THIRD_PARTY_ROOT}/bin/vtcc")
+  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
@@ -94,13 +96,13 @@ endif()
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
-  list(APPEND tool_list tool-gperftools)
+  # list(APPEND tool_list tool-gperftools)
 endif()
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
-include_directories("${TOOLS_INSTALL_DIR}/include")
-link_directories("${TOOLS_INSTALL_DIR}/lib")
+include_directories("${THIRD_PARTY_ROOT}/include")
+link_directories("${THIRD_PARTY_ROOT}/lib")
 list(APPEND GRAPPA_LIBS
   gflags
   glog
@@ -112,17 +114,21 @@ list(APPEND GRAPPA_LIBS
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
 set(Boost_USE_MULTITHREADED OFF)
-find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
+find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
 
 if(NOT Boost_FOUND)
   set(Boost_USE_MULTITHREADED ON)
-  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
-endif()  
+  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
+endif()
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
-  message("-- Boost_LIBRARIES: ${Boost_LIBRARIES}")
-  # sets Boost_LIBRARIES correctly
+  string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
+  message("-- Boost found:  ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION} -- ${BOOST_PREFIX}")
+  # Boost_LIBRARIES set with the libraries to link against
+else()
+  message("-- Boost not found.")
+  message("   !! Will download and build Boost, which may take a while.")
 endif()
 
 ######################################
@@ -155,7 +161,7 @@ add_definitions(
   "-DGASNET_${GASNET_CONDUIT_UP}"
   "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
 )
-include_directories("${TOOLS_INSTALL_DIR}/include/${GASNET_CONDUIT}-conduit")
+include_directories("${THIRD_PARTY_ROOT}/include/${GASNET_CONDUIT}-conduit")
 
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
