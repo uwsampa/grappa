@@ -21,8 +21,9 @@ See more detailed building instructions in [BUILD.md](BUILD.md).
 ## Dependences
 * Compiler
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
+  * Or: Clang >= 3.4
 * External:
-  * Boost ( > v1.51)
+  * Boost >= 1.51
 * Slightly modified versions distributed with Grappa:
   * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
   * glog
