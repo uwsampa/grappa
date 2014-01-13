@@ -7,7 +7,7 @@
 #include <Delegate.hpp>
 #include <Grappa.hpp>
 
-#include "squares_partition.hpp"
+#include "squares_partition_bushy.hpp"
 #include "local_graph.hpp"
 #include "Hypercube.hpp"
 #include "utility.hpp"
@@ -25,24 +25,28 @@ using namespace Grappa;
 
 
 
-
-uint64_t count = 0;
-uint64_t edgesSent = 0;
-
-void emit(int64_t x, int64_t y, int64_t z, int64_t t) {
-//  std::cout << x << " " << y << " " << z << std::endl;
-  count++;
-}
-
 #include <sstream>
 #include <string>
 
-std::vector<Edge> localAssignedEdges_R1;
-std::vector<Edge> localAssignedEdges_R2;
-std::vector<Edge> localAssignedEdges_R3;
-std::vector<Edge> localAssignedEdges_R4;
+
+namespace squares_partition_bushy {
+  std::vector<Edge> localAssignedEdges_R1;
+  std::vector<Edge> localAssignedEdges_R2;
+  std::vector<Edge> localAssignedEdges_R3;
+  std::vector<Edge> localAssignedEdges_R4;
+
+  uint64_t edgesSent = 0;
+
+  
+  int64_t started = 1;
+  int64_t finished = 1;
+}
+using namespace squares_partition_bushy;
 
 //TODO
+
+
+
 
 //int64_t random_assignment(int64_t x) {
 //  std::random_device rd;
@@ -61,7 +65,7 @@ std::vector<Edge> localAssignedEdges_R4;
 //
   
   
-void SquarePartition4way::preprocessing(std::vector<tuple_graph> relations) {
+void SquarePartitionBushy4way::preprocessing(std::vector<tuple_graph> relations) {
   // for this query plan, the graph construction is just to clean up
   // the input
   LOG(INFO) << "graph construction...";
@@ -75,7 +79,7 @@ void SquarePartition4way::preprocessing(std::vector<tuple_graph> relations) {
 
   
   
-void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
+void SquarePartitionBushy4way::execute(std::vector<tuple_graph> relations) {
   // arrange the processors in 4d
   auto sidelength = fourth_root(cores());
   LOG(INFO) << "using " << sidelength*sidelength*sidelength*sidelength << " of " << cores() << " cores";
@@ -183,19 +187,22 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto& R1 = *new LocalAdjListGraph(R1_dedup);
       auto& R2 = *new LocalAdjListGraph(R2_dedup);
       auto& R3 = *new LocalAdjListGraph(R3_dedup);
-      auto& R4 = *new LocalMapGraph(R4_dedup);
+      auto& R4 = *new LocalAdjListGraph(R4_dedup);
 #else
       LOG(INFO) << "local graph construct...";
       auto& R1 = *new LocalAdjListGraph(localAssignedEdges_R1);
       auto& R2 = *new LocalAdjListGraph(localAssignedEdges_R2);
       auto& R3 = *new LocalAdjListGraph(localAssignedEdges_R3);
-      auto& R4 = *new LocalMapGraph(localAssignedEdges_R4);
+      auto& R4 = *new LocalAdjListGraph(localAssignedEdges_R4);
 #endif
 
-      // use number of adjacencies (degree) as the ordering
-      // EVAR: implementation of triangle count
-      int64_t i=0;
-      for (auto xy : R1.vertices()) {
+
+      LOG(INFO) << "query execution "; 
+
+
+      std::unordered_set<pair_t> ac_b;
+
+      for (auto xy: R1.vertices()) {
         int64_t x = xy.first;
         auto& xadj = xy.second;
         for (auto y : xadj) {
@@ -203,39 +210,29 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
           auto& yadj = R2.neighbors(y);
           VLOG(5) << "ir1: " << resultStr({x, y}, yadj.size());
           ir2_count+=yadj.size(); // count(R1xR2)
-          //        if (xadj.size() < yadj.size()) {            
-          //          ir3_count+=yadj.size(); // count(sel(R1xR2))
           for (auto z : yadj) {
-            auto& zadj = R3.neighbors(z);
-            VLOG(5) << "ir3: " << resultStr({x, y, z}, zadj.size());
-            ir4_count+=zadj.size(); // count(sel(R1xR2)xR3)
-            //            if (yadj.size() < zadj.size()) {
-            //              ir5_count+=zadj.size(); // count(sel(sel(R1xR2)xR3))
-            for (auto t : zadj) {
-              auto tadjsize = R4.nadj(t);
-              VLOG(5) << "ir5: " << resultStr({x, y, z, t}, tadjsize);
-              ir6_count+=tadjsize; // count(sel(sel(R1xR2)xR3)xR4)
-              //                if (zadj.size() < tadjsize) {
-              //                  ir7_count+=tadjsize; // count(sel(sel(sel(R1xR2)xR3)xR4))
-              VLOG(5) << "ir7: " << resultStr({x, y, z, t});
-              if (R4.inNeighborhood(t, x)) {
-                emit( x,y,z,t );
-                VLOG(5) << "result: " << resultStr({x, y, z, t});
-                results_count++;  // count(sel(sel(sel(R1dxR2)xR3)xR4)xR1s)
-              } // end select t.dst=x
-              //                } // end select z < t
-            } // end over t
-            //            } // end select y < z
-          } // end over z
-          //        } // end select x < y
-        } // end over y
-      } // end over x
+            ac_b.insert( pair_t(x, z) );
+          }
+        }
+      }
 
-      LOG(INFO) << "counted " << count << " squares";
-
-
+      for (auto zt: R3.vertices()) {
+        int64_t z = zt.first;
+        auto& zadj = zt.second;
+        for (auto t : zadj) {
+          ir3_count++;
+          auto& tadj = R4.neighbors(t);  
+          for (auto x : tadj) {
+            if ( ac_b.end() != ac_b.find( pair_t(x, z) ) ) {
+              VLOG(5) << "result: " << resultStr({x, -1, z, t});
+              results_count++;
+            }
+          }
+        }
+      }
   });
 
+      LOG(INFO) << "query complete ";
 
 }
 

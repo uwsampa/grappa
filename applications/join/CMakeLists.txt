@@ -45,6 +45,8 @@ set(QUERIES_SOURCES
   squares_partition.hpp
   squares_bushy.cpp
   squares_bushy.hpp
+  squares_partition_bushy.cpp
+  squares_partition_bushy.hpp
   Query.hpp
 )
 

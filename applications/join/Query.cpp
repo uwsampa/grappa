@@ -14,6 +14,7 @@
 #include "squares.hpp"
 #include "squares_partition.hpp"
 #include "squares_bushy.hpp"
+#include "squares_partition_bushy.hpp"
 
 // graph gen
 #include "generator/make_graph.h"
@@ -97,6 +98,7 @@ void user_main( int * ignore ) {
   std::unordered_map<std::string, Query*> qm( {
       {"SquareQuery", new SquareQuery()}, 
       {"SquarePartition4way", new SquarePartition4way()},
+      {"SquarePartitionBushy4way", new SquarePartitionBushy4way()},
       {"SquareBushyPlan", new SquareBushyPlan()}
       });
 

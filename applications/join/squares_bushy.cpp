@@ -11,6 +11,7 @@
 
 #include "squares_bushy.hpp"
 #include "local_graph.hpp"
+#include "utility.hpp"
 
 // Grappa includes
 #include <Grappa.hpp>
@@ -69,17 +70,6 @@ void SquareBushyPlan::preprocessing(std::vector<tuple_graph> relations) {
 int64_t h(int64_t a, int64_t b) {
   const int64_t p = 179425579; // prime
   return (p * a + b) % cores();
-}
-
-#include <utility>
-typedef std::pair<int64_t,int64_t> pair_t;
-namespace std {
-  template <> struct hash<pair_t> {
-    size_t operator()(const pair_t& x) const {
-      static int64_t p = 32416152883; // prime
-      return p*x.first + x.second; 
-    }
-  };
 }
 
 
