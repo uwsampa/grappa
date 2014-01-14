@@ -250,7 +250,7 @@ The most basic unit of parallelism in Grappa is the *task*. A *task* is a unit o
 
 *Workers* are lightweight user-level threads that are *cooperatively scheduled* (sometimes also known as *fibers*), which means that they run uninterrupted on a core until they choose to *yield* or *suspend*. A worker takes an un-started task off the queue, executes it to completion, suspending or yielding as the task specifies. When the task finishes (returns from the lambda/functor), the worker goes off to find another task to execute.
 
-One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places such as certain function calls, so no synchronization is ever needed to data local to your core. A fair rule of thumb is that anything that goes to another core may contain a context switch.
+One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places: calls to synchronization and remote delegate operations. If, on the other hand, a region of code only references data local to a core, atomicity is guaranteed without any explicit synchronization needed.
 
 ### Bound/unbound tasks
 
