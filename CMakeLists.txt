@@ -110,13 +110,6 @@ if(TRACING)
   # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
   # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
 
-<<<<<<< HEAD
-=======
-  # set(CMAKE_C_COMPILER "${THIRD_PARTY_ROOT}/bin/vtcc")
-  include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
->>>>>>> master
 endif()
 
 
