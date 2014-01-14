@@ -310,7 +310,7 @@ Instead of spawning tasks individually, it's almost always better to use a paral
 The basic parallel loop is `forall()`. The iteration range can be specified in a few different ways:
 
 - `forall(startIndex, nIterations, [](int64_t i){ })`: Specify a start index and a number of iterations. The iterations will be split evenly across all the cores, broken up into evenly-sized blocks.
-- `forall(address, nElements, [](T&){ })`: Specify a linear address (start of an allocation from the global heap, for instance), and a number of elements. Iterations will be executed *at the core where the corresponding element lives*, and the lambda will be passed a simple reference to the element.
+- `forall(address, nElements, [](T& e){ })`: Specify a linear address (start of an allocation from the global heap, for instance), and a number of elements. Iterations will be executed *at the core where the corresponding element lives*, and the lambda will be passed a simple reference to the element.
 - `forall_here(startIndex, nIterations, [](int64_t i){ })`: Like the above forall, except instead of spreading iterations across all cores, it spawns them all locally (though if spawning unbound tasks, they may be moved).
 
 Each `forall` loop accepts different forms of lambda, allowing for a bit more control. For instance, a `forall` over elements in an array of `double`s could be invoked:
