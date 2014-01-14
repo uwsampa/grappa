@@ -282,6 +282,12 @@ namespace Grappa {
                   GlobalCompletionEvent * C = &impl::local_gce,
                   TaskMode B = TaskMode::Bound,
                   SyncMode S = SyncMode::Blocking);
+                  
+  FORALL_OVERLOAD(TaskMode B,
+                  GlobalCompletionEvent * C,
+                  SyncMode S = SyncMode::Blocking,
+                  int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG);
+                  
   
 #undef FORALL_OVERLOAD
     
