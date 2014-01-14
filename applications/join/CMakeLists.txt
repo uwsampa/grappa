@@ -42,7 +42,6 @@ set(QUERIES_IND
   triangles.cpp
   triangles_partition.cpp
   twohop.cpp
-  ${GENERATED_SOURCES}
 )
 
 set(QUERIES_SOURCES
@@ -64,24 +63,40 @@ set(TEST_SOURCES
   
 include_directories(${INCLUDE_DIRS})
 
+# query code dependences
+add_library(querylib STATIC EXCLUDE_FROM_ALL ${SOURCES})
 
+# exe targets for standalone query codes
 foreach(query ${QUERIES_IND})
   get_filename_component(query_name ${query}, NAME_WE)
-  add_grappa_application(${query_name}.exe ${SOURCES} ${query})
-  target_link_libraries(${query_name}.exe generator)
+  add_grappa_application(${query_name}.exe ${query})
+  target_link_libraries(${query_name}.exe generator querylib)
 endforeach()
 
+# exe targets for generated query codes
+foreach(query ${GENERATED_SOURCES})
+  get_filename_component(query_name ${query}, NAME_WE)
+  add_grappa_application(${query_name}.exe ${query})
+  list(APPEND GENERATED_EXES "${query_name}.exe")
+endforeach()
+
+# add aggregate target to build the executables for 
+# all of the generated queries
+add_custom_target(compile-gens)
+add_dependencies(compile-gens ${GENERATED_EXES})
+
+# exe target for top level query runner
 foreach(query ${QUERIES_MAIN})
-  add_grappa_application(${query}.exe ${SOURCES} ${QUERIES_SOURCES} ${query}.cpp)
-  target_link_libraries(${query}.exe generator)
+  add_grappa_application(${query}.exe ${QUERIES_SOURCES} ${query}.cpp)
+  target_link_libraries(${query}.exe generator querylib)
 endforeach()
 
 
 foreach(test_cpp ${TEST_SOURCES})
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${SOURCES} ${test_cpp})
-  target_link_libraries(${test} generator)
+  add_grappa_test(${test} ${test_cpp})
+  target_link_libraries(${test} generator querylib)
 endforeach()
 
 
