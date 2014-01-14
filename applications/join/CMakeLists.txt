@@ -36,13 +36,13 @@ set(QUERIES_MAIN
   Query
 )
 
+FILE(GLOB GENERATED_SOURCES "grappa_*.cpp")
+
 set(QUERIES_IND 
-  triangles
-  triangles_partition
-  twohop
-  grappa_select
-  grappa_select_then_join
-  grappa_three_path
+  triangles.cpp
+  triangles_partition.cpp
+  twohop.cpp
+  ${GENERATED_SOURCES}
 )
 
 set(QUERIES_SOURCES
@@ -66,8 +66,9 @@ include_directories(${INCLUDE_DIRS})
 
 
 foreach(query ${QUERIES_IND})
-  add_grappa_application(${query}.exe ${SOURCES} ${query}.cpp)
-  target_link_libraries(${query}.exe generator)
+  get_filename_component(query_name ${query}, NAME_WE)
+  add_grappa_application(${query_name}.exe ${SOURCES} ${query})
+  target_link_libraries(${query_name}.exe generator)
 endforeach()
 
 foreach(query ${QUERIES_MAIN})
