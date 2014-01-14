@@ -32,6 +32,9 @@
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
 // #include "Cache.hpp"
+#include "Array.hpp"
+
+#include "Statistics.hpp"
 
 //#include <typeinfo>
 //#include <cxxabi.h>
