@@ -198,7 +198,7 @@ T call(Core dest, []() -> T { /* (on 'dest') */ })
 U call(GlobalAddress<T> gp, [](T *p) -> U { /* (on gp.core(), p = gp.pointer()) */ })
 ```
 
-The provided lambda is executed on the specified core, blocking the caller. The return value of the lambda is returned to the caller when it is woken. The only restriction on code in the delegate is that is *must not suspend or yield to the scheduler*. This is to ensure the communication workers always make progress. An assertion will fail if this is violated. To accomplish blocking remotely, a delegate may spawn a task to do blocking work, (or for delegates that specifically need to block on a remote synchronization object, see another alternative form: `call(Core, Mutex, []{})`.
+The provided lambda is executed on the specified core, blocking the caller. The return value of the lambda is returned to the caller when it is woken. The only restriction on code in the delegate is that is *must not suspend or yield to the scheduler*. This is to ensure that communication workers do not get stuck. An assertion will fail if this is violated. If you need to do blocking remotely, you can use `spawnRemote()` to create a task on the remote core, which will be able to do blocking operations. Alternatively, there is another form of `delegate::call` that takes a Mutex as an argument. See the Doxygen documentation for more details.
 
 Some simple helper delegates for common operations are provided; they are implemented using the above generic delegates.
 
