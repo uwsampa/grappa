@@ -456,11 +456,18 @@ forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
 });
 ```
 
-### Irregular parallelism
+## Irregular parallelism & synchronization
 
 We will use a tree search to illustrate the spawning and syncing of an unpredictable
-number of dynamic tasks. 
+number of dynamic tasks.
 
 In this tutorial you will learn:
-- use of `forall_public_*` loops to create tasks that can be load balanced between cores
+- use of `spawn<unbound>` and `forall<unbound>` to create tasks that can be load balanced among cores
 - use of a `GlobalCompletionEvent` to synchronize dynamic tasks across all cores
+
+Let's start with the problem: We have a tree in global memory. Each node has a color value and pointers to its children.
+
+
+
+### GlobalCompletionEvent
+So far, we've treated the GlobalCompletionEvent as a magical way to ensure that everything inside a loop runs before the loop finishes.

@@ -1,6 +1,5 @@
 
 #include <Grappa.hpp>
-#include <ParallelLoop.hpp>
 #include <GlobalVector.hpp>
 #include <Array.hpp>
 using namespace Grappa;
@@ -73,9 +72,11 @@ void create_tree() {
   });
   
   auto root = vertex_array+0;
-  Vertex v; v.init(0);
+  Vertex v;
+  finish([&v]{
+    v.init(0);
+  });
   delegate::write(root, v);
-  default_gce().wait();
 }
 
 void search(index_t vertex_index, long color) {
@@ -91,7 +92,7 @@ void search(index_t vertex_index, long color) {
 
 int main( int argc, char * argv[] ) {
   init( &argc, &argv );
-  run( [] {
+  run([]{
     //////////////////////////////////////////////////////////////////////////
     // vertex_array -> [
     //   (first_child:1,num_children:4,color:3),
@@ -116,7 +117,7 @@ int main( int argc, char * argv[] ) {
     LOG(INFO) << util::array_str("results (first 10)", results->begin(), 
                                   std::min(results->size(), (size_t)10));
     
-  } );
+  });
   finalize();
   return 0;
 }
