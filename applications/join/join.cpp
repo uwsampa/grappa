@@ -160,13 +160,13 @@ int main(int argc, char* argv[]) {
 
     GlobalAddress<Tuple> tuples = Grappa::global_alloc<Tuple>( FLAGS_numTuples );
 
-    if ( FLAGS_in == "" ) {
-      VLOG(1) << "Generating some data";
-      forall_local<Tuple, tuple_gen>( tuples, FLAGS_numTuples );
-    } else {
-      VLOG(1) << "Reading data from " << FLAGS_in;
-      readTuples( FLAGS_in, tuples, FLAGS_numTuples );
-    }
+  if ( FLAGS_in == "" ) {
+    VLOG(1) << "Generating some data";
+    forall_local<Tuple, tuple_gen>( tuples, FLAGS_numTuples );
+  } else {
+    VLOG(1) << "Reading data from " << FLAGS_in;
+    readEdges( FLAGS_in, tuples, FLAGS_numTuples );
+  }
 
     DHT_type::init_global_DHT( &joinTable, 64 );
 

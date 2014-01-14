@@ -77,7 +77,7 @@ public:
     if( count == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
-    } else if( request_address_->is_2D() && request_address_->node() == Grappa::mycore() ) {
+    } else if( request_address_->is_2D() && request_address_->core() == Grappa::mycore() ) {
       DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
       *pointer_ = request_address_->pointer();
     }
