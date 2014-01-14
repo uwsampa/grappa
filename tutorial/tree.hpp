@@ -23,14 +23,13 @@ inline long random_color() { return next_random(FLAGS_max_color); }
 
 ////////////////////////////
 // Types
-using index_t = uint64_t;
+using index_t = int64_t;
 class Vertex;
 
 ////////////////////////////
 // Globals
 GlobalAddress< Vertex > vertex_array;
 GlobalAddress< index_t > counter;
-GlobalAddress< GlobalVector<index_t> > results;
 
 struct Vertex {
   index_t id;

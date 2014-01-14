@@ -11,9 +11,7 @@ void search(GlobalAddress<Vertex> vertex_addr) {
   Vertex v = delegate::read(vertex_addr);
   
   // check the color
-  if (v.color == search_color) {
-    count++;
-  }
+  if (v.color == search_color) count++;
   
   // search children
   auto children = v.first_child;

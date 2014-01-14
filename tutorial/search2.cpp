@@ -1,7 +1,7 @@
 #include "tree.hpp"
 
 // pointer to the results vector
-GlobalAddress<GlobalVector<long>> results;
+GlobalAddress<GlobalVector<index_t>> results;
 
 long search_color;
 
@@ -32,16 +32,15 @@ int main( int argc, char * argv[] ) {
     
     GlobalAddress<Vertex> root = create_tree(num_vertices);
     
-    auto results_vector = GlobalVector<long>::create(num_vertices);
+    GlobalAddress<GlobalVector<index_t>> rv = GlobalVector<index_t>::create(num_vertices);
     
     // initialize all cores
     on_all_cores([=]{
       search_color = 7; // arbitrary search
-      count = 0;
-      results = results_vector;
+      results = rv;
     });
     
-    finish<&gce>([]{
+    finish<&gce>([=]{
       search( root );
     });
     

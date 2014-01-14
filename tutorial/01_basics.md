@@ -456,18 +456,140 @@ forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
 });
 ```
 
-## Irregular parallelism & synchronization
+## Nested dynamic parallelism
 
 We will use a tree search to illustrate the spawning and syncing of an unpredictable
 number of dynamic tasks.
 
-In this tutorial you will learn:
-- use of `spawn<unbound>` and `forall<unbound>` to create tasks that can be load balanced among cores
-- use of a `GlobalCompletionEvent` to synchronize dynamic tasks across all cores
+Let's start with an example problem: We have a tree in global memory. Each node has an id, a color value (0-10), and pointers to its children. The goal of this first version is traverse the tree and count the number of vertices with a given color.
 
-Let's start with the problem: We have a tree in global memory. Each node has a color value and pointers to its children.
+For the sake of brevity, we've hidden away the code to generate the random tree in `tree.hpp`, and instead just call `create_tree()`, which returns a GlobalAddress to the root node.
 
+In order to keep a count of matches found, we're using a little trick: we declare a `count` variable in the top-level namespace. Remember that Grappa programs are run "SPMD" like MPI programs, so each of these top-level variables are available (and separate) on each core. So, in our `on_all_cores()`, we initialize the count to 0, and set the search color (this saves us from having to pass the color around to each task).
 
+```cpp
+int64_t count;
+long search_color;
+GlobalCompletionEvent gce;
+
+int main( int argc, char * argv[] ) {
+  init( &argc, &argv );
+  run([]{
+    
+    size_t num_vertices = 1000;
+    
+    GlobalAddress<Vertex> root = create_tree(num_vertices);
+    
+    // initialize all cores
+    on_all_cores([]{
+      search_color = 7; // arbitrary search
+      count = 0;
+    });
+    
+    finish<&gce>([=]{
+      search( root );
+    });
+    
+    // compute total count
+    int64_t total = reduce<int64_t,collective_add<int64_t>>(&count);
+    
+    LOG(INFO) << "total count: " << total;
+    
+  });
+  finalize();
+  return 0;
+}
+```
+
+We will delve into the workings of the `finish` block that calls `search` recursively next. First, however, let's jump over that and look at what we do after. In the course of the search, we will increment the various copies of `count` found on each core. To compute the total count, we have to sum up all of them, so we need to invoke a *Collective* operation. Here we are using a `reduce`, which is called from one task (`main` typically), and takes a pointer to a top-level variable. It retrieves the value at that pointer from each core and applies the reduction operation specified by the template parameter. In this case, that is `collective_add`. After all the results have been summed up, it returns the total value to `main`.
+
+More of these operations and other ways to invoke collectives can be found under the `Collectives` tab in the Doxygen documentation, or in `Collectives.hpp` in the source.
+
+Now we'll explain the workings of the `finish` block and the search. But first we must introduce GlobalCompletionEvent a bit more fully that we have so far.
 
 ### GlobalCompletionEvent
-So far, we've treated the GlobalCompletionEvent as a magical way to ensure that everything inside a loop runs before the loop finishes.
+Up to now, we've treated the GlobalCompletionEvent as a magical way to ensure that everything inside a loop runs before the loop finishes. The truth is, GCE is a very finicky bit of synchronization that allows us to efficiently track many outstanding asynchronous events that may happen on any core in the system and may migrate. GCE implements a "termination detection" algorithm so we can spawn tasks dynamically and still ensure that all of them have completed; we don't have to specify the total number of tasks ahead of time. In addition, to make it efficient, the GCE saves communication by combining multiple "completion" events into a single one.
+
+The downside is that in order to implement these features, GCE's are rather tricky to use. Task spawns, asynchronous delegates, and parallel loops all use the GCE to synchronize. We specify the GCE statically, which means it cannot be created dynamically---it must be declared as a top-level variable, as in the code example above (`gce`). It also means that `wait` calls cannot be nested: a call to wait will no awake until all tasks enrolled with the GCE on all cores have completed, so if the task which calls wait is enrolled, it will deadlock.
+
+The best practice with GCE's is usually to use the default GCE which is specified as a default template parameter for these calls, and then ensure that only the original `main` task blocks on it. This is what we did in the GUPS examples above.
+
+In our new tree search example, we don't have a top-level parallel loop. Instead, we start with a recursive call to `search`. Therefore, we use a new function, `finish()`. This does nothing more than execute the enclosing lambda, and then call `wait()` on the given GCE. The name harkens to the async/finish-style parallelism espoused by X10 and Habañero Java. Our version is not nearly as sophisticated: it cannot be nested, and enclosing asynchronous calls must ensure that they use the same GCE (if using the default, this is easy).
+
+```cpp
+finish<&gce>([=]{
+  search( root );
+});
+```
+
+Our `search` function, which we will show next, recursively creates tasks, enrolling each of them with the same GCE, so that we are guaranteed to have traversed the entire tree before the enclosing `finish` completes. These tasks, though nested in the sense of our recursive `search` calls, are not recursively joining, but rather they all join at the one `finish` call.
+
+```cpp
+void search(GlobalAddress<Vertex> vertex_addr) {
+  // fetch the vertex info
+  Vertex v = delegate::read(vertex_addr);
+  
+  // check the color
+  if (v.color == search_color) count++;
+  
+  // search children
+  GlobalAddress<Vertex> children = v.first_child;
+  forall_here<unbound,async,&gce>(0, v.num_children, [children](int64_t i){
+    search(children+i);
+  });
+}
+```
+
+The function above takes a GlobalAddress to a vertex and immediately fetches it into a local variable. This involves copying each of the struct members into the local Vertex instance. It's not very much data, just the ID, color, number of children, and a pointer to the children. The reason we have to do this fetch is that once we start doing recursive calls, we don't know which core this will be run on. Once we've copied the Vertex data, we check the color, and potentially count the vertex. Then we grab the GlobalAddress pointing to the first child of this vertex, and spawn tasks to search each child using `forall_here`. We've chosen to spawn "unbound" tasks so they can be load balanced, and remember we have to specify `async`, otherwise we would be nesting calls to `gce.wait()`.
+
+### Alternative delegate
+
+If Vertex was a bit larger and more unwieldy, we might instead choose to do a delegate call to save some data movement. For instance, we could do:
+
+```cpp
+void search(GlobalAddress<Vertex> vertex_addr) {
+  auto pair = delegate::call(vertex_addr, [](Vertex * v){
+    if (v->color == search_color) count++;
+    return make_pair(v->first_child, v->num_children);
+  });
+  
+  auto children = pair.first;
+  forall_here<unbound,async,&gce>(0, pair.second, [children](int64_t i){
+    search(children+i);
+  });
+}
+```
+
+The advantage of this is that we end up only moving half of the `Vertex`. As an aside, we can't do the `forall_here` inside the delegate because it requires doing a potentially-blocking call to enroll tasks with the GCE.
+
+### Use a GlobalVector to save the results
+What if, instead of just counting the matches, we actually wanted to keep a list of them? Grappa provides a few simple data structures for cases such as this. They all work in a similar fashion, so this next example will demonstrate some of the quirks of how to use these highly useful data structures.
+
+A GlobalVector is a wrapper around a global heap allocation (the underlying array), which allows tasks on any core to access, push, or pop elements, all safely synchronized and optimized for high throughput with lots of concurrent accessors. The way this is accomplished is by allocating a "proxy" structure on each core which will service requests in parallel on each core, and combine them into bulk requests, which are more efficient.
+
+This time, in `main`, instead of initializing `count` to 0, we create the GlobalVector that will hold vertex indices:
+
+```cpp
+GlobalAddress<GlobalVector<index_t>> rv = GlobalVector<index_t>::create(num_vertices);
+
+// initialize all cores
+on_all_cores([=]{
+  search_color = 7; // arbitrary search
+  results = rv;
+});
+```
+
+We have to use the static `create` method rather than calling `new` because it actually allocates space on each core, initializes them all, and returns a **symmetric** GlobalAddress that resolves to the proxy on each core. We then use the same top-level variable trick as with `search_color` to make this GlobalAddress available to all of the cores.
+
+Now in search, we do all the same things, except this time, if the color matches, we use the symmetric address `results` in a way we haven't seen yet:
+
+```cpp
+// -- inside search() function, see the rest in tutorial/search2.cpp
+if (v.color == search_color) {
+  // save the id to the results vector
+  results->push( v.id );
+}
+```
+
+The member dereference operator (`operator->()`) has been overloaded for GlobalAddress to get at the pointer for the current core. In order for this to work correctly, it has to be called *on the core where it is valid*. In the case of symmetric GlobalAddresses like this one, it is valid to do this on any core, but *it must be called on the core it is used on*. You must be careful not to extract the pointer and then pass that around, as some computation has to be done by GlobalAddress to resolve the address differently on each core. With that overloaded operator, it is then easy to call GlobalVector's `push` method with the current vertex id. This blocks until the `push` has finished, just like other delegate operations.
+
