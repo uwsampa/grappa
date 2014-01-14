@@ -3,15 +3,15 @@
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <ParallelLoop.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <Reducer.hpp>
 #include <MessagePool.hpp>
 
 #include <vector>
 
 // for all hash tables
-//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
+//GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, cell_traversal_length);
 
 
 // for naming the types scoped in HashSet

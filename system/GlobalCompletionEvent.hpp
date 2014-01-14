@@ -9,17 +9,17 @@
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
 
 DECLARE_bool( flatten_completions );
 
 /// total number of times "complete" has to be called on another core
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_total_remote_completions);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, gce_total_remote_completions);
 
 /// actual number of completion messages we send (less with flattening)
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_completions_sent);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, gce_completions_sent);
 
 namespace Grappa {
 /// @addtogroup Synchronization

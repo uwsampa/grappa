@@ -187,7 +187,7 @@ void search(long v, long mycolor) {
 }
 
 long cc_benchmark(GlobalAddress<Graph<>> in) {
-  Statistics::start_tracing();
+  Metrics::start_tracing();
   
   VLOG(0) << "cc_version: new";
   double t = walltime();
@@ -266,13 +266,13 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   
   t = walltime() - t;
   
-  Statistics::stop_tracing();
+  Metrics::stop_tracing();
   
   LOG(INFO) << "ncomponents: " << nc << std::endl;
   LOG(INFO) << "components_time: " << t << std::endl;
   LOG(INFO) << "set_size: " << component_edges->size();
   
-  Statistics::merge_and_print();
+  Metrics::merge_and_print();
   
   return nc;
 }

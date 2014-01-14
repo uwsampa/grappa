@@ -605,7 +605,7 @@ function output (SCALE, edgefactor, NBFS, kernel_1_time, kernel_2_time, kernel_2
 
 Nilan Norris, The Standard Errors of the Geometric and Harmonic Means
 and Their Application to Index Numbers, The Annals of Mathematical
-Statistics, vol. 11, num. 4, 1940.
+Metrics, vol. 11, num. 4, 1940.
 http://www.jstor.org/stable/2235723
 
 * Sample driver

@@ -8,29 +8,29 @@
 /// Main Explicit Cache API
 
 #include "Cache.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ro_acquires, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, wo_releases, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, rw_acquires, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, rw_releases, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, bytes_acquired, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, bytes_released, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ro_acquires, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, wo_releases, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, rw_acquires, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, rw_releases, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, bytes_acquired, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, bytes_released, 0);
 
-void CacheStatistics::count_ro_acquire( uint64_t bytes ) { 
+void CacheMetrics::count_ro_acquire( uint64_t bytes ) { 
   ro_acquires++;
   bytes_acquired+=bytes;
 }
-void CacheStatistics::count_wo_release( uint64_t bytes ) { 
+void CacheMetrics::count_wo_release( uint64_t bytes ) { 
   wo_releases++; 
   bytes_released+=bytes;
 }
-void CacheStatistics::count_rw_acquire( uint64_t bytes) { 
+void CacheMetrics::count_rw_acquire( uint64_t bytes) { 
   rw_acquires++;
   bytes_acquired+=bytes;
 }
-void CacheStatistics::count_rw_release( uint64_t bytes ) { 
+void CacheMetrics::count_rw_release( uint64_t bytes ) { 
   rw_releases++; 
   bytes_released+=bytes;
 }

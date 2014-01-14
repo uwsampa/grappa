@@ -91,7 +91,7 @@ static Task createTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   return t;
 }
 
-class TaskManagerStatistics {
+class TaskManagerMetrics {
   public:
     static void record_successful_steal_session();
     static void record_failed_steal_session();

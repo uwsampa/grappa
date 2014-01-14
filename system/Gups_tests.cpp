@@ -16,7 +16,7 @@
 #include "Array.hpp"
 #include "Message.hpp"
 #include "CompletionEvent.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "Collective.hpp"
 
 #include "LocaleSharedMemory.hpp"
@@ -34,9 +34,9 @@ DEFINE_bool( validate, true, "Validate result" );
 
 DECLARE_string( load_balance );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput_per_locale, 0 );
 
 const uint64_t LARGE_PRIME = 18446744073709551557UL;
 
@@ -74,7 +74,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       LOG(INFO) << "Starting";
       Grappa::memset(A, 0, FLAGS_sizeA);
 
-      Grappa::Statistics::reset_all_cores();
+      Grappa::Metrics::reset_all_cores();
 
       double start = Grappa::walltime();
 
@@ -87,14 +87,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       double end = Grappa::walltime();
 
-      Grappa::Statistics::start_tracing();
+      Grappa::Metrics::start_tracing();
     
       gups_runtime = end - start;
       gups_throughput = FLAGS_iterations / (end - start);
       gups_throughput_per_locale = gups_throughput / Grappa::locales();
       
-      Grappa::Statistics::stop_tracing();
-      Grappa::Statistics::merge_and_print();
+      Grappa::Metrics::stop_tracing();
+      Grappa::Metrics::merge_and_print();
 
       if( FLAGS_validate ) {
         LOG(INFO) << "Validating....";

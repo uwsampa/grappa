@@ -30,8 +30,8 @@
 
 DECLARE_uint64( num_starting_workers );
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, tasks_heap_allocated);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, tasks_created);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, tasks_heap_allocated);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, tasks_created);
 
 ///
 /// Task routines

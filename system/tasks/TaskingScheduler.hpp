@@ -14,13 +14,13 @@
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 #include <sstream>
-#include "Statistics.hpp"
-#include "HistogramStatistic.hpp"
+#include "Metrics.hpp"
+#include "HistogramMetric.hpp"
 
 #include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
-#include "StatisticsTools.hpp"
-#include "Statistics.hpp"
+#include "MetricsTools.hpp"
+#include "Metrics.hpp"
 
 
 #ifdef VTRACE
@@ -31,15 +31,15 @@
 
 DECLARE_string(stats_blob_filename);
 
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, scheduler_context_switches );
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, scheduler_count);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches );
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_count);
 
 
 
 // forward declarations
 namespace Grappa {
 namespace impl { void idle_flush_rdma_aggregator(); }
-namespace Statistics { void sample_all(); }
+namespace Metrics { void sample_all(); }
 }
 
 // forward-declare old aggregator flush
@@ -149,9 +149,9 @@ class TaskingScheduler : public Scheduler {
           Grappa::impl::take_tracing_sample = false;
 #ifdef HISTOGRAM_SAMPLED
           DVLOG(3) << "sampling histogram";
-          Grappa::Statistics::histogram_sample();
+          Grappa::Metrics::histogram_sample();
 #else
-          Grappa::Statistics::sample();          
+          Grappa::Metrics::sample();          
 #endif
         }
 
@@ -160,7 +160,7 @@ class TaskingScheduler : public Scheduler {
           prev_stats_blob_ts = current_ts;
           
           std::ofstream f(FLAGS_stats_blob_filename);
-          Grappa::Statistics::print(f);
+          Grappa::Metrics::print(f);
           f.close();
         }
 
@@ -169,7 +169,7 @@ class TaskingScheduler : public Scheduler {
         if (result != NULL) {
           //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
           *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerStatistics::StatePoll;
+          stats.prev_state = TaskingSchedulerMetrics::StatePoll;
           prev_ts = current_ts;
           return result;
         }
@@ -180,7 +180,7 @@ class TaskingScheduler : public Scheduler {
         if (result != NULL) {
           //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
           *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerStatistics::StateReady;
+          stats.prev_state = TaskingSchedulerMetrics::StateReady;
           prev_ts = current_ts;
           return result;
         }
@@ -192,7 +192,7 @@ class TaskingScheduler : public Scheduler {
           if (result != NULL) {
             //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
             *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
-            stats.prev_state = TaskingSchedulerStatistics::StateReady;
+            stats.prev_state = TaskingSchedulerMetrics::StateReady;
             prev_ts = current_ts;
             return result;
           }
@@ -207,16 +207,16 @@ class TaskingScheduler : public Scheduler {
           }
 
           if ( idle_flush_aggregator() ) {
-            stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
+            stats.prev_state = TaskingSchedulerMetrics::StateIdleUseful;
           } else {
-            stats.prev_state = TaskingSchedulerStatistics::StateIdle;
+            stats.prev_state = TaskingSchedulerMetrics::StateIdle;
           }
 
 
           StateTimer::enterState_scheduler();
         } else {
           *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerStatistics::StateIdle;
+          stats.prev_state = TaskingSchedulerMetrics::StateIdle;
           usleep(1);
         }
 
@@ -248,7 +248,7 @@ class TaskingScheduler : public Scheduler {
 
   public:
     /// Stats for the scheduler
-    class TaskingSchedulerStatistics {
+    class TaskingSchedulerMetrics {
       private:
         int64_t task_log_index;
         short * active_task_log;
@@ -257,15 +257,15 @@ class TaskingScheduler : public Scheduler {
 
       public:
         enum State { StatePoll=0, StateReady=1, StateIdle=2, StateIdleUseful=3, StateLast=4 };
-        SimpleStatistic<uint64_t> * state_timers[ StateLast ];
+        SimpleMetric<uint64_t> * state_timers[ StateLast ];
         State prev_state;
 
-        TaskingSchedulerStatistics();  // only for declarations that will be copy-assigned to
+        TaskingSchedulerMetrics();  // only for declarations that will be copy-assigned to
 
         /// Create new statistics tracking for scheduler
-        TaskingSchedulerStatistics( TaskingScheduler * scheduler );
+        TaskingSchedulerMetrics( TaskingScheduler * scheduler );
         
-        ~TaskingSchedulerStatistics();
+        ~TaskingSchedulerMetrics();
 
         void reset();
 
@@ -275,10 +275,10 @@ class TaskingScheduler : public Scheduler {
         void sample();
     };
 
-    TaskingSchedulerStatistics stats;
+    TaskingSchedulerMetrics stats;
 
   void assign_time_to_networking() {
-    stats.prev_state = TaskingSchedulerStatistics::StatePoll;
+    stats.prev_state = TaskingSchedulerMetrics::StatePoll;
   }
 
     TaskingScheduler ( );

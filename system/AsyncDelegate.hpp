@@ -6,12 +6,12 @@
 #include "GlobalCompletionEvent.hpp"
 // #include "ParallelLoop.hpp"
 #include <type_traits>
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_writes);
-GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_increments);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_short_circuits);
+GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, delegate_async_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, delegate_async_writes);
+GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, delegate_async_increments);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_short_circuits);
 
 namespace Grappa {
   

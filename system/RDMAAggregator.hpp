@@ -31,7 +31,7 @@
 #include "ReusePool.hpp"
 #include "ReuseList.hpp"
 
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 // #include <boost/interprocess/containers/vector.hpp>
 
@@ -39,22 +39,22 @@ DECLARE_int64( target_size );
 DECLARE_int64( aggregator_autoflush_ticks );
 
 /// stats for application messages
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_immediate );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue_cas );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_immediate );
 
 /// stats for RDMA Aggregator events
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_capacity_flushes );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_requested_flushes );
 
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_send );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_send_success );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive_success );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_poll );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_poll_send );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_poll_receive );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_poll_send_success );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_poll_receive_success );
+GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_poll_yields );
 
-GRAPPA_DECLARE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time );
+GRAPPA_DECLARE_METRIC( SummarizingMetric<double>, rdma_local_delivery_time );
 
 
 namespace Grappa {

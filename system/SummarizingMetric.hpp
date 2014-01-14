@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-#include "StatisticBase.hpp"
+#include "MetricBase.hpp"
 #include <glog/logging.h>
 
 #ifdef VTRACE
@@ -21,7 +21,7 @@
 namespace Grappa {
 
   template<typename T>
-  class SummarizingStatistic : public impl::StatisticBase {
+  class SummarizingMetric : public impl::MetricBase {
   protected:
     const T initial_value;
     T value_;
@@ -64,8 +64,8 @@ namespace Grappa {
     
   public:
     
-    SummarizingStatistic(const char * name, T initial_value, bool reg_new = true)
-      : impl::StatisticBase(name, reg_new)
+    SummarizingMetric(const char * name, T initial_value, bool reg_new = true)
+      : impl::MetricBase(name, reg_new)
       , initial_value(initial_value)
       , value_(initial_value)
       , n(0) // TODO: this assumes initial_value is not actually a value
@@ -74,15 +74,15 @@ namespace Grappa {
       , min(std::numeric_limits<T>::max())
       , max(std::numeric_limits<T>::min()) {
 #ifdef VTRACE_SAMPLED
-      if (SummarizingStatistic::vt_type == -1) {
-        LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingStatistic.";
+      if (SummarizingMetric::vt_type == -1) {
+        LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingMetric.";
       } else {
         std::string namestr( name );
         std::string countstr = namestr + "_count";
         std::string meanstr = namestr + "_mean";
         std::string stddevstr = namestr + "_stddev";
         
-        vt_counter_value  = VT_COUNT_DEF(name,              name,              SummarizingStatistic::vt_type, VT_COUNT_DEFGROUP);
+        vt_counter_value  = VT_COUNT_DEF(name,              name,              SummarizingMetric::vt_type, VT_COUNT_DEFGROUP);
         vt_counter_count  = VT_COUNT_DEF(countstr.c_str(),  countstr.c_str(),  VT_COUNT_TYPE_UNSIGNED,        VT_COUNT_DEFGROUP);
         vt_counter_mean   = VT_COUNT_DEF(meanstr.c_str(),   meanstr.c_str(),   VT_COUNT_TYPE_DOUBLE,          VT_COUNT_DEFGROUP);
         vt_counter_stddev = VT_COUNT_DEF(stddevstr.c_str(), stddevstr.c_str(), VT_COUNT_TYPE_DOUBLE,          VT_COUNT_DEFGROUP);
@@ -90,8 +90,8 @@ namespace Grappa {
 #endif
     }
 
-    SummarizingStatistic(const SummarizingStatistic& s ) 
-      : impl::StatisticBase( s.name, false )
+    SummarizingMetric(const SummarizingMetric& s ) 
+      : impl::MetricBase( s.name, false )
       , initial_value(s.initial_value)
       , value_( s.value_ )
       , n( s.n )
@@ -120,44 +120,44 @@ namespace Grappa {
     
     virtual void sample() {
 #ifdef VTRACE_SAMPLED
-      // vt_sample() specialized for supported tracing types in Statistics.cpp
+      // vt_sample() specialized for supported tracing types in Metrics.cpp
       vt_sample();
 #endif
     }
     
-    virtual SummarizingStatistic<T>* clone() const {
-      return new SummarizingStatistic<T>( *this );
+    virtual SummarizingMetric<T>* clone() const {
+      return new SummarizingMetric<T>( *this );
     }
     
-    virtual void merge_all(impl::StatisticBase* static_stat_ptr);
+    virtual void merge_all(impl::MetricBase* static_stat_ptr);
 
-    inline const SummarizingStatistic<T>& count() { return (*this)++; }
+    inline const SummarizingMetric<T>& count() { return (*this)++; }
 
     /// Get the current value
     inline T value() const { return value_; }
     
     // <sugar>
     template<typename U>
-    inline const SummarizingStatistic<T>& operator+=(U increment) {
+    inline const SummarizingMetric<T>& operator+=(U increment) {
       value_ += increment;
       process( increment );
       return *this;
     }
     template<typename U>
-    inline const SummarizingStatistic<T>& operator-=(U decrement) {
+    inline const SummarizingMetric<T>& operator-=(U decrement) {
       value_ -= decrement;
       process( decrement );
       return *this;
     }
-    inline const SummarizingStatistic<T>& operator++() { return *this += 1; }
-    inline const SummarizingStatistic<T>& operator--() { return *this += -1; }
+    inline const SummarizingMetric<T>& operator++() { return *this += 1; }
+    inline const SummarizingMetric<T>& operator--() { return *this += -1; }
     inline T operator++(int) { *this += 1; return value_; }
     inline T operator--(int) { *this += -1; return value_; }
     
     // allow casting as just the value
     inline operator T() const { return value_; }
     
-    inline SummarizingStatistic& operator=( const SummarizingStatistic<T>& t ) {
+    inline SummarizingMetric& operator=( const SummarizingMetric<T>& t ) {
       this->value_ = t.value_;
       this->n = t.n;
       this->mean = t.mean;
@@ -167,7 +167,7 @@ namespace Grappa {
       return *this;
     }
 
-    inline SummarizingStatistic& operator=(T value) {
+    inline SummarizingMetric& operator=(T value) {
       this->value_ = value;
       process( value );
       return *this;

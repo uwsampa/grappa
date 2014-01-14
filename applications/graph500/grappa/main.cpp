@@ -36,7 +36,7 @@
 #include <Delegate.hpp>
 #include <PerformanceTools.hpp>
 #include <FileIO.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <Collective.hpp>
 
 #include "timer.h"
@@ -47,8 +47,8 @@
 
 using namespace Grappa;
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, bfs_vertex_visited, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, bfs_edge_visited, 0);
 
 DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-up.");
 DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
@@ -103,15 +103,15 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
-    // call_on_all_cores([]{ Statistics::reset(); });
+    // call_on_all_cores([]{ Metrics::reset(); });
 
-    Statistics::start_tracing();
+    Metrics::start_tracing();
 
     t = timer();
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
     t = timer() - t;
 
-    Statistics::stop_tracing();
+    Metrics::stop_tracing();
     
     VLOG(1) << "make_bfs_tree time: " << t;
 
@@ -310,12 +310,12 @@ int main(int argc, char* argv[]) {
     }
 
     // watch out for profiling! check the tau 
-    Grappa::Statistics::reset();
+    Grappa::Metrics::reset();
   
     run_bfs(&tg, &g, bfs_roots);
   
 
-    Grappa::Statistics::merge_and_print(std::cout);
+    Grappa::Metrics::merge_and_print(std::cout);
     fflush(stdout);
   
   //  free_graph_data_structure();

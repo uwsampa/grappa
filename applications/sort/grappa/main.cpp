@@ -29,7 +29,7 @@
 #include <FileIO.hpp>
 #include <Array.hpp>
 #include <ParallelLoop.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <AsyncDelegate.hpp>
 
 #include "npb_intsort.h"
@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
   parseOptions(argc, argv);
   
   Grappa::run([]{
-    call_on_all_cores([]{ Statistics::reset(); });
+    call_on_all_cores([]{ Metrics::reset(); });
 
     double t, rand_time;
 
@@ -331,7 +331,7 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    Statistics::merge_and_print();
+    Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

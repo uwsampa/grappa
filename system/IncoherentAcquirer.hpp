@@ -18,7 +18,7 @@ template< typename T >
 class IncoherentAcquirer;
 
 /// IncoherentAcquirer statistics
-class IAStatistics {
+class IAMetrics {
 public:
   static void count_acquire_ams( uint64_t bytes ) ;
   static void record_wakeup_latency( int64_t start_time, int64_t network_time ) ; 
@@ -168,7 +168,7 @@ public:
                << " from " << args.request_address;
 
       pool.send_message(args.request_address.core(), [args]{
-        IAStatistics::count_acquire_ams( args.request_bytes );
+        IAMetrics::count_acquire_ams( args.request_bytes );
         DVLOG(5) << "Worker " << Grappa::current_worker()
         << " received acquire request to " << args.request_address
         << " size " << args.request_bytes
@@ -239,7 +239,7 @@ public:
                  << " woke up for " << *request_address_ 
                  << " * " << *count_ ;
       }
-      IAStatistics::record_wakeup_latency( start_time_, network_time_ );
+      IAMetrics::record_wakeup_latency( start_time_, network_time_ );
     }
   }
 
@@ -261,7 +261,7 @@ public:
       }
       if( start_time_ != 0 ) {
         network_time_ = Grappa::timestamp();
-        IAStatistics::record_network_latency( start_time_ );
+        IAMetrics::record_network_latency( start_time_ );
       }
     }
   }

@@ -12,15 +12,15 @@ using namespace Grappa;
 GlobalAddress<Graph<VertexP>> g;
 GlobalAddress<int64_t> bfs_tree;
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_vertex_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_edge_visited);
 
 DEFINE_bool(cas_flatten, false, "Flatten compare-and-swaps.");
 
 //DEFINE_int64(cas_flattener_size, 20, "log2 of the number of unique elements in the hash set used to short-circuit compare and swaps");
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, cmp_swaps_shorted, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, cmp_swaps_total, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, cmp_swaps_shorted, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, cmp_swaps_total, 0);
 
 class CmpSwapCombiner {
   size_t log2n;

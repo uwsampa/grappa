@@ -302,7 +302,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     test_forall_here_async();
     
-    Statistics::merge_and_dump_to_file();
+    Metrics::merge_and_dump_to_file();
   });
   Grappa::finalize();
 }

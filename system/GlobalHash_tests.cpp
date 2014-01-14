@@ -12,7 +12,7 @@
 #include "Delegate.hpp"
 #include "GlobalHashMap.hpp"
 #include "GlobalHashSet.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
@@ -36,7 +36,7 @@ DEFINE_bool(insert_async, false, "do async inserts");
 
 DEFINE_double(fraction_lookups, 0.0, "fraction of accesses that should be lookups");
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, trial_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, trial_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       test_set_correctness();
     }
   
-    Statistics::merge_and_print();
+    Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

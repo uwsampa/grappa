@@ -31,7 +31,7 @@
 #include <glog/logging.h>
 
 #include "common.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #pragma GCC system_header
 #include <gasnet.h>
@@ -44,8 +44,8 @@
 #include <vt_user.h>
 #endif
 
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, communicator_messages);
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, communicator_bytes);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_messages);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_bytes);
 
 /// Common pointer type for active message handlers used by GASNet
 /// library. Actual handlers may have arguments.
@@ -97,12 +97,12 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 class Communicator;
 
 /// Class for recording Communicator stats
-class CommunicatorStatistics {
+class CommunicatorMetrics {
 private:
-  Grappa::SimpleStatistic<uint64_t> * histogram_[16];
+  Grappa::SimpleMetric<uint64_t> * histogram_[16];
 
 public:
-  CommunicatorStatistics();
+  CommunicatorMetrics();
   
   void reset_clock();
 
@@ -159,7 +159,7 @@ private:
 public:
 
   /// Record statistics
-  CommunicatorStatistics stats;
+  CommunicatorMetrics stats;
   
   /// Maximum size of GASNet medium active message payload. 
   ///

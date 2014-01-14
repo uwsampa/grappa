@@ -5,12 +5,12 @@
 #include <GlobalAllocator.hpp>
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 #include <list>
 
 // for all hash tables
-//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
+//GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
 
 
 // for naming the types scoped in MatchesDHT

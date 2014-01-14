@@ -17,7 +17,7 @@ template< typename T >
 class IncoherentReleaser;
 
 /// Stats for IncoherentReleaser
-class IRStatistics {
+class IRMetrics {
   public:
     static void count_release_ams( uint64_t bytes );
 };
@@ -154,7 +154,7 @@ public:
 
       pool.send_message(args.request_address.core(),
         [args](void * payload, size_t payload_size) {
-          IRStatistics::count_release_ams( payload_size );
+          IRMetrics::count_release_ams( payload_size );
           DVLOG(5) << "Worker " << Grappa::current_worker()
           << " received release request to " << args.request_address
           << " reply to " << args.reply_address;

@@ -17,7 +17,7 @@
 #include "PerformanceTools.hpp"
 
 #include "Collective.hpp"
-#include "StatisticsTools.hpp"
+#include "MetricsTools.hpp"
 #include "tasks/StealQueue.hpp"
 
 // #include "tasks/GlobalQueue.hpp"
@@ -28,7 +28,7 @@
 #include "Barrier.hpp"
 #include "LocaleSharedMemory.hpp"
 #include "SharedMessagePool.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <fstream>
 
@@ -55,7 +55,7 @@ DECLARE_int64( locale_shared_size );
 DECLARE_double( global_heap_fraction );
 
 using namespace Grappa::impl;
-using namespace Grappa::Statistics;
+using namespace Grappa::Metrics;
 using namespace Grappa;
 
 /// Flag to tell this node it's okay to exit.
@@ -157,7 +157,7 @@ static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
   google::DumpStackTrace();
 
-  Grappa::Statistics::print( LOG(INFO), registered_stats(), "" );
+  Grappa::Metrics::print( LOG(INFO), registered_stats(), "" );
 
   global_rdma_aggregator.dump_counts();
 

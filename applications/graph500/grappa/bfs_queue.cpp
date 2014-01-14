@@ -12,8 +12,8 @@ csr_graph g;
 GlobalAddress<range_t> eoff;
 GlobalAddress<long> bfs_tree;
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_vertex_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_edge_visited);
 
 double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");

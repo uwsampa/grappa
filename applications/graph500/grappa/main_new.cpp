@@ -2,7 +2,7 @@
 #include <GlobalAllocator.hpp>
 #include <Delegate.hpp>
 #include <PerformanceTools.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <Collective.hpp>
 
 #include "../generator/make_graph.h"
@@ -82,11 +82,11 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
   for (int64_t i=0; i < nroots; i++) {
     Grappa::memset(bfs_tree, -1, g->nv);
     
-    if (i == 0) Statistics::start_tracing();
+    if (i == 0) Metrics::start_tracing();
     
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
 
-    if (i == 0) Statistics::stop_tracing();
+    if (i == 0) Metrics::stop_tracing();
     
     VLOG(1) << "make_bfs_tree time: " << bfs_time[i];
     
@@ -112,8 +112,8 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
   global_free(bfs_tree);
   /* Print results. */
   output_results(FLAGS_scale, 1<<FLAGS_scale, FLAGS_edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
-  Statistics::merge_and_print();
-  Statistics::merge_and_dump_to_file();
+  Metrics::merge_and_print();
+  Metrics::merge_and_dump_to_file();
 }
 
 int main(int argc, char* argv[]) {
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
       long ncomponents = cc_benchmark(g);
     }
   
-    // Grappa::Statistics::merge_and_print(std::cout);
+    // Grappa::Metrics::merge_and_print(std::cout);
   
     g->destroy();
     global_free(tg.edges);

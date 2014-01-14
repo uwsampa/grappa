@@ -14,8 +14,8 @@ using namespace Grappa;
 DEFINE_int64( sizeA, 1 << 30, "Size of array that GUPS increments" );
 DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
 
 const uint64_t lcgM = 6364136223846793005UL;
 const uint64_t lcgB = 1442695040888963407UL;

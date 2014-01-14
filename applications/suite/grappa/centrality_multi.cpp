@@ -11,7 +11,7 @@
 #include <Cache.hpp>
 #include <PushBuffer.hpp>
 #include <Array.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 #include "../compat/mersenne.h"
 
@@ -193,18 +193,18 @@ static void enable_tau() {
   VLOG(1) << "Enabling TAU recording.";
   call_on_all_cores([]{ FLAGS_record_grappa_events = true; });
 #endif
-  Statistics::reset_all_cores();
-  Statistics::start_tracing();
+  Metrics::reset_all_cores();
+  Metrics::start_tracing();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
   VLOG(1) << "Disabling TAU recording.";
   call_on_all_cores([]{ FLAGS_record_grappa_events = false; });
 #endif
-  Grappa::Statistics::stop_tracing();
+  Grappa::Metrics::stop_tracing();
 #ifndef GOOGLE_PROFILER
-  Statistics::merge_and_print();
-  call_on_all_cores([]{ Statistics::reset(); });
+  Metrics::merge_and_print();
+  call_on_all_cores([]{ Metrics::reset(); });
 #endif
 }
 ///////////////////////

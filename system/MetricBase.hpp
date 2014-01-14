@@ -6,13 +6,13 @@
 namespace Grappa {
   namespace impl {
   
-    class StatisticBase {
+    class MetricBase {
     protected:
       const char * name;
       
     public:
       /// registers stat with global stats vector by default (reg_new=false to disable)
-      StatisticBase(const char * name, bool reg_new = true);
+      MetricBase(const char * name, bool reg_new = true);
       
       /// prints as a JSON entry
       virtual std::ostream& json(std::ostream&) const = 0;
@@ -25,10 +25,10 @@ namespace Grappa {
       
       /// communicate with each cores' stat at the given pointer and aggregate them into
       /// this stat object
-      virtual void merge_all(StatisticBase* static_stat_ptr) = 0;
+      virtual void merge_all(MetricBase* static_stat_ptr) = 0;
       
-      /// create new copy of the class of the right instance (needed so we can create new copies of stats from their StatisticBase pointer
-      virtual StatisticBase* clone() const = 0;
+      /// create new copy of the class of the right instance (needed so we can create new copies of stats from their MetricBase pointer
+      virtual MetricBase* clone() const = 0;
     };
     
   }

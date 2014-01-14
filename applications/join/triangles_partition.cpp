@@ -31,11 +31,11 @@ DEFINE_uint64( scale, 7, "Graph will have ~ 2^scale vertices" );
 DEFINE_uint64( edgefactor, 16, "Median degree; graph will have ~ 2*edgefactor*2^scale edges" );
 DEFINE_uint64( progressInterval, 5, "interval between progress updates" );
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, edges_transfered, 0);
 
 //outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, triangle_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, triangles_runtime, 0);
 
 double generation_time;
 double construction_time;
@@ -129,7 +129,7 @@ std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
 
 void triangles(GlobalAddress<Graph<Vertex>> g) {
   
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  on_all_cores( [] { Grappa::Metrics::reset(); } );
 
 
   // need to arrange the processors in 3d cube
@@ -280,7 +280,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
   triangles_runtime = end - start;
   
   
-  Grappa::Statistics::merge_and_print();
+  Grappa::Metrics::merge_and_print();
  
 }
 

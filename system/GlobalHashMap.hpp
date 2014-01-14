@@ -2,16 +2,16 @@
 
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "FlatCombiner.hpp"
 #include <utility>
 #include <unordered_map>
 #include <vector>
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_insert_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_insert_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_lookup_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_lookup_msgs);
 
 
 namespace Grappa {

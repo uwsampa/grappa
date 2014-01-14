@@ -8,7 +8,7 @@
 #include "Task.hpp"
 #include "../PerformanceTools.hpp"
 #include "common.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 // #include "GlobalQueue.hpp"
 
@@ -26,45 +26,45 @@ DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of ta
 
 
 /* metrics */
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, single_steal_successes_, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, steal_amt_, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, single_steal_fails_, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, session_steal_successes_, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, session_steal_fails_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_successes_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_fails_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, releases_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, public_tasks_dequeued_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, private_tasks_dequeued_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, remote_private_tasks_spawned_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, single_steal_successes_, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, steal_amt_, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, single_steal_fails_, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, session_steal_successes_, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, session_steal_fails_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, acquire_successes_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, acquire_fails_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, releases_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, public_tasks_dequeued_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, private_tasks_dequeued_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, remote_private_tasks_spawned_,0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_pushes_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_push_attempts_,0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, globalq_elements_pushed_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_pulls_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, globalq_pull_attempts_,0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, globalq_elements_pulled_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, globalq_pushes_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, globalq_push_attempts_,0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, globalq_elements_pushed_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, globalq_pulls_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, globalq_pull_attempts_,0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, globalq_elements_pulled_,0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, workshare_tests_,0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, workshares_initiated_,0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_received_elements_,0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, workshares_initiated_pushed_elements_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, workshare_tests_,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, workshares_initiated_,0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, workshares_initiated_received_elements_,0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, workshares_initiated_pushed_elements_,0);
 
 // number of calls to sample() 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, sample_calls,0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, sample_calls,0);
 
 // on-demand state
-GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, public_queue_size, []() {
+GRAPPA_DEFINE_METRIC(CallbackMetric<uint64_t>, public_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPublicTasks();
     });
 
-GRAPPA_DEFINE_STAT(CallbackStatistic<uint64_t>, private_queue_size, []() {
+GRAPPA_DEFINE_METRIC(CallbackMetric<uint64_t>, private_queue_size, []() {
     return Grappa::impl::global_task_manager.numLocalPrivateTasks();
     });
 
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, tasks_heap_allocated, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, tasks_created, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, tasks_heap_allocated, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, tasks_created, 0);
 
 namespace Grappa {
   namespace impl {
@@ -178,7 +178,7 @@ inline void TaskManager::tryPushToGlobal() {
   ///     DVLOG(3) << "Decided to push gq";
   ///     uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
   ///     bool push_success = publicQ.push_global( push_amount );
-  ///     TaskManagerStatistics::record_globalq_push( push_amount, push_success );
+  ///     TaskManagerMetrics::record_globalq_push( push_amount, push_success );
   ///   }
   ///   gqPushLock = true;
   /// }
@@ -214,7 +214,7 @@ inline void TaskManager::checkWorkShare() {
   /// //uncomment if workshare reimplemented
   /// if ( doShare && wshareLock ) {
   ///   wshareLock = false;
-  ///   TaskManagerStatistics::record_workshare_test( );
+  ///   TaskManagerMetrics::record_workshare_test( );
   ///   uint64_t local_size = publicQ.depth();
   ///   double divisor = local_size/FLAGS_ws_coeff;
   ///   if (divisor==0) divisor = 1.0;
@@ -225,7 +225,7 @@ inline void TaskManager::checkWorkShare() {
   ///     uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
   ///     int64_t numChange = publicQ.workShare( target, amount );
   ///     DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
-  ///     TaskManagerStatistics::record_workshare( numChange );
+  ///     TaskManagerMetrics::record_workshare( numChange );
   ///   }
   ///   wshareLock = true;
   /// }
@@ -240,7 +240,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
   if ( privateHasEle() ) {
     *result = privateQ.front();
     privateQ.pop_front();
-    TaskManagerStatistics::record_private_task_dequeue();
+    TaskManagerMetrics::record_private_task_dequeue();
     return true;
   } else {
     checkWorkShare();
@@ -249,7 +249,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
       DVLOG(5) << "consuming local task";
       *result = publicQ.peek();
       publicQ.pop( );
-      TaskManagerStatistics::record_public_task_dequeue();
+      TaskManagerMetrics::record_public_task_dequeue();
       return true;
     } else {
       return false;
@@ -283,8 +283,8 @@ inline void TaskManager::checkPull() {
 
         goodSteal = publicQ.steal_locally(v, chunkSize);
 
-        if (goodSteal) { TaskManagerStatistics::record_successful_steal( goodSteal ); }
-        else { TaskManagerStatistics::record_failed_steal(); }
+        if (goodSteal) { TaskManagerMetrics::record_successful_steal( goodSteal ); }
+        else { TaskManagerMetrics::record_failed_steal(); }
       }
 
       // if finished because succeeded in stealing
@@ -292,14 +292,14 @@ inline void TaskManager::checkPull() {
         VLOG(5) << Grappa::current_worker() << " steal " << goodSteal
           << " from Core" << victimId;
         VLOG(5) << *this; 
-        TaskManagerStatistics::record_successful_steal_session();
+        TaskManagerMetrics::record_successful_steal_session();
 
         // publicQ should have had some elements in it
         // at some point after successful steal
       } else {
         VLOG(5) << Grappa::current_worker() << " failed to steal";
 
-        TaskManagerStatistics::record_failed_steal_session();
+        TaskManagerMetrics::record_failed_steal_session();
 
       }
 
@@ -320,9 +320,9 @@ inline void TaskManager::checkPull() {
   //     // blocking
   //     gqPullLock = false;
   // 
-  //     TaskManagerStatistics::record_globalq_pull_start( );  // record the start separately because pull_global() may block Grappa::current_worker() indefinitely
+  //     TaskManagerMetrics::record_globalq_pull_start( );  // record the start separately because pull_global() may block Grappa::current_worker() indefinitely
   //     uint64_t num_received = publicQ.pull_global(); 
-  //     TaskManagerStatistics::record_globalq_pull( num_received ); 
+  //     TaskManagerMetrics::record_globalq_pull( num_received ); 
   // 
   //     gqPullLock = true;
   //   }
@@ -390,44 +390,44 @@ void TaskManager::finish() {
 
 /* metrics */
 
-void TaskManagerStatistics::record_successful_steal_session() {
+void TaskManagerMetrics::record_successful_steal_session() {
   session_steal_successes_++;
 }
 
-void TaskManagerStatistics::record_failed_steal_session() {
+void TaskManagerMetrics::record_failed_steal_session() {
   session_steal_fails_++;
 }
 
-void TaskManagerStatistics::record_successful_steal( int64_t amount ) {
+void TaskManagerMetrics::record_successful_steal( int64_t amount ) {
   single_steal_successes_++;
   steal_amt_+= amount;
 }
 
-void TaskManagerStatistics::record_failed_steal() {
+void TaskManagerMetrics::record_failed_steal() {
   single_steal_fails_++;
 }
 
-void TaskManagerStatistics::record_successful_acquire() {
+void TaskManagerMetrics::record_successful_acquire() {
   acquire_successes_++;
 }
 
-void TaskManagerStatistics::record_failed_acquire() {
+void TaskManagerMetrics::record_failed_acquire() {
   acquire_fails_++;
 }
 
-void TaskManagerStatistics::record_release() {
+void TaskManagerMetrics::record_release() {
   releases_++;
 }
 
-void TaskManagerStatistics::record_public_task_dequeue() {
+void TaskManagerMetrics::record_public_task_dequeue() {
   public_tasks_dequeued_++;
 }
 
-void TaskManagerStatistics::record_private_task_dequeue() {
+void TaskManagerMetrics::record_private_task_dequeue() {
   private_tasks_dequeued_++;
 }
 
-void TaskManagerStatistics::record_globalq_push( uint64_t amount, bool success ) {
+void TaskManagerMetrics::record_globalq_push( uint64_t amount, bool success ) {
   globalq_push_attempts_ += 1;
   if (success) {
     globalq_elements_pushed_ += amount;
@@ -435,26 +435,26 @@ void TaskManagerStatistics::record_globalq_push( uint64_t amount, bool success )
   }
 }
 
-void TaskManagerStatistics::record_globalq_pull_start( ) {
+void TaskManagerMetrics::record_globalq_pull_start( ) {
   globalq_pull_attempts_ += 1;
 }
 
-void TaskManagerStatistics::record_globalq_pull( uint64_t amount ) {
+void TaskManagerMetrics::record_globalq_pull( uint64_t amount ) {
   if ( amount > 0 ) {
     globalq_elements_pulled_ += amount;
     globalq_pulls_ += 1;
   }
 }
 
-void TaskManagerStatistics::record_workshare_test() {
+void TaskManagerMetrics::record_workshare_test() {
   workshare_tests_++;
 }
 
-void TaskManagerStatistics::record_remote_private_task_spawn() {
+void TaskManagerMetrics::record_remote_private_task_spawn() {
   remote_private_tasks_spawned_++;
 }
 
-void TaskManagerStatistics::record_workshare( int64_t change ) {
+void TaskManagerMetrics::record_workshare( int64_t change ) {
   workshares_initiated_ += 1;
   if ( change < 0 ) {
     workshares_initiated_pushed_elements_+= (-change);

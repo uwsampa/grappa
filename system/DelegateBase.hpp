@@ -2,16 +2,16 @@
 #include "Message.hpp"
 #include "Addressing.hpp"
 #include "FullEmptyLocal.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_short_circuits);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_short_circuits);
 
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_roundtrip_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_network_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_wakeup_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, delegate_roundtrip_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, delegate_network_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, delegate_wakeup_latency);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_targets);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_targets);
 
 namespace Grappa {
   

@@ -192,11 +192,11 @@ const int     local_cb_cancel = 1;
 
 
 /***********************************************************
- * Tree statistics (if selected via UTS_STAT)              *
+ * Tree statistics (if selected via UTS_METRIC)              *
  *   compute overall size and imbalance metrics            *
  *   and histogram size and imbalance per level            *
  ***********************************************************/
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
 
 /* Check that we are not being asked to compile parallel with stats.
  * Parallel stats collection is presently not supported.  */
@@ -373,7 +373,7 @@ int impl_parseParam(char *param, char *value) {
       break;
 #endif
 #else /* !PARALLEL */
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
     case 'u':
       unbType = atoi(value); 
       if (unbType > 2) {
@@ -407,7 +407,7 @@ void impl_helpMessage() {
     printf("   -T  int   set number of threads\n");
 #endif
   } else {
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
     printf("   -u  int   unbalance measure (-1: none; 0: min/size; 1: min/n; 2: max/n)\n");
 #else
     printf("   none.\n");
@@ -759,9 +759,9 @@ void ss_setState(StealStack *s, int state){
            GET_THREAD_NUM, state, s->entries[state], time);
 }
 
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
 /*
- * Statistics, 
+ * Metrics, 
  * : number of nodes per level
  * : imbalanceness of nodes per level
  *
@@ -933,7 +933,7 @@ void initNode(Node * child)
   child->height = -1;
   child->numChildren = -1;    // not yet determined
 
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
   if (stats){	
     int i;
     child->ind = 0;
@@ -957,7 +957,7 @@ void initRootNode(Node * root, int type)
     stealStack[0]->md->stealRecords[0].victimThread = 0;  // first session is own "parent session"
   #endif
 
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
   if (stats){
     int i;
     root->ind = 0;
@@ -1016,7 +1016,7 @@ void genChildren(Node * parent, Node * child, StealStack * ss) {
     child->type = childType;
     child->height = parentHeight + 1;
 
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
     if (stats)
       child->pp = parent;  // pointer to parent
 #endif
@@ -1189,7 +1189,7 @@ void parTreeSearch(StealStack *ss) {
       }
       else {
 	// second time visit, process accumulated statistics and pop
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
         if (stats)
           updateParStat(parent);
 #endif
@@ -1368,7 +1368,7 @@ void showStats(double elapsedSecs) {
   #endif
 
   // tree statistics output to stat.txt, if requested
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
   if (stats) {
     FILE *fp;
     char * tmpstr;
@@ -1488,7 +1488,7 @@ int main(int argc, char *argv[]) {
   /* determine benchmark parameters (all PEs) */
   uts_parseParams(argc, argv);
 
-#ifdef UTS_STAT
+#ifdef UTS_METRIC
   if (stats)
     initHist();
 #endif  

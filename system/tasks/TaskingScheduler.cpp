@@ -19,20 +19,20 @@ DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before d
 
 DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_context_switches, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_count, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_samples, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_count, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_samples, 0);
 
 // set in sample()
-GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, active_tasks_sampled, 0);
-GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, ready_tasks_sampled, 0);
-GRAPPA_DEFINE_STAT( SummarizingStatistic<uint64_t>, idle_workers_sampled, 0);
+GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, active_tasks_sampled, 0);
+GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, ready_tasks_sampled, 0);
+GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, idle_workers_sampled, 0);
 
 // ticks
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_polling_thread_ticks, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_ready_thread_ticks, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_idle_thread_ticks, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, scheduler_idle_useful_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_polling_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_ready_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_idle_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_idle_useful_thread_ticks, 0);
 
 
 namespace Grappa {
@@ -219,13 +219,13 @@ std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts ) {
 
 
 /*
- * TaskingSchedulerStatistics
+ * TaskingSchedulerMetrics
  *
  */
 
-TaskingScheduler::TaskingSchedulerStatistics::TaskingSchedulerStatistics() { active_task_log = new short[16]; }  
+TaskingScheduler::TaskingSchedulerMetrics::TaskingSchedulerMetrics() { active_task_log = new short[16]; }  
         
-TaskingScheduler::TaskingSchedulerStatistics::TaskingSchedulerStatistics( TaskingScheduler * scheduler )
+TaskingScheduler::TaskingSchedulerMetrics::TaskingSchedulerMetrics( TaskingScheduler * scheduler )
   : sched( scheduler ) 
   , state_timers()
     , prev_state( StateIdle )
@@ -240,16 +240,16 @@ TaskingScheduler::TaskingSchedulerStatistics::TaskingSchedulerStatistics( Taskin
   reset();
 }
         
-TaskingScheduler::TaskingSchedulerStatistics::~TaskingSchedulerStatistics() {
+TaskingScheduler::TaskingSchedulerMetrics::~TaskingSchedulerMetrics() {
 // XXX: not copy-safe, so pointer can be invalid
 /* delete[] active_task_log; */
 }
         
-void TaskingScheduler::TaskingSchedulerStatistics::reset() {
+void TaskingScheduler::TaskingSchedulerMetrics::reset() {
   task_log_index = 0;
 }
         
-void TaskingScheduler::TaskingSchedulerStatistics::print_active_task_log() {
+void TaskingScheduler::TaskingSchedulerMetrics::print_active_task_log() {
 #ifdef DEBUG
   if (task_log_index == 0) return;
 
@@ -259,7 +259,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::print_active_task_log() {
 #endif
 }
 
-void TaskingScheduler::TaskingSchedulerStatistics::sample() {
+void TaskingScheduler::TaskingSchedulerMetrics::sample() {
   scheduler_samples++;
   active_tasks_sampled += sched->num_active_tasks;
   ready_tasks_sampled += sched->readyQ.length();

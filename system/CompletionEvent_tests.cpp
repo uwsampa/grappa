@@ -257,7 +257,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     try_global_ce_recursive();
     try_synchronizing_spawns();
   
-    Statistics::merge_and_dump_to_file();
+    Metrics::merge_and_dump_to_file();
   });
   Grappa::finalize();
 }

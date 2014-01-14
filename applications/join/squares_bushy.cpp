@@ -20,7 +20,7 @@
 #include <ParallelLoop.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <AsyncDelegate.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <FullEmpty.hpp>
 
 

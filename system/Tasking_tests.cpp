@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       BOOST_CHECK( array[i] >= 0 );
     }
   
-    Statistics::merge_and_print();
+    Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

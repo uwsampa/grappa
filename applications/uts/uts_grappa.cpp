@@ -14,7 +14,7 @@
 #include <PerformanceTools.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <Array.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 
 #include <iostream>
@@ -43,16 +43,16 @@ DEFINE_uint64( flat_combine_threshold, 512, "How many participatants to wait for
 using namespace Grappa;
 
 // UTS-mem application statistics
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, uts_num_gen_nodes, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, uts_num_searched_nodes, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, uts_num_gen_nodes, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, uts_num_searched_nodes, 0);
 
 // for holding their final values
 uint64_t local_searched;
 uint64_t local_generated;
 
 // Performance output
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, generate_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, search_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, generate_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, search_runtime, 0);
 
 
 // Parallel granularities for important parallel for-loops
@@ -512,7 +512,7 @@ int main(int argc, char* argv[]) {
     //
     LOG(INFO) << "starting tree generation";
     Result r_gen;
-    Grappa::Statistics::start_tracing();
+    Grappa::Metrics::start_tracing();
     t1 = uts_wctime();
 
     par_create_tree();
@@ -522,7 +522,7 @@ int main(int argc, char* argv[]) {
     r_gen.size = -1; // will calculate with a reduce
 
     t2 = uts_wctime();
-    //Grappa::Statistics::merge_and_print();
+    //Grappa::Metrics::merge_and_print();
     // Grappa::Statitics::stop_tracing();
 
 
@@ -577,8 +577,8 @@ int main(int argc, char* argv[]) {
     //
     LOG(INFO) << "starting tree search";
     Result r_search;
-    //Grappa::Statistics::start_tracing();
-    Grappa::Statistics::reset_all_cores();
+    //Grappa::Metrics::start_tracing();
+    Grappa::Metrics::reset_all_cores();
     t1 = uts_wctime();
  
     par_search_tree( 0 );
@@ -588,13 +588,13 @@ int main(int argc, char* argv[]) {
     r_search.size = -1; // will calculate with reduce
   
     t2 = uts_wctime();
-    // Grappa::Statistics::stop_tracing();
+    // Grappa::Metrics::stop_tracing();
   
     double local_search_runtime = t2-t1;
     generate_runtime = local_gen_runtime; // write performance output
     search_runtime = local_search_runtime; // write performance output
 
-    Grappa::Statistics::merge_and_print(LOG(INFO));
+    Grappa::Metrics::merge_and_print(LOG(INFO));
 
     // count nodes searched
     on_all_cores( [] {

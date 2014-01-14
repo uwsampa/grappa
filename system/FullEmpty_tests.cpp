@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     BOOST_CHECK_EQUAL( fe_int.readFE(), 5 );
 
-    Grappa::Statistics::merge_and_print();
+    Grappa::Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

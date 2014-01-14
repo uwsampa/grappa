@@ -39,36 +39,36 @@ DEFINE_string( query, "SquareQuery", "Name of the query plan" );
 
 // intermediate results counts
 // only care about min, max, totals
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir1_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir2_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir3_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir4_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir5_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir6_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, ir7_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir1_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir2_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir3_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir4_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir5_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir6_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ir7_count, 0);
 
 //outputs
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir1_final_count, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir2_final_count, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir3_final_count, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir4_final_count, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir5_final_count, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir6_final_count, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, ir7_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir1_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir2_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir3_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir4_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir5_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir6_final_count, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, ir7_final_count, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, results_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, query_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, results_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, query_runtime, 0);
 
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, edges_transfered, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, total_edges, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, total_edges, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, index_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, index_runtime, 0);
 
 
 // calculated parameters
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, participating_cores, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, participating_cores, 0);
 
 int main(int argc, char** argv) {
   Grappa::init(&argc, &argv);
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     LOG(INFO) << "query preprocessing... (excluded from time)";
     q.preprocessing({ tg, tg, tg, tg });
   
-    on_all_cores( [] { Grappa::Statistics::reset(); } );
+    on_all_cores( [] { Grappa::Metrics::reset(); } );
     double start, end;
     start = Grappa::walltime(); 
     LOG(INFO) << "query execute... (included in time)";
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
   
     end = Grappa::walltime();
     query_runtime = end - start;
-    Grappa::Statistics::merge_and_print();
+    Grappa::Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

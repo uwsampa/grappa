@@ -9,7 +9,7 @@
 
 #include "Grappa.hpp"
 #include "Semaphore.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "TaskingScheduler.hpp"
 
 BOOST_AUTO_TEST_SUITE( Semaphore_tests );
@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     BOOST_CHECK_EQUAL( count, 6 );
   
-    Statistics::merge_and_dump_to_file();
+    Metrics::merge_and_dump_to_file();
   });
   Grappa::finalize();
 }

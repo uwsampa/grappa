@@ -34,7 +34,7 @@
 // #include "Cache.hpp"
 #include "Array.hpp"
 
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 //#include <typeinfo>
 //#include <cxxabi.h>

@@ -8,20 +8,20 @@
 #include "Delegate.hpp"
 #include <queue>
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pushes);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_pop_latency);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_push_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_push_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_pop_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_pop_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_deq_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_deq_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_matched_pops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_matched_pushes);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_push_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_deq_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_pop_latency);
 
 // tracks number of operations combined at a time on the master
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_master_combined);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_master_combined);
 
 namespace Grappa {
 /// @addtogroup Containers

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "StatisticBase.hpp"
+#include "MetricBase.hpp"
 #include <glog/logging.h>
 
 #ifdef VTRACE
@@ -17,13 +17,13 @@ namespace Grappa {
   /// @addtogroup Utility
   /// @{
 
-  /// Statistic that uses a callback to determine the value at sample time.
+  /// Metric that uses a callback to determine the value at sample time.
   /// Used for sampling state when the state is not declared within modifiable code.
   /// An example would be keeping track of the length of a std::vector.
-  /// One would create a CallbackStatistic with the callback vector.size();
+  /// One would create a CallbackMetric with the callback vector.size();
 
   template<typename T>
-    class CallbackStatistic : public impl::StatisticBase {
+    class CallbackMetric : public impl::MetricBase {
       private:
         typedef T (*CallbackFn)(void);
 
@@ -43,12 +43,12 @@ namespace Grappa {
 #endif
 
       public:
-    CallbackStatistic(const char * name, CallbackFn f, bool reg_new = true): f_(f), is_merged_(false), impl::StatisticBase(name, reg_new) {
+    CallbackMetric(const char * name, CallbackFn f, bool reg_new = true): f_(f), is_merged_(false), impl::MetricBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
-        if (CallbackStatistic::vt_type == -1) {
-          LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
+        if (CallbackMetric::vt_type == -1) {
+          LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleMetric.";
         } else {
-          vt_counter = VT_COUNT_DEF(name, name, CallbackStatistic::vt_type, VT_COUNT_DEFGROUP);
+          vt_counter = VT_COUNT_DEF(name, name, CallbackMetric::vt_type, VT_COUNT_DEFGROUP);
         }
 #endif
     }
@@ -64,8 +64,8 @@ namespace Grappa {
     }
 
     /// Note this will only clone its behavior
-    virtual CallbackStatistic<T>* clone() const {
-      return new CallbackStatistic<T>( name, f_, false);
+    virtual CallbackMetric<T>* clone() const {
+      return new CallbackMetric<T>( name, f_, false);
     }
 
     virtual std::ostream& json(std::ostream& o) const {
@@ -86,12 +86,12 @@ namespace Grappa {
     
     virtual void sample() {
 #ifdef VTRACE_SAMPLED
-      // vt_sample() specialized for supported tracing types in Statistics.cpp
+      // vt_sample() specialized for supported tracing types in Metrics.cpp
       vt_sample();
 #endif
     }
     
-    virtual void merge_all(impl::StatisticBase* static_stat_ptr);
+    virtual void merge_all(impl::MetricBase* static_stat_ptr);
   
     };
     /// @}

@@ -323,7 +323,7 @@ int main(int argc, char* argv[]) {
       printf("compute_graph_time: %g\n", t);
     }
   
-    // Statistics::start_tracing();
+    // Metrics::start_tracing();
   
     //###############################################
     // Kernel: Connected Components
@@ -331,18 +331,18 @@ int main(int argc, char* argv[]) {
       printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
       t = walltime();
     
-      Statistics::start_tracing();
+      Metrics::start_tracing();
     
       graphint connected = connectedComponents(g);
     
       t = walltime() - t;
-      Statistics::stop_tracing();
+      Metrics::stop_tracing();
     
       LOG(INFO) << "ncomponents: " << connected << std::endl;
       LOG(INFO) << "components_time: " << t << std::endl;
     
-      // Statistics::stop_tracing();
-      Statistics::merge_and_print();
+      // Metrics::stop_tracing();
+      Metrics::merge_and_print();
     }  
   
     //###############################################
@@ -383,7 +383,7 @@ int main(int argc, char* argv[]) {
 
     int64_t nnz = calc_nnz(*g);
   
-    // call_on_all_cores([]{ Statistics::reset(); });
+    // call_on_all_cores([]{ Metrics::reset(); });
 
     //###############################################
     // Kernel: Betweenness Centrality

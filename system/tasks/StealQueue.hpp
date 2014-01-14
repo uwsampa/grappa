@@ -90,7 +90,7 @@ namespace Grappa {
 
   namespace impl {
 
-  class StealStatistics {
+  class StealMetrics {
     public:
       /* encapsulate metrics */
       static void record_steal_reply( size_t msg_bytes ); 
@@ -363,7 +363,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 //  int64_t network_time = 0;
 //  int64_t start_time = Grappa::timestamp();
 
-  StealStatistics::record_steal_request(8+24);//FIXME: size
+  StealMetrics::record_steal_request(8+24);//FIXME: size
   /* Send steal request */
   Grappa::send_message( victim, [ &result, origin, max_steal ] {
     /* ON VICTIM */
@@ -393,7 +393,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     }
 #endif
     
-    StealStatistics::record_steal_reply(8+16);//FIXME: size
+    StealMetrics::record_steal_reply(8+16);//FIXME: size
 
     /* Send successful steal reply */
     Grappa::send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size ) {
@@ -440,7 +440,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     //std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
     } else {
-       StealStatistics::record_steal_reply(8+8);//FIXME: size
+       StealMetrics::record_steal_reply(8+8);//FIXME: size
       /* Send failed steal reply */
       send_heap_message( origin, [&result] { 
         /* ON ORIGIN */
@@ -501,7 +501,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 ///   workShareRequest_args args = { mySize, amount, global_communicator.mycore() };
 ///   Grappa_call_on( target, StealQueue<T>::workShareRequest_am, &args, sizeof(args), xfer_start, amount * sizeof(T) ); // FIXME: call_on deprecated
 ///   size_t msg_size = Grappa_sizeof_message( &args, sizeof(args), xfer_start, amount * sizeof(T) );
-///   StealStatistics::record_workshare_request( msg_size );
+///   StealMetrics::record_workshare_request( msg_size );
 /// 
 ///   if ( local_push_retVal < 0 ) {
 ///     push_waiter = global_scheduler.get_current_thread();
@@ -635,7 +635,7 @@ void StealQueue<T>::reclaimSpace() {
 ///       workShareReply_args reply_args = { num };
 ///       Grappa_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args ); // FIXME: call_on deprecated
 ///       size_t msg_size = Grappa_sizeof_message( &reply_args );
-///       StealStatistics::record_workshare_reply_nack( msg_size );
+///       StealMetrics::record_workshare_reply_nack( msg_size );
 ///       return;
 ///     }
 /// 
@@ -659,7 +659,7 @@ void StealQueue<T>::reclaimSpace() {
 ///     workShareReply_args reply_args = { amountToSend };
 ///     Grappa_call_on( from, &StealQueue<T>::workShareReplyGreater_am, &reply_args, sizeof(reply_args), xfer_start, amountToSend * sizeof(T) ); // FIXME: call_on deprecated
 ///     size_t msg_size = Grappa_sizeof_message( &reply_args, sizeof(reply_args), xfer_start, amountToSend * sizeof(T) );
-///     StealStatistics::record_workshare_reply( msg_size, false, num, num, amountToSend );
+///     StealMetrics::record_workshare_reply( msg_size, false, num, num, amountToSend );
 /// 
 /// #if DEBUG
 ///     // 0 out the transfered stuff (to detect errors)
@@ -684,7 +684,7 @@ void StealQueue<T>::reclaimSpace() {
 ///     workShareReply_args reply_args = { denied };
 ///     Grappa_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args ); // FIXME: call_on deprecated
 ///     size_t msg_size = Grappa_sizeof_message( &reply_args );
-///     StealStatistics::record_workshare_reply( msg_size, true, num, denied, 0 );
+///     StealMetrics::record_workshare_reply( msg_size, true, num, denied, 0 );
 ///   }
 /// }
 
@@ -704,7 +704,7 @@ void StealQueue<T>::reclaimSpace() {
 ///   args.chunk = data_ptr;
 ///   Grappa_call_on( data_ptr.base.core(), pull_global_data_request_g_am, &args ); // FIXME: call_on deprecated
 ///   size_t msg_size = Grappa_sizeof_message( &args );
-///   StealStatistics::record_globalq_data_pull_request( msg_size, data_ptr.amount );
+///   StealMetrics::record_globalq_data_pull_request( msg_size, data_ptr.amount );
 ///   signal.wait();
 /// 
 ///   return data_ptr.amount;
@@ -726,7 +726,7 @@ void StealQueue<T>::reclaimSpace() {
 /// 
 ///   Grappa_call_on_x( args->signal.core(), pull_global_data_reply_g_am, &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) ); // FIXME: call_on deprecated 
 ///   size_t msg_size = Grappa_sizeof_message( &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) );
-///   StealStatistics::record_globalq_data_pull_reply( msg_size, args->chunk.amount );
+///   StealMetrics::record_globalq_data_pull_reply( msg_size, args->chunk.amount );
 /// 
 ///   numPendingElements -= args->chunk.amount;
 /// 

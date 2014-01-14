@@ -36,64 +36,64 @@ DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing gr
 DEFINE_bool( rdma_flush_on_idle, true, "Flush RDMA buffers when idle" );
 
 /// stats for application messages
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_immediate, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue_cas, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_immediate, 0 );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_serialized, 0 );
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_bytes_serialized, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_deserialized, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_serialized, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_bytes_serialized, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_deserialized, 0 );
 
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_messages_delivered_locally, 0 );
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_bytes_delivered_locally, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_messages_delivered_locally, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_bytes_delivered_locally, 0 );
 
-//GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_message_bytes, 0 );
+//GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_message_bytes, 0 );
 
 /// stats for aggregated messages
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, rdma_message_bytes, 0 );
 
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_first_buffer_bytes, 0 );
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_buffers_used_for_send, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, rdma_first_buffer_bytes, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, rdma_buffers_used_for_send, 0 );
 
 /// stats for RDMA Aggregator events
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_start, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_end, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_start, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_end, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_idle_flushes, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_core_idle_flushes, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_receive_start, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_receive_end, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_send_start, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_send_end, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_capacity_flushes, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_idle_flushes, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_core_idle_flushes, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_requested_flushes, 0 );
 
-GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_buffers_inuse, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_buffers_blocked, 0 );
-
-
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_send, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_send_success, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive_success, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields, 0 );
-
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_send, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_receive, 0 );
-
-GRAPPA_DEFINE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time, 0 );
-
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_send_blocked, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_idle_blocked, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_receive_blocked, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_block_remote_buffer, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_block_local_buffer, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_active_send, 0 );
-
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_enqueue_buffer_am, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, rdma_buffers_inuse, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_buffers_blocked, 0 );
 
 
-GRAPPA_DEFINE_STAT(HistogramStatistic, app_bytes_sent_histogram, 0);
-GRAPPA_DEFINE_STAT(HistogramStatistic, rdma_bytes_sent_histogram, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_poll, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_poll_send, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_poll_receive, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_poll_send_success, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_poll_receive_success, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_poll_yields, 0 );
+
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_flush_send, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_flush_receive, 0 );
+
+GRAPPA_DEFINE_METRIC( SummarizingMetric<double>, rdma_local_delivery_time, 0 );
+
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, workers_send_blocked, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, workers_idle_blocked, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, workers_receive_blocked, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, workers_block_remote_buffer, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, workers_block_local_buffer, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, workers_active_send, 0 );
+
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, rdma_enqueue_buffer_am, 0 );
+
+
+GRAPPA_DEFINE_METRIC(HistogramMetric, app_bytes_sent_histogram, 0);
+GRAPPA_DEFINE_METRIC(HistogramMetric, rdma_bytes_sent_histogram, 0);
 
 // defined in Grappa.cpp
 extern bool Grappa_done_flag;

@@ -18,7 +18,7 @@
 #include <ParallelLoop.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <AsyncDelegate.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 // Data structure includes
 #include "MatchesDHT.hpp"
@@ -37,13 +37,13 @@ DEFINE_bool( print, false, "Print results" );
 
 
 // outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, join_result_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, twohop_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, join_result_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, twohop_count, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, hash_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, twohop_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, count_reduction_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, read_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, hash_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, twohop_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, count_reduction_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, read_runtime, 0);
 
 
 using namespace Grappa;
@@ -95,7 +95,7 @@ double read_start, read_end;
 
 void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
 
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  on_all_cores( [] { Grappa::Metrics::reset(); } );
   read_runtime = read_end-read_start;
   
   
@@ -168,13 +168,13 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
      if (Grappa::mycore()==0) {
      if (join_result_count > 1000000 && !first_phase) {
       first_phase = true;
-      Statistics::stop_tracing();
-      Statistics::start_tracing();
+      Metrics::stop_tracing();
+      Metrics::start_tracing();
       }
   
      if (join_result_count > 22000000 && !second_phase) { 
       second_phase = true;
-      Statistics::stop_tracing();
+      Metrics::stop_tracing();
       }
       }
       */
@@ -209,8 +209,8 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
     count_reduction_runtime = Grappa::walltime() - end;
 #endif 
 
-//  Statistics::stop_tracing();
-  Grappa::Statistics::merge_and_print();
+//  Metrics::stop_tracing();
+  Grappa::Metrics::merge_and_print();
 }
 
 int main(int argc, char* argv[]) {

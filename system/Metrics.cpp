@@ -1,6 +1,6 @@
-#include "StatisticBase.hpp"
-#include "Statistics.hpp"
-#include "SimpleStatisticImpl.hpp"
+#include "MetricBase.hpp"
+#include "Metrics.hpp"
+#include "SimpleMetricImpl.hpp"
 #include "Grappa.hpp"
 #include <vector>
 #include <iostream>
@@ -21,7 +21,7 @@ DECLARE_string(stats_blob_filename);
 
 namespace Grappa {
 
-  impl::StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
+  impl::MetricBase::MetricBase(const char * name, bool reg_new): name(name) {
     if (reg_new) {
       Grappa::impl::registered_stats().push_back(this);
       // commented out because this gets called before GLOG is intialized
@@ -30,8 +30,8 @@ namespace Grappa {
   }
   
   namespace impl {
-    StatisticList& registered_stats() {
-      static StatisticList r;
+    MetricList& registered_stats() {
+      static MetricList r;
       return r;
     }
     
@@ -44,9 +44,9 @@ namespace Grappa {
       time_for_profiler = time(NULL);
     }
     
-    void stat_list_json(std::ostream& out, StatisticList& stats) {
+    void stat_list_json(std::ostream& out, MetricList& stats) {
       std::ostringstream o;
-      for (Grappa::impl::StatisticBase*& s : stats) {
+      for (Grappa::impl::MetricBase*& s : stats) {
         // skip printing "," before first one
         if (&s-&stats[0] != 0) { o << ",\n"; }
         
@@ -97,19 +97,19 @@ namespace Grappa {
   
   
   
-  namespace Statistics {
+  namespace Metrics {
 
-    void merge(StatisticList& result) {
+    void merge(MetricList& result) {
       result.clear(); // ensure it's empty
       
-      for (Grappa::impl::StatisticBase * local_stat : Grappa::impl::registered_stats()) {
-        Grappa::impl::StatisticBase* merge_target = local_stat->clone();
+      for (Grappa::impl::MetricBase * local_stat : Grappa::impl::registered_stats()) {
+        Grappa::impl::MetricBase* merge_target = local_stat->clone();
         result.push_back(merge_target); // slot for merged stat
         merge_target->merge_all(local_stat);
       }
     }
 
-    void print(std::ostream& out, StatisticList& stats, const std::string& legacy_stats) {
+    void print(std::ostream& out, MetricList& stats, const std::string& legacy_stats) {
       std::ostringstream o;
       o << "STATS{\n";
 
@@ -123,14 +123,14 @@ namespace Grappa {
     }
 
     void merge_and_print(std::ostream& out) {
-      StatisticList all;
+      MetricList all;
       merge(all); // also flushes histogram logs
 
       print(out, all, "");
     }
 
     void merge_and_dump_to_file() {
-      StatisticList all;
+      MetricList all;
       merge(all); // also flushes histogram logs
 
       std::ofstream of( FLAGS_stats_blob_filename.c_str(), std::ios::out );

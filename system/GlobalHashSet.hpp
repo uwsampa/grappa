@@ -3,7 +3,7 @@
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "AsyncDelegate.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "Array.hpp"
 #include "FlatCombiner.hpp"
 
@@ -11,14 +11,14 @@
 #include <unordered_set>
 #include <unordered_map>
 
-GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, cell_traversal_length);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_insert_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_insert_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_lookup_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_lookup_msgs);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_matched_lookups);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_matched_lookups);
 
 namespace Grappa {
 

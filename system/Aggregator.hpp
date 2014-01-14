@@ -33,8 +33,8 @@
 #include "Timestamp.hpp"
 
 #include "StateTimer.hpp"
-#include "StatisticsTools.hpp"
-#include "Statistics.hpp"
+#include "MetricsTools.hpp"
+#include "Metrics.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -160,20 +160,20 @@ public:
 };
 
 
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_messages_aggregated_);
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_bytes_aggregated_);
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_messages_deaggregated_);
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_bytes_deaggregated_);
-GRAPPA_DECLARE_STAT( SimpleStatistic<uint64_t>, aggregator_bundles_received_);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_aggregated_);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_aggregated_);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_deaggregated_);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_deaggregated_);
+GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bundles_received_);
 
 /// stats class for aggregator
-class AggregatorStatistics {
+class AggregatorMetrics {
 private:
-  Grappa::SimpleStatistic<uint64_t> * histogram_[16];
+  Grappa::SimpleMetric<uint64_t> * histogram_[16];
     
 public:
 
-  AggregatorStatistics();
+  AggregatorMetrics();
 
   void record_poll();
 
@@ -345,7 +345,7 @@ private:
 
 public:
   /// statistics
-  AggregatorStatistics stats;  
+  AggregatorMetrics stats;  
 
   /// Construct Aggregator.
   Aggregator( );

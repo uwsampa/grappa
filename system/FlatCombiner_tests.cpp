@@ -11,7 +11,7 @@
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 // #include "GlobalVector.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "FlatCombiner.hpp"
 #include "GlobalCounter.hpp"
 using namespace Grappa;
@@ -49,7 +49,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL(c->count(), 10*cores());
     LOG(INFO) << "count = " << c->count();
   
-    Statistics::merge_and_print();
+    Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

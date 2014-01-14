@@ -16,15 +16,15 @@
 #include "AsyncDelegate.hpp"
 #include <type_traits>
 
-GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_reads);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_read_targets);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_writes);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_write_targets);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_cmpswaps);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_cmpswap_targets);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_fetchadds);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_fetchadd_targets);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, flat_combiner_fetch_and_add_amount);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_reads);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_read_targets);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_writes);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_write_targets);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_cmpswaps);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_cmpswap_targets);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadds);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadd_targets);
 
 
 namespace Grappa {

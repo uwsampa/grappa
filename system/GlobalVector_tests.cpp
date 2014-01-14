@@ -11,7 +11,7 @@
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 #include "GlobalVector.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
@@ -34,7 +34,7 @@ DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 DEFINE_bool(queue_perf, false, "do queue performance test");
 DEFINE_bool(stack_perf, false, "do stack performance test");
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, trial_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, trial_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -243,7 +243,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       
       }
     
-      Statistics::merge_and_print();
+      Metrics::merge_and_print();
       qa->destroy();
     
     } else {

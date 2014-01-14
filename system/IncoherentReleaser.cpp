@@ -6,12 +6,12 @@
 // Energy. The Government has certain rights in the software.
 
 #include "IncoherentReleaser.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>,  release_ams, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>,  release_ams_bytes, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>,  release_ams, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>,  release_ams_bytes, 0);
 
-void IRStatistics::count_release_ams( uint64_t bytes ) {
+void IRMetrics::count_release_ams( uint64_t bytes ) {
   release_ams++;
   release_ams_bytes+=bytes;
 }

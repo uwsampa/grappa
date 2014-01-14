@@ -207,7 +207,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::run([]{
     CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
-    Grappa::Statistics::start_tracing();
+    Grappa::Metrics::start_tracing();
 
     check_short_circuiting();
   
@@ -238,8 +238,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     Grappa::wait(&waiter);
     BOOST_CHECK_EQUAL(seed, 222);
   
-    Grappa::Statistics::stop_tracing();
-    Grappa::Statistics::merge_and_print();
+    Grappa::Metrics::stop_tracing();
+    Grappa::Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

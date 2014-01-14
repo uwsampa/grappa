@@ -7,25 +7,25 @@
 
 #include "IncoherentAcquirer.hpp"
 #include "common.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include <limits>
   
 
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_ams, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_ams_bytes, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, acquire_blocked, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, acquire_blocked_ticks_total, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, acquire_network_ticks_total, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, acquire_wakeup_ticks_total, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, acquire_ams, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, acquire_ams_bytes, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, acquire_blocked, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, acquire_blocked_ticks_total, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, acquire_network_ticks_total, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, acquire_wakeup_ticks_total, 0);
 
     
-void IAStatistics::count_acquire_ams( uint64_t bytes ) {
+void IAMetrics::count_acquire_ams( uint64_t bytes ) {
   acquire_ams++;
   acquire_ams_bytes+=bytes;
 }
 
-void IAStatistics::record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
+void IAMetrics::record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
   acquire_blocked++; 
   int64_t current_time = Grappa::timestamp();
   int64_t blocked_latency = current_time - start_time;
@@ -34,7 +34,7 @@ void IAStatistics::record_wakeup_latency( int64_t start_time, int64_t network_ti
   acquire_wakeup_ticks_total += wakeup_latency;
 }
 
-void IAStatistics::record_network_latency( int64_t start_time ) { 
+void IAMetrics::record_network_latency( int64_t start_time ) { 
   int64_t current_time = Grappa::timestamp();
   int64_t latency = current_time - start_time;
   acquire_network_ticks_total += latency;

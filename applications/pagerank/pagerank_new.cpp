@@ -13,7 +13,7 @@
 #include <ParallelLoop.hpp>
 #include <tasks/DictOut.hpp>
 #include <Reducer.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 #include <iostream>
 
@@ -29,17 +29,17 @@ DEFINE_double( damping, 0.8f, "Pagerank damping factor" );
 DEFINE_double( epsilon, 0.001f, "Acceptable error magnitude" );
 
 // runtime statistics
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, iterations_time, 0); // provides total time, avg iteration time, number of iterations
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, init_pagerank_time, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, multiply_time, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, vector_add_time, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, norm_and_diff_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iterations_time, 0); // provides total time, avg iteration time, number of iterations
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, init_pagerank_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, multiply_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, vector_add_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, norm_and_diff_time, 0);
 
 // output statistics (ensure that only core 0 sets this exactly once AFTER `reset` and before `merge_and_print`)
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, pagerank_time, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, make_graph_time, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, tuples_to_csr_time, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, actual_nnz, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, pagerank_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, make_graph_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuples_to_csr_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, actual_nnz, 0);
 
 
 weighted_csr_graph mhat;
@@ -297,8 +297,8 @@ int main(int argc, char* argv[]) {
       //matrix_out( &g, std::cout, true );
     // }
 
-    Grappa::Statistics::reset();
-    Grappa::Statistics::start_tracing();
+    Grappa::Metrics::reset();
+    Grappa::Metrics::start_tracing();
   
     pagerank_result result;
     TIME(time,
@@ -306,14 +306,14 @@ int main(int argc, char* argv[]) {
     );
     pagerank_time_SO = time;
   
-    Grappa::Statistics::stop_tracing();
+    Grappa::Metrics::stop_tracing();
 
     // output stats
     make_graph_time   = make_graph_time_SO;
     tuples_to_csr_time = tuples_to_csr_time_SO;
     actual_nnz        = actual_nnz_SO;
     pagerank_time     = pagerank_time_SO;
-    Grappa::Statistics::merge_and_print();
+    Grappa::Metrics::merge_and_print();
 
     vector rank = result.ranks;
     vindex which = result.which;

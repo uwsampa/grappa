@@ -10,8 +10,8 @@ DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
 
 // define custom statistics which are logged by the runtime
 // (here we're not using these features, just printing them ourselves)
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
 
 int main(int argc, char * argv[]) {
   init( &argc, &argv );

@@ -19,31 +19,31 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #include "Communicator.hpp"
 
 // histogram buckets
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_0_to_255_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_256_to_511_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_512_to_767_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_768_to_1023_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1024_to_1279_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1280_to_1535_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1536_to_1791_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_1792_to_2047_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2048_to_2303_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2304_to_2559_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2560_to_2815_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_2816_to_3071_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3072_to_3327_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3328_to_3583_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3584_to_3839_bytes, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, comm_3840_to_4095_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_0_to_255_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_256_to_511_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_512_to_767_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_768_to_1023_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1024_to_1279_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1280_to_1535_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1536_to_1791_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1792_to_2047_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2048_to_2303_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2304_to_2559_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2560_to_2815_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2816_to_3071_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3072_to_3327_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3328_to_3583_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3584_to_3839_bytes, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3840_to_4095_bytes, 0);
 
 // other metrics
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_messages, 0);
-GRAPPA_DEFINE_STAT( SimpleStatistic<uint64_t>, communicator_bytes, 0);
-GRAPPA_DEFINE_STAT( CallbackStatistic<double>, communicator_start_time, []() {
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_bytes, 0);
+GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_start_time, []() {
     // initialization value
     return Grappa::walltime();
     });
-GRAPPA_DEFINE_STAT( CallbackStatistic<double>, communicator_end_time, []() {
+GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_end_time, []() {
     // sampling value
     return Grappa::walltime();
     });
@@ -158,7 +158,7 @@ void Communicator::finish(int retval) {
 }
 
 
-CommunicatorStatistics::CommunicatorStatistics() 
+CommunicatorMetrics::CommunicatorMetrics() 
     : histogram_()
   { 
     histogram_[0] = &comm_0_to_255_bytes;
@@ -179,7 +179,7 @@ CommunicatorStatistics::CommunicatorStatistics()
     histogram_[15] = &comm_3840_to_4095_bytes;
   }
 
-void CommunicatorStatistics::reset_clock() {
+void CommunicatorMetrics::reset_clock() {
   communicator_start_time.reset();
 }
   

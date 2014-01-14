@@ -26,7 +26,7 @@
 #include <ParallelLoop.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <AsyncDelegate.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 // command line parameters
 
@@ -43,16 +43,16 @@ DEFINE_bool( print, false, "Print results" );
 
 
 // outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_select_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_select_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, triangles_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, first_join_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, first_join_select_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, second_join_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, second_join_select_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, triangle_count, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, hash_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, hash_runtime, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, edges_transfered, 0);
 
 
 using namespace Grappa;
@@ -180,7 +180,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     local_second_join_results = 0;
   });
   
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  on_all_cores( [] { Grappa::Metrics::reset(); } );
     
   // scan tuples and hash join col 1
   VLOG(1) << "Scan tuples, creating index on subject";
@@ -316,7 +316,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   //first_join_count = total_first_join_results;
   //second_join_count = total_second_join_results;
 
-  Grappa::Statistics::merge_and_print();
+  Grappa::Metrics::merge_and_print();
 
   //VLOG(1) << "joins: " << (end-start) << " seconds; total_triangle_count=" << total_triangle_count << "; total_first_join_count=" << total_first_join_results << "; total_second_join_count=" << total_second_join_results;
 }

@@ -10,7 +10,7 @@
 #include "CompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 #include "Collective.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <string>
 
@@ -40,14 +40,14 @@ SixteenBytes * values16;
 
 // Performance output of the test, not used as cumulative statistics
 // Initial value 0 should make merge just use Core 0's
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, context_switch_test_runtime_avg, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, context_switch_test_runtime_max, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, context_switch_test_runtime_min, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, context_switch_test_runtime_avg, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, context_switch_test_runtime_max, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, context_switch_test_runtime_min, 0 );
 
 
 // core-shared counter for counting progress
 uint64_t numst;
-uint64_t waitCount; // TODO: for traces, change to SimpleStatistic
+uint64_t waitCount; // TODO: for traces, change to SimpleMetric
 bool running;
 
 
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
 
               // first task to exit the local barrier will start the timer
               if ( !running ) {
-                Grappa::Statistics::reset();
+                Grappa::Metrics::reset();
                 start = Grappa::walltime();
                 running = true;
               }
@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
         context_switch_test_runtime_avg = r.runtime_avg;
         context_switch_test_runtime_max = r.runtime_max;
         context_switch_test_runtime_min = r.runtime_min;
-        Grappa::Statistics::merge_and_print();
+        Grappa::Metrics::merge_and_print();
 
   //      Streams overlap
   //      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
                 // can safely reset statistics here because
                 // no messages are sent between cores in the
                 // timed portion
-                Grappa::Statistics::reset();
+                Grappa::Metrics::reset();
                 start = Grappa::walltime();
                 running = true;
               }
@@ -219,7 +219,7 @@ int main(int argc, char* argv[]) {
         context_switch_test_runtime_avg = r.runtime_avg;
         context_switch_test_runtime_max = r.runtime_max;
         context_switch_test_runtime_min = r.runtime_min;
-        Grappa::Statistics::merge_and_print();
+        Grappa::Metrics::merge_and_print();
 
   //      Streams overlap
   //      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg

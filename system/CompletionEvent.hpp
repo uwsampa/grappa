@@ -8,8 +8,8 @@
 #include "MessagePool.hpp"
 #include "DelegateBase.hpp"
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_remote_completions);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_completions);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, ce_remote_completions);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, ce_completions);
 
 namespace Grappa {
   /// @addtogroup Synchronization

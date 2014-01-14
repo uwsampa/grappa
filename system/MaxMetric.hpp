@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "StatisticBase.hpp"
+#include "MetricBase.hpp"
 #include <glog/logging.h>
 
 #include <algorithm> // max
@@ -19,10 +19,10 @@ namespace Grappa {
   /// @addtogroup Utility
   /// @{
 
-  /// Statistic that simply keeps track of a single value over time.
+  /// Metric that simply keeps track of a single value over time.
   /// Typically used as a counter, but can also be used for sampling an instantaneous value.
   template<typename T>
-  class MaxStatistic : public impl::StatisticBase {
+  class MaxMetric : public impl::MetricBase {
   protected:
     T initial_value;
     T value_;
@@ -36,13 +36,13 @@ namespace Grappa {
     
   public:
     
-    MaxStatistic(const char * name, T initial_value, bool reg_new = true):
-        initial_value(initial_value), value_(initial_value), impl::StatisticBase(name, reg_new) {
+    MaxMetric(const char * name, T initial_value, bool reg_new = true):
+        initial_value(initial_value), value_(initial_value), impl::MetricBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
-        if (MaxStatistic::vt_type == -1) {
-          LOG(ERROR) << "warning: VTrace sampling unsupported for this type of MaxStatistic.";
+        if (MaxMetric::vt_type == -1) {
+          LOG(ERROR) << "warning: VTrace sampling unsupported for this type of MaxMetric.";
         } else {
-          vt_counter = VT_COUNT_DEF(name, name, MaxStatistic::vt_type, VT_COUNT_DEFGROUP);
+          vt_counter = VT_COUNT_DEF(name, name, MaxMetric::vt_type, VT_COUNT_DEFGROUP);
         }
 #endif
     }
@@ -58,19 +58,19 @@ namespace Grappa {
     
     virtual void sample() {
 #ifdef VTRACE_SAMPLED
-      // vt_sample() specialized for supported tracing types in Statistics.cpp
+      // vt_sample() specialized for supported tracing types in Metrics.cpp
       vt_sample();
 #endif
     }
     
-    virtual MaxStatistic<T>* clone() const {
+    virtual MaxMetric<T>* clone() const {
       // (note: must do `reg_new`=false so we don't re-register this stat)
-      return new MaxStatistic<T>(name, value_, false);
+      return new MaxMetric<T>(name, value_, false);
     }
     
-    virtual void merge_all(impl::StatisticBase* static_stat_ptr);
+    virtual void merge_all(impl::MetricBase* static_stat_ptr);
 
-    inline const MaxStatistic<T>& count() { return (*this)++; }
+    inline const MaxMetric<T>& count() { return (*this)++; }
 
     /// Get the current value
     inline T value() const { return value_; }

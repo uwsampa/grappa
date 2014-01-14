@@ -12,8 +12,8 @@ namespace d = Grappa::delegate;
 DECLARE_double(beamer_alpha);
 DECLARE_double(beamer_beta);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_vertex_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_edge_visited);
 
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \

@@ -78,14 +78,14 @@ int main(int argc, char* argv[]) {
     //matrix_out( &g, std::cout, false );
     //matrix_out( &g, std::cout, true );
 
-    Grappa::Statistics::reset();
+    Grappa::Metrics::reset();
     VLOG(1) << "Starting multiply... N=" << g.nv;
     TIME(time,
-    //  Statistics::start_tracing();
+    //  Metrics::start_tracing();
         spmv_mult(g, vec, target);
-    //  Statistics::stop_tracing();
+    //  Metrics::stop_tracing();
     );
-    Grappa::Statistics::merge_and_print();
+    Grappa::Metrics::merge_and_print();
     LOG(INFO) << "multiply: " << time;
     LOG(INFO) << actual_nnz / time << " nz/s";
     resultd.add( "multiply_time", time );

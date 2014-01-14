@@ -74,7 +74,7 @@ class RunningStandardDeviation {
     }
 };
 
-/// associative reduce function for Statistics
+/// associative reduce function for Metrics
 /// StatType must have void merge(const StatType *)
 template <typename StatType>
 StatType stat_reduce(const StatType& a, const StatType& b) {
@@ -85,18 +85,18 @@ StatType stat_reduce(const StatType& a, const StatType& b) {
 
 /// Stats that are totals.
 /// A total can be summed, have a max, and a std deviation
-class TotalStatistic {
+class TotalMetric {
   private:
     uint64_t total_;
     uint64_t max_;
     RunningStandardDeviation stddev_;
 
   public:
-    TotalStatistic() {
+    TotalMetric() {
       reset();
     }
 
-    void merge( const TotalStatistic& other ) {
+    void merge( const TotalMetric& other ) {
       total_ += other.total_;
       max_ = max2( max_, other.max_ );
       stddev_.merge( other.stddev_ );

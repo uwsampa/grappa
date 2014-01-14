@@ -29,10 +29,10 @@ double wctime() {
   return (tv.tv_sec + 1E-6 * tv.tv_usec);
 }
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, sing_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, sing_rate, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, stream_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, stream_rate, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, sing_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, sing_rate, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, stream_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, stream_rate, 0);
 
 BOOST_AUTO_TEST_SUITE( RateMeasure_tests );
 
@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     int num_tasks = 256;
 
-    Grappa::Statistics::reset_all_cores();
+    Grappa::Metrics::reset_all_cores();
 
     {
       double start, end;
@@ -91,7 +91,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   
     BOOST_MESSAGE( "User main exiting" );
   
-    Grappa::Statistics::merge_and_print();
+    Grappa::Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

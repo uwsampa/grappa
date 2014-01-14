@@ -13,7 +13,7 @@
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
 #include "CompletionEvent.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "ParallelLoop.hpp"
 #include "ReuseMessage.hpp"
 #include "ReuseMessageList.hpp"
@@ -53,28 +53,28 @@ int count2 = 0;
 Grappa::CompletionEvent local_ce;
 size_t local_count = 0;
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, enqueued_messages_rate_per_core, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, enqueued_messages_rate_per_core, 0.0 );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, local_messages_per_locale, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_time, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_rate_per_locale, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, local_messages_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, local_messages_time, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, local_messages_rate_per_locale, 0.0 );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_messages_per_locale, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_buffers_per_locale, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_time, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_rate_per_locale, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, remote_distributed_messages_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, remote_distributed_buffers_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, remote_distributed_messages_time, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, remote_distributed_messages_rate_per_locale, 0.0 );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, serialized_messages_per_locale, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, serialized_messages_time, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, serialized_messages_rate_per_locale, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, serialized_messages_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, serialized_messages_time, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, serialized_messages_rate_per_locale, 0.0 );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, deserialized_messages_per_locale, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, deserialized_messages_time, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, deserialized_messages_rate_per_locale, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, deserialized_messages_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, deserialized_messages_time, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, deserialized_messages_rate_per_locale, 0.0 );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, aggregated_messages_per_locale, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregated_messages_time, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregated_messages_rate_per_locale, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, aggregated_messages_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, aggregated_messages_time, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, aggregated_messages_rate_per_locale, 0.0 );
 
 
 
@@ -225,7 +225,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
       double start = Grappa::walltime();
 
-      Grappa::Statistics::start_tracing();
+      Grappa::Metrics::start_tracing();
       
       Grappa::on_all_cores( [expected_messages_per_core, sent_messages_per_core] {
           
@@ -313,7 +313,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         
           msgs.finish(); // clean up messages
         } );
-      Grappa::Statistics::stop_tracing();
+      Grappa::Metrics::stop_tracing();
 
       double time = Grappa::walltime() - start;
       local_messages_per_locale = expected_messages_per_locale;
@@ -418,7 +418,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       
 
         {
-          Grappa::Statistics::start_tracing_here();
+          Grappa::Metrics::start_tracing_here();
           double start = Grappa::walltime();
 
           {
@@ -428,14 +428,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           }
       
           double time = Grappa::walltime() - start;
-          Grappa::Statistics::stop_tracing_here();
+          Grappa::Metrics::stop_tracing_here();
           serialized_messages_per_locale = expected_messages_per_locale;
           serialized_messages_time = time;
           serialized_messages_rate_per_locale = expected_messages_per_locale / time;
         }      
 
         {
-          Grappa::Statistics::start_tracing_here();
+          Grappa::Metrics::start_tracing_here();
           double start = Grappa::walltime();
 
           {
@@ -444,7 +444,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           }
       
           double time = Grappa::walltime() - start;
-          Grappa::Statistics::stop_tracing_here();
+          Grappa::Metrics::stop_tracing_here();
           deserialized_messages_per_locale = expected_messages_per_locale;
           deserialized_messages_time = time;
           deserialized_messages_rate_per_locale = expected_messages_per_locale / time;
@@ -771,7 +771,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   
   
 
-    Grappa::Statistics::merge_and_print( std::cout );
+    Grappa::Metrics::merge_and_print( std::cout );
 
   });
   Grappa::finalize();

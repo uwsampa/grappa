@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "StatisticBase.hpp"
+#include "MetricBase.hpp"
 #include <glog/logging.h>
 #include <fstream>
 #include "Communicator.hpp"
@@ -17,11 +17,11 @@
 
 namespace Grappa {
 
-  namespace Statistics {
+  namespace Metrics {
     void histogram_sample();
   }
 
-  class HistogramStatistic : public impl::StatisticBase {
+  class HistogramMetric : public impl::MetricBase {
   protected:
     int64_t nil_value;
     int64_t value_;
@@ -38,7 +38,7 @@ namespace Grappa {
     
   public:
     
-    HistogramStatistic(const char * name, int64_t nil_value, bool reg_new = true);
+    HistogramMetric(const char * name, int64_t nil_value, bool reg_new = true);
     
     virtual std::ostream& json(std::ostream& o) const {
       o << '"' << name << "\": " << "\"(see histogram)\"";
@@ -67,13 +67,13 @@ namespace Grappa {
       value_ = nil_value;
     }
     
-    virtual HistogramStatistic* clone() const {
+    virtual HistogramMetric* clone() const {
       // (note: must do `reg_new`=false so we don't re-register this stat)
-      return new HistogramStatistic(name, value_, false);
+      return new HistogramMetric(name, value_, false);
     }
     
-    virtual void merge_all(impl::StatisticBase* static_stat_ptr) {
-      HistogramStatistic* this_static = reinterpret_cast<HistogramStatistic*>(static_stat_ptr);
+    virtual void merge_all(impl::MetricBase* static_stat_ptr) {
+      HistogramMetric* this_static = reinterpret_cast<HistogramMetric*>(static_stat_ptr);
       
       this_static->value_ = 0; // don't care about merging these
 #ifdef HISTOGRAM_SAMPLED
@@ -90,7 +90,7 @@ namespace Grappa {
     // allow casting as just the value
     inline operator int64_t() const { return value_; }
     
-    inline HistogramStatistic& operator=(int64_t value) {
+    inline HistogramMetric& operator=(int64_t value) {
       this->value_ = value;
       return *this;
     }

@@ -490,9 +490,9 @@ int main(int argc, char* argv[]) {
 
     histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
   
-    Statistics::reset_all_cores();
+    Metrics::reset_all_cores();
 
-    Statistics::start_tracing();
+    Metrics::start_tracing();
   
     total_time = Grappa::walltime();
 
@@ -504,8 +504,8 @@ int main(int argc, char* argv[]) {
 
     total_time = Grappa::walltime() - total_time;
 
-    Statistics::stop_tracing();
-    Statistics::merge_and_print();
+    Metrics::stop_tracing();
+    Metrics::merge_and_print();
   
     std::cerr << "total_time: " << total_time << "\n";
     std::cerr << "histogram_time: " << histogram_time << "\n";

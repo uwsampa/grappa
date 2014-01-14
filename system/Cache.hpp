@@ -19,7 +19,7 @@
 #include "IncoherentReleaser.hpp"
 
 /// stats for caches
-class CacheStatistics {
+class CacheMetrics {
   public:
     static void count_ro_acquire( uint64_t bytes ) ; 
     static void count_wo_release( uint64_t bytes ) ; 
@@ -146,13 +146,13 @@ public:
 
   /// send acquire message
   void start_acquire( ) { 
-    CacheStatistics::count_ro_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_ro_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
 
   /// block until acquire is completed
   void block_until_acquired() {
-    CacheStatistics::count_ro_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_ro_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   
@@ -227,25 +227,25 @@ public:
 
   /// send acquire message
   void start_acquire( ) { 
-    CacheStatistics::count_rw_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_rw_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
 
   /// block until acquire is completed
   void block_until_acquired() {
-    CacheStatistics::count_rw_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_rw_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   
   /// send release message
   void start_release() { 
-    CacheStatistics::count_rw_release( sizeof(T)*count_ );
+    CacheMetrics::count_rw_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
 
   /// block until release is completed
   void block_until_released() {
-    CacheStatistics::count_rw_release( sizeof(T)*count_ );
+    CacheMetrics::count_rw_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
@@ -322,13 +322,13 @@ public:
 
   /// block until release is completed
   void start_release() { 
-    CacheStatistics::count_wo_release( sizeof(T)*count_ );
+    CacheMetrics::count_wo_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
 
   /// block until release is completed
   void block_until_released() {
-    CacheStatistics::count_wo_release( sizeof(T)*count_ );
+    CacheMetrics::count_wo_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 

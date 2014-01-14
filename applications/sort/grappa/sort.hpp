@@ -28,7 +28,7 @@
 #include <FileIO.hpp>
 #include <Array.hpp>
 #include <ParallelLoop.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <AsyncDelegate.hpp>
 #include <Addressing.hpp>
 

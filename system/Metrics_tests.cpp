@@ -8,29 +8,29 @@
 #include <iostream>
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "Delegate.hpp"
 #include "Collective.hpp"
-#include "HistogramStatistic.hpp"
+#include "HistogramMetric.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "PerformanceTools.hpp"
 
-BOOST_AUTO_TEST_SUITE( Statistics_tests );
+BOOST_AUTO_TEST_SUITE( Metrics_tests );
 
 using namespace Grappa;
 
-//equivalent to: static SimpleStatistic<int> foo("foo", 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<int>, foo, 0);
+//equivalent to: static SimpleMetric<int> foo("foo", 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<int>, foo, 0);
 
-//equivalent to: static SimpleStatistic<double> bar("bar", 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, bar, 0);
+//equivalent to: static SimpleMetric<double> bar("bar", 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bar, 0);
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<int>, baz, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<int>, baz, 0);
 
-GRAPPA_DEFINE_STAT(HistogramStatistic, rand_msg, 0);
+GRAPPA_DEFINE_METRIC(HistogramMetric, rand_msg, 0);
 
-GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, maz, 0);
+GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, maz, 0);
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -59,15 +59,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       return true;
     });
   
-    Statistics::print();
+    Metrics::print();
 
     delegate::call(1, []() -> bool {
-      Statistics::print();
+      Metrics::print();
       return true;
     });
 
-    Statistics::reset_all_cores();
-    Statistics::start_tracing();
+    Metrics::reset_all_cores();
+    Metrics::start_tracing();
 
 #ifdef HISTOGRAM_SAMPLED
     VLOG(1) << "testing histogram sampling";
@@ -87,12 +87,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         maz.add( 1 );
     });
 
-    Statistics::stop_tracing();
-    Statistics::merge_and_print();
-    //Statistics::dump_stats_blob();
+    Metrics::stop_tracing();
+    Metrics::merge_and_print();
+    //Metrics::dump_stats_blob();
   
-    call_on_all_cores([]{ Statistics::reset(); });
-    Statistics::merge_and_print();
+    call_on_all_cores([]{ Metrics::reset(); });
+    Metrics::merge_and_print();
   });
   Grappa::finalize();
 }

@@ -18,7 +18,7 @@ set(SYSTEM_SOURCES
   AsyncDelegate.cpp
   Barrier.cpp
   Cache.cpp
-  CallbackStatistic.cpp
+  CallbackMetric.cpp
   Collective.cpp
   Communicator.cpp
   Delegate.cpp
@@ -31,21 +31,21 @@ set(SYSTEM_SOURCES
   GlobalMemoryChunk.cpp
   GlobalVector.cpp
   Grappa.cpp
-  HistogramStatistic.cpp
+  HistogramMetric.cpp
   IncoherentAcquirer.cpp
   IncoherentReleaser.cpp
   LocaleSharedMemory.cpp
-  MaxStatistic.cpp
+  MaxMetric.cpp
   MessageBase.cpp
   MessagePool.cpp
   ParallelLoop.cpp
   PerformanceTools.cpp
   RDMAAggregator.cpp
   SharedMessagePool.cpp
-  SimpleStatistic.cpp
+  SimpleMetric.cpp
   StateTimer.cpp
-  Statistics.cpp
-  SummarizingStatistic.cpp
+  Metrics.cpp
+  SummarizingMetric.cpp
   ThreadQueue.cpp
   Timestamp.cpp
   Worker.cpp
@@ -57,8 +57,8 @@ set(SYSTEM_SOURCES
   Barrier.hpp
   boost_helpers.hpp
   Cache.hpp
-  CallbackStatistic.hpp
-  CallbackStatisticImpl.hpp
+  CallbackMetric.hpp
+  CallbackMetricImpl.hpp
   Collective.hpp
   common.hpp
   Communicator.hpp
@@ -83,7 +83,7 @@ set(SYSTEM_SOURCES
   GlobalMemoryChunk.hpp
   GlobalVector.hpp
   Grappa.hpp
-  HistogramStatistic.hpp
+  HistogramMetric.hpp
   IncoherentAcquirer.hpp
   IncoherentReleaser.hpp
   LocaleSharedMemory.hpp
@@ -105,14 +105,14 @@ set(SYSTEM_SOURCES
   ReusePool.hpp
   Semaphore.hpp
   SharedMessagePool.hpp
-  SimpleStatistic.hpp
-  SimpleStatisticImpl.hpp
+  SimpleMetric.hpp
+  SimpleMetricImpl.hpp
   StateTimer.hpp
-  StatisticBase.hpp
-  Statistics.hpp
-  StatisticsTools.hpp
-  SummarizingStatistic.hpp
-  SummarizingStatisticImpl.hpp
+  MetricBase.hpp
+  Metrics.hpp
+  MetricsTools.hpp
+  SummarizingMetric.hpp
+  SummarizingMetricImpl.hpp
   SuspendedDelegate.hpp
   Synchronization.hpp
   Tasking.hpp
@@ -201,7 +201,7 @@ add_check( RateMeasure_tests.cpp             2 1  pass )
 add_check( Reducer_tests.cpp                 2 1  pass )
 add_check( Scheduler_benchmarking_tests.cpp  2 1  pass )
 add_check( Semaphore_tests.cpp               2 1  pass )
-add_check( Statistics_tests.cpp              2 1  pass )
+add_check( Metrics_tests.cpp              2 1  pass )
 add_check( Stealing_tests.cpp                2 1  fail ) # deprecated?
 add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
