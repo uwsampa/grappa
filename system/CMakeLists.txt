@@ -153,6 +153,9 @@ add_dependencies(Grappa all-tools)
 
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
+# create a test, which will be run with the given number of nodes (nnode),
+# and processors per node (ppn), and added to the aggregate targets for 
+# passing or failing tests
 macro(add_check test_cpp nnode ppn target)
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
