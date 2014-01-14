@@ -50,7 +50,7 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 #########################################
 # Determine tools to build
 if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools")
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools" CACHE TYPE PATH)
 endif()
 
 # always need these
@@ -65,7 +65,9 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+
 # the RPATH to be used when installing, but only if it's not a system directory
 list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
 if("${isSystemDir}" STREQUAL "-1")
@@ -78,11 +80,10 @@ if(NOT APPLE)
   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
 endif()
 
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
+
 if(TRACING)
   message("-- Tracing enabled.")
-  # explicitly add third-party dir to rpath (only necessary when compiling with vtcxx)
-  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
-
   if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${VAMPIR_ROOT}/lib")
   endif()
@@ -146,6 +147,10 @@ if(Boost_FOUND)
   string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
   message("-- Boost found:  ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION} -- ${BOOST_PREFIX}")
   # Boost_LIBRARIES set with the libraries to link against
+  foreach(lib ${Boost_LIBRARY_DIRS})
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${lib}")
+  endforeach()
+  
 else()
   message("-- Boost not found.")
   message("   !! Will download and build Boost, which may take a while.")
