@@ -82,7 +82,7 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 //  std::regex rgx("\\s+");
 
   // synchronous IO with asynchronous write
-  Grappa::forall_here<async,&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+  Grappa::forall_here<&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );
@@ -110,7 +110,6 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
       Grappa::delegate::write<async>(edges+myindex, pe);
     }
   });
-  Grappa::impl::local_gce.wait();
 
 
   CHECK( fin == numTuples );
@@ -135,7 +134,7 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
 //  std::regex rgx("\\s+");
 
   // synchronous IO with asynchronous write
-  Grappa::forall_here_async<&Grappa::impl::local_gce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+  Grappa::forall_here<&Grappa::impl::local_gce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );
@@ -160,10 +159,9 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
 
       // write edge to location
       int myindex = fin++;
-      Grappa::delegate::write_async(tuples+myindex, val);
+      Grappa::delegate::write<async>(tuples+myindex, val);
     }
   });
-  Grappa::impl::local_gce.wait();
 
 
   CHECK( fin == numTuples );

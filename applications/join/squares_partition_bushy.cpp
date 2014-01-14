@@ -92,7 +92,7 @@ void SquarePartitionBushy4way::execute(std::vector<tuple_graph> relations) {
   // really just care about local edges; we get to them
   // indirectly through local vertices at the moment.
   // This is sequential access since edgeslists and vertices are sorted the same
-  forall_localized( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
+  forall( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
       // hash function
       auto hf = makeHash( sidelength );
       Hypercube h( { sidelength, sidelength, sidelength, sidelength } );

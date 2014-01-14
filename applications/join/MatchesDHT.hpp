@@ -153,7 +153,7 @@ class MatchesDHT {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           V * results = e.vs->getReadBuffer().pointer(); // global address to local array
-          forall_here_async<GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
+          forall_here<async,GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               // call the continuation with the lookup result
               f(results[i]); 
@@ -169,7 +169,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call_async( target.node(), [key, target, f]() {
+      Grappa::delegate::call<async>( target.node(), [key, target, f]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           V * results = e.vs->getReadBuffer().pointer(); // global address to local array
