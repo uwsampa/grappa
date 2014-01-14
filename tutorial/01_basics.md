@@ -138,7 +138,7 @@ std::cout << "\n";
 ```
 
 #### Symmetric addresses
-Another kind of allocation that is possible is a "symmetric" allocation. This allocates a copy of the struct on each core from the global heap, returning a GlobalAddress that has is valid (and has the same offset, hence "symmetric") on every core. Symmetric global addresses are typically for data structures where it is desired to have something to refer to no matter which core one is on. *Due to limitations right now, you must pad the struct to be a multiple of the block size. This can be done using the macro: `GRAPPA_BLOCK_ALIGNED`*.
+Another kind of allocation that is possible is a "symmetric" allocation. This allocates a copy of the struct on each core from the global heap, returning a GlobalAddress that is valid (and has the same offset, hence "symmetric") on every core. Symmetric global addresses are typically for data structures where it is desired to have something to refer to no matter which core one is on. *Due to limitations right now, you must pad the struct to be a multiple of the block size. This can be done using the macro: `GRAPPA_BLOCK_ALIGNED`*.
 
 Below is an example of allocating a struct on all cores:
 
