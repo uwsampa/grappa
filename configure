@@ -28,6 +28,7 @@ OptionParser.new{|p|
   p.on('--tracing',"Enable VampirTrace/gperftools-based sampled tracing. Looks for VampirTrace build in 'third-party' dir."){|b| opt.tracing = true }
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies instead of re-building for each configuration."){|p| opt.third_party = p }
+  p.on('--shmmax=SIZE',"Manually set maximum SysV shared memory size"){|n| opt.shmmax = n }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -75,12 +76,13 @@ def configure(generator, mode, opt)
   end
   
   # determine shared memory size
-  opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
-  if not $?.success?
-    opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
+  unless opt.shmmax
+    opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
     if not $?.success?
-      opt.shmmax = nil
-      warn "warning: unable to determine Sys V shared memory size; continuing, but you may be unable to run programs"
+      opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
+      if not $?.success?
+        abort "error: unable to determine max SysV shared memory size automatically. Please set it manually with --shmmax option (usually half your main memory size)."
+      end
     end
   end
   args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
