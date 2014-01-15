@@ -250,7 +250,7 @@ The most basic unit of parallelism in Grappa is the *task*. A *task* is a unit o
 
 *Workers* are lightweight user-level threads that are *cooperatively scheduled* (sometimes also known as *fibers*), which means that they run uninterrupted on a core until they choose to *yield* or *suspend*. A worker takes an un-started task off the queue, executes it to completion, suspending or yielding as the task specifies. When the task finishes (returns from the lambda/functor), the worker goes off to find another task to execute.
 
-One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places such as certain function calls, so no synchronization is ever needed to data local to your core. A fair rule of thumb is that anything that goes to another core may contain a context switch.
+One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places: calls to synchronization and remote delegate operations. If, on the other hand, a region of code only references data local to a core, atomicity is guaranteed without any explicit synchronization needed.
 
 ### Bound/unbound tasks
 
@@ -307,13 +307,13 @@ When the *main* task spawned the two other tasks, it passed in a pointer to the 
 ### Parallel loops
 Instead of spawning tasks individually, it's almost always better to use a parallel loop of some sort. In addition to just looking better, these parallel loops also go to a significant amount of effort to run efficiently. For instance, they spawn loop iterations recursively until hitting a threshold. This prevents over-filling the task buffers for large loops, prevents excessive task overhead, and improves work-stealing by making it more likely that a single steal will generate significantly more work. They also spread out spawns across cores in the system, and when iterating over a region of linear global addresses, schedule the iterations to be as close to their data as possible.
 
-The basic parallel loop is `forall()`, but it can be invoked in a couple different ways. First, the iteration range can be specified in a couple different ways:
+The basic parallel loop is `forall()`. The iteration range can be specified in a few different ways:
 
 - `forall(startIndex, nIterations, [](int64_t i){ })`: Specify a start index and a number of iterations. The iterations will be split evenly across all the cores, broken up into evenly-sized blocks.
-- `forall(address, nElements, [](T&){ })`: Specify a linear address (start of an allocation from the global heap, for instance), and a number of elements. Iterations will be executed *at the core where the corresponding element lives*, and the lambda will be passed a simple reference to the element.
+- `forall(address, nElements, [](T& e){ })`: Specify a linear address (start of an allocation from the global heap, for instance), and a number of elements. Iterations will be executed *at the core where the corresponding element lives*, and the lambda will be passed a simple reference to the element.
 - `forall_here(startIndex, nIterations, [](int64_t i){ })`: Like the above forall, except instead of spreading iterations across all cores, it spawns them all locally (though if spawning unbound tasks, they may be moved).
 
-Each `forall` loop accepts a couple different forms of lambda, allowing for a bit more control. For instance, a `forall` over elements in an array of `double`s, for instance, could be invoked:
+Each `forall` loop accepts different forms of lambda, allowing for a bit more control. For instance, a `forall` over elements in an array of `double`s could be invoked:
 
 ```cpp
 // just a reference to the element
