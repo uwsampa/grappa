@@ -21,8 +21,8 @@ ENV["GASNET_FREEZE"] = "0"
 
 case `hostname`
 when /n\d+/ #(sampa)
+  # workaround for 1G huge pages
   ENV["GASNET_PHYSMEM_MAX"] = "1024M"
-  # ENV["LD_LIBRARY_PATH"] = "/home/nelson/grappa/tools/built_deps/lib:/sampa/home/nelson/grappa/tools/built_deps/lib/valgrind:/sampa/share/gcc-4.7.2/rtf/lib64:/sampa/share/gcc-4.7.2/src/boost_1_51_0/stage/lib:$LD_LIBRARY_PATH"
 end
 #ENV["GASNET_PHYSMEM_NOPROBE"] = "1"
 
@@ -85,7 +85,7 @@ ENV["OMPI_MCA_mpi_leave_pinned"] = "0"
 # Clean up any leftover shared memory regions
 # for i in `ipcs -m | grep bholt | cut -d" " -f1`; do ipcrm -M $i; done
 
-s = `ipcs -m | grep $USER | cut -d' '  -f1 | xargs -n1 -r ipcrm -M`
+s = `ipcs -m | grep $USER | awk '{print $2}' | xargs -n1 -r ipcrm -m`
 s = `rm -f /dev/shm/GrappaLocaleSharedMemory`
 
 if interactive
