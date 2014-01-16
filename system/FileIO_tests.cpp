@@ -77,7 +77,14 @@ void test_read_save_array(bool asDirectory) {
 
   // create test file to read from
   char fname[256];
-  sprintf(fname, "/scratch/hdfs/tmp/fileio_tests_seq.%ld.bin", NN);
+  if( boost::filesystem::exists( "/scratch/hdfs" ) ) {
+    // probably the Sampa cluster
+    sprintf(fname, "/scratch/hdfs/fileio_tests_seq.%ld.bin", NN);
+  } else { 
+    // probably not the Sampa cluster.
+    // Assume current directory is shared across the cluster.
+    sprintf(fname, "./fileio_tests_seq.%ld.bin", NN);
+  }
   Grappa::File f(fname, asDirectory);
 
   // do file io using asynchronous POSIX/suspending IO
