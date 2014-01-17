@@ -140,7 +140,7 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
   
   if (dst == origin) {
     VLOG(5) << "short-circuit";
-    delegate_ops_short_circuited++;
+    delegate_short_circuits++;
     
     retcode = fn(args, out);
     
