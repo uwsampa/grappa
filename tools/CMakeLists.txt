@@ -11,7 +11,9 @@ message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party
 
 if(NOT Boost_FOUND)
 
-  find_library(THIRD_PARTY_BOOST "boost_filesystem" "${THIRD_PARTY_ROOT}/lib")
+  # check if we have built boost in third-party dir
+  find_library(THIRD_PARTY_BOOST "boost_filesystem" PATHS "${THIRD_PARTY_ROOT}/lib" NO_DEFAULT_PATH)
+  
   if( NOT THIRD_PARTY_BOOST )
   
     # Download & build Boost
@@ -35,7 +37,6 @@ if(NOT Boost_FOUND)
         ./b2 install --link=static --variant=release --threading=single --runtime-link=static
       INSTALL_COMMAND ""
     )
-    set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
     list(APPEND tool_list tool-boost)
   else()
     message("     boost:  ${THIRD_PARTY_BOOST}")

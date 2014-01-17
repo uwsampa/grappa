@@ -154,6 +154,7 @@ if(Boost_FOUND)
 else()
   message("-- Boost not found.")
   message("   !! Will download and build Boost, which may take a while.")
+  set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )  
 endif()
 
 ######################################
