@@ -1,7 +1,6 @@
 
 #include <Grappa.hpp>
 #include <GlobalVector.hpp>
-#include <Array.hpp>
 using namespace Grappa;
 
 DEFINE_uint64(log_vertices, 8, "log2(total number of vertices)");
@@ -54,7 +53,7 @@ struct Vertex {
       num_children = NUM_VERTICES - first_child;
     }
         
-    forall<unbound,async>(first_child, num_children, [](index_t i){
+    forall<unbound,async>(first_child, num_children, [](int64_t i){
       Vertex child;
       child.init(i);
       delegate::write(vertex_array+i, child);
@@ -85,7 +84,7 @@ void search(index_t vertex_index, long color) {
     results->push(v.id);
   }
   // search children
-  forall<unbound,async>(v.first_child, v.num_children, [color](index_t i){
+  forall<unbound,async>(v.first_child, v.num_children, [color](int64_t i){
     search(i, color);
   });
 }
