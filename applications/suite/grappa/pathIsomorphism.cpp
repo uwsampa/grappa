@@ -2,7 +2,6 @@
 // Brandon Holt
 #include "defs.hpp"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <Collective.hpp>
 
 //static GlobalAddress<graphint> eV;
@@ -71,7 +70,7 @@ LOOP_FUNCTOR( pathIsomorphismFunc, nid, ((graph,g_)) ((GlobalAddress<color_t>,pa
   pattern = &(*cpattern);
   
   joiner.reset();
-  range_t vr = blockDist(0, g.numVertices, Grappa_mynode(), Grappa_nodes());
+  range_t vr = blockDist(0, g.numVertices, Grappa::mycore(), Grappa::cores());
   for (graphint i=vr.start; i<vr.end; i++) {
     joiner.registerTask();
     Grappa_privateTask(&pathIsoTask, i);
@@ -116,7 +115,7 @@ LOOP_FUNCTOR( markColorsFunc, nid, ((graph,g_)) ((color_t,minc_)) ((color_t,maxc
   minc = minc_;
   maxc = maxc_;
   
-  range_t vr = blockDist(0, g.numVertices, Grappa_mynode(), Grappa_nodes());
+  range_t vr = blockDist(0, g.numVertices, Grappa::mycore(), Grappa::cores());
   
   joiner.reset();
   

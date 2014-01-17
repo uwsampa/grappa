@@ -11,7 +11,7 @@
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 #include "GlobalVector.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
@@ -34,7 +34,7 @@ DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 DEFINE_bool(queue_perf, false, "do queue performance test");
 DEFINE_bool(stack_perf, false, "do stack performance test");
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, trial_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, trial_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -59,9 +59,9 @@ enum class Exp { PUSH, POP, DEQUEUE, QUEUE, STACK };
 
 template< Exp EXP >
 double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
   
-  forall_global_private(0, FLAGS_nelems, [qa](int64_t i){
+  forall(0, FLAGS_nelems, [qa](int64_t i){
     if (EXP == Exp::QUEUE) {
       
       if (choose_random(FLAGS_fraction_push)) {
@@ -88,7 +88,7 @@ double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
     }
   });
   
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   return t;
 }
 
@@ -123,8 +123,8 @@ void test_global_vector() {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
-  // forall_localized(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
-  forall_localized(qa, [](int64_t& e){ e = 9; });
+  // forall(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
+  forall(qa, [](int64_t& e){ e = 9; });
     
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 9);
@@ -146,12 +146,12 @@ void test_dequeue() {
     BOOST_CHECK(size >= NC);
     if (mycore() == 1) barrier();    
     
-    forall_here(0, NC/2, [qa](long i) {
+    forall_here(0, NC/2, [qa](int64_t i) {
       auto e = qa->dequeue();
       BOOST_CHECK_EQUAL(e, 37);
     });
     if (mycore() != 1) barrier();
-    forall_here(0, NC-NC/2, [qa](long i) {
+    forall_here(0, NC-NC/2, [qa](int64_t i) {
       auto e = qa->dequeue();
       BOOST_CHECK_EQUAL(e, 37);
     });
@@ -164,7 +164,7 @@ void test_dequeue() {
 void test_stack() {
   LOG(INFO) << "testing stack...";
   auto sa = GlobalVector<long>::create(N);
-  forall_localized(sa->storage(), N, [](int64_t& e){ e = -1; });
+  forall(sa->storage(), N, [](long& e){ e = -1; });
   
   on_all_cores([sa]{
     forall_here(0, 100, [sa](int64_t i) {
@@ -208,59 +208,52 @@ void restore_global_vector_stats(StatTuple t) {
   global_vector_matched_pops   = std::get<7>(t);
 }
 
-void user_main( void * ignore ) {
-  if (FLAGS_queue_perf || FLAGS_stack_perf) {
-    LOG(INFO) << "beginning performance test";
-    auto qa = GlobalVector<int64_t>::create(FLAGS_vector_size);
-    
-    for (int i=0; i<FLAGS_ntrials; i++) {
-      if (FLAGS_fraction_push < 1.0) { // fill halfway so we don't hit either rail
-        auto saved = save_global_vector_stats();
-        long diff = (FLAGS_vector_size/2) - qa->size();
-        if (diff > 0) { // too small
-          forall_here(0, diff, [qa](int64_t i){
-            qa->push(next_random<int64_t>());
-          });
-        } else {  // too large
-          forall_here(0, 0-diff, [qa](int64_t i){
-            qa->pop();
-          });
-        }
-        restore_global_vector_stats(saved);
-      }
-      
-      if (FLAGS_queue_perf) {
-        trial_time += perf_test<Exp::QUEUE>(qa);
-      } else if (FLAGS_stack_perf) {
-        trial_time += perf_test<Exp::STACK>(qa);
-      }
-      VLOG(0) << "global_vector_push_ops = " << global_vector_push_ops;
-      
-    }
-    
-    Statistics::merge_and_print();
-    qa->destroy();
-    
-  } else {
-    test_global_vector();
-    test_dequeue();
-    test_stack();
-  }
-  
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
+  Grappa::init( GRAPPA_TEST_ARGS );
   
-  Grappa_activate();
   N = FLAGS_nelems;
-
-  Grappa_run_user_main( &user_main, (void*)NULL );
-
-  Grappa_finish( 0 );
+  
+  Grappa::run([]{
+    if (FLAGS_queue_perf || FLAGS_stack_perf) {
+      LOG(INFO) << "beginning performance test";
+      auto qa = GlobalVector<int64_t>::create(FLAGS_vector_size);
+    
+      for (int i=0; i<FLAGS_ntrials; i++) {
+        if (FLAGS_fraction_push < 1.0) { // fill halfway so we don't hit either rail
+          auto saved = save_global_vector_stats();
+          long diff = (FLAGS_vector_size/2) - qa->size();
+          if (diff > 0) { // too small
+            forall_here(0, diff, [qa](int64_t i){
+              qa->push(next_random<int64_t>());
+            });
+          } else {  // too large
+            forall_here(0, 0-diff, [qa](int64_t i){
+              qa->pop();
+            });
+          }
+          restore_global_vector_stats(saved);
+        }
+      
+        if (FLAGS_queue_perf) {
+          trial_time += perf_test<Exp::QUEUE>(qa);
+        } else if (FLAGS_stack_perf) {
+          trial_time += perf_test<Exp::STACK>(qa);
+        }
+        VLOG(0) << "global_vector_push_ops = " << global_vector_push_ops;
+      
+      }
+    
+      Metrics::merge_and_print();
+      qa->destroy();
+    
+    } else {
+      test_global_vector();
+      test_dequeue();
+      test_stack();
+    }
+  
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
-

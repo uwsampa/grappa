@@ -10,8 +10,6 @@
 #include <gflags/gflags.h>
 #include "../PerformanceTools.hpp"
 
-GRAPPA_DEFINE_EVENT_GROUP(scheduler);
-
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 20000, "number of ticks to wait before polling periodic queue");
 
@@ -21,13 +19,27 @@ DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before d
 
 DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_count, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_samples, 0);
+
+// set in sample()
+GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, active_tasks_sampled, 0);
+GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, ready_tasks_sampled, 0);
+GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, idle_workers_sampled, 0);
+
+// ticks
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_polling_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_ready_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_idle_thread_ticks, 0);
+GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_idle_useful_thread_ticks, 0);
+
 
 namespace Grappa {
 
   namespace impl {
 
-/// global TaskingScheduler for this Node
+/// global TaskingScheduler for this Core
 TaskingScheduler global_scheduler;
 
 /// Create uninitialized TaskingScheduler.
@@ -50,12 +62,12 @@ TaskingScheduler global_scheduler;
   , prev_stats_blob_ts( 0 )
     , stats( this )
 { 
-  Grappa_tick();
-  prev_ts = Grappa_get_timestamp();
+  Grappa::tick();
+  prev_ts = Grappa::timestamp();
 }
 
-/// Initialize with references to master Thread and a TaskManager.
-void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
+/// Initialize with references to master Worker and a TaskManager.
+void TaskingScheduler::init ( Worker * master_arg, TaskManager * taskman ) {
   master = master_arg;
   readyQ.init( FLAGS_readyq_prefetch_distance );
   current_thread = master;
@@ -72,23 +84,23 @@ void TaskingScheduler::run ( ) {
 }
 
 /// Schedule Threads from the scheduler until one e
-/// If <result> non-NULL, store the Thread's exit value there.
-/// This routine is only to be called if the current Thread
-/// is the master Thread (the one returned by convert_to_master()).
-/// @return the exited Thread, or NULL if scheduler is done
-Thread * TaskingScheduler::thread_wait( void **result ) {
-  CHECK( current_thread == master ) << "only meant to be called by system Thread";
+/// If <result> non-NULL, store the Worker's exit value there.
+/// This routine is only to be called if the current Worker
+/// is the master Worker (the one returned by convert_to_master()).
+/// @return the exited Worker, or NULL if scheduler is done
+Worker * TaskingScheduler::thread_wait( void **result ) {
+  CHECK( current_thread == master ) << "only meant to be called by system Worker";
 
-  Thread * next = nextCoroutine( false );
+  Worker * next = nextCoroutine( false );
   if (next == NULL) {
     // no user threads remain
     return NULL;
   } else {
     current_thread = next;
 
-    Thread * died = (Thread *) thread_context_switch( master, next, NULL);
+    Worker * died = (Worker *) thread_context_switch( master, next, NULL);
 
-    // At the moment, we only return from a Thread in the case of death.
+    // At the moment, we only return from a Worker in the case of death.
 
     if (result != NULL) {
       void *retval = (void *)died->next;
@@ -98,13 +110,13 @@ Thread * TaskingScheduler::thread_wait( void **result ) {
   }
 }
 
-/// Get an idle worker Thread that can be paired with a Task.
+/// Get an idle worker Worker that can be paired with a Task.
 ///
 /// Threads returned by this method are specifically running workerLoop().
-Thread * TaskingScheduler::getWorker () {
+Worker * TaskingScheduler::getWorker () {
   if (task_manager->available()) {
     // check the pool of unassigned coroutines
-    Thread * result = unassignedQ.dequeue();
+    Worker * result = unassignedQ.dequeue();
     if (result != NULL) return result;
 
     // possibly spawn more coroutines
@@ -116,13 +128,13 @@ Thread * TaskingScheduler::getWorker () {
   }
 }
 
-/// Worker Thread routine.
+/// Worker Worker routine.
 /// This is the routine every worker thread runs.
 /// The worker thread continuously asks for Tasks and executes them.
 ///
-/// Note that worker threads are NOT guarenteed to ever call Thread.exit()
+/// Note that worker threads are NOT guarenteed to ever call Worker.exit()
 /// before the program ends.
-void workerLoop ( Thread * me, void* args ) {
+void workerLoop ( Worker * me, void* args ) {
   task_worker_args* wargs = (task_worker_args*) args;
   TaskManager* tasks = wargs->tasks;
   TaskingScheduler * sched = wargs->scheduler; 
@@ -160,8 +172,8 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
   num_workers += num;
   VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
   for (uint64_t i=0; i<num; i++) {
-    // spawn a new worker Thread
-    Thread * t = worker_spawn( current_thread, this, workerLoop, work_args);
+    // spawn a new worker Worker
+    Worker * t = impl::worker_spawn( current_thread, this, workerLoop, work_args);
 
     // place the Worker in the pool of idle workers
     unassigned( t );
@@ -172,19 +184,19 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
 #define BASIC_MAX_WORKERS 2
 /// Give the scheduler a chance to spawn more worker Threads,
 /// based on some heuristics.
-Thread * TaskingScheduler::maybeSpawnCoroutines( ) {
+Worker * TaskingScheduler::maybeSpawnCoroutines( ) {
   // currently only spawn a worker if there are less than some threshold
   if ( num_workers < BASIC_MAX_WORKERS ) {
     num_workers += 1;
     VLOG(5) << "spawning another worker; now there are " << num_workers;
-    return worker_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
+    return impl::worker_spawn( current_thread, this, workerLoop, work_args ); // current Worker will be coro parent; is this okay?
   } else {
     // might have another way to spawn
     return NULL;
   }
 }
 
-/// Callback for when a worker Thread is run for the first time.
+/// Callback for when a worker Worker is run for the first time.
 void TaskingScheduler::onWorkerStart( ) {
   // all worker Threads start in the idle worker pool (unassigned)
   // so decrement num_idle when it starts.
@@ -204,69 +216,63 @@ std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts ) {
 }
 
 
-void TaskingScheduler::TaskingSchedulerStatistics::sample() {
-  task_calls++;
-  if (sched->num_active_tasks > max_active) max_active = sched->num_active_tasks;
-  avg_active = inc_avg(avg_active, task_calls, sched->num_active_tasks);
-  avg_ready = inc_avg(avg_ready, task_calls, sched->readyQ.length());
+
+
+/*
+ * TaskingSchedulerMetrics
+ *
+ */
+
+TaskingScheduler::TaskingSchedulerMetrics::TaskingSchedulerMetrics() { active_task_log = new short[16]; }  
+        
+TaskingScheduler::TaskingSchedulerMetrics::TaskingSchedulerMetrics( TaskingScheduler * scheduler )
+  : sched( scheduler ) 
+  , state_timers()
+    , prev_state( StateIdle )
+
+{
+  state_timers[ StatePoll ]  = &scheduler_polling_thread_ticks;
+  state_timers[ StateReady ] = &scheduler_ready_thread_ticks;
+  state_timers[ StateIdle ]  = &scheduler_idle_thread_ticks;
+  state_timers[ StateIdleUseful ] = &scheduler_idle_useful_thread_ticks;
+
+  active_task_log = new short[1L<<20];
+  reset();
+}
+        
+TaskingScheduler::TaskingSchedulerMetrics::~TaskingSchedulerMetrics() {
+// XXX: not copy-safe, so pointer can be invalid
+/* delete[] active_task_log; */
+}
+        
+void TaskingScheduler::TaskingSchedulerMetrics::reset() {
+  task_log_index = 0;
+}
+        
+void TaskingScheduler::TaskingSchedulerMetrics::print_active_task_log() {
+#ifdef DEBUG
+  if (task_log_index == 0) return;
+
+  std::stringstream ss;
+  for (int64_t i=0; i<task_log_index; i++) ss << active_task_log[i] << " ";
+  LOG(INFO) << "Active tasks log: " << ss.str();
+#endif
+}
+
+void TaskingScheduler::TaskingSchedulerMetrics::sample() {
+  scheduler_samples++;
+  active_tasks_sampled += sched->num_active_tasks;
+  ready_tasks_sampled += sched->readyQ.length();
+  idle_workers_sampled += sched->num_idle;
+
 #ifdef DEBUG  
-  if ((task_calls % 1024) == 0) {
+  if ((scheduler_samples.value() % 1024) == 0) {
     active_task_log[task_log_index++] = sched->num_active_tasks;
   }
 #endif
 
-  GRAPPA_EVENT(active_tasks_out_ev, "Active tasks sample", SAMPLE_RATE, scheduler, sched->num_active_tasks);
-  GRAPPA_EVENT(num_idle_out_event, "Idle workers sample", SAMPLE_RATE, scheduler, sched->num_idle);
-  GRAPPA_EVENT(readyQ_size_ev, "readyQ size", SAMPLE_RATE, scheduler, sched->readyQ.length());
-
-#ifdef VTRACE
-  //VT_COUNT_UNSIGNED_VAL( active_tasks_out_ev_vt, sched->num_active_tasks);
-  //VT_COUNT_UNSIGNED_VAL(num_idle_out_ev_vt, sched->num_idle);
-  //VT_COUNT_UNSIGNED_VAL(readyQ_size_ev_vt, sched->readyQ.length());
-#endif
-
-  //#ifdef GRAPPA_TRACE
-  //    if ((task_calls % 1) == 0) {
-  //        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
-  //        TAU_REGISTER_EVENT(num_idle_out_event, "Idle workers sample");
-  //
-  //        TAU_EVENT(active_tasks_out_event, sched->num_active_tasks);
-  //        TAU_EVENT(num_idle_out_event, sched->num_idle);
-  //
-  //    }
-  //#endif
 }
 
-/// Take a profiling sample of scheduler stats and state.
-void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
-#ifdef VTRACE_SAMPLED
-  VT_COUNT_UNSIGNED_VAL( active_tasks_out_ev_vt, sched->num_active_tasks);
-  VT_COUNT_UNSIGNED_VAL(num_idle_out_ev_vt, sched->num_idle);
-  VT_COUNT_UNSIGNED_VAL(readyQ_size_ev_vt, sched->readyQ.length());
-#endif
-}
-
-/// Merge other statistics into this one.
-void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerStatistics * other) {
-  task_calls += other->task_calls;
-  // if *this has not been merged with others, then copy int timers to double timers
-  if (merged==1) {
-    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] = state_timers[i];
-  }
-  // if *other has not been merged with others, then use its int timers (double are invalid);
-  // otherwise use its double timers (int are unmerged)
-  if ( other->merged == 1 ) {
-    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers[i];
-  } else {
-    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers_d[i];
-  }
-  scheduler_count += other->scheduler_count;
-
-  merged+=other->merged;
-  max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
-  avg_active = inc_avg(avg_active, merged, other->avg_active);
-  avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
-}
 
 } // impl
 } // Grappa

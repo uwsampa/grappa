@@ -44,63 +44,54 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) 
   ss << " ]"; VLOG(1) << ss.str();
 }
 
-void user_main(int* ignore) {
-  LOG(INFO) << "System block_size=" << block_size;
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
+    LOG(INFO) << "System block_size=" << block_size;
 
-  // test S = uint64_t
-  size_t nelems = 256;
-  int log2buckets = 5;
-  int log2maxkey = 10;
+    // test S = uint64_t
+    size_t nelems = 256;
+    int log2buckets = 5;
+    int log2maxkey = 10;
 
-  GlobalAddress<uint64_t> array = Grappa_typed_malloc<uint64_t>( nelems );
-  forall_localized(array, nelems, [nelems,log2maxkey](int64_t i, uint64_t& e) {
-    e = (nelems-i) % log2maxkey;
-  });
-  print_array("before-sort", array, nelems);
+    GlobalAddress<uint64_t> array = Grappa::global_alloc<uint64_t>( nelems );
+    forall(array, nelems, [nelems,log2maxkey](int64_t i, uint64_t& e) {
+      e = (nelems-i) % log2maxkey;
+    });
+    print_array("before-sort", array, nelems);
  
 
-  bucket_sort<uint64_t>(array, nelems, &ui64cmp, &lobits, log2buckets, log2maxkey);
-  print_array("after-sort", array, nelems);
+    bucket_sort<uint64_t>(array, nelems, &ui64cmp, &lobits, log2buckets, log2maxkey);
+    print_array("after-sort", array, nelems);
 
-  // verify
-  size_t jump = nelems/17;
-  uint64_t prev;
-  for (size_t i=0; i<nelems; i+=jump) {
-    prev = 0;
-    for (size_t j=1; j<64 && (i+j)<nelems; j++) {
-      uint64_t curr = delegate::read(array+i+j);
-      CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
-      prev = curr;
+    // verify
+    size_t jump = nelems/17;
+    uint64_t prev;
+    for (size_t i=0; i<nelems; i+=jump) {
+      prev = 0;
+      for (size_t j=1; j<64 && (i+j)<nelems; j++) {
+        uint64_t curr = delegate::read(array+i+j);
+        CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
+        prev = curr;
+      }
     }
-  }
-  Grappa_free( array );
+    Grappa::global_free( array );
 
 
 
-  // test S = keyed-tuple
-  GlobalAddress<KeyedTuple> tuples = Grappa_typed_malloc<KeyedTuple>( nelems );
-  forall_localized(tuples, nelems, [nelems,log2maxkey](int64_t i, KeyedTuple& e) {
-    e.key = (nelems-i) % log2maxkey;
-    CHECK( sprintf( e.val, "S-%lu", e.key ) > 0 );
-  });
-  print_array("before-sort", tuples, nelems);
+    // test S = keyed-tuple
+    GlobalAddress<KeyedTuple> tuples = Grappa::global_alloc<KeyedTuple>( nelems );
+    forall(tuples, nelems, [nelems,log2maxkey](int64_t i, KeyedTuple& e) {
+      e.key = (nelems-i) % log2maxkey;
+      CHECK( sprintf( e.val, "S-%lu", e.key ) > 0 );
+    });
+    print_array("before-sort", tuples, nelems);
   
-  bucket_sort<KeyedTuple>(tuples, nelems, &kt_cmp, &lobits, log2buckets, log2maxkey);
-  print_array("after-sort", tuples, nelems);
+    bucket_sort<KeyedTuple>(tuples, nelems, &kt_cmp, &lobits, log2buckets, log2maxkey);
+    print_array("after-sort", tuples, nelems);
 
-  Grappa_free( tuples );
+    Grappa::global_free( tuples );
 
-}
-
-/// Main() entry
-int main (int argc, char** argv) {
-  Grappa_init( &argc, &argv ); 
-  Grappa_activate();
-
-  int ignore;
-  Grappa_run_user_main( &user_main, &ignore );
-  CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-  Grappa_finish( 0 );
-
-  return 0;
+  });
+  Grappa::finalize();
 }

@@ -1,18 +1,17 @@
 #pragma once
 
-#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "FlatCombiner.hpp"
 #include <utility>
 #include <unordered_map>
 #include <vector>
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_insert_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_insert_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_lookup_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashmap_lookup_msgs);
 
 
 namespace Grappa {
@@ -27,6 +26,13 @@ protected:
     Entry( K key, V val): key(key), val(val) {}
   };
   
+  struct ResultEntry {
+    bool found;
+    ResultEntry * next;
+    V val;
+  };
+  
+public:
   struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
     std::vector<Entry> entries;
     
@@ -53,13 +59,7 @@ protected:
       }
     }
   } GRAPPA_BLOCK_ALIGNED;
-  
-  struct ResultEntry {
-    bool found;
-    ResultEntry * next;
-    V val;
-  };
-
+protected:
   struct Proxy {
     static const size_t LOCAL_HASH_SIZE = 1<<10;
     
@@ -162,17 +162,20 @@ public:
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashMap(self, base, total_capacity);
     });
-    forall_localized(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
+    forall(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
     return self;
   }
   
+  GlobalAddress<Cell> begin() { return this->base; }
+  size_t ncells() { return this->capacity; }
+  
   void clear() {
-    forall_localized(base, capacity, [](Cell& c){ c.clear(); });
+    forall(base, capacity, [](Cell& c){ c.clear(); });
   }
   
   void destroy() {
     auto self = this->self;
-    forall_localized(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
+    forall(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
     global_free(this->base);
     call_on_all_cores([self]{ self->~GlobalHashMap(); });
     global_free(self);
@@ -180,7 +183,7 @@ public:
   
   template< typename F >
   void forall_entries(F visit) {
-    forall_localized(base, capacity, [visit](int64_t i, Cell& c){
+    forall(base, capacity, [visit](int64_t i, Cell& c){
       // if cell is not hit then no action
       if (c.entries == nullptr) return;
       DVLOG(3) << "c<" << &c << "> entries:" << c.entries << " size: " << c.entries->size();
@@ -231,10 +234,6 @@ public:
     }
   }
 
-  template< GlobalCompletionEvent * GCE, int64_t Threshold,
-            typename TT, typename VV, typename F >
-  friend void forall_localized(GlobalAddress<GlobalHashMap<TT,VV>> self, F func);  
-  
 } GRAPPA_BLOCK_ALIGNED;
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce,
@@ -242,8 +241,8 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           typename T = decltype(nullptr),
           typename V = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall_localized(GlobalAddress<GlobalHashMap<T,V>> self, F visit) {
-  forall_localized<GCE,Threshold>(self->base, self->capacity,
+void forall(GlobalAddress<GlobalHashMap<T,V>> self, F visit) {
+  forall<GCE,Threshold>(self->begin(), self->ncells(),
   [visit](typename GlobalHashMap<T,V>::Cell& c){
     for (auto& e : c.entries) {
       visit(e.key, e.val);

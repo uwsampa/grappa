@@ -14,47 +14,36 @@ BOOST_AUTO_TEST_SUITE( Mutex_tests );
 
 using namespace Grappa;
 
-void user_main( void * args ) 
-{
-  Grappa::Mutex m;
-
-  int data = 0;
-
-  Grappa::lock( &m );
-  data++;
-  Grappa::unlock( &m );
-
-  Thread * t = impl::global_scheduler.get_current_thread();
-
-  privateTask([&] { 
-    lock( &m ); 
-    data++; 
-    unlock( &m ); 
-    if( t ) {
-    	impl::global_scheduler.thread_wake(t);
-    }
-  });
-
-  impl::global_scheduler.thread_suspend();
-
-  Grappa::lock( &m );
-  BOOST_CHECK_EQUAL( data, 2 );
-  Grappa::unlock( &m );
-
-  // Grappa_merge_and_dump_stats();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    Grappa::Mutex m;
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-	       &(boost::unit_test::framework::master_test_suite().argv),
-	       (1L << 20) );
+    int data = 0;
 
-  Grappa_activate();
+    Grappa::lock( &m );
+    data++;
+    Grappa::unlock( &m );
 
-  Grappa_run_user_main( &user_main, (void*)NULL );
+    Worker * t = impl::global_scheduler.get_current_thread();
 
-  Grappa_finish( 0 );
+    spawn([&] { 
+      lock( &m ); 
+      data++; 
+      unlock( &m ); 
+      if( t ) {
+      	impl::global_scheduler.thread_wake(t);
+      }
+    });
+
+    impl::global_scheduler.thread_suspend();
+
+    Grappa::lock( &m );
+    BOOST_CHECK_EQUAL( data, 2 );
+    Grappa::unlock( &m );
+
+    // Grappa_merge_and_dump_stats();
+  });
 }
 
 BOOST_AUTO_TEST_SUITE_END();

@@ -108,7 +108,7 @@ int         ss_get_thread_num();
 int         ss_get_num_threads();
 char*       ss_get_par_description();
 
-/* API Statistics gathering functions */
+/* API Metrics gathering functions */
 double wctime();
 
 void ss_initStats  (StealStack *s);

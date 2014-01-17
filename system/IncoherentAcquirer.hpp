@@ -8,97 +8,22 @@
 #ifndef __INCOHERENT_ACQUIRER_HPP__
 #define __INCOHERENT_ACQUIRER_HPP__
 
-#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
 #include "tasks/TaskingScheduler.hpp"
-
-#ifdef VTRACE
-#include <vt_user.h>
-#endif
 
 // forward declare for active message templates
 template< typename T >
 class IncoherentAcquirer;
 
 /// IncoherentAcquirer statistics
-class IAStatistics {
-  private:
-  uint64_t acquire_ams;
-  uint64_t acquire_ams_bytes;
-  uint64_t acquire_blocked;
-  uint64_t acquire_blocked_ticks_total;
-  uint64_t acquire_network_ticks_total;
-  uint64_t acquire_wakeup_ticks_total;
-  uint64_t acquire_blocked_ticks_max;
-  uint64_t acquire_blocked_ticks_min;
-  uint64_t acquire_network_ticks_max;
-  uint64_t acquire_network_ticks_min;
-  uint64_t acquire_wakeup_ticks_max;
-  uint64_t acquire_wakeup_ticks_min;
-#ifdef VTRACE_SAMPLED
-  unsigned ia_grp_vt;
-  unsigned acquire_ams_ev_vt;
-  unsigned acquire_ams_bytes_ev_vt;
-  unsigned acquire_blocked_ev_vt;
-  unsigned acquire_blocked_ticks_total_ev_vt;
-  unsigned acquire_network_ticks_total_ev_vt;
-  unsigned acquire_wakeup_ticks_total_ev_vt;
-  unsigned acquire_blocked_ticks_max_ev_vt;
-  unsigned acquire_blocked_ticks_min_ev_vt;
-  unsigned acquire_wakeup_ticks_max_ev_vt;
-  unsigned acquire_wakeup_ticks_min_ev_vt;
-  unsigned acquire_network_ticks_max_ev_vt;
-  unsigned acquire_network_ticks_min_ev_vt;
-  unsigned average_latency_ev_vt;
-  unsigned average_network_latency_ev_vt;
-  unsigned average_wakeup_latency_ev_vt;
-#endif
-
-  public:
-    IAStatistics();
-    void reset();
-
-    inline void count_acquire_ams( uint64_t bytes ) {
-      acquire_ams++;
-      acquire_ams_bytes+=bytes;
-    }
-
-  inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
-    acquire_blocked++; 
-    int64_t current_time = Grappa_get_timestamp();
-    int64_t blocked_latency = current_time - start_time;
-    int64_t wakeup_latency = current_time - network_time;
-    acquire_blocked_ticks_total += blocked_latency;
-    acquire_wakeup_ticks_total += wakeup_latency;
-    if( blocked_latency > acquire_blocked_ticks_max ) 
-      acquire_blocked_ticks_max = blocked_latency;
-    if( blocked_latency < acquire_blocked_ticks_min ) 
-      acquire_blocked_ticks_min = blocked_latency;
-    if( wakeup_latency > acquire_wakeup_ticks_max )
-      acquire_wakeup_ticks_max = wakeup_latency;
-    if( wakeup_latency < acquire_wakeup_ticks_min )
-      acquire_wakeup_ticks_min = wakeup_latency;
-  }
-
-  inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = Grappa_get_timestamp();
-    int64_t latency = current_time - start_time;
-    acquire_network_ticks_total += latency;
-    if( latency > acquire_network_ticks_max )
-      acquire_network_ticks_max = latency;
-    if( latency < acquire_network_ticks_min )
-      acquire_network_ticks_min = latency;
-  }
-
-    void dump( std::ostream& o, const char * terminator );
-    void sample();
-    void profiling_sample();
-    void merge(const IAStatistics * other);
+class IAMetrics {
+public:
+  static void count_acquire_ams( uint64_t bytes ) ;
+  static void record_wakeup_latency( int64_t start_time, int64_t network_time ) ; 
+  static void record_network_latency( int64_t start_time ) ; 
 };
-
-extern IAStatistics incoherent_acquirer_stats;
 
 /// IncoherentAcquirer behavior for Cache.
 template< typename T >
@@ -109,7 +34,7 @@ private:
   GlobalAddress< T > * request_address_;
   size_t * count_;
   T ** pointer_;
-  Thread * thread_;
+  Grappa::Worker * thread_;
   int num_messages_;
   int response_count_;
   int total_reply_payload_;
@@ -155,7 +80,7 @@ public:
       acquired_ = true;
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
-      if( request_address_->node() == Grappa_mynode() ) {
+      if( request_address_->core() == Grappa::mycore() ) {
         DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
         *pointer_ = request_address_->pointer();
         acquire_started_ = true;
@@ -195,7 +120,7 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent start_acquire");
 #endif
-      DVLOG(5) << "Thread " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << Grappa::current_worker() 
               << " issuing acquire for " << *request_address_ 
               << " * " << *count_ ;
       acquire_started_ = true;
@@ -205,8 +130,8 @@ public:
       size_t nmsg = total_bytes / block_size + 2;
       size_t msg_size = sizeof(Grappa::Message<RequestArgs>);
       
-      if (nmsg*msg_size < Grappa::current_worker().stack_remaining()-8192) {
-        CHECK_LT(Grappa::current_worker().stack_remaining(), STACK_SIZE);
+      if (nmsg*msg_size < Grappa::current_worker()->stack_remaining()-8192) {
+        CHECK_LT(Grappa::current_worker()->stack_remaining(), STACK_SIZE);
         // try to put message storage on stack if there's space
         char msg_buf[nmsg*msg_size];
         Grappa::MessagePool pool(msg_buf, sizeof(msg_buf));
@@ -243,14 +168,14 @@ public:
                << " from " << args.request_address;
 
       pool.send_message(args.request_address.core(), [args]{
-        incoherent_acquirer_stats.count_acquire_ams( args.request_bytes );
-        DVLOG(5) << "Thread " << CURRENT_THREAD
+        IAMetrics::count_acquire_ams( args.request_bytes );
+        DVLOG(5) << "Worker " << Grappa::current_worker()
         << " received acquire request to " << args.request_address
         << " size " << args.request_bytes
         << " offset " << args.offset
         << " reply to " << args.reply_address;
           
-        DVLOG(5) << "Thread " << CURRENT_THREAD
+        DVLOG(5) << "Worker " << Grappa::current_worker()
         << " sending acquire reply to " << args.reply_address
         << " offset " << args.offset
         << " request address " << args.request_address
@@ -262,9 +187,9 @@ public:
         auto reply_address = args.reply_address;
         auto offset = args.offset;
           
-        Grappa::send_heap_message(args.reply_address.node(),
+        Grappa::send_heap_message(args.reply_address.core(),
           [reply_address, offset](void * payload, size_t payload_size) {
-            DVLOG(5) << "Thread " << CURRENT_THREAD
+            DVLOG(5) << "Worker " << Grappa::current_worker()
             << " received acquire reply to " << reply_address
             << " offset " << offset
             << " payload size " << payload_size;
@@ -273,7 +198,7 @@ public:
           args.request_address.pointer(), args.request_bytes
         );
           
-        DVLOG(5) << "Thread " << CURRENT_THREAD
+        DVLOG(5) << "Worker " << Grappa::current_worker()
         << " sent acquire reply to " << args.reply_address
         << " offset " << args.offset
         << " request address " << args.request_address
@@ -293,35 +218,35 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent block_until_acquired");
 #endif
-      DVLOG(5) << "Thread " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << Grappa::current_worker() 
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       if( !acquired_ ) {
-        start_time_ = Grappa_get_timestamp();
+        start_time_ = Grappa::timestamp();
       } else {
         start_time_ = 0;
       }
       while( !acquired_ ) {
-      DVLOG(5) << "Thread " << CURRENT_THREAD 
+      DVLOG(5) << "Worker " << Grappa::current_worker() 
               << " blocking on " << *request_address_ 
               << " * " << *count_ ;
         if( !acquired_ ) {
-          thread_ = CURRENT_THREAD;
-          Grappa_suspend();
+          thread_ = Grappa::current_worker();
+          Grappa::suspend();
           thread_ = NULL;
         }
-        DVLOG(5) << "Thread " << CURRENT_THREAD 
+        DVLOG(5) << "Worker " << Grappa::current_worker() 
                  << " woke up for " << *request_address_ 
                  << " * " << *count_ ;
       }
-      incoherent_acquirer_stats.record_wakeup_latency( start_time_, network_time_ );
+      IAMetrics::record_wakeup_latency( start_time_, network_time_ );
     }
   }
 
   void acquire_reply( size_t offset, void * payload, size_t payload_size ) { 
-    DVLOG(5) << "Thread " << CURRENT_THREAD 
+    DVLOG(5) << "Worker " << Grappa::current_worker() 
              << " copying reply payload of " << payload_size
-             << " and waking Thread " << thread_;
+             << " and waking Worker " << thread_;
     memcpy( ((char*)(*pointer_)) + offset, payload, payload_size );
     ++response_count_;
     total_reply_payload_ += payload_size;
@@ -332,11 +257,11 @@ public:
                                                                  << " and count = " << *count_;
       acquired_ = true;
       if( thread_ != NULL ) {
-        Grappa_wake( thread_ );
+        Grappa::wake( thread_ );
       }
       if( start_time_ != 0 ) {
-        network_time_ = Grappa_get_timestamp();
-        incoherent_acquirer_stats.record_network_latency( start_time_ );
+        network_time_ = Grappa::timestamp();
+        IAMetrics::record_network_latency( start_time_ );
       }
     }
   }

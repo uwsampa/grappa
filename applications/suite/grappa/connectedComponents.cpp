@@ -1,6 +1,5 @@
 #include "defs.hpp"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <Collective.hpp>
 #include <Delegate.hpp>
 
@@ -59,8 +58,8 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     ((GlobalAddress<graphint>,startVertex))
     ((GlobalAddress<graphint>,endVertex)) ) {
   
-  range_t vr = blockDist(0, NV, Grappa_mynode(), Grappa_nodes());
-  range_t er = blockDist(0, NE, Grappa_mynode(), Grappa_nodes());
+  range_t vr = blockDist(0, NV, Grappa::mycore(), Grappa::cores());
+  range_t er = blockDist(0, NE, Grappa::mycore(), Grappa::cores());
   
   ncomponents = 0;
   sV = startVertex;
@@ -75,8 +74,8 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     Grappa_privateTask(&init_marks, i);
   }
   joiner.wait();
-//  Grappa_barrier_commsafe();
-  Grappa_barrier_suspending();
+
+  Grappa::barrier();
   
   VLOG(5) << "here";
   
@@ -90,7 +89,7 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     joiner.wait();
     VLOG(5) << "nchanged = " << nchanged;
     // global reduction to find out if anyone changed anything
-    nchanged = Grappa_allreduce<graphint,collective_add<graphint>,0>(nchanged);
+    nchanged = Grappa::allreduce<graphint,collective_add<graphint>>(nchanged);
     VLOG(5) << "global_nchanged = " << nchanged;
     
     if (nchanged == 0) break;
@@ -101,8 +100,8 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     }
     joiner.wait();
     VLOG(5) << "ncomponents = " << ncomponents;
-//    Grappa_barrier_commsafe();
-    Grappa_barrier_suspending();
+
+    Grappa::barrier();
   }
   
   for (graphint i = vr.start; i < vr.end; i++) {
@@ -111,10 +110,10 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
   }
   joiner.wait();
   VLOG(5) << "ncomponents = " << ncomponents;
-//  Grappa_barrier_commsafe();
-  Grappa_barrier_suspending();
+
+  Grappa::barrier();
   
-  ncomponents = Grappa_allreduce<graphint,collective_add<graphint>,0>(ncomponents);
+  ncomponents = Grappa::allreduce<graphint,collective_add<graphint>>(ncomponents);
 }
 
 /// Takes a graph as input and an array with length NV.  The array D will store

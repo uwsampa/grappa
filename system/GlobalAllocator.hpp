@@ -14,10 +14,9 @@
 #include <boost/scoped_ptr.hpp>
 
 
-#include "Grappa.hpp"
 #include "Allocator.hpp"
 
-#include "Delegate.hpp"
+#include "DelegateBase.hpp"
 
 class GlobalAllocator;
 extern GlobalAllocator * global_allocator;
@@ -57,7 +56,7 @@ public:
   ///   @param base base address of region to allocate from
   ///   @param size number of bytes available for allocation
   GlobalAllocator( GlobalAddress< void > base, size_t size )
-    : a_p_( 0 == Grappa_mynode()  // node 0 does all allocation for now
+    : a_p_( 0 == Grappa::mycore()  // node 0 does all allocation for now
             ? new Allocator( base, size )
             : NULL )
   { 
@@ -73,7 +72,7 @@ public:
   /// delegate malloc
   static GlobalAddress< void > remote_malloc( size_t size_bytes ) {
     // ask node 0 to allocate memory
-    auto allocated_address = Grappa::delegate::call( 0, [size_bytes] {
+    auto allocated_address = Grappa::impl::call( 0, [size_bytes] {
         DVLOG(5) << "got malloc request for size " << size_bytes;
         GlobalAddress< void > a = global_allocator->local_malloc( size_bytes );
         DVLOG(5) << "malloc returning pointer " << a.pointer();
@@ -86,7 +85,7 @@ public:
   /// TODO: should free block?
   static void remote_free( GlobalAddress< void > address ) {
     // ask node 0 to free memory
-    auto allocated_address = Grappa::delegate::call( 0, [address] {
+    auto allocated_address = Grappa::impl::call( 0, [address] {
         DVLOG(5) << "got free request for descriptor " << address;
         global_allocator->local_free( address );
         return true;
@@ -121,7 +120,7 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a );
 namespace Grappa {
 
 /// Allocate bytes from the global shared heap.
-template< typename T = void >
+template< typename T = int8_t >
 GlobalAddress<T> global_alloc(size_t count) {
   CHECK_GT(count, 0) << "allocation must be greater than 0";
   return static_cast<GlobalAddress<T>>(GlobalAllocator::remote_malloc(sizeof(T)*count));
@@ -151,28 +150,6 @@ GlobalAddress<T> symmetric_global_alloc() {
 
 
 } // namespace Grappa
-
-////////////////////////////////////////////
-// Legacy
-////////////////////////////////////////////
-
-/// Allocate bytes from the global shared heap.
-inline GlobalAddress<void> Grappa_malloc(size_t size_bytes) {
-  return static_cast<GlobalAddress<void>>(Grappa::global_alloc<char>(size_bytes));
-}
-
-/// Free memory allocated from global shared heap.
-template< typename T >
-inline void Grappa_free(GlobalAddress<T> address) {
-  Grappa::global_free<T>(address);
-}
-
-
-/// Allocate count T's worth of bytes from global shared heap.
-template< typename T >
-inline GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
-  return Grappa::global_alloc<T>(count);
-}
 
 /// @}
 

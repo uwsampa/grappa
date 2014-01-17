@@ -6,10 +6,10 @@
 #include "Message.hpp"
 #include "Tasking.hpp"
 #include "MessagePool.hpp"
-#include "Delegate.hpp"
+#include "DelegateBase.hpp"
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_remote_completions);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_completions);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, ce_remote_completions);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, ce_completions);
 
 namespace Grappa {
   /// @addtogroup Synchronization
@@ -63,6 +63,9 @@ namespace Grappa {
       CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
       count = 0;
     }
+    
+    void send_completion(Core origin, int64_t decr = 1);
+  
   };
   
   /// Match ConditionVariable-style function call.
@@ -80,41 +83,52 @@ namespace Grappa {
     //               "complete() can only be called on subclasses of CompletionEvent");
   inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
     DVLOG(5) << "complete CompletionEvent";
-    if (ce.node() == mycore()) {
+    if (ce.core() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
       ce_remote_completions += decr;
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
-        send_heap_message(ce.node(), [ce] {
+        send_heap_message(ce.core(), [ce] {
           ce.pointer()->complete();
         });
       } else {
-        send_heap_message(ce.node(), [ce,decr] {
+        send_heap_message(ce.core(), [ce,decr] {
           ce.pointer()->complete(decr);
         });
       }
     }
   }
   
+  inline void CompletionEvent::send_completion(Core origin, int64_t decr) {
+    if (origin == mycore()) {
+      this->complete(decr);
+    } else {
+      Grappa::complete(make_global(this,origin), decr);
+    }
+  }
+  
   inline void enroll(GlobalAddress<CompletionEvent> ce, int64_t incr = 1) {
-    delegate::call(ce, [incr](CompletionEvent * c){ c->enroll(incr); });
+    impl::call(ce.core(), [ce,incr]{ ce->enroll(incr); });
   }
   
   /// Spawn Grappa::privateTask and implicitly synchronize with the given CompletionEvent 
   /// (or GlobalCompletionEvent, though if using GlobalCompletionEvent, it may be better 
   /// to use the verison that takes the GCE pointer as a template parameter only).
-  template<typename CompletionType, typename TF>
-  void privateTask(CompletionType * ce, TF tf) {
-    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
-                  "Synchronizing privateTask spawn must take subclass of CompletionEvent as argument");
+  template< TaskMode B = TaskMode::Bound, typename TF = decltype(nullptr) >
+  void spawn(CompletionEvent * ce, TF tf) {
     ce->enroll();
-    privateTask([ce,tf] {
+    Core origin = mycore();
+    spawn<B>([origin,ce,tf] {
       tf();
-      ce->complete();
+      ce->send_completion(origin);
     });
   }
   
   /// @}
+  
+  namespace impl {
+    extern CompletionEvent local_ce;
+  }
   
 } // namespace Grappa

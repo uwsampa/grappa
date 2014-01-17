@@ -7,11 +7,15 @@ set(SOURCES
   Tuple.hpp
   Tuple.cpp
   relation_io.hpp
-  DHT.hpp
+  relation_io.cpp
+  utils.h
+  MatchesDHT.hpp
   Hypercube.hpp
   Hypercube.cpp
   local_graph.cpp
   local_graph.hpp
+  utility.hpp
+  utility.cpp
   "${APP_BFS}/oned_csr.h"
   "${APP_BFS}/oned_csr.cpp"
   "${APP_BFS}/timer.h"
@@ -32,10 +36,13 @@ set(QUERIES_MAIN
   Query
 )
 
+FILE(GLOB GENERATED_SOURCES "grappa_*.cpp")
+
 set(QUERIES_IND 
-  triangles
-  triangles_partition
-  twohop
+  triangles.cpp
+  triangles_partition.cpp
+  twohop.cpp
+  ${GENERATED_SOURCES}
 )
 
 set(QUERIES_SOURCES
@@ -45,6 +52,8 @@ set(QUERIES_SOURCES
   squares_partition.hpp
   squares_bushy.cpp
   squares_bushy.hpp
+  squares_partition_bushy.cpp
+  squares_partition_bushy.hpp
   Query.hpp
 )
 
@@ -57,8 +66,9 @@ include_directories(${INCLUDE_DIRS})
 
 
 foreach(query ${QUERIES_IND})
-  add_grappa_application(${query}.exe ${SOURCES} ${query}.cpp)
-  target_link_libraries(${query}.exe generator)
+  get_filename_component(query_name ${query}, NAME_WE)
+  add_grappa_application(${query_name}.exe ${SOURCES} ${query})
+  target_link_libraries(${query_name}.exe generator)
 endforeach()
 
 foreach(query ${QUERIES_MAIN})
@@ -70,7 +80,7 @@ endforeach()
 foreach(test_cpp ${TEST_SOURCES})
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${SOURCES} ${test_cpp})
+  add_grappa_test(${test} 2 2 ${SOURCES} ${test_cpp})
   target_link_libraries(${test} generator)
 endforeach()
 

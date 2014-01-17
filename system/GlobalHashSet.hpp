@@ -1,10 +1,9 @@
 #pragma once
 
-#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "AsyncDelegate.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "Array.hpp"
 #include "FlatCombiner.hpp"
 
@@ -12,14 +11,14 @@
 #include <unordered_set>
 #include <unordered_map>
 
-GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, cell_traversal_length);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_insert_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_insert_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_lookup_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_lookup_msgs);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_matched_lookups);
+GRAPPA_DECLARE_METRIC(SimpleMetric<size_t>, hashset_matched_lookups);
 
 namespace Grappa {
 
@@ -137,13 +136,13 @@ public:
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashSet(self, base, total_capacity);
     });
-    forall_localized(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
+    forall(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
     return self;
   }
   
   void destroy() {
     auto self = this->self;
-    forall_localized(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
+    forall(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
     global_free(this->base);
     call_on_all_cores([self]{ self->~GlobalHashSet(); });
     global_free(self);
@@ -214,7 +213,7 @@ public:
     proxy->insert(key);
     if (proxy->is_full()) {
       ++hashset_insert_msgs;
-      privateTask([this,sync]{
+      spawn([this,sync]{
         this->proxy.combine([](Proxy& p){ return FCStatus::BLOCKED; });
         sync();
       });
@@ -232,7 +231,7 @@ public:
   
   template< GlobalCompletionEvent * GCE = &impl::local_gce, typename F = decltype(nullptr) >
   void forall_keys(F visit) {
-    forall_localized<GCE>(base, capacity, [visit](int64_t i, Cell& c){
+    forall<GCE>(base, capacity, [visit](int64_t i, Cell& c){
       for (auto& e : c.entries) {
         visit(e.key);
       }

@@ -9,10 +9,10 @@
 #include "Message.hpp"
 #include "ReuseList.hpp"
 #include "ReuseMessage.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, reuse_message_list_ops, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, reuse_message_list_blocked_ops, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, reuse_message_list_ops, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, reuse_message_list_blocked_ops, 0 );
 
 
 

@@ -7,12 +7,14 @@ SET_DIRECTORY_PROPERTIES(PROPERTIES CLEAN_NO_CUSTOM 1)
 set(EXTERN_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/build")
 set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
-message("-- Third Party:")
+message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party dependencies (if needed).")
 
 if(NOT Boost_FOUND)
 
-  find_library(THIRD_PARTY_BOOST "boost_filesystem" "${THIRD_PARTY_ROOT}/lib")
-  if( THIRD_PARTY_BOOST MATCHES ".*NOTFOUND" )
+  # check if we have built boost in third-party dir
+  find_library(THIRD_PARTY_BOOST "boost_filesystem" PATHS "${THIRD_PARTY_ROOT}/lib" NO_DEFAULT_PATH)
+  
+  if( NOT THIRD_PARTY_BOOST )
   
     # Download & build Boost
     # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
@@ -35,7 +37,6 @@ if(NOT Boost_FOUND)
         ./b2 install --link=static --variant=release --threading=single --runtime-link=static
       INSTALL_COMMAND ""
     )
-    set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
     list(APPEND tool_list tool-boost)
   else()
     message("     boost:  ${THIRD_PARTY_BOOST}")
@@ -44,7 +45,8 @@ if(NOT Boost_FOUND)
 endif()
 
 find_library(THIRD_PARTY_GASNET "gasnet_tools-seq" "${THIRD_PARTY_ROOT}/lib")
-if( THIRD_PARTY_GASNET MATCHES ".*NOTFOUND" )
+
+if( NOT THIRD_PARTY_GASNET )
   message("     gasnet: <building>")
   ExternalProject_Add( tool-gasnet
     PREFIX             ${EXTERN_BUILD_DIR}/gasnet
@@ -70,7 +72,8 @@ if(APPLE)
 endif()
 
 find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib")
-if( THIRD_PARTY_GFLAGS MATCHES ".*NOTFOUND" )
+
+if( NOT THIRD_PARTY_GFLAGS )
   message("     gflags: <building>")
   ExternalProject_Add( tool-gflags
     URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
@@ -90,7 +93,8 @@ else()
 endif()
 
 find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib")
-if( THIRD_PARTY_GLOG MATCHES ".*NOTFOUND" )
+
+if( NOT THIRD_PARTY_GLOG )
   message("     glog:   <building>")
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
@@ -118,7 +122,8 @@ endif()
 if(TRACING)
   
   find_library(THIRD_PARTY_GPERFTOOLS "profiler" "${THIRD_PARTY_ROOT}/lib")
-  if( THIRD_PARTY_GPERFTOOLS MATCHES ".*NOTFOUND" )
+
+if( NOT THIRD_PARTY_GPERFTOOLS )
     message("     gperftools: <building>")
     ExternalProject_Add( tool-gperftools
       URL                http://gperftools.googlecode.com/files/gperftools-2.1.tar.gz

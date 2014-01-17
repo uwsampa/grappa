@@ -12,8 +12,8 @@ namespace d = Grappa::delegate;
 DECLARE_double(beamer_alpha);
 DECLARE_double(beamer_beta);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_vertex_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_edge_visited);
 
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \
@@ -84,10 +84,10 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
     if (top_down) {
       VLOG(2) << "top_down";
       // top-down level
-      forall_localized(frontier->begin(), frontier->size(), [next](long si, long& sv) {
+      forall(frontier->begin(), frontier->size(), [next](long si, long& sv) {
         ++bfs_vertex_visited;
         auto r = d::read(eoff+sv);
-        forall_localized_async(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
+        forall<async>(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
           ++bfs_edge_visited;
           if (d::compare_and_swap(bfs_tree+ev, BFSParent(), BFSParent(current_depth, sv))) {
             next->push(ev);
@@ -98,7 +98,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
     } else {
       VLOG(2) << "bottom_up";
       // bottom-up level
-      forall_localized(bfs_tree, g.nv, [next](int64_t sv, BFSParent& p){
+      forall(bfs_tree, g.nv, [next](int64_t sv, BFSParent& p){
         if (p.depth != -1) return;
         ++bfs_vertex_visited;
         auto r = d::read(eoff+sv);
@@ -137,7 +137,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   next->destroy();
   
   // convert tree-entries back to just ints (drop depth)
-  forall_localized(bfs_tree, g.nv, [](int64_t i, BFSParent& p){
+  forall(bfs_tree, g.nv, [](int64_t i, BFSParent& p){
     int64_t * t = reinterpret_cast<int64_t*>(&p);
     if (p.depth == -1) {
       *t = -1;

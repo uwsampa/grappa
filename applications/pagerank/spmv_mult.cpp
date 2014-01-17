@@ -15,7 +15,7 @@
 #define XENDOFF(matrix, index) (xoff)+2*(index)+1
 
 namespace spmv {
-  // global: local per Node
+  // global: local per Core
   weighted_csr_graph m;
   vector v;
   vindex x;
@@ -28,7 +28,7 @@ using namespace Grappa;
 // With current low level programming model, the choice to parallelize a loop involves different code
 
 double readv( GlobalAddress<element_pair> target, vindex j ) {
-  return delegate::call( target.node(), [target,j]() {
+  return delegate::call( target.core(), [target,j]() {
     element_pair * e = target.pointer();
     return e->vp[j];
   });
@@ -45,7 +45,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
   });
 
   // forall rows
-  forall_global_public<&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
+  forall<unbound,&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
     // serialized chunk of rows
     DVLOG(5) << "rows [" << start << ", " << start+iters << ")";
     for (int64_t i=start; i<start+iters; i++ ) {
@@ -56,7 +56,7 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
       int64_t kend = cxoff[1];
 
       // forall non-zero columns (parallel dot product)
-      forall_here_async_public<&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
+      forall_here<unbound,async,&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
         double yaccum = 0;
 
         // serialized chunk of columns
@@ -73,12 +73,9 @@ void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
         }
 
         DVLOG(4) << "y[" << i << "] += " << yaccum; 
-
-        char pool_storage[sizeof(delegate::write_msg_proxy<double>)];  // TODO: trait on call_async not to use pool
-        MessagePool pool( pool_storage, sizeof(pool_storage) );
        
         auto ytarget = spmv::v.a+i; 
-        delegate::call_async<&mmjoiner>(pool, ytarget.core(), [ytarget,yaccum] {
+        delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum] {
           ytarget.pointer()->vp[spmv::y] += yaccum;   // y[i]+= partial dotproduct
         });
         // could force local updates and bulk communication 
@@ -192,7 +189,7 @@ void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, v
   });
 
   // forall rows
-  forall_localized<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
+  forall<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
     double yaccum = 0;
     
     forall_here(0, v.nadj, [&v,&yaccum](int64_t j){
@@ -201,7 +198,7 @@ void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, v
     });
     
     auto ytarget = spmv::v.a+i; 
-    delegate::call_async<&mmjoiner>(*shared_pool, ytarget.core(), [ytarget,yaccum]{
+    delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum]{
       ytarget->vp[spmv::y] = yaccum;
     });
     // could force local updates and bulk communication 

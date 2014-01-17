@@ -29,11 +29,11 @@ GlobalCompletionEvent gce;
 
 template<typename T, T Val>
 void test_memset_memcpy(bool test_async = false) {
-  GlobalAddress<T> xs = Grappa_typed_malloc<T>(NN);
-  GlobalAddress<T> ys = Grappa_typed_malloc<T>(NN);
+  GlobalAddress<T> xs = Grappa::global_alloc<T>(NN);
+  GlobalAddress<T> ys = Grappa::global_alloc<T>(NN);
 
   Grappa::memset(xs, Val, NN);
-  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+  Grappa::forall(xs, NN, [](int64_t i, T& v) {
     BOOST_CHECK_EQUAL(v, Val);
   });
 
@@ -44,7 +44,7 @@ void test_memset_memcpy(bool test_async = false) {
     Grappa::memcpy(ys, xs, NN);
   }
 
-  Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
+  Grappa::forall(ys, NN, [](int64_t i, T& v) {
     CHECK_EQ(v, Val);
   });
 
@@ -56,36 +56,36 @@ void test_memset_memcpy(bool test_async = false) {
   } else {
     Grappa::memcpy(xs, ys, NN);
   }
-  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+  Grappa::forall(xs, NN, [](int64_t i, T& v) {
     BOOST_CHECK_EQUAL(v, Val);
   });
 
-  Grappa_free(xs);
-  Grappa_free(ys);
+  Grappa::global_free(xs);
+  Grappa::global_free(ys);
 }
 
 void test_complex() {
-  GlobalAddress< complex<double> > xs = Grappa_typed_malloc< complex<double> >(NN);
-  GlobalAddress< complex<double> > ys = Grappa_typed_malloc< complex<double> >(NN);
+  GlobalAddress< complex<double> > xs = Grappa::global_alloc< complex<double> >(NN);
+  GlobalAddress< complex<double> > ys = Grappa::global_alloc< complex<double> >(NN);
 
   Grappa::memset(xs, complex<double>(7.0,1.0), NN);
-  Grappa::forall_localized(xs, NN, [](int64_t i, complex<double>& v) {
+  Grappa::forall(xs, NN, [](int64_t i, complex<double>& v) {
     BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
   });
 
   Grappa::memcpy(ys, xs, NN);
 
-  Grappa::forall_localized(ys, NN, [](int64_t i, complex<double>& v) {
+  Grappa::forall(ys, NN, [](int64_t i, complex<double>& v) {
     BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
   });
 
-  Grappa_free(xs);
-  Grappa_free(ys);
+  Grappa::global_free(xs);
+  Grappa::global_free(ys);
 }
 
 void test_prefix_sum() {
   BOOST_MESSAGE("prefix_sum");
-  auto xs = Grappa_typed_malloc<int64_t>(N);
+  auto xs = Grappa::global_alloc<int64_t>(N);
   Grappa::memset(xs, 1, N);
   
   // prefix-sum
@@ -94,10 +94,10 @@ void test_prefix_sum() {
 //  }
   Grappa::prefix_sum(xs, N);
   
-  Grappa::forall_localized(xs, N, [](int64_t i, int64_t& v){
+  Grappa::forall(xs, N, [](int64_t i, int64_t& v){
     BOOST_CHECK_EQUAL(v, i);
   });
-  Grappa_free(xs);
+  Grappa::global_free(xs);
 }
 
 PushBuffer<int64_t> pusher;
@@ -105,7 +105,7 @@ PushBuffer<int64_t> pusher;
 void test_push_buffer() {
   BOOST_MESSAGE("Testing PushBuffer");
   // (not really in Array, but could be...)
-  auto xs = Grappa_typed_malloc<int64_t>(N*Grappa::cores());
+  auto xs = Grappa::global_alloc<int64_t>(N*Grappa::cores());
   Grappa::memset(xs, 0, N*Grappa::cores());
   
   int64_t index = 0;
@@ -120,35 +120,26 @@ void test_push_buffer() {
     
     pusher.flush();
   });
-  Grappa::forall_localized(xs, N*Grappa::cores(), [](int64_t i, int64_t& v) {
+  Grappa::forall(xs, N*Grappa::cores(), [](int64_t i, int64_t& v) {
     BOOST_CHECK_EQUAL(v, 1);
   });
   
-  Grappa_free(xs);
-}
-
-void user_main( void * ignore ) {
-  
-  test_memset_memcpy<int64_t,7>();
-  test_memset_memcpy<int64_t,7>(true); // test async
-  // test_memset_memcpy<double,7.0>();
-  test_complex();
-  // test_prefix_sum(); // (not implemented yet)
-  test_push_buffer();
-
+  Grappa::global_free(xs);
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+  
+    test_memset_memcpy<int64_t,7>();
+    test_memset_memcpy<int64_t,7>(true); // test async
+    // test_memset_memcpy<double,7.0>();
+    test_complex();
+    // test_prefix_sum(); // (not implemented yet)
+    test_push_buffer();
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-
-  Grappa_activate();
-  NN = FLAGS_nelems;
-
-  Grappa_run_user_main( &user_main, (void*)NULL );
-
-  Grappa_finish( 0 );
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

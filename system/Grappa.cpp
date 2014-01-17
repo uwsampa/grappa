@@ -11,17 +11,16 @@
 #include <gperftools/heap-checker.h>
 #endif
 
-#include "Grappa.hpp"
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
-#include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
 
 #include "Collective.hpp"
-#include "StatisticsTools.hpp"
+#include "MetricsTools.hpp"
 #include "tasks/StealQueue.hpp"
-#include "tasks/GlobalQueue.hpp"
+
+// #include "tasks/GlobalQueue.hpp"
 
 #include "FileIO.hpp"
 
@@ -29,9 +28,11 @@
 #include "Barrier.hpp"
 #include "LocaleSharedMemory.hpp"
 #include "SharedMessagePool.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <fstream>
+
+#include "Grappa.hpp"
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -54,65 +55,63 @@ DECLARE_int64( locale_shared_size );
 DECLARE_double( global_heap_fraction );
 
 using namespace Grappa::impl;
-using namespace Grappa::Statistics;
-
-static Thread * barrier_thread = NULL;
-
-Thread * master_thread;
-static Thread * user_main_thr;
-
-IODescriptor * aio_completed_stack;
+using namespace Grappa::Metrics;
+using namespace Grappa;
 
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
-double Grappa::tick_rate = 0.0;
 static int jobid = 0;
 static const char * nodelist_str = NULL;
 
-Node * node_neighbors;
+Core * node_neighbors;
 
 #ifdef HEAPCHECK_ENABLE
 HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
 namespace Grappa {
-namespace impl {
+  
+  double tick_rate = 0.0;
+  
+  static Worker * barrier_thread = NULL;
 
-int64_t global_memory_size_bytes = 0;
-int64_t global_bytes_per_core = 0;
-int64_t global_bytes_per_locale = 0;
+  Worker * master_thread;
+  static Worker * user_main_thr;
+  
+  // defined here so FileIO.hpp doesn't need a .cpp
+  IODescriptor * aio_completed_stack;
+  
+  namespace impl {
 
+    int64_t global_memory_size_bytes = 0;
+    int64_t global_bytes_per_core = 0;
+    int64_t global_bytes_per_locale = 0;
+
+    /// Tell all nodes that we are ready to exit.
+    /// This will terminate the automatic portions of the communication layer
+    void signal_done() { 
+      VLOG(5) << "mark done";
+      Grappa_done_flag = true;
+    }
+  }
+
+  
 }
-}
 
-
-/// Sample all stats for VampirTrace
-void legacy_profiling_sample() {
-  global_aggregator.stats.profiling_sample();
-  global_communicator.stats.profiling_sample();
-  global_task_manager.stats.profiling_sample();
-  global_scheduler.stats.profiling_sample();
-  delegate_stats.profiling_sample();
-  cache_stats.profiling_sample();
-  incoherent_acquirer_stats.profiling_sample();
-  incoherent_releaser_stats.profiling_sample();
-  Grappa::Statistics::steal_queue_stats.profiling_sample();
-  Grappa::Statistics::global_queue_stats.profiling_sample();
-
-  // print user-registered stats
-  Grappa_profiling_sample_user();
+/// Check whether we are ready to exit.
+bool Grappa_done() {
+  return Grappa_done_flag;
 }
 
 /// Body of the polling thread.
-static void poller( Thread * me, void * args ) {
+static void poller( Worker * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
   StateTimer::enterState_communication();
   while( !Grappa_done() ) {
     global_scheduler.stats.sample();
-    global_task_manager.stats.sample();
 
-    Grappa_poll();
+    Grappa::impl::poll();
     
     // poll global barrier
     Grappa::impl::barrier_poll();
@@ -130,13 +129,13 @@ static void poller( Thread * me, void * args ) {
       }
     }
 
-    Grappa_yield_periodic();
+    Grappa::yield_periodic();
   }
   // cleanup stragglers on readyQ since I should be last to run;
   // no one else matters.
   // Tasks on task queues would be a programmer error
   global_scheduler.shutdown_readyQ();
-  VLOG(5) << "polling Thread exiting";
+  VLOG(5) << "polling Worker exiting";
 
   // master will be scheduled upon exit of poller thread
 }
@@ -158,10 +157,7 @@ static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
   google::DumpStackTrace();
 
-  // TODO: make this set a flag and have scheduler check and dump.
-  std::ostringstream legacy_stats;
-  legacy_dump_stats(legacy_stats);
-  Grappa::Statistics::print( LOG(INFO), registered_stats(), legacy_stats.str() );
+  Grappa::Metrics::print( LOG(INFO), registered_stats(), "" );
 
   global_rdma_aggregator.dump_counts();
 
@@ -172,23 +168,22 @@ static void stats_dump_sighandler( int signum ) {
 
 // function to call when google logging library detect a failure
 namespace Grappa {
-namespace impl {
-
-void  failure_function() {
-  google::FlushLogFiles(google::GLOG_INFO);
-  google::DumpStackTrace();
-  gasnett_freezeForDebuggerErr();
-  gasnet_exit(1);
-}
-
-}
+  namespace impl {
+    /// called on failures to backtrace and pause for debugger
+    void failure_function() {
+      google::FlushLogFiles(google::GLOG_INFO);
+      google::DumpStackTrace();
+      gasnett_freezeForDebuggerErr();
+      gasnet_exit(1);
+    }
+  }
 }
 
 DECLARE_bool( global_memory_use_hugepages );
 
 /// Initialize Grappa components. We are not ready to run until the
 /// user calls Grappa_activate().
-void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
+void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_bytes)
 {
   // std::cerr << "Argc is " << *argc_p << std::endl;
   // for( int i = 0; i < *argc_p; ++i ) {
@@ -199,7 +194,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   gasnett_backtrace_init( (*argv_p)[0] );
 
   // help generate unique profile filename
-  Grappa_set_profiler_argv0( (*argv_p)[0] );
+  Grappa::impl::set_exe_name( (*argv_p)[0] );
 
   // parse command line flags
   google::ParseCommandLineFlags(argc_p, argv_p, true);
@@ -221,10 +216,10 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // how fast do we tick?
-  Grappa_force_tick();
-  Grappa_force_tick();
-  Grappa_Timestamp start_ts = Grappa_get_timestamp();
-  double start = Grappa_walltime();
+  Grappa::force_tick();
+  Grappa::force_tick();
+  Grappa::Timestamp start_ts = Grappa::timestamp();
+  double start = Grappa::walltime();
   // now go do other stuff for a while
   
   // set up stats dump signal handler
@@ -247,15 +242,12 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 #ifdef AIO_SIGNAL
   struct sigaction aio_sa;
   aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
-  aio_sa.sa_sigaction = Grappa_handle_aio;
+  aio_sa.sa_sigaction = Grappa::impl::handle_async_io;
   if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
     fprintf(stderr, "Error setting up async io signal handler.\n");
     exit(1);
   }
 #endif
-
-  // initialize Tau profiling groups
-  generate_profile_groups();
 
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
@@ -323,6 +315,10 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
     Grappa::impl::global_bytes_per_core = bytes_per_proc;
     Grappa::impl::global_bytes_per_locale = bytes_per_node;
+  } else {
+    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
+    Grappa::impl::global_bytes_per_core = global_memory_size_bytes / cores();
+    Grappa::impl::global_bytes_per_locale = global_memory_size_bytes / locales();
   }
   
   VLOG(1) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
@@ -334,12 +330,12 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   // process command line args for Tau
   //TAU_INIT( argc_p, argv_p );
 #ifdef GRAPPA_TRACE
-  TAU_PROFILE_SET_NODE(Grappa_mynode());
+  TAU_PROFILE_SET_NODE(Grappa::mycore());
 #endif
 
   //TODO: options for local stealing
-  node_neighbors = new Node[Grappa_nodes()];
-  for ( Node nod=0; nod < Grappa_nodes(); nod++ ) {
+  node_neighbors = new Core[Grappa::cores()];
+  for ( Core nod=0; nod < Grappa::cores(); nod++ ) {
     node_neighbors[nod] = nod;
   }
   
@@ -347,17 +343,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   master_thread = convert_to_master();
   VLOG(1) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
-  global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
+  global_task_manager.init( Grappa::mycore(), node_neighbors, Grappa::cores() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   
   // start RDMA Aggregator *after* threading layer
   global_rdma_aggregator.init();
   
   // collect some stats on this job
-  Grappa_force_tick();
-  Grappa_force_tick();
-  Grappa_Timestamp end_ts = Grappa_get_timestamp();
-  double end = Grappa_walltime();
+  Grappa::force_tick();
+  Grappa::force_tick();
+  Grappa::Timestamp end_ts = Grappa::timestamp();
+  double end = Grappa::walltime();
   Grappa::tick_rate = (double) (end_ts - start_ts) / (end-start);
 
   char * jobid_str = getenv("SLURM_JOB_ID");
@@ -375,13 +371,13 @@ void Grappa_activate()
   global_communicator.activate();
   locale_shared_memory.activate();
   global_task_manager.activate();
-  Grappa_barrier();
+  Grappa::comm_barrier();
 
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
 
   // fire up polling thread
-  global_scheduler.periodic( worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+  global_scheduler.periodic( impl::worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
 
   global_rdma_aggregator.activate();
@@ -399,44 +395,21 @@ void Grappa_activate()
     VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  rdma_aggregator: ??\n  shared_message_pool: " << shpool_sz << " (" << shpool_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
   }
   
-  Grappa_barrier();
-}
-
-/// Split-phase barrier. (ALLNODES)
-void Grappa_barrier_suspending() {
-  Grappa::barrier();
-}
-
-
-///
-/// Thread management routines
-///
-
-/// Spawn a user function. TODO: get return values working
-/// TODO: remove Thread * arg
-Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
-{
-  Worker * th = worker_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
-  global_scheduler.ready( th );
-  DVLOG(5) << "Spawned Worker " << th;
-  return th;
+  Grappa::comm_barrier();
 }
 
 
 static bool global_queue_initialized = false;
-// fork-join function for Grappa_initialize_global_queue
-LOOP_FUNCTION( initialize_global_queue_func, nid ) {
-  GlobalQueue<Task>::global_queue.init();
-  global_queue_initialized = true;
-}
 
 /// Initialize global queue for load balancing.
 /// Must be called in user_main
 void Grappa_global_queue_initialize() {
-  if ( global_task_manager.global_queue_on() ) {
-    initialize_global_queue_func f;
-    fork_join_custom( &f );
-  }
+  // if ( global_task_manager.global_queue_on() ) {
+  //   on_all_cores([]{
+  //     GlobalQueue<Task>::global_queue.init();
+  //     global_queue_initialized = true;
+  //   });
+  // }
 }
 
 bool Grappa_global_queue_isInit() {
@@ -447,11 +420,6 @@ bool Grappa_global_queue_isInit() {
 ///
 /// Job exit routines
 ///
-
-/// Check whether we are ready to exit.
-bool Grappa_done() {
-  return Grappa_done_flag;
-}
 
 //// termination fork join declaration
 //LOOP_FUNCTION(signal_task_termination_func,nid) {
@@ -464,11 +432,11 @@ static void signal_task_termination_am( int * ignore, size_t isize, void * paylo
 /// User main done
 void Grappa_end_tasks() {
   // send task termination signal
-  CHECK( Grappa_mynode() == 0 );
-  for ( Node n = 1; n < Grappa_nodes(); n++ ) {
+  CHECK( Grappa::mycore() == 0 );
+  for ( Core n = 1; n < Grappa::cores(); n++ ) {
       int ignore = 0;
       Grappa_call_on( n, &signal_task_termination_am, &ignore );
-      Grappa_flush( n );
+      Grappa::flush( n );
   }
   signal_task_termination_am( NULL, 0, NULL, 0 );
 }
@@ -480,186 +448,6 @@ void Grappa_end_tasks() {
 //  Grappa_done_flag = true;
 //}
 
-/// Tell all nodes that we are ready to exit.
-/// This will terminate the automatic portions of the communication layer
-void Grappa_signal_done ( ) { 
-    VLOG(5) << "mark done";
-    Grappa_done_flag = true;
-}
-
-
-/// Dump the state of all flags
-void dump_flags( std::ostream& o, const char * delimiter ) {
-  typedef std::vector< google::CommandLineFlagInfo > FlagVec;
-  FlagVec flags;
-  google::GetAllFlags( &flags );
-  o << "  \"Flags\": { ";
-  for( FlagVec::iterator i = flags.begin(); i != flags.end(); ++i ) {
-    o << "\"FLAG_" << i->name << "\": \"" << i->current_value << "\"";
-    if( i+1 != flags.end() ) o << ", ";
-  }
-  o << " }" << delimiter << std::endl;
-}
-
-
-/// Reset stats son this node
-void Grappa_reset_stats() {
-  global_aggregator.reset_stats();
-  global_communicator.reset_stats();
-  global_scheduler.reset_stats();
-  global_task_manager.reset_stats();
-  delegate_stats.reset();
-  cache_stats.reset();
-  incoherent_acquirer_stats.reset();
-  incoherent_releaser_stats.reset();
-  Grappa::Statistics::steal_queue_stats.reset();
-  Grappa::Statistics::global_queue_stats.reset();
- 
-  Grappa_reset_user_stats(); 
-}
-
-/// Functor to reset stats on all nodes
-LOOP_FUNCTION(reset_stats_func,nid) {
-  Grappa_reset_stats();
-}
-/// Reset stats on all nodes
-void Grappa_reset_stats_all_nodes() {
-  reset_stats_func f;
-  fork_join_custom(&f);
-}
-
-
-/// Dump statistics
-void legacy_dump_stats( std::ostream& oo ) {
-  std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
-    << ", \"nodelist\": \"" << nodelist_str << "\""
-    << ", \"job_id\": " << jobid
-    << " },\n";
-  global_aggregator.dump_stats( o, "," );
-  global_communicator.dump_stats( o, "," );
-  global_task_manager.dump_stats( o, "," );
-  global_scheduler.dump_stats( o, "," );
-  delegate_stats.dump( o, "," );
-  cache_stats.dump( o, "," );
-  incoherent_acquirer_stats.dump( o, "," );
-  incoherent_releaser_stats.dump( o, "," );
-  steal_queue_stats.dump( o, "," );
-  global_queue_stats.dump( o, "," );
-  dump_flags( o, "," );
-  Grappa_dump_user_stats( o, "" ); // TODO: user stats are NOT merged
-  oo << o.str();
-}
-
-void Grappa_dump_stats( std::ostream& oo ) {
-  std::ostringstream o;
-  o << "STATS{\n";
-
-  legacy_dump_stats(o);
-
-  o << "}STATS";
-  oo << o.str();
-}
-
-/// Dump stats blob
-void Grappa_dump_stats_blob() {
-  if ( FLAGS_stats_blob_enable ) {
-    std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-    Grappa_dump_stats( o );
-  }
-}
- 
-
-/// Functor to dump stats on all nodes
-LOOP_FUNCTION(dump_stats_func,nid) {
-  Grappa_dump_stats();
-}
-/// Dump stats on all nodes
-void Grappa_dump_stats_all_nodes() {
-  dump_stats_func f;
-  fork_join_custom(&f);
-}
-
-
-///
-/// Statistics reduction
-///
-#define STAT_REDUCE(statType, stat) (statType) Grappa_allreduce_noinit<statType, stat_reduce<statType> >( (stat) )
-
-#define STAT_FUNC( name, statType, stat ) \
-  LOOP_FUNCTOR( name, nid, ((statType*, resultAddress)) ) { \
-    statType result = STAT_REDUCE( statType, (stat) ); \
-    if ( nid == 0 ) { \
-      *resultAddress = result; \
-    } \
-  }
-#define STAT_FORK_AND_DUMP(name, statType, o) { \
-  statType result; \
-  name f; \
-  f.resultAddress = &result; \
-  fork_join_custom(&f); \
-  result.dump( (o), "," ); \
-}
-
-// define the forkjoin calls to Grappa_allreduce
-STAT_FUNC(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, global_scheduler.stats );
-STAT_FUNC(aggregatorstat_func, AggregatorStatistics, global_aggregator.stats );
-STAT_FUNC(commstat_func, CommunicatorStatistics, global_communicator.stats );
-STAT_FUNC(taskmanagerstat_func, TaskManager::TaskStatistics, global_task_manager.stats );
-STAT_FUNC(stealstat_func, StealStatistics, steal_queue_stats );
-STAT_FUNC(delegatestat_func, DelegateStatistics, delegate_stats );
-STAT_FUNC(cachestat_func, CacheStatistics, cache_stats );
-STAT_FUNC(incoherentacq_func, IAStatistics, incoherent_acquirer_stats );
-STAT_FUNC(incoherentrel_func, IRStatistics, incoherent_releaser_stats );
-STAT_FUNC(globalqueuestat_func, GlobalQueueStatistics, global_queue_stats );
-
-// call the forkjoin functions to reduce and print each statistic object
-void legacy_reduce_stats_and_dump( std::ostream& oo ) {
-  CHECK( Grappa_mynode() == 0 );
- 
-  std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
-    << ", \"job_id\": " << jobid
-    << ", \"nodelist\": \"" << nodelist_str << "\""
-    << " },\n";
-  STAT_FORK_AND_DUMP(aggregatorstat_func, AggregatorStatistics, o)
-  STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics, o)
-  STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics, o)
-  STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, o)
-  STAT_FORK_AND_DUMP(stealstat_func, Grappa::Statistics::StealStatistics, o)
-  STAT_FORK_AND_DUMP(delegatestat_func, DelegateStatistics, o) 
-  STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics, o)
-  STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics, o)
-  STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics, o)
-  STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics, o)
-  dump_flags( o, "," );
-  Grappa_dump_user_stats( o, "" );  // TODO: user stats are NOT merged
-  oo << o.str();
-}
-
-// call the forkjoin functions to reduce and print each statistic object
-static void reduce_stats_and_dump( std::ostream& oo ) {
-  CHECK( Grappa_mynode() == 0 );
- 
-  std::ostringstream o;
-  o << "STATS{\n";
-  legacy_reduce_stats_and_dump(o);
-  o << "}STATS";
-  oo << o.str();
-}
-
-void Grappa_merge_and_dump_stats( std::ostream& oo ) {
-  reduce_stats_and_dump( oo );
-}
-
-
-
-
-void Grappa_dump_task_series() {
-	global_scheduler.stats.print_active_task_log();
-}
-
-
 /// Finish the job. 
 /// 
 /// If we've already been notified that we can exit, enter global
@@ -667,10 +455,10 @@ void Grappa_dump_task_series() {
 /// notify everyone else, enter the barrier, and then clean up.
 int Grappa_finish( int retval )
 {
-  Grappa_signal_done(); // this may be overkill (just set done bit?)
+  Grappa::impl::signal_done(); // this may be overkill (just set done bit?)
 
   //TAU_PROFILE_EXIT("Tau_profile_exit called");
-  Grappa_barrier();
+  Grappa::comm_barrier();
 
   DVLOG(1) << "Cleaning up Grappa library....";
 
@@ -698,22 +486,14 @@ int Grappa_finish( int retval )
 }
 
 namespace Grappa {
-namespace impl {
 
-void poll() {
-  global_communicator.poll();
-  global_aggregator.poll();
-}
+  void init( int * argc_p, char ** argv_p[], int64_t size ) {
+    Grappa_init( argc_p, argv_p, size );
+    Grappa_activate();
+  }
 
-} // namespace impl
-
-void init( int * argc_p, char ** argv_p[], size_t size ) {
-  Grappa_init( argc_p, argv_p, size );
-  Grappa_activate();
-}
-
-int finalize() {
-  return Grappa_finish(0);
-}
+  int finalize() {
+    return Grappa_finish(0);
+  }
 
 } // namespace Grappa

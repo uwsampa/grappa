@@ -10,6 +10,7 @@
 #include "squares_partition.hpp"
 #include "local_graph.hpp"
 #include "Hypercube.hpp"
+#include "utility.hpp"
 
 
 // graph includes
@@ -42,34 +43,6 @@ std::vector<Edge> localAssignedEdges_R3;
 std::vector<Edge> localAssignedEdges_R4;
 
 //TODO
-std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
-  // identity
-  return [dim](int64_t x) { return x % dim; };
-}
-
-int64_t fourth_root(int64_t x) {
-  // index pow 4
-  std::vector<int64_t> powers = {0, 1, 16, 81, 256, 625, 1296, 2401};
-  int64_t ind = powers.size() / 2;
-  int64_t hi = powers.size()-1;
-  int64_t lo = 0;
-  while(true) {
-    if (x == powers[ind]) {
-      return ind;
-    } else if (x > powers[ind]) {
-      int64_t next = (ind+hi)/2;
-      if (next - ind == 0) {
-        return ind;
-      }
-      lo = ind;
-      ind = next;
-    } else {
-      int64_t next = (ind+lo)/2;
-      hi = ind;
-      ind = next;
-    }
-  }
-}
 
 //int64_t random_assignment(int64_t x) {
 //  std::random_device rd;
@@ -115,7 +88,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
   // really just care about local edges; we get to them
   // indirectly through local vertices at the moment.
   // This is sequential access since edgeslists and vertices are sorted the same
-  forall_localized( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
+  forall( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
       // hash function
       auto hf = makeHash( sidelength );
       Hypercube h( { sidelength, sidelength, sidelength, sidelength } );
@@ -133,7 +106,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_ab = h.slice( {hf(src), hf(dst), HypercubeSlice::ALL, HypercubeSlice::ALL} );
       for (auto l : locs_ab) {
       Edge e(src, dst);
-      delegate::call_async( l, [e] { 
+      delegate::call<async>( l, [e] { 
         localAssignedEdges_R1.push_back(e); 
         VLOG(5) << "received " << e << " as a->b";
         });
@@ -144,7 +117,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_bc = h.slice( {HypercubeSlice::ALL, hf(src), hf(dst), HypercubeSlice::ALL} );
       for (auto l : locs_bc) {
         Edge e(src, dst);
-        delegate::call_async( l, [e] { 
+        delegate::call<async>( l, [e] { 
             localAssignedEdges_R2.push_back(e); 
             VLOG(5) << "received " << e << " as b->c";
             });
@@ -155,7 +128,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_cd = h.slice( {HypercubeSlice::ALL, HypercubeSlice::ALL, hf(src), hf(dst)} );
       for (auto l : locs_cd) {
         Edge e(src, dst);
-        delegate::call_async( l, [e] { 
+        delegate::call<async>( l, [e] { 
             localAssignedEdges_R3.push_back(e); 
             VLOG(5) << "received " << e << " as c->d";
             });
@@ -166,7 +139,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_da = h.slice( {hf(dst), HypercubeSlice::ALL, HypercubeSlice::ALL, hf(src)} );
       for (auto l : locs_da) {
         Edge e(src, dst);
-        delegate::call_async( l, [e] { 
+        delegate::call<async>( l, [e] { 
             localAssignedEdges_R4.push_back(e); 
             VLOG(5) << "received " << e << " as d->a";
             });

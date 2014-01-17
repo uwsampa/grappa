@@ -106,7 +106,7 @@ Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
-tasks/Thread_tests.o tasks/Thread_tests.test: Worker.o stack.o tasks/BasicScheduler.o Timestamp.o
+tasks/Thread_tests.o tasks/Thread_tests.test: Worker.o stack.o tasks/BasicScheduler.o Grappa::Timestamp.o
 
 Scheduler_benchmarking_tests.o Scheduler_benchmarking_tests.test: $(LIBRARY)
 
@@ -130,13 +130,7 @@ AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 AsyncParallelFor_Global_tests.o AsyncParallelFor_Global_tests.test: $(LIBRARY)
 AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 
-Uid_tests.o Uid_tests.test: $(LIBRARY)
-Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
-
 LocalIterator_tests.o LocalIterator_tests.test: $(LIBRARY)
-
-Uid_tests.o Uid_tests.test: $(LIBRARY)
-Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
 
 NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 Gups_tests.o Gups_tests.test: $(LIBRARY)
@@ -151,7 +145,7 @@ FlatCombiner_tests.o FlatCombiner_tests.test: $(LIBRARY)
 
 New_delegate_tests.test: $(LIBRARY)
 PoolAllocator_tests.test: $(LIBRARY)
-Statistics_tests.test: $(LIBRARY)
+Metrics_tests.test: $(LIBRARY)
 New_loop_tests.test: $(LIBRARY)
 Public_tasks_tests.test: $(LIBRARY)
 CompletionEvent_tests.test: $(LIBRARY)
@@ -315,7 +309,6 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   Cache.o \
 				   Delegate.o \
 				   Collective.o \
-				   ForkJoin.o \
 				   tasks/BasicScheduler.o \
 				   tasks/TaskingScheduler.o \
 				   tasks/Task.o \
@@ -331,13 +324,12 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   GlobalTaskJoiner.o \
 				   IncoherentAcquirer.o \
 				   IncoherentReleaser.o \
-				   Uid.o \
 				   tasks/StealQueue.o \
 				   tasks/GlobalQueue.o \
 				   LegacySignaler.o \
-				   Statistics.o \
-				   SimpleStatistic.o \
-				   SummarizingStatistic.o \
+				   Metrics.o \
+				   SimpleMetric.o \
+				   SummarizingMetric.o \
 				   MessageBase.o \
 				   LocaleSharedMemory.o \
 				   RDMAAggregator.o \
@@ -347,7 +339,7 @@ LIBRARY_CONTENTS+= Grappa.o \
 					 AsyncDelegate.o \
 					 SharedMessagePool.o \
 					 GlobalCompletionEvent.o \
-					 HistogramStatistic.o \
+					 HistogramMetric.o \
 					 FlatCombiner.o \
 					 GlobalVector.o \
 					 GlobalHashSet.o \

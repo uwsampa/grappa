@@ -18,6 +18,8 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
     # to run, use the 'srun' script which has been copied to build/Make+Release/bin:
     bin/grappa_srun.rb --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
 
+This is the simplest build configuration. You are likely to want to specify more things, such as a specific compiler, a directory for already-installed dependencies so you don't have to rebuild them for each new configuration, and more. So read on.
+
 ## Requirements
 - CMake version >= 2.8.6
   - on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
@@ -31,17 +33,26 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
 
 ## Configure
 
-The `configure` script is used to create "build/*" subdirectories and run CMake to generate build files.
+The `configure` script creates a new "build/*" subdirectory and runs CMake to generate build files.
 
-    Usage: ./configure [options]
-    Options summary: (see more details in INSTALL.md)
-        --gen=[Make]|Ninja|Xcode[,*] Build tool to generate scripts for.
-                                       Default: Make.
-                                       Can specify multiple with commas.
-        --mode=[Release]|Debug[,*]   Build mode. Default: Release (with debug symbols)
-        --cc=path/to/c/compiler      Use alternative C compiler. (finds corresponding cxx)
+    --gen=[Make]|Ninja|Xcode[,*] Build tool to generate scripts for.
+                                   Default: Make.
+                                   Can specify multiple with commas.
+    --mode=[Release]|Debug[,*]   Build mode. Default: Release (with debug symbols)
+    --cc=path/to/c/compiler      Use alternative C compiler.
+    --boost=path/to/boost/root   Specify location of compatible boost (>= 1.53)
+                                   (otherwise, cmake will download and build it)
+    --name=NAME                  Add an additional name to this configuration to distinguish it 
+                                   (i.e. compiler version)
+    --tracing                    Enable VampirTrace/gperftools-based sampled tracing. Looks for
+                                   VampirTrace build in 'third-party' dir.
+    --vampir=path/to/vampirtrace/root
+                                 Specify path to VampirTrace build (enables tracing).
+    --third-party=path/to/built/deps/root
+                                 Can optionally pre-build third-party dependencies instead of 
+                                   re-building for each configuration.
 
-To build, after calling `configure`, change into the generated directory, and use the build tool selected (e.g. `make` for make), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
+To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
 ### Generators
 **Make:** uses generated Unix Makefiles to build. This is currently the best option, as it is the best-tested. Of note, the Make generator seems to be the only one that supports saving the "tools" builds when running "clean" (which can then be cleaned with the `clean-tools` target).'
@@ -57,10 +68,12 @@ To build, after calling `configure`, change into the generated directory, and us
 
 **Debug:** builds with `-DDEBUG -O1`
 
-## Tools: (external dependencies)
+## Third-party dependencies
 CMake will download and build `gflags`, `boost`, and `gperfools`. It will build and install `GASNet` and `google-glog` from the `tools/` directory.
 
-*Currently, these will have to be re-built for each project/configuration.* CMake needs to know it has an up-to-date version built, and I haven't been able to figure out how to get them to share. However, it is only building the "seq" targets of GASNet and only building the Boost libraries we use, so hopefully it won't take too long to build each time (or take up too much space).
+The external dependencies can be shared between Grappa configurations. If you specify a directory to `--third-party`, CMake will build and install the dependencies there, and then any other configurations will reuse them. Sometimes this won't work; for instance, if using two different compilers, you may have difficulty sharing a third-party directory. If this happens, just make a new third-party directory and rebuild them using the new configuration, or don't specify it and have this configuration build them just for itself.
+
+Because Boost takes the longest to compile and is often included in systems, Boost can be specified separately from the other third-party installs. Existing system installs of the other dependencies should typically *not* be relied on.
 
 ## CMake Notes
 A couple notes about adding new targets for CMake to build. First: each directory where something is built should typically have a `CMakeLists.txt` file. Somewhere up the directory hierarchy, this directory must be 'added'. For instance, applications directories are added from `applications/CMakeLists.txt`:
@@ -123,9 +136,19 @@ Before building, you must set up a Slurm allocation and launch distcc daemons. B
 
     # in, for example, build/Make+Release:
     bin/distcc_make -j <target>
-    
-    # or to control the allocation (such as number of nodes),
-    # invoke the salloc job with make manually:
+    # or for Ninja configurations:
+    bin/distcc_ninja <target>
+
+It is possible to control the number of nodes and the Slurm partition to be used by setting environment variables:
+
+|------------------|------------------------------------|
+| DISTCC_NNODE     | number of 'distccd' nodes to setup |
+|------------------|------------------------------------|
+| SALLOC_PARTITION | Slurm partition to use             |
+|------------------|------------------------------------|
+
+Or just invoke salloc directly; e.g.:
+
     salloc -N8 bin/distcc.sh make -j <target>
 
 Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds or if distcc daemons are not loading correctly using the distcc_make option above.
@@ -138,3 +161,16 @@ Another alternative is to launch a shell to hold onto an allocation. This may be
     exit
 
 
+# Testing
+We use Boost::Test to test 
+The full list of unit tests is found in `system/CMakeLists.txt`. Here, a macro `add_check` is used to define a test and tell whether it is currently expected to pass or fail.
+
+Each test defined in this way creates two targets: `*.test` which builds the test, and `check-*`, which runs the test. In addition, there are aggregate targets `check-all-{pass,fail}` which build and run all the passing or failing tests respectively, and `check-all-{pass,fail}-compile-only` which, as the name implies, only compiles them.
+
+Non-exhaustive list of test targets:
+- `New_loop_tests.test`: build loop tests
+- `check-New_loop_tests`: build and run loop tests
+- `check-all-pass`: build and run all passing tests
+- `check-all-pass-compile-only`: just build all the tests expected to pass
+
+Someday we'll get this up and running with some CI server, but until then, we'll just try and run it whenever we make significant changes.

@@ -21,8 +21,9 @@ See more detailed building instructions in [BUILD.md](BUILD.md).
 ## Dependences
 * Compiler
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
+  * Or: Clang >= 3.4
 * External:
-  * Boost ( > v1.51)
+  * Boost >= 1.51
 * Slightly modified versions distributed with Grappa:
   * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
   * glog
@@ -82,11 +83,18 @@ int main(int argc, char* argv[]) {
   // launches the single main task, started on core 0
   // when this task exits, the program ends 
   run([]{
-    
+    std::cout << "Hello world!\n";
   });
   finalize();
   return 0;
 }
+```
+
+Output when compiled and run:
+
+```bash
+> bin/grappa_srun.rb --nnode=2 --ppn=2 -- ./hello_world.exe
+# 0: Hello world!
 ```
 
 The call to `Grappa::init()` parses the command-line arguments (with `gflags`), sets up the communication layers, global memory, tasking, etc.
@@ -104,21 +112,19 @@ Physical "nodes" in a cluster have many cores. To avoid the overloaded "node" te
 ### Tasks and workers
 Tasks can be run on any node in the system. They have the ability to "suspend", waiting for a response or event to wake them. They can also "yield" if they know that they are not done with their work but want to give other tasks a chance to run.
 
-There are two kinds of tasks: public tasks, which are made visible to other nodes and can be stolen, and private tasks which run only where they are spawned.
+Tasks are just a functor (a function with some state), and don't constitute an execution context on their own. Tasks get executed by Workers, which essentially just consist of a stack. Workers pull tasks off of a local task queue and execute a single one at a time on their stack. They execute the task to completion (suspending while waiting on remote calls or synchronization).
+
+By default, tasks are "bound" to the core they are created on. That is, they will stay on their local task queue until they are eventually picked up by a worker on that core. Tasks can also be spawned "unbound", which puts them into a different queue. These tasks are load-balanced across all the cores in the cluster (using work-stealing). Therefore these "unbound" tasks have to handle being run from any core, and must be sure to fetch any additional data they need.
 
 One of the benefits of our approach to multithreading is that within a Core, tasks and active messages are multiplexed on a single core, so only one will ever be running at a given time, and context switches happen only at known places such as certain function calls, so no synchronization is ever needed to data local to your core. A fair rule of thumb is that anything that goes to another core may contain a context switch.
-
-Tasks are just a functor. In order to execute them, they must be paired with a stack. This is done by Workers, which pull a task off the public or private task queue, execute it until completion (suspending while waiting on remote references or synchronization), and then going back to pull another task off a queue.
-
-The task scheduler keeps track of all of the workers that are ready to execute or suspended at any given time.
 
 #### Parallel Loops
 Instead of spawning tasks individually, it's almost always better to use a parallel loop of some sort. These spawn loop iterations recursively until hitting a threshold. This prevents over-filling the task buffers for large loops, prevents excessive task overhead, and improves work-stealing by making it more likely that a single steal will generate significantly more work.
 
 Basic loops include:
 * `forall_global()`: launches public (stealable) tasks on all cores in the system.
-* `forall_global_private()`: launches private tasks on all cores, regardless of locality.
-* `forall_localized(GlobalAddress,size_t,lambda)`: launches private tasks with iterations corresponding to a range of global address space to allow sequential access to array elements without excess communication.
+* `forall()`: launches private tasks on all cores, regardless of locality.
+* `forall(GlobalAddress,size_t,lambda)`: launches private tasks with iterations corresponding to a range of global address space to allow sequential access to array elements without excess communication.
 
 See Doxygen for more details.
 
@@ -144,7 +150,7 @@ Memory can be allocated out of the heap of memory on a Locale in the cluster. An
 ### Communication & Synchronization
 * Delegate operations are essentially remote procedure calls. They can be blocking (must block if they return a value), or asynchronous. If asynchronous, they will have a synchronization object associated with them (typically a `GlobalCompletionEvent`) which can later be blocked on to ensure completion.
   * `Grappa::delegate::call(Core, lambda)`: the most basic unit of blocking delegate. Takes a destination Core and a lambda. The lambda will be executed atomically at the indicated core, and *must not attempt to block or yield*.
-  * `Grappa::delegate::call_async<Sync>(Core, lambda)`: generic non-blocking delegate. Has a template parameter specifying the GlobalCompletionEvent it synchronizes with.
+  * `Grappa::delegate::call<async,Sync>(Core, lambda)`: generic non-blocking delegate. Has a template parameter specifying the GlobalCompletionEvent it synchronizes with.
   * Many useful helpers exist to do simple delegate operations, such as `read`, `write`, `increment_async`, `write_async`, `fetch_and_add`, etc. Check them out in the Doxygen docs.
 * Synchronization: see Doxygen.
 * Caches: for manually buffering data locally. See "Caches" module in Doxygen.
@@ -172,5 +178,45 @@ First of all, Grappa is a very young system, so there are likely to be many bugs
 * **(TO BE FIXED SOON)** `system/grappa_gdb.macros`: Some useful macros for introspection into grappa data structures. Also allows you to switch to a running task and see its stack. Add the macro to your `.gdbinit` and type `help grappa` in gdb to see commands and usage.
 
 ## Performance debugging tips
-* Grappa has a bunch of statistics that can be dumped (`Grappa::Statistics::merge_and_print()`), use these to find out basic coarse-grained information. You can also easily add your own using `GRAPPA_DEFINE_STAT()`.
+* Grappa has a bunch of statistics that can be dumped (`Grappa::Metrics::merge_and_print()`), use these to find out basic coarse-grained information. You can also easily add your own using `GRAPPA_DEFINE_METRIC()`.
 * Grappa also supports collecting traces of the statistics over time using VampirTrace. These can be visualized in Vampir. **(SUPPORT in CMake coming soon)** Build with `VAMPIR_TRACE=1` and `GOOGLE_SAMPLED=1`.
+
+## Tracing
+Grappa supports sampled tracing via VampirTrace. These traces can be visualized using the commercial tool, [Vampir](http://www.vampir.eu/). When tracing, what happens is all of the metrics specified with `GRAPPA_DEFINE_METRIC()` are sampled at a regular interval using sampling interrupts by Google's `gperftools` library, and saved to a compressed trace using the VampirTrace open source library. This results in a trace with the individual values of all of the Grappa statistics on all cores, over the execution.
+
+Before configuring, ensure you have VampirTrace built somewhere. If VampirTrace is not built anywhere, there is a script to download and build it in `tools/`. Make sure to specify where to install it with the `--prefix` flag:
+
+```bash
+> ./tools/vampirtrace.rb --prefix=/sampa/share/grappa-third-party
+```
+
+To use tracing, a separate Grappa build configuration must be made using either the '--tracing' or '--vampir' flags. If Vampir was installed in your `third-party` directory, just use '--tracing'; otherwise, use '--vampir' to specify the path to a separate VampirTrace install. For example:
+
+```bash
+> ./configure --mode=Release --vampir=/opt/vampirtrace --third-party=/opt/grappa-third-party
+```
+
+Tracing configurations have `+Tracing` in their name. Cd into the build directory and build and run as usual. After running a Grappa executable, you should see trace output files show up in your build directory:
+
+* `${exe}.otf`: main file that links other trace files together
+* `${exe}.*.events.z`: zipped trace events per process
+
+For now, tracing must be explicitly enabled for a particular region of execution, using `Metrics::start_tracing()` and `Metrics::stop_tracing()`. For example:
+
+```cpp
+int main(int argc, char* argv[]) {
+  init(&argc, &argv);
+  run([]{
+    
+    // setup, allocate global memory, etc
+    
+    Metrics::start_tracing();
+    
+    // performance-critical region
+    
+    Metrics::stop_tracing();
+  });
+  finalize();
+}
+```
+

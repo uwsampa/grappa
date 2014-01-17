@@ -3,15 +3,16 @@
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <ParallelLoop.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <Reducer.hpp>
 #include <MessagePool.hpp>
 
 #include <vector>
 
 // for all hash tables
-//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length, 0);
+//GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, cell_traversal_length);
+
 
 // for naming the types scoped in HashSet
 #define HS_TYPE(type) typename HashSet<K,HF,GCE>::type
@@ -58,13 +59,13 @@ class HashSet {
     HashSet( ) {}
 
     static void init_global_DHT( HashSet<K,HF,GCE> * globally_valid_local_pointer, size_t capacity ) {
-      GlobalAddress<Cell> base = Grappa_typed_malloc<Cell>( capacity );
+      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity] {
         *globally_valid_local_pointer = HashSet<K,HF,GCE>( base, capacity );
       });
 
-      Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
         new(&c) Cell();
       });
     }
@@ -73,7 +74,7 @@ class HashSet {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      return Grappa::delegate::call( target.node(), [key,target]() {
+      return Grappa::delegate::call( target.core(), [key,target]() {
 
         Cell * c = target.pointer();
 
@@ -98,7 +99,7 @@ class HashSet {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      return Grappa::delegate::call( target.node(), [key, target]() {   // TODO: have an additional version that returns void
+      return Grappa::delegate::call( target.core(), [key, target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
         Cell * c = target.pointer();
 
@@ -127,11 +128,11 @@ class HashSet {
     // Inserts the key if not already in the set
     //
     // asynchronous operation
-    void insert_async( K key, Grappa::MessagePool& pool ) {
+    void insert_async( K key ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call_async<GCE>(pool, target.node(), [key,target]() {
+      Grappa::delegate::call<async,GCE>(target.core(), [key,target]() {
 
         Cell * c = target.pointer();
         
@@ -167,7 +168,7 @@ class HashSet {
 
       Grappa::on_all_cores([] { size_reducer.reset(); });
 
-      Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
         size_reducer.accumulate(c.entries.size());
       });
 
@@ -182,14 +183,6 @@ class HashSet {
       });
 
       return total;
-    }
-
-   
-   // FIXME: this is fragile if AsyncDelegate changes or
-   // insert_async changes. Relying on writes being same
-   // size as insert (you are sending one value in a call)
-    size_t insertion_pool_size( uint64_t numInsertions ) {
-      return sizeof(Grappa::delegate::write_msg_proxy<K>)*numInsertions;
     }
 
 };// </HashTable>

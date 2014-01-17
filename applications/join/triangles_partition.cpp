@@ -31,11 +31,11 @@ DEFINE_uint64( scale, 7, "Graph will have ~ 2^scale vertices" );
 DEFINE_uint64( edgefactor, 16, "Median degree; graph will have ~ 2*edgefactor*2^scale edges" );
 DEFINE_uint64( progressInterval, 5, "interval between progress updates" );
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, edges_transfered, 0);
 
 //outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, triangle_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, triangles_runtime, 0);
 
 double generation_time;
 double construction_time;
@@ -129,21 +129,21 @@ std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
 
 void triangles(GlobalAddress<Graph<Vertex>> g) {
   
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  on_all_cores( [] { Grappa::Metrics::reset(); } );
 
 
   // need to arrange the processors in 3d cube
   auto sidelength = Loc3d::int_cbrt( cores() );
 
   double start, end;
-  start = Grappa_walltime(); 
+  start = Grappa::walltime(); 
   
   // 1. Send edges to the partitions
   //
   // really just care about local edges; we get to them
   // indirectly through local vertices at the moment.
   // This is sequential access since edgeslists and vertices are sorted the same
-  forall_localized( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
+  forall( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
     // hash function
     auto hf = makeHash( sidelength );
 
@@ -156,7 +156,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       auto locs_xy = Loc3d(sidelength, hf(from), hf(to), Loc3d::ALL);    
       for (auto l : locs_xy) {
         Edge e(from, to);
-        delegate::call_async( *shared_pool, l, [e] { 
+        delegate::call<async>( l, [e] { 
 #if DIFFERENT_RELATIONS
           localAssignedEdges_R1.push_back(e); 
 #else
@@ -170,7 +170,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       auto locs_yz = Loc3d(sidelength, Loc3d::ALL, hf(from), hf(to));
       for (auto l : locs_yz) {
         Edge e(from, to);
-        delegate::call_async( *shared_pool, l, [e] { 
+        delegate::call<async>( l, [e] { 
 #if DIFFERENT_RELATIONS
           localAssignedEdges_R2.push_back(e); 
 #else
@@ -184,7 +184,7 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
       auto locs_zx = Loc3d(sidelength, hf(to), Loc3d::ALL, hf(from));
       for (auto l : locs_zx) {
         Edge e(from, to);
-        delegate::call_async( *shared_pool, l, [e] { 
+        delegate::call<async>( l, [e] { 
 #if DIFFERENT_RELATIONS
           localAssignedEdges_R3.push_back(e); 
 #else
@@ -276,53 +276,46 @@ void triangles(GlobalAddress<Graph<Vertex>> g) {
 
     LOG(INFO) << "counted " << count << " triangles; R1adjs="<<R1adjs;
   });
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   triangles_runtime = end - start;
   
   
-  Grappa::Statistics::merge_and_print();
+  Grappa::Metrics::merge_and_print();
  
 }
 
 
-void user_main( int * ignore ) {
-  double t, start_time;
-  start_time = walltime();
-  
-	int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
-	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
-  
-  LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
-  
-  // make raw graph edge tuples
-  tuple_graph tg;
-  tg.edges = global_alloc<packed_edge>(desired_nedge);
-  
-  LOG(INFO) << "graph generation...";
-  t = walltime();
-  make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-  generation_time = walltime() - t;
-  LOG(INFO) << "graph_generation: " << generation_time;
-  
-  LOG(INFO) << "graph construction...";
-  t = walltime();
-  auto g = Graph<Vertex>::create(tg);
-  construction_time = walltime() - t;
-  LOG(INFO) << "construction_time: " << construction_time;
-
-  LOG(INFO) << "num edges: " << g->nadj * 3; /* 3 b/c three copies*/
-
-  LOG(INFO) << "query start...";
-  triangles(g);
-}
-
-
 int main(int argc, char** argv) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
+    double t, start_time;
+    start_time = walltime();
+  
+  	int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
+  	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
+  
+    LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
+  
+    // make raw graph edge tuples
+    tuple_graph tg;
+    tg.edges = global_alloc<packed_edge>(desired_nedge);
+  
+    LOG(INFO) << "graph generation...";
+    t = walltime();
+    make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+    generation_time = walltime() - t;
+    LOG(INFO) << "graph_generation: " << generation_time;
+  
+    LOG(INFO) << "graph construction...";
+    t = walltime();
+    auto g = Graph<Vertex>::create(tg);
+    construction_time = walltime() - t;
+    LOG(INFO) << "construction_time: " << construction_time;
 
-  Grappa_run_user_main(&user_main, (int*)NULL);
+    LOG(INFO) << "num edges: " << g->nadj * 3; /* 3 b/c three copies*/
 
-  Grappa_finish(0);
-  return 0;
+    LOG(INFO) << "query start...";
+    triangles(g);
+  });
+  Grappa::finalize();
 }

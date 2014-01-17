@@ -16,40 +16,26 @@
 
 BOOST_AUTO_TEST_SUITE( GlobalMemory_tests );
 
-
-void user_main( void * args ) 
-{
-  size_t N = 128;
-  GlobalAddress<int64_t> data = Grappa_typed_malloc<int64_t>(N);
-  
-  for (size_t i=0; i<N; i++) {
-    BOOST_MESSAGE( "Writing " << i << " to " << data+i );
-    Grappa_delegate_write_word(data+i, i);
-  }
-  
-  for (size_t i=0; i<N; i++) {
-    Incoherent<int64_t>::RO c(data+i, 1);
-    VLOG(2) << i << " == " << *c;
-    BOOST_CHECK_EQUAL(i, *c);
-  }
-
-  Grappa_free(data);
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS, (1L << 20) );
+  Grappa::run([]{
+    size_t N = 128;
+    GlobalAddress<int64_t> data = Grappa::global_alloc<int64_t>(N);
+  
+    for (size_t i=0; i<N; i++) {
+      BOOST_MESSAGE( "Writing " << i << " to " << data+i );
+      Grappa::delegate::write(data+i, i);
+    }
+  
+    for (size_t i=0; i<N; i++) {
+      Incoherent<int64_t>::RO c(data+i, 1);
+      VLOG(2) << i << " == " << *c;
+      BOOST_CHECK_EQUAL(i, *c);
+    }
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv),
-		(1L << 20) );
-
-  Grappa_activate();
-
-  DVLOG(1) << "Spawning user main Thread....";
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  BOOST_CHECK( Grappa_done() == true );
-
-  Grappa_finish( 0 );
+    Grappa::global_free(data);
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();
-

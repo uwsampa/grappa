@@ -1,7 +1,6 @@
 #ifndef BUFFER_VECTOR
 #define BUFFER_VECTOR
 
-#include "Grappa.hpp"
 #include "LocaleSharedMemory.hpp"
 
 #include <stdlib.h>
@@ -63,9 +62,9 @@ class BufferVector {
       buf[nextIndex++] = v;
     }
 
-    GlobalAddress<T> getReadBuffer() const {
+    GlobalAddress<const T> getReadBuffer() const {
       CHECK( mode == RO ) << "Must be in RO mode to see buffer";
-      return make_global( /*static_cast<const T*>*/(buf) );
+      return make_global( const_cast<const T*>(buf) );
     }
 
     size_t getLength() const {

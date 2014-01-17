@@ -5,21 +5,21 @@
 #include "Tasking.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
-#include "Delegate.hpp"
+#include "DelegateBase.hpp"
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
 
 DECLARE_bool( flatten_completions );
 
 /// total number of times "complete" has to be called on another core
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_total_remote_completions);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, gce_total_remote_completions);
 
 /// actual number of completion messages we send (less with flattening)
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_completions_sent);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, gce_completions_sent);
 
 namespace Grappa {
 /// @addtogroup Synchronization
@@ -178,7 +178,7 @@ public:
     if (count == inc) { // count[0 -> inc]
       event_in_progress = true; // optimization to save checking in wait()
       // cancel barrier
-      Core co = delegate::call(master_core, [this] {
+      Core co = impl::call(master_core, [this] {
         cores_out++;
         return cores_out;
       });
@@ -241,8 +241,8 @@ public:
       Grappa::wait(&cv);
     } else {
       // conservative check, in case we're calling `wait` without calling `enroll`
-      if (delegate::call(master_core, [this]{ return cores_out; }) > 0) {
-//      if (delegate::call(master_core, [this]{ return event_in_progress; })) {
+      if (impl::call(master_core, [this]{ return cores_out; }) > 0) {
+//      if (impl::call(master_core, [this]{ return event_in_progress; })) {
         Grappa::wait(&cv);
         DVLOG(3) << "woke from conservative check";
       }
@@ -266,16 +266,16 @@ inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) 
   if (FLAGS_flatten_completions) {
     ce.pointer()->send_completion(ce.core(), decr);
   } else {
-    if (ce.node() == mycore()) {
+    if (ce.core() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
-        send_heap_message(ce.node(), [ce] {
+        send_heap_message(ce.core(), [ce] {
           ce.pointer()->complete();
         });
       } else {
-        send_heap_message(ce.node(), [ce,decr] {
+        send_heap_message(ce.core(), [ce,decr] {
           ce.pointer()->complete(decr);
         });
       }
@@ -292,40 +292,37 @@ namespace Grappa {
   
   /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
   /// does local `complete` when done (if GCE is non-null).
-  template<typename TF>
-  void privateTask(GlobalCompletionEvent * gce, TF tf) {
-    gce->enroll();
-    privateTask([gce,tf] {
-      tf();
-      gce->complete();
-    });
-  }
-
-  /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
-  /// does local `complete` when done (if GCE is non-null).
   /// In this version, GCE is a template parameter to avoid taking up space in the task's args.
-  template<GlobalCompletionEvent * GCE, typename TF>
-  void privateTask(TF tf) {
-    if (GCE) GCE->enroll();
+  template< TaskMode B,
+            GlobalCompletionEvent * C,
+            typename TF = decltype(nullptr) >
+  void spawn(TF tf) {
+    if (C) C->enroll();
     Core origin = mycore();
-    privateTask([tf] {
+    spawn<B>([tf,origin] {
       tf();
-      if (GCE) GCE->complete();
+      if (C) C->send_completion(origin);
     });
   }
-
-  /// Synchronizing public task spawn. Automatically enrolls task with GlobalCompletionEvent and
-  /// sends `complete`  message when done (if GCE is non-null).
-  template<GlobalCompletionEvent * GCE, typename TF>
-  inline void publicTask(TF tf) {
-    if (GCE) GCE->enroll();
-    Core origin = mycore();
-    publicTask([origin,tf] {
-      DVLOG(5) << "in public task";
-      tf();
-      if (GCE) complete(make_global(GCE,origin));
-    });
-  }
-
+  
   ///@}
+  
+  /// Overload
+  template< GlobalCompletionEvent * C,
+            TaskMode B = TaskMode::Bound,
+            typename TF = decltype(nullptr) >
+  void spawn(TF tf) { spawn<B,C>(tf); }
+  
+  namespace impl {
+    extern GlobalCompletionEvent local_gce;
+  }
+  
+  template< GlobalCompletionEvent * C = &impl::local_gce,
+            typename F = decltype(nullptr) >
+  void finish(F f) {
+    f();
+    C->wait();
+  }
+  
 } // namespace Grappa
+

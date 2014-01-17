@@ -1,5 +1,4 @@
-#ifndef RELATIONIO_HPP
-#define RELATIONIO_HPP
+#pragma once
 
 #include <string>
 #include <fstream>
@@ -15,6 +14,7 @@
 
 #include "grappa/graph.hpp"
 
+DECLARE_string(relations);
 
 
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
@@ -36,7 +36,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
 /// src dst
 /// 
 /// create as array of Tuple
-void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples ) {
+void readEdges( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples ) {
   std::ifstream testfile(fn);
   CHECK( testfile.is_open() );
 
@@ -44,7 +44,7 @@ void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples
   int fin = 0;
 
   // synchronous IO with asynchronous write
-  Grappa::forall_here<&Grappa::impl::local_ce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+  Grappa::forall_here<1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );
@@ -69,7 +69,7 @@ void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples
 /// src dst
 /// 
 /// create as tuple_graph
-tuple_graph readTuples( std::string fn, int64_t numTuples ) {
+tuple_graph readEdges( std::string fn, int64_t numTuples ) {
   std::ifstream testfile(fn, std::ifstream::in);
   CHECK( testfile.is_open() );
 
@@ -82,7 +82,7 @@ tuple_graph readTuples( std::string fn, int64_t numTuples ) {
 //  std::regex rgx("\\s+");
 
   // synchronous IO with asynchronous write
-  Grappa::forall_here_async<&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+  Grappa::forall_here<&Grappa::impl::local_gce, 1>(0, numTuples, [edges,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );
@@ -107,10 +107,9 @@ tuple_graph readTuples( std::string fn, int64_t numTuples ) {
 
       // write edge to location
       int myindex = fin++;
-      Grappa::delegate::write_async(edges+myindex, pe);
+      Grappa::delegate::write<async>(edges+myindex, pe);
     }
   });
-  Grappa::impl::local_gce.wait();
 
 
   CHECK( fin == numTuples );
@@ -120,6 +119,55 @@ tuple_graph readTuples( std::string fn, int64_t numTuples ) {
   return tg;
 }
 
+template <typename T>
+GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
+  std::string path = FLAGS_relations+"/"+fn;
+  std::ifstream testfile(path, std::ifstream::in);
+  CHECK( testfile.is_open() ) << path << " failed to open";
+
+  // shared by the local tasks reading the file
+  int64_t fin = 0;
+
+  auto tuples = Grappa::global_alloc<T>(numTuples);
+ 
+  // token delimiter  
+//  std::regex rgx("\\s+");
+
+  // synchronous IO with asynchronous write
+  Grappa::forall_here<&Grappa::impl::local_gce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+    std::string line;
+    for (int ignore=s; ignore<s+n; ignore++) {
+      CHECK( testfile.good() );
+      std::getline( testfile, line );
+
+      std::vector<int64_t> readFields;
+      
+      // TODO: compiler should use catalog to statically insert num fields
+      std::stringstream ss(line);
+      while (true) {
+        std::string buf;
+        ss >> buf; 
+        if (buf.compare("") == 0) break;
+
+        auto f = std::stoi(buf);
+        readFields.push_back(f);
+      }
+
+      T val( readFields );
+      
+      VLOG(5) << val;
+
+      // write edge to location
+      int myindex = fin++;
+      Grappa::delegate::write<async>(tuples+myindex, val);
+    }
+  });
 
 
-#endif // RELATIONIO_HPP
+  CHECK( fin == numTuples );
+  testfile.close();
+
+  return tuples;
+}
+
+

@@ -4,12 +4,7 @@
 
 #include <TaskingScheduler.hpp>
 
-typedef Thread Worker;
-
 namespace Grappa {
-  
-  /// @todo: remove me in the future.
-  typedef Thread Worker;
 
   /// @addtogroup Synchronization
   /// @{
