@@ -35,3 +35,6 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, delegate_cmpswaps, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, delegate_cmpswap_targets, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadds, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadd_targets, 0);
+
+GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, delegate_ops_small_msg, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, delegate_ops_payload_msg, 0);

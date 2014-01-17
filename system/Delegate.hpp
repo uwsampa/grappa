@@ -26,9 +26,8 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_cmpswap_targets);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadds);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadd_targets);
 
-
-GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_ops_small_msg);
-GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_ops_payload_msg);
+GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, delegate_ops_small_msg);
+GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, delegate_ops_payload_msg);
 
 #define SMALL_MSG_SIZE 16
 
