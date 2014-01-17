@@ -29,7 +29,7 @@ OptionParser.new do |p|
   p.on('-e', '--test TEST', 'Run boost unit test program with given name (e.g. Aggregator_tests)'){|t| opt.test = t }
   p.on('-f', '--[no-]freeze-on-error', "Freeze all the jobs when there's an error"){|f| opt.freeze_on_error = f }
   p.on('-v', '--[no-]verbose', "Verbose tests"){|v| opt.verbose = v }
-  
+  p.on('--partition P', "Slurm partition to run on."){|p| opt.partition = p }
 end.parse!(myargs)
 
 srun_flags = %w[ --cpu_bind=rank --label --kill-on-bad-exit ] \
@@ -41,15 +41,19 @@ require_relative "grappa_srun_prolog.rb"
 
 setarch = ""
 
+# Special rules for known clusters
 case `hostname`
-when /pal|node\d+/
-  srun_flags << "--partition=pal" << "--account=pal"
+when /pal|node\d+/ # PNNL Pal cluster
+  srun_flags << "--account=pal"
   # disable address randomization (doesn't seem to actually fix pprof multi-node problems)
   # setarch = "setarch x86_64 -RL "
-else
-  srun_flags << "--partition=grappa" << "--resv-ports"
+  opt.partition = "pal" if !opt.partition
+when /n\d+/ # Sampa cluster
+  srun_flags << "--resv-ports"
+  opt.partition = "grappa" if !opt.partition
 end
 
+srun_flags << "--partition=#{opt.partition}"
 srun_flags << "--nodes=#{opt.nnode}" if opt.nnode
 srun_flags << "--ntasks-per-node=#{opt.ppn}" if opt.ppn
 srun_flags << "--time=#{opt.time}" if opt.time
