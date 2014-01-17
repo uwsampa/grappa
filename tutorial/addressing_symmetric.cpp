@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
   init(&argc, &argv);
   run([]{    
     // allocate a copy of Data on every core out of the global heap
-    GlobalAddress<Data> d = symmetric_global_alloc< Data >();
+    SymmetricAddress<Data> d = symmetric_global_alloc< Data >();
     
     on_all_cores([d]{
       // use `->` overload to get pointer to local copy to call the method on

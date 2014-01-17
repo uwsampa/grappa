@@ -48,7 +48,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     Core n = Grappa::cores();
     BOOST_CHECK_EQUAL(total_x, n*(n+1)/2);
 
-    GlobalAddress<TestObj> replIntAddr = Grappa::symmetric_global_alloc<TestObj>();
+    auto replIntAddr = Grappa::symmetric_global_alloc<TestObj>();
     Grappa::on_all_cores([replIntAddr] {
       replIntAddr->c = Grappa::mycore() + 1;
     });

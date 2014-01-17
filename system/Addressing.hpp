@@ -197,7 +197,7 @@ public:
   }
     
   /// Return the local pointer from a global address
-  inline T * pointer() const { 
+  inline T * pointer() const {
     if( is_2D() ) {
       intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
       return reinterpret_cast< T * >( signextended ); 
@@ -474,6 +474,35 @@ struct LocalIterator {
 template<typename T>
 LocalIterator<T> iterate_local(GlobalAddress<T> base, size_t nelem) { return LocalIterator<T>{base, nelem}; }
 
+/// Represents an address that is available on *all cores*.
+template< typename T >
+class SymmetricAddress {
+protected:
+  
+  intptr_t storage_;
+  
+  inline static intptr_t global_base() {
+    return reinterpret_cast<intptr_t>(Grappa::impl::global_memory_chunk_base);
+  }
+  
+public:
+  
+  SymmetricAddress(T *localized_ptr) {
+    storage_ = reinterpret_cast<intptr_t>(localized_ptr) - global_base();
+  }
+  
+  inline T* pointer() const {
+    return reinterpret_cast<T*>(global_base() + storage_);
+  }
+  
+  inline Core core() const { return Grappa::mycore(); }
+  
+  T* operator->() const { return pointer(); }
+  
+  T& operator*() const { return *pointer(); }
+  
+};
+
 /// @}
-//template< typename T >
+
 #endif
