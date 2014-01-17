@@ -148,7 +148,6 @@ SymmetricAddress<T> symmetric_global_alloc() {
   return SymmetricAddress<T>(qa.localize());
 }
 
-
 } // namespace Grappa
 
 /// @}

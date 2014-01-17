@@ -11,6 +11,9 @@
 #ifdef __GRAPPA_CLANG__
 /// define 'global' pointer annotation
 #define grappa_global __attribute__((address_space(100)))
+
+#define grappa_symmetric __attribute__((address_space(200)))
+
 #endif
 
 /// Global Addresses for Grappa
@@ -372,7 +375,7 @@ public:
   operator T grappa_global* ( ) {
     return reinterpret_cast< T grappa_global* >( storage_ );
   }
-  
+
 #endif
   
 };
@@ -487,9 +490,7 @@ protected:
   
 public:
   
-  SymmetricAddress(T *localized_ptr) {
-    storage_ = reinterpret_cast<intptr_t>(localized_ptr) - global_base();
-  }
+  SymmetricAddress(T *localized_ptr): storage_(reinterpret_cast<intptr_t>(localized_ptr) - global_base()) {}
   
   inline T* pointer() const {
     return reinterpret_cast<T*>(global_base() + storage_);
@@ -501,6 +502,17 @@ public:
   
   T& operator*() const { return *pointer(); }
   
+  
+#ifdef __GRAPPA_CLANG__
+  
+  SymmetricAddress(T grappa_symmetric* ptr): storage_(reinterpret_cast<intptr_t>(ptr)) {}
+  
+  operator T grappa_symmetric* ( ) {
+    return reinterpret_cast< T grappa_symmetric* >( storage_ );
+  }
+  
+#endif
+
 };
 
 /// @}
