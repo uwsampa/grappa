@@ -42,15 +42,18 @@ require_relative "grappa_srun_prolog.rb"
 setarch = ""
 
 # Special rules for known clusters
-case `hostname`
+case `hostname -A`
 when /pal|node\d+/ # PNNL Pal cluster
   srun_flags << "--account=pal"
   # disable address randomization (doesn't seem to actually fix pprof multi-node problems)
   # setarch = "setarch x86_64 -RL "
   opt.partition = "pal" if !opt.partition
-when /n\d+/ # Sampa cluster
+when /sampa/ # Sampa cluster
   srun_flags << "--resv-ports"
   opt.partition = "grappa" if !opt.partition
+when /sandia.gov/
+  srun_flags << "--resv-ports"
+  opt.partition = "pbatch" if !opt.partition
 end
 
 srun_flags << "--partition=#{opt.partition}"
@@ -58,6 +61,8 @@ srun_flags << "--nodes=#{opt.nnode}" if opt.nnode
 srun_flags << "--ntasks-per-node=#{opt.ppn}" if opt.ppn
 srun_flags << "--time=#{opt.time}" if opt.time
 ENV["GASNET_FREEZE_ON_ERROR"] = opt.freeze_on_error ? "1" : "0"
+
+puts srun_flags
 
 if opt.verbose
   verbose_test = '--log_level=test_suite --report_level=confirm'
