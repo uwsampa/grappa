@@ -44,7 +44,7 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
 
 /// helper for iterating over preds/succs/uses
 #define for_each(var, arg, prefix) \
-  for (auto var = prefix##_begin(arg), var##_end = prefix##_end(arg); var != var##_end; var++)
+  for (auto var = prefix##_begin(arg), _var##_end = prefix##_end(arg); var != _var##_end; var++)
 
 #define for_each_op(var, arg) \
   for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
@@ -346,10 +346,8 @@ Function* DelegateExtractor::extractFunction() {
   
   // use clone_map to remap values in new function
   // (including branching to new retbb instead of exit blocks)
-  for (auto& bb : *new_fn) {
-    for (auto& inst : bb) {
-      RemapInstruction(&inst, clone_map, RF_IgnoreMissingEntries);
-    }
+  for_each(inst, new_fn, inst) {
+    RemapInstruction(&*inst, clone_map, RF_IgnoreMissingEntries);
   }
   
   // load outputs
