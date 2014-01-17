@@ -38,7 +38,7 @@
 #include <llvm/Analysis/DomPrinter.h>
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/Support/GraphWriter.h>
-
+#include <llvm/Support/InstIterator.h>
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 
 #include <list>
@@ -48,37 +48,42 @@
 #define DEBUG_TYPE "grappa"
 
 namespace llvm {
+  
 
-  struct OperandIterator {
-    Instruction* self;
-    OperandIterator(Instruction* self): self(self) {}
-    User::op_iterator begin() { return self->op_begin(); }
-    User::op_iterator end()   { return self->op_end(); }
-  };
+  inline void replaceAllUsesInFnWith(Function *fn, Value *orig, Value *repl) {
+    for (auto inst = inst_begin(fn), ie = inst_end(fn); inst != ie; inst++) {
+      for (auto op = inst->op_begin(), op_e = inst->op_end(); op != op_e; op++) {
+        
+      }
+    }
+    
+  }
+  
+  static const int GLOBAL_SPACE = 100;
+  static const int SYMMETRIC_SPACE = 200;
   
   struct GlobalPtrInfo {
-    Function *call_on_fn, *get_core_fn, *get_pointer_fn;
-    
-    static const int SPACE = 100;
+    Function *call_on_fn, *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
     
     bool isaGlobalPointer(Type* type) {
       PointerType* pt = dyn_cast<PointerType>(type);
-      if( pt && pt->getAddressSpace() == SPACE ) return true;
+      if( pt && pt->getAddressSpace() == GLOBAL_SPACE ) return true;
       return false;
     }
     
   };
   
-  inline PointerType* dyn_cast_global(Type* ty) {
+  template< int AddrSpace >
+  inline PointerType* dyn_cast_addr(Type* ty) {
     PointerType *pt = dyn_cast<PointerType>(ty);
-    if (pt && pt->getAddressSpace() == GlobalPtrInfo::SPACE) return pt;
+    if (pt && pt->getAddressSpace() == AddrSpace) return pt;
     else return nullptr;
   }
-
-  template< typename InstType >
-  inline InstType* dyn_cast_global(Value* v) {
+  
+  template< int AddrSpace, typename InstType >
+  inline InstType* dyn_cast_addr(Value* v) {
     if (auto ld = dyn_cast<InstType>(v)) {
-      if (ld->getPointerAddressSpace() == GlobalPtrInfo::SPACE) {
+      if (ld->getPointerAddressSpace() == AddrSpace) {
         return ld;
       }
     }

@@ -29,6 +29,8 @@
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"
 
+#include <llvm/InstVisitor.h>
+
 #include "DelegateExtractor.hpp"
 
 #include <sstream>
@@ -146,7 +148,8 @@ namespace {
     
     GlobalPtrInfo ginfo;
     
-    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn, *get_pointer_fn;
+    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn,
+             *get_pointer_fn, *get_pointer_symm_fn;
     
     Function *myprint_i64;
     
@@ -481,14 +484,51 @@ namespace {
         
       }
       
+      std::vector<Function*> fns;
+      fns.push_back(&F);
+      
       for (auto c : candidates) {
         DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" );
-        c->extractFunction();
+        fns.push_back( c->extractFunction() );
       }
       
       if (candidates.size() > 0) {
         DEBUG( outs() << "\n" );
       }
+      
+      /////////////////////////////////////
+      // Fix symmetric loads
+      
+      std::vector<Instruction*> symms;
+      
+      for (auto f : fns) {
+        for (auto& bb : *f) {
+          for (auto& inst : bb) {
+            if (auto ld = dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(&inst)) {
+              DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~\nfixing 'symmetric*' use: " << *ld << "\n" );
+              symms.push_back(ld);
+            }
+          }
+        }
+      }
+      
+      for (auto inst : symms) {
+        Value* gptr = nullptr;
+        if (auto orig = dyn_cast<LoadInst>(inst)) {
+          errs() << "load<symmetric> => " << *orig;
+          gptr = orig->getPointerOperand();
+        } else if (auto orig = dyn_cast<StoreInst>(inst)) {
+          errs() << "store<symmetric> => " << *orig;
+          gptr = orig->getPointerOperand();
+        }
+        auto bc = new BitCastInst(gptr, void_gptr_ty, "symm.bc." + inst->getName(), inst);
+        auto ptr = CallInst::Create(get_pointer_symm_fn, (Value*[]){ bc },
+                                    "symm.ptr." + inst->getName(), inst);
+        inst->replaceUsesOfWith(gptr, ptr);
+        
+      }
+      
+      /////////////////////////////////////
       
       return changed;
     }
@@ -512,12 +552,13 @@ namespace {
       ginfo.call_on_fn = call_on_fn = getFunction("grappa_on");
       ginfo.get_core_fn = get_core_fn = getFunction("grappa_get_core");
       ginfo.get_pointer_fn = get_pointer_fn = getFunction("grappa_get_pointer");
+      ginfo.get_pointer_symm_fn = get_pointer_symm_fn = getFunction("grappa_get_pointer");
       
       myprint_i64 = getFunction("myprint_i64");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
-      void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GlobalPtrInfo::SPACE);
+      void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
       void_ty = Type::getVoidTy(module.getContext());
       
       // module = &m;

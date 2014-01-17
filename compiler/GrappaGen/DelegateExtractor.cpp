@@ -39,7 +39,7 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
 #define i64_ty       Type::getInt64Ty(mod.getContext())
 #define i16_ty       Type::getInt16Ty(mod.getContext())
 #define void_ptr_ty  Type::getInt8PtrTy(mod.getContext(), 0)
-#define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GlobalPtrInfo::SPACE)
+#define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GLOBAL_SPACE)
 
 
 /// helper for iterating over preds/succs/uses
@@ -66,12 +66,12 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
   for (auto bb : bbs) {
     for (auto& ii : *bb) {
       
-      if (auto gld = dyn_cast_global<LoadInst>(&ii)) {
+      if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(&ii)) {
         auto p = gld->getPointerOperand();
         if (gptrs.count(p) == 0) gptrs[p] = {};
         gptrs[p].loads++;
         gvals[gld] = p;
-      } else if (auto gi = dyn_cast_global<StoreInst>(&ii)) {
+      } else if (auto gi = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(&ii)) {
         auto p = gi->getPointerOperand();
         if (gptrs.count(p) == 0) gptrs[p] = {};
         gptrs[p].stores++;
@@ -206,7 +206,7 @@ Function* DelegateExtractor::extractFunction() {
     Value *final_in = in_val;
     
     // if it's a global pointer, get local address for it
-    if (auto in_gptr_ty = dyn_cast_global(in_val->getType())) {
+    if (auto in_gptr_ty = dyn_cast_addr<GLOBAL_SPACE>(in_val->getType())) {
       auto ptr_ty = in_gptr_ty->getElementType()->getPointerTo();
       auto bc = new BitCastInst(in_val, void_gptr_ty, "getptr.bc", entrybb);
       auto vptr = CallInst::Create(ginfo.get_pointer_fn, (Value*[]){ bc }, "getptr", entrybb);
@@ -405,13 +405,13 @@ Function* DelegateExtractor::extractFunction() {
 }
 
 bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available_vals) {
-  if (auto gld = dyn_cast_global<LoadInst>(inst)) {
+  if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(inst)) {
     if (gptrs.count(gld->getPointerOperand())) {
       available_vals.insert(gld);
       DEBUG( errs() << "load to same gptr: ok\n" );
       return true;
     }
-  } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
+  } else if (auto g = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(inst)) {
     if (gptrs.count(g->getPointerOperand())) {
       DEBUG( errs() << "store to same gptr: great!\n" );
       return true;
@@ -463,9 +463,9 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
 BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
   Value *gptr = nullptr;
   for (auto i = bb->begin(); i != bb->end(); i++) {
-    if (auto gld = dyn_cast_global<LoadInst>(i)) {
+    if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(i)) {
       gptr = gld->getPointerOperand();
-    } else if (auto g = dyn_cast_global<StoreInst>(i)) {
+    } else if (auto g = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(i)) {
       gptr = g->getPointerOperand();
     }
     if (gptr) {
