@@ -508,6 +508,16 @@ namespace {
                 dyn_cast_addr<SYMMETRIC_SPACE,StoreInst>(&inst)) {
               DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~\nfixing 'symmetric*' use: " << inst << "\n" );
               symms.push_back(&inst);
+            } else if (auto call = dyn_cast<CallInst>(&inst)) {
+              // look for CallInst that take a symmetric ptr as first arg (methods)
+              
+              if (call->getCalledFunction()->getName() == "_ZN3Foo3barEv") {
+                errs() << "Foo::bar() => " << *call << "\n";
+              }
+              
+              if (dyn_cast_addr<SYMMETRIC_SPACE>(call->getOperand(0)->getType())) {
+                symms.push_back(&inst);
+              }
             }
           }
         }
@@ -521,6 +531,9 @@ namespace {
         } else if (auto orig = dyn_cast<StoreInst>(inst)) {
           errs() << "store<symmetric> => " << *orig << "\n";
           gptr = orig->getPointerOperand();
+        } else if (auto orig = dyn_cast<CallInst>(inst)) {
+          errs() << "call<symmetric> => " << *orig << "\n";
+          gptr = orig->getOperand(0);
         }
         auto gptr_ty = dyn_cast<PointerType>(gptr->getType());
         auto ptr_ty = PointerType::get(gptr_ty->getElementType(), 0);
