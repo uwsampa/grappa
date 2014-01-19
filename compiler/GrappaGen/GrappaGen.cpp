@@ -153,7 +153,7 @@ namespace {
     
     Function *myprint_i64;
     
-    Type *void_ty, *void_ptr_ty, *void_gptr_ty, *i64_ty;
+    Type *void_ty, *void_ptr_ty, *void_gptr_ty, *void_symmptr_ty, *i64_ty;
     
     DominatorTree *DT;
     
@@ -504,9 +504,10 @@ namespace {
       for (auto f : fns) {
         for (auto& bb : *f) {
           for (auto& inst : bb) {
-            if (auto ld = dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(&inst)) {
-              DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~\nfixing 'symmetric*' use: " << *ld << "\n" );
-              symms.push_back(ld);
+            if (dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(&inst) ||
+                dyn_cast_addr<SYMMETRIC_SPACE,StoreInst>(&inst)) {
+              DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~\nfixing 'symmetric*' use: " << inst << "\n" );
+              symms.push_back(&inst);
             }
           }
         }
@@ -515,17 +516,21 @@ namespace {
       for (auto inst : symms) {
         Value* gptr = nullptr;
         if (auto orig = dyn_cast<LoadInst>(inst)) {
-          errs() << "load<symmetric> => " << *orig;
+          errs() << "load<symmetric> => " << *orig << "\n";
           gptr = orig->getPointerOperand();
         } else if (auto orig = dyn_cast<StoreInst>(inst)) {
-          errs() << "store<symmetric> => " << *orig;
+          errs() << "store<symmetric> => " << *orig << "\n";
           gptr = orig->getPointerOperand();
         }
-        auto bc = new BitCastInst(gptr, void_gptr_ty, "symm.bc." + inst->getName(), inst);
+        auto gptr_ty = dyn_cast<PointerType>(gptr->getType());
+        auto ptr_ty = PointerType::get(gptr_ty->getElementType(), 0);
+        
+        auto bc = new BitCastInst(gptr, void_symmptr_ty, "symm.bc." + inst->getName(), inst);
         auto ptr = CallInst::Create(get_pointer_symm_fn, (Value*[]){ bc },
                                     "symm.ptr." + inst->getName(), inst);
-        inst->replaceUsesOfWith(gptr, ptr);
+        auto bcback = new BitCastInst(ptr, ptr_ty, "symm.bcback." + inst->getName(), inst);
         
+        inst->replaceUsesOfWith(gptr, bcback);
       }
       
       /////////////////////////////////////
@@ -552,13 +557,14 @@ namespace {
       ginfo.call_on_fn = call_on_fn = getFunction("grappa_on");
       ginfo.get_core_fn = get_core_fn = getFunction("grappa_get_core");
       ginfo.get_pointer_fn = get_pointer_fn = getFunction("grappa_get_pointer");
-      ginfo.get_pointer_symm_fn = get_pointer_symm_fn = getFunction("grappa_get_pointer");
+      ginfo.get_pointer_symm_fn = get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
       
       myprint_i64 = getFunction("myprint_i64");
       
       i64_ty = llvm::Type::getInt64Ty(module.getContext());
       void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
       void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
+      void_symmptr_ty = Type::getInt8PtrTy(module.getContext(), SYMMETRIC_SPACE);
       void_ty = Type::getVoidTy(module.getContext());
       
       // module = &m;

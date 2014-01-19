@@ -20,6 +20,11 @@ inline GlobalAddress<T> gaddr(T global* ptr) {
 }
 
 template< typename T >
+inline SymmetricAddress<T> symm_addr(T global* ptr) {
+  return SymmetricAddress<T>(ptr);
+}
+
+template< typename T >
 inline GlobalAddress<T> gaddr(T symmetric* ptr) {
   return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(ptr));
 }
@@ -50,7 +55,9 @@ extern "C"
 void* grappa_get_pointer(void global* g) { return Grappa::pointer(g); }
 
 extern "C"
-void* grappa_get_pointer_symmetric(void symmetric* g) { return SymmetricAddress(g).pointer(); }
+void* grappa_get_pointer_symmetric(void symmetric* g) {
+  return SymmetricAddress<int8_t>(reinterpret_cast<int8_t symmetric*>(g)).pointer();
+}
 
 
 extern "C"
