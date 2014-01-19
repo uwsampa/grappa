@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     });
     
     for (Core c=0; c<cores(); c++) {
-      CHECK_EQ( delegate::call(c, [=]{ return gaddr(g)->x; }), c );
+      CHECK_EQ( delegate::call(c, [=]{ return symm_addr(g)->x; }), c );
     }
     
   });

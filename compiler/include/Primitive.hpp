@@ -20,7 +20,7 @@ inline GlobalAddress<T> gaddr(T global* ptr) {
 }
 
 template< typename T >
-inline SymmetricAddress<T> symm_addr(T global* ptr) {
+inline SymmetricAddress<T> symm_addr(T symmetric* ptr) {
   return SymmetricAddress<T>(ptr);
 }
 
