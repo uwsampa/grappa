@@ -40,6 +40,9 @@ namespace Grappa {
 
   template< typename T>
   T* pointer(T global* g) { return gaddr(g).pointer(); }
+
+  template< typename T>
+  T* pointer(T symmetric* g) { return symm_addr(g).pointer(); }
   
   template< typename T >
   inline T global* globalize( T* t, Core n = Grappa::mycore() ) {
