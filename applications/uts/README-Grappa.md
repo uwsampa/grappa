@@ -1,9 +1,3 @@
-# Copyright 2010-2012 University of Washington. All Rights Reserved.
-# LICENSE_PLACEHOLDER
-# This software was created with Government support under DE
-# AC05-76RL01830 awarded by the United States Department of
-# Energy. The Government has certain rights in the software.
-
 Unbalanced Tree Search in-memory (UTS-mem). This is an extension of the UTS benchmark, where
 we do the implicit traversal of UTS to build a tree in memory. The timed portion
 is to traverse this tree. In this way, UTS-mem tests both dynamic load balancing and 
