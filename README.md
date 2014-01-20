@@ -1,5 +1,5 @@
 # Grappa
-Enabling high-throughput graph processing on commodity clusters.
+Scaling irregular applications on commodity clusters.
 
 ## Quick Start
 Ensure that you have Ruby >= 1.9, CMake version >= 2.8.6, GCC version >= 4.7, and MPI on your path. If you have Boost version >= 1.51 installed, find where it is. To use the convenient job-launch script we provide, you must have Slurm on your system as well. Then:
