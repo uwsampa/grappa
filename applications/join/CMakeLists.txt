@@ -77,7 +77,9 @@ endforeach()
 # add aggregate target to build the executables for 
 # all of the generated queries
 add_custom_target(compile-gens)
-add_dependencies(compile-gens ${GENERATED_EXES})
+if (${GENERATED_EXES})
+  add_dependencies(compile-gens ${GENERATED_EXES})
+endif()
 
 # exe target for top level query runner
 foreach(query ${QUERIES_MAIN})
