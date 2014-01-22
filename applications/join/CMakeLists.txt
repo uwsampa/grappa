@@ -64,16 +64,25 @@ set(TEST_SOURCES
   
 include_directories(${INCLUDE_DIRS})
 
+# query code dependences
+add_library(querylib STATIC EXCLUDE_FROM_ALL ${SOURCES})
 
+# exe targets for standalone query codes
 foreach(query ${QUERIES_IND})
   get_filename_component(query_name ${query}, NAME_WE)
   add_grappa_application(${query_name}.exe ${SOURCES} ${query})
   target_link_libraries(${query_name}.exe generator)
 endforeach()
 
+# add aggregate target to build the executables for 
+# all of the generated queries
+add_custom_target(compile-gens)
+add_dependencies(compile-gens ${GENERATED_EXES})
+
+# exe target for top level query runner
 foreach(query ${QUERIES_MAIN})
-  add_grappa_application(${query}.exe ${SOURCES} ${QUERIES_SOURCES} ${query}.cpp)
-  target_link_libraries(${query}.exe generator)
+  add_grappa_application(${query}.exe ${QUERIES_SOURCES} ${query}.cpp)
+  target_link_libraries(${query}.exe generator querylib)
 endforeach()
 
 
