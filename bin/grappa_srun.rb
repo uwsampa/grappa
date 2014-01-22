@@ -62,8 +62,6 @@ srun_flags << "--ntasks-per-node=#{opt.ppn}" if opt.ppn
 srun_flags << "--time=#{opt.time}" if opt.time
 ENV["GASNET_FREEZE_ON_ERROR"] = opt.freeze_on_error ? "1" : "0"
 
-puts srun_flags
-
 if opt.verbose
   verbose_test = '--log_level=test_suite --report_level=confirm'
 else
