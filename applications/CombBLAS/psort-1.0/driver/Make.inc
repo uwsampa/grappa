@@ -1,4 +1,0 @@
-CXX=mpic++
-CXXFLAGS=-O2 -DUSE_FUNNEL -Wall 
-LIBS=-lm
-
