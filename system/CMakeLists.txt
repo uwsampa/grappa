@@ -149,7 +149,7 @@ add_library(Grappa
   ${SYSTEM_HEADERS}
 )
 target_link_libraries(Grappa ${GRAPPA_LIBS})
-add_dependencies(Grappa all-tools)
+add_dependencies(Grappa all-third-party)
 
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
