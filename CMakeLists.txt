@@ -69,9 +69,9 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 ## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
 # set runpath, too
-# if(NOT APPLE)
-#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
-# endif()
+if(NOT APPLE)
+  set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+endif()
 
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
 
