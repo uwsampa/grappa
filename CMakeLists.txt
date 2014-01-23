@@ -46,7 +46,7 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 #########################################
 # Determine tools to build
 if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools" CACHE TYPE PATH)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE TYPE PATH)
 endif()
 
 # always need these
@@ -270,5 +270,5 @@ add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(system)
-add_subdirectory(tools)
+add_subdirectory(third-party)
 add_subdirectory(tutorial)
