@@ -1,16 +1,31 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 /// Main Explicit Cache API
 
 #ifndef __CACHE_HPP__
 #define __CACHE_HPP__
 
-#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "common.hpp"
 
@@ -20,53 +35,14 @@
 #include "IncoherentReleaser.hpp"
 
 /// stats for caches
-class CacheStatistics {
-  private:
-    uint64_t ro_acquires;
-    uint64_t wo_releases;
-    uint64_t rw_acquires;
-    uint64_t rw_releases;
-    uint64_t bytes_acquired;
-    uint64_t bytes_released;
-#ifdef VTRACE_SAMPLED
-    unsigned cache_grp_vt;
-    unsigned ro_acquires_ev_vt;
-    unsigned wo_releases_ev_vt;
-    unsigned rw_acquires_ev_vt;
-    unsigned rw_releases_ev_vt;
-    unsigned bytes_acquired_ev_vt;
-    unsigned bytes_released_ev_vt;
-#endif
-  
+class CacheMetrics {
   public:
-    CacheStatistics();
-    void reset();
-    
-    inline void count_ro_acquire( uint64_t bytes ) { 
-      ro_acquires++;
-      bytes_acquired+=bytes;
-    }
-    inline void count_wo_release( uint64_t bytes ) { 
-      wo_releases++; 
-      bytes_released+=bytes;
-    }
-    inline void count_rw_acquire( uint64_t bytes) { 
-      rw_acquires++;
-      bytes_acquired+=bytes;
-    }
-    inline void count_rw_release( uint64_t bytes ) { 
-      rw_acquires++; 
-      bytes_released+=bytes;
-    }
-
-    void dump( std::ostream& o, const char * terminator );
-    void sample();
-    void profiling_sample();
-    void merge(const CacheStatistics * other);
+    static void count_ro_acquire( uint64_t bytes ) ; 
+    static void count_wo_release( uint64_t bytes ) ; 
+    static void count_rw_acquire( uint64_t bytes) ; 
+    static void count_rw_release( uint64_t bytes ) ; 
 };
 
-extern CacheStatistics cache_stats;
-    
 
 /// Allocator for cache local storage. If you pass in a pointer to a
 /// buffer you've allocated, it uses that. Otherwise, it allocates a
@@ -117,7 +93,7 @@ public:
     if( count == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
-    } else if( request_address_->is_2D() && request_address_->node() == Grappa_mynode() ) {
+    } else if( request_address_->is_2D() && request_address_->core() == Grappa::mycore() ) {
       DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
       *pointer_ = request_address_->pointer();
     }
@@ -186,13 +162,13 @@ public:
 
   /// send acquire message
   void start_acquire( ) { 
-    cache_stats.count_ro_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_ro_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
 
   /// block until acquire is completed
   void block_until_acquired() {
-    cache_stats.count_ro_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_ro_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   
@@ -267,25 +243,25 @@ public:
 
   /// send acquire message
   void start_acquire( ) { 
-    cache_stats.count_rw_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_rw_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
 
   /// block until acquire is completed
   void block_until_acquired() {
-    cache_stats.count_rw_acquire( sizeof(T)*count_ );
+    CacheMetrics::count_rw_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   
   /// send release message
   void start_release() { 
-    cache_stats.count_rw_release( sizeof(T)*count_ );
+    CacheMetrics::count_rw_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
 
   /// block until release is completed
   void block_until_released() {
-    cache_stats.count_rw_release( sizeof(T)*count_ );
+    CacheMetrics::count_rw_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
@@ -362,13 +338,13 @@ public:
 
   /// block until release is completed
   void start_release() { 
-    cache_stats.count_wo_release( sizeof(T)*count_ );
+    CacheMetrics::count_wo_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
 
   /// block until release is completed
   void block_until_released() {
-    cache_stats.count_wo_release( sizeof(T)*count_ );
+    CacheMetrics::count_wo_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 

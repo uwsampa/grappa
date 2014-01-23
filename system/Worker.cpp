@@ -1,9 +1,25 @@
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -16,6 +32,8 @@
 
 DEFINE_int64( stack_size, 1<<19, "Default stack size" );
 
+namespace Grappa {
+namespace impl {
 
 /// list of all coroutines (used only for debugging)
 Worker * all_coros = NULL;
@@ -24,8 +42,6 @@ size_t total_coros = 0;
 
 DEFINE_int32( stack_offset, 64, "offset between coroutine stacks" );
 size_t current_stack_offset = 0;
-
-
 
 /// insert a coroutine into the list of all coroutines
 /// (used only for debugging)
@@ -103,6 +119,7 @@ Worker * convert_to_master( Worker * me ) {
 
   return me;
 }
+
 #include <errno.h>
 void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
   CHECK(c != NULL) << "Must provide a valid Worker";
@@ -155,11 +172,10 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
 }
 
 // TODO: refactor not to take <me> argument
-Worker * worker_spawn(Worker * me, Scheduler * sched,
-                     thread_func f, void * arg) {
+Worker * worker_spawn(Worker * me, Scheduler * sched, thread_func f, void * arg) {
   CHECK( sched->get_current_thread() == me ) << "parent arg differs from current thread";
  
-  // allocate the Thread and stack
+  // allocate the Worker and stack
   Worker * thr = new Worker( );
   thr->sched = sched;
   sched->assignTid( thr );
@@ -210,7 +226,7 @@ void thread_exit(Worker * me, void * retval) {
   // Reuse the queue field for a return value.
   me->next = (Worker *)retval;
 
-  // call master Thread
+  // call master Worker
   me->sched->thread_on_exit();
  
   // never returns
@@ -227,3 +243,6 @@ void checked_mprotect( void *addr, size_t len, int prot ) {
     : (errno == ENOMEM) ? "errno==ENOMEM (internal kernel structures could not be allocated OR invalid addresses in range"
     : "(unrecognized)");
 }
+
+} // namespace impl
+} // namespace Grappa

@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -28,7 +44,7 @@
 #include <FileIO.hpp>
 #include <Array.hpp>
 #include <ParallelLoop.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <AsyncDelegate.hpp>
 #include <Addressing.hpp>
 
@@ -133,16 +149,16 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
   int LOBITS = log2maxkey - log2buckets;
   size_t nbuckets = 1 << log2buckets;
 
-  GlobalAddress<bucket_t<S> > bucketlist = Grappa_typed_malloc<bucket_t<S> >(nbuckets);
+  GlobalAddress<bucket_t<S> > bucketlist = Grappa::global_alloc<bucket_t<S> >(nbuckets);
 
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
     GlobalAddress<bucket_t<S> > bi = bucketlist+i;
-    VLOG(1) << "bucket[" << i << "] on Node " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
+    VLOG(1) << "bucket[" << i << "] on Node " << bi.core() << ", offset = " << bi.pointer() - bucketlist.localize(bi.core()) << ", ptr = " << bi.pointer();
   }
 #endif
 
-  sort_time = Grappa_walltime();
+  sort_time = Grappa::walltime();
 
   // initialize globals and histogram counts
   // { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
@@ -154,18 +170,18 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
     }
   });
 
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // do local bucket counts
   // forall_local<uint64_t,histogram>(array, nelems);
-  forall_localized(array, nelems, [lobits,LOBITS](int64_t i, S& v) {
+  forall(array, nelems, [lobits,LOBITS](int64_t i, S& v) {
     size_t b = lobits(v, LOBITS); // TODO decide how to compare general in pieces
     counts[b]++;
   });
 
-  histogram_time = Grappa_walltime() - t;
+  histogram_time = Grappa::walltime() - t;
   LOG(INFO) << "histogram_time: " << histogram_time;
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // allreduce everyone's counts & compute global offsets (prefix sum)
   // { aggregate_counts f; fork_join_custom(&f); }
@@ -183,27 +199,25 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
     }
   });
   
-  allreduce_time = Grappa_walltime() - t;
+  allreduce_time = Grappa::walltime() - t;
   LOG(INFO) << "allreduce_time: " << allreduce_time;
 
   // allocate space in buckets
   VLOG(3) << "allocating space...";
   // forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
-  forall_localized(bucketlist, nbuckets, [](int64_t id, bucket_t<S>& bucket){
+  forall(bucketlist, nbuckets, [](int64_t id, bucket_t<S>& bucket){
     // (global malloc doesn't call constructors)
     new (&bucket) bucket_t<S>();
     bucket.reserve(counts[id]);
   });
   
   VLOG(3) << "scattering...";
-      t = Grappa_walltime();
+      t = Grappa::walltime();
 
   // scatter into buckets
   // forall_local<uint64_t,scatter>(array, nelems);
-  forall_localized(array, nelems, [bucketlist,lobits,LOBITS](int64_t s, int64_t n, S * first){
+  forall(array, nelems, [bucketlist,lobits,LOBITS](int64_t s, int64_t n, S * first){
     size_t nbuckets = counts.size();
-    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t<S> >,S)>>)*n];
-    MessagePool pool(msg_buf, sizeof(msg_buf));
     
     for (int i=0; i<n; i++) {
       auto v = first[i];
@@ -211,32 +225,32 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async(pool, destb.core(), [destb,v]{
+      delegate::call<async>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
   });
     
-  scatter_time = Grappa_walltime() - t;
+  scatter_time = Grappa::walltime() - t;
   LOG(INFO) << "scatter_time: " << scatter_time;
-  t = Grappa_walltime();
+  t = Grappa::walltime();
 
   // sort buckets locally
   // forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
   /// Do some kind of local serial sort of a bucket
-  forall_localized(bucketlist, nbuckets, [Scmp](int64_t bucket_id, bucket_t<S>& bucket){
+  forall(bucketlist, nbuckets, [Scmp](int64_t bucket_id, bucket_t<S>& bucket){
     if (bucket.size() == 0) return;
     qsort(&bucket[0], bucket.size(), sizeof(S), Scmp);
   });
 
-  local_sort_scatter_time = Grappa_walltime() - t;
+  local_sort_scatter_time = Grappa::walltime() - t;
   LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;  
-  t = Grappa_walltime(); 
+  t = Grappa::walltime(); 
   
   // redistribute buckets back into global array  
   // forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
   /// Redistribute sorted buckets back into global array
-  forall_localized(bucketlist, nbuckets, [array,bucketlist](int64_t b, bucket_t<S>& bucket) {
+  forall(bucketlist, nbuckets, [array,bucketlist](int64_t b, bucket_t<S>& bucket) {
     const size_t NBUF = BUFSIZE / sizeof(S);
     DCHECK( b < counts.size() );
 
@@ -254,9 +268,9 @@ void bucket_sort(GlobalAddress<S> array, size_t nelems, int (*Scmp)(const void*,
     VLOG(3) << "bucket[" << b << "] release successful";
   });
   
-  put_back_time = Grappa_walltime() - t;
+  put_back_time = Grappa::walltime() - t;
   LOG(INFO) << "put_back_time: " << put_back_time;
   
-  sort_time = Grappa_walltime() - sort_time;
+  sort_time = Grappa::walltime() - sort_time;
   LOG(INFO) << "total_sort_time: " << sort_time;
 }

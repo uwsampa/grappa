@@ -38,8 +38,8 @@ struct node_t {
   int height;        // depth of this node in the tree
   int numChildren;   // number of children, -1 => not yet determined
   
-  /* for statistics (if configured via UTS_STAT) */
-#ifdef UTS_STAT
+  /* for statistics (if configured via UTS_METRIC) */
+#ifdef UTS_METRIC
   struct node_t *pp;          // parent pointer
   int sizeChildren;           // sum of children sizes
   int maxSizeChildren;        // max of children sizes

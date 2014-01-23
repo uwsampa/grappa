@@ -84,7 +84,7 @@ class DHT {
     DHT( ) {}
 
     static void init_global_DHT( DHT * globally_valid_local_pointer, size_t capacity ) {
-      GlobalAddress<Cell> base = Grappa_typed_malloc<Cell>( capacity );
+      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity );
 
       // TODO: could use on_all_nodes here if use BOOST_PP_COMMA
       // actually I probably want to change the on_all_node macro to a true function call
@@ -98,7 +98,7 @@ class DHT {
       GlobalAddress< Cell > target = base + index; 
 
       ld_args args(key, target);
-      lookup_result result = Grappa_delegate_func<ld_args, lookup_result, DHT<K,V,HF>::lookup_delegated >( args, target.node() );
+      lookup_result result = Grappa_delegate_func<ld_args, lookup_result, DHT<K,V,HF>::lookup_delegated >( args, target.core() );
       *val = result.val;
       return result.valid;
     } 
@@ -109,7 +109,7 @@ class DHT {
       GlobalAddress< Cell > target = base + index; 
 
       id_args args(key, val, target);
-      Grappa_delegate_func<id_args, ignore_t, DHT<K,V,HF>::insert_delegated >( args, target.node() );  // TODO: async inserts
+      Grappa_delegate_func<id_args, ignore_t, DHT<K,V,HF>::insert_delegated >( args, target.core() );  // TODO: async inserts
     }
 
 

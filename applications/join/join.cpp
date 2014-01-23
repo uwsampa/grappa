@@ -128,9 +128,9 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
   
   // scan tuples and hash join col 1
   VLOG(1) << "Scan tuples, creating index on subject";
-  double start = Grappa_walltime();
+  double start = Grappa::walltime();
   forall_local<Tuple, scanAndHash>( tuples, FLAGS_numTuples );
-  double end = Grappa_walltime();
+  double end = Grappa::walltime();
   VLOG(1) << "insertions: " << (end-start)/FLAGS_numTuples << " per sec";
 
 #if DEBUG
@@ -145,18 +145,20 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
   // this surrounding join
   
   // FIXME: this synchronization is overly complicated
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   { global_joiner_reset f; fork_join_custom(&f); }
   VLOG(1) << "Starting 1st join";
   forall_local<Tuple, firstJoin>( tuples, FLAGS_numTuples );
   { global_joiner_wait f; fork_join_custom(&f); }
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   VLOG(1) << "joins: " << (end-start) << " seconds";
 }
 
-void user_main( int * ignore ) {
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
 
-  GlobalAddress<Tuple> tuples = Grappa_typed_malloc<Tuple>( FLAGS_numTuples );
+    GlobalAddress<Tuple> tuples = Grappa::global_alloc<Tuple>( FLAGS_numTuples );
 
   if ( FLAGS_in == "" ) {
     VLOG(1) << "Generating some data";
@@ -166,27 +168,16 @@ void user_main( int * ignore ) {
     readEdges( FLAGS_in, tuples, FLAGS_numTuples );
   }
 
-  DHT_type::init_global_DHT( &joinTable, 64 );
+    DHT_type::init_global_DHT( &joinTable, 64 );
 
-  Column joinIndex1 = 0; // subject
-  Column joinIndex2 = 1; // object
+    Column joinIndex1 = 0; // subject
+    Column joinIndex2 = 1; // object
 
-  // double join case (assuming one index to build)
-  join2( tuples, joinIndex1, joinIndex2, joinIndex2 ); 
-
+    // double join case (assuming one index to build)
+    join2( tuples, joinIndex1, joinIndex2, joinIndex2 );
+    
+  });
+  Grappa::finalize();
 }
-
-
-/// Main() entry
-int main (int argc, char** argv) {
-    Grappa_init( &argc, &argv ); 
-    Grappa_activate();
-
-    Grappa_run_user_main( &user_main, (int*)NULL );
-    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-    Grappa_finish( 0 );
-}
-
-
 
 // insert conflicts use java-style arraylist, enabling memcpy for next step of join

@@ -26,7 +26,7 @@
 #include <ParallelLoop.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <AsyncDelegate.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 // command line parameters
 
@@ -43,16 +43,16 @@ DEFINE_bool( print, false, "Print results" );
 
 
 // outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_select_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_select_count, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, triangles_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, first_join_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, first_join_select_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, second_join_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, second_join_select_count, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, triangle_count, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, hash_runtime, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, hash_runtime, 0);
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, edges_transfered, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, edges_transfered, 0);
 
 
 using namespace Grappa;
@@ -121,16 +121,14 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
   size_t nedge = FLAGS_undirected ? 2*tg.nedge : tg.nedge;
 
   // allocate the tuples
-  GlobalAddress<Tuple> base = Grappa_typed_malloc<Tuple>( nedge );
+  GlobalAddress<Tuple> base = Grappa::global_alloc<Tuple>( nedge );
 
   // copy and transform from edge representation to Tuple representation
-  forall_localized(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
+  forall(tg.edges, tg.nedge, [base](int64_t start, int64_t n, packed_edge * first) {
     // FIXME: I know write_async messages are one globaladdress 
     // and one tuple, but make it encapsulated
     int64_t num_messages =  FLAGS_undirected ? 2*n : n;
 
-    char msg_buf[num_messages * sizeof(Message<std::function<void(GlobalAddress<Tuple>, Tuple)>>)];
-    MessagePool write_pool(msg_buf, sizeof(msg_buf));
     for (int64_t i=0; i<n; i++) {
       auto e = first[i];
 
@@ -139,12 +137,12 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
       t.columns[1] = get_v1_from_edge( &e );
 
       if ( FLAGS_undirected ) {
-        delegate::write_async( write_pool, base+start+2*i, t ); 
+        delegate::write<async>(base+start+2*i, t ); 
         t.columns[0] = get_v1_from_edge( &e );
         t.columns[1] = get_v0_from_edge( &e );
-        delegate::write_async( write_pool, base+start+2*i+1, t ); 
+        delegate::write<async>(base+start+2*i+1, t ); 
       } else {
-        delegate::write_async( write_pool, base+start+i, t ); 
+        delegate::write<async>(base+start+i, t ); 
       }
       // optimally I'd like async WO cache op since this will coalesce the write as well
      }
@@ -160,7 +158,7 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
 }
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
+  forall( tuples, num, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Left];
 
     VLOG(2) << "insert " << key << " | " << t;
@@ -182,17 +180,17 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     local_second_join_results = 0;
   });
   
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  on_all_cores( [] { Grappa::Metrics::reset(); } );
     
   // scan tuples and hash join col 1
   VLOG(1) << "Scan tuples, creating index on subject";
   
   double start, end;
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   {
     scanAndHash( tuples, num_tuples );
   } 
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   
   VLOG(1) << "insertions: " << num_tuples/(end-start) << " per sec";
   hash_runtime = end - start;
@@ -212,9 +210,9 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   DHT_type::set_RO_global( &joinTable );
 #endif
 
-  start = Grappa_walltime();
+  start = Grappa::walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
+  forall( tuples, num_tuples, [](int64_t i, Tuple& t) {
     int64_t key = t.columns[local_join1Right];
    
     // will pass on this first vertex to compare in the select 
@@ -230,7 +228,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
     edges_transfered += num_results;
-    forall_here_async_public( results_idx, num_results, [x1](int64_t start, int64_t iters) {
+    forall_here<unbound,async>(results_idx, num_results, [x1](int64_t start, int64_t iters) {
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( IndexBase+start, iters, &subset_stor );
 #else // MATCHES_DHT
@@ -240,9 +238,9 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
-    /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
+    /* not yet supported: forall_here<unbound,async, GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
     edges_transfered += num_results;
-    forall_here_async( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
+    forall_here<async>( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
@@ -268,7 +266,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
           // iterate over the second join results in parallel
           // (iterations must spawn with synch object `local_gce`)
           edges_transfered += num_results;
-          forall_here_async_public( results_idx, num_results, [x1](int64_t start, int64_t iters) {
+          forall_here<unbound,async>(results_idx, num_results, [x1](int64_t start, int64_t iters) {
             Tuple subset_stor[iters];
             Incoherent<Tuple>::RO subset( IndexBase+start, iters, subset_stor );
 #else // MATCHES_DHT
@@ -280,9 +278,9 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
           
           // iterate over the second join results in parallel
           // (iterations must spawn with synch object `local_gce`)
-          /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
+          /* not yet supported: forall_here<unbound,async, GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
           edges_transfered += num_results;
-          forall_here_async( 0, num_results, [x1,x2,results_addr](int64_t start, int64_t iters) {
+          forall_here<async>( 0, num_results, [x1,x2,results_addr](int64_t start, int64_t iters) {
             Tuple subset_stor[iters];
             Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
@@ -307,7 +305,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   }); // end outer loop over tuples
          
   
-  end = Grappa_walltime();
+  end = Grappa::walltime();
   triangles_runtime = end-start;
   
   //uint64_t total_triangle_count = Grappa::reduce<uint64_t, collective_add>( &local_triangle_count ); 
@@ -318,50 +316,39 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   //first_join_count = total_first_join_results;
   //second_join_count = total_second_join_results;
 
-  Grappa::Statistics::merge_and_print();
+  Grappa::Metrics::merge_and_print();
 
   //VLOG(1) << "joins: " << (end-start) << " seconds; total_triangle_count=" << total_triangle_count << "; total_first_join_count=" << total_first_join_results << "; total_second_join_count=" << total_second_join_results;
 }
 
-void user_main( int * ignore ) {
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
 
-  GlobalAddress<Tuple> tuples;
-  size_t num_tuples;
+    GlobalAddress<Tuple> tuples;
+    size_t num_tuples;
 
-  if ( FLAGS_fin == "" ) {
-    VLOG(1) << "Generating some data";
-    tuples = generate_data( FLAGS_scale, FLAGS_edgefactor, &num_tuples );
-  } else {
-    VLOG(1) << "Reading data from " << FLAGS_fin;
+    if ( FLAGS_fin == "" ) {
+      VLOG(1) << "Generating some data";
+      tuples = generate_data( FLAGS_scale, FLAGS_edgefactor, &num_tuples );
+    } else {
+      VLOG(1) << "Reading data from " << FLAGS_fin;
     
-    tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
+    tuples = Grappa::global_alloc<Tuple>( FLAGS_file_num_tuples );
     readEdges( FLAGS_fin, tuples, FLAGS_file_num_tuples );
     num_tuples = FLAGS_file_num_tuples;
     
-    print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
-  }
+      print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
+    }
 
-  DHT_type::init_global_DHT( &joinTable, 64 );
+    DHT_type::init_global_DHT( &joinTable, 64 );
 
-  Column joinIndex1 = 0; // subject
-  Column joinIndex2 = 1; // object
-  Column select = 1; // object
+    Column joinIndex1 = 0; // subject
+    Column joinIndex2 = 1; // object
+    Column select = 1; // object
 
-  // triangle (assume one index to build)
-  triangles( tuples, num_tuples, joinIndex1, joinIndex2, joinIndex2, select ); 
+    // triangle (assume one index to build)
+    triangles( tuples, num_tuples, joinIndex1, joinIndex2, joinIndex2, select ); 
+  });
+  Grappa::finalize();
 }
-
-
-/// Main() entry
-int main (int argc, char** argv) {
-    Grappa_init( &argc, &argv ); 
-    Grappa_activate();
-
-    Grappa_run_user_main( &user_main, (int*)NULL );
-    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
-    Grappa_finish( 0 );
-}
-
-
-
-// insert conflicts use java-style arraylist, enabling memcpy for next step of join

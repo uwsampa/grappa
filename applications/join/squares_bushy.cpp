@@ -20,7 +20,7 @@
 #include <ParallelLoop.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <AsyncDelegate.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <FullEmpty.hpp>
 
 
@@ -44,7 +44,7 @@ void SquareBushyPlan::preprocessing(std::vector<tuple_graph> relations) {
   auto e1 = relations[0];
 
   FullEmpty<GlobalAddress<Graph<Vertex>>> f1;
-  privateTask( [&f1,e1] {
+  spawn( [&f1,e1] {
       f1.writeXF( Graph<Vertex>::create(e1, /*directed=*/true) );
       });
   auto l_E1_index = f1.readFE();
@@ -53,7 +53,7 @@ void SquareBushyPlan::preprocessing(std::vector<tuple_graph> relations) {
   //for iterating over c-d
   auto e3 = relations[2];
   FullEmpty<GlobalAddress<Graph<Vertex>>> f3;
-  privateTask( [&f3,e3] {
+  spawn( [&f3,e3] {
       f3.writeXF( Graph<Vertex>::create(e3, /*directed=*/true) );
       });
   auto l_E3_index = f3.readFE();
@@ -81,13 +81,13 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   VLOG(1) << "Scan tuples, creating index on subject";
 
   double start, end;
-  start = Grappa_walltime();
+  start = Grappa::walltime();
 
 
 
   // hash on (b)-c
   FullEmpty<GlobalAddress<Graph<Vertex>>> f2;
-  privateTask( [&f2,e2] {
+  spawn( [&f2,e2] {
       f2.writeXF( Graph<Vertex>::create(e2, /*directed=*/true) );
       });
   // TODO: the create() calls should be in parallel but,
@@ -98,7 +98,7 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
 
   // hash on (d)-a
   FullEmpty<GlobalAddress<Graph<Vertex>>> f4;
-  privateTask( [&f4,e4] {
+  spawn( [&f4,e4] {
       f4.writeXF( Graph<Vertex>::create(e4, /*directed=*/true) );
       });
   auto l_E4_index = f4.readFE();
@@ -117,14 +117,14 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
 
   total_edges = E1_index->nadj + E2_index->nadj + E3_index->nadj + E4_index->nadj;
 
-  end = Grappa_walltime();
+  end = Grappa::walltime();
 
   VLOG(1) << "insertions: " << (e2.nedge+e4.nedge)/(end-start) << " per sec";
   index_runtime = end - start;
 
-#if DEBUG
-  printAll(E1_index);
-#endif
+// #if DEBUG
+//   printAll(E1_index);
+// #endif
 
   //
   //TODO: there are plenty of corrections/ optimizations to do here
@@ -132,28 +132,28 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   // 2. moving data that is needed only
   // 3. selection by < degree
  
-  privateTask<&impl::local_gce>([] {
+  spawn<&impl::local_gce>([] {
   // finding the abc, and hashing to h(a,c)
-  forall_localized_async( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
+  forall<async>( E1_index->vs, E1_index->nv, [](int64_t ai, Vertex& a) {
     VLOG(5) << "a iteration " << ai;
-      forall_here_async( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
+      forall_here<async>( 0, a.nadj, [a,ai](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
         ir1_count++; // count(E1)
         auto b_ind = a.local_adj[i];
         auto b_ptr = E2_index->vs + b_ind;
         edges_transfered++;
         // lookup b vertex
-        remotePrivateTask<&impl::local_gce>(b_ptr.core(), [ai,b_ptr,b_ind] {
+        spawnRemote(b_ptr.core(), [ai,b_ptr,b_ind] {
           auto b = *(b_ptr.pointer());
           ir2_count += b.nadj; // count(E1xE2)
           // forall neighbors of b
-          forall_here_async<&impl::local_gce>( 0, b.nadj, [ai,b,b_ind](int64_t start, int64_t iters) {
+          forall_here<async,&impl::local_gce>( 0, b.nadj, [ai,b,b_ind](int64_t start, int64_t iters) {
             for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto c_ind = b.local_adj[i];
             auto owner = h(ai, c_ind);
             VLOG(5) << "abc: " << resultStr({ai,b_ind,c_ind});
             edges_transfered++;
-            delegate::call_async( owner, [ai,b,c_ind] {
+            delegate::call<async>( owner, [ai,b,c_ind] {
               localAssignedEdges_abc.push_back( Edge(ai,c_ind) );
             });
             }
@@ -166,27 +166,27 @@ void SquareBushyPlan::execute(std::vector<tuple_graph> relations) {
   }); // private 
 
 
-  privateTask<&impl::local_gce>([] {
+  spawn<&impl::local_gce>([] {
   // finding the cda, and hashing to h(a,c)
-  forall_localized_async( E3_index->vs, E3_index->nv, [](int64_t ci, Vertex& c) {
+  forall<async>( E3_index->vs, E3_index->nv, [](int64_t ci, Vertex& c) {
     VLOG(5) << "c iteration " << ci;
-      forall_here_async<&impl::local_gce>( 0, c.nadj, [c,ci](int64_t start, int64_t iters) {
+      forall_here<async,&impl::local_gce>( 0, c.nadj, [c,ci](int64_t start, int64_t iters) {
         for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
         auto d_ind = c.local_adj[i];
         auto d_ptr = E4_index->vs + d_ind;
         edges_transfered++;
         // lookup d vertex
-        remotePrivateTask<&impl::local_gce>(d_ptr.core(), [ci,d_ptr,d_ind] {
+        spawnRemote(d_ptr.core(), [ci,d_ptr,d_ind] {
           auto d = *(d_ptr.pointer());
           ir3_count += d.nadj; // count(E3xE4)
           // forall neighbors of d
-          forall_here_async<&impl::local_gce>( 0, d.nadj, [ci,d,d_ind](int64_t start, int64_t iters) {
+          forall_here<async,&impl::local_gce>( 0, d.nadj, [ci,d,d_ind](int64_t start, int64_t iters) {
             for ( int64_t i=start; i<start+iters; i++ ) { // forall_here_async serialized for
             auto a_ind = d.local_adj[i];
             auto owner = h(a_ind, ci);
             VLOG(5) << "cda: " << resultStr({ci,d_ind,a_ind});
             edges_transfered++;
-            delegate::call_async( owner, [ci,d,a_ind] {
+            delegate::call<async>( owner, [ci,d,a_ind] {
               localAssignedEdges_cda.push_back( Edge(ci, a_ind) );
             });
             }

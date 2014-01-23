@@ -1,5 +1,5 @@
 #include "SharedMessagePool.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "ConditionVariable.hpp"
 #include <stack>
 
@@ -15,7 +15,7 @@ DEFINE_int64(shared_pool_size, 1L << 18, "Size (in bytes) of global SharedMessag
 DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
 DEFINE_double(shared_pool_memory_fraction, 0.5, "Fraction of remaining memory to use for shared pool (after taking out global_heap and stacks)");
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, shared_message_pools_allocated, 0);
 
 namespace Grappa {
 

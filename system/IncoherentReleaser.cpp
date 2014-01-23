@@ -1,52 +1,33 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #include "IncoherentReleaser.hpp"
+#include "Metrics.hpp"
 
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>,  release_ams, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>,  release_ams_bytes, 0);
 
-IRStatistics incoherent_releaser_stats;
-
-
-IRStatistics::IRStatistics()
-#ifdef VTRACE_SAMPLED
-  : ir_grp_vt( VT_COUNT_GROUP_DEF( "IncoherentReleaser" ) )
-  , release_ams_ev_vt( VT_COUNT_DEF( "IR release ams", "iaams", VT_COUNT_TYPE_UNSIGNED, ir_grp_vt ) )
-  , release_ams_bytes_ev_vt( VT_COUNT_DEF( "IR release ams bytes", "irms_bytes", VT_COUNT_TYPE_UNSIGNED, ir_grp_vt ) )
-#endif
-{
-  reset();
+void IRMetrics::count_release_ams( uint64_t bytes ) {
+  release_ams++;
+  release_ams_bytes+=bytes;
 }
-
-
-void IRStatistics::reset() {
-  release_ams = 0;
-  release_ams_bytes = 0;
-}
-
-void IRStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-  o << "   \"IncoherentReleaserStatistics\": { "
-    << "\"release_ams\": " << release_ams << ", "
-    << "\"release_ams_bytes\": " << release_ams_bytes
-    << " }" << terminator << std::endl;
-}
-
-void IRStatistics::sample() {
-  ;
-}
-
-void IRStatistics::profiling_sample() {
-#ifdef VTRACE_SAMPLED
-  VT_COUNT_UNSIGNED_VAL( release_ams_ev_vt, release_ams );
-  VT_COUNT_UNSIGNED_VAL( release_ams_bytes_ev_vt, release_ams_bytes );
-#endif
-}
-
-void IRStatistics::merge(const IRStatistics * other) {
-  release_ams += other->release_ams;
-  release_ams_bytes += other->release_ams_bytes;
-}
-

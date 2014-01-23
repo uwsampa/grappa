@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 
 #include <boost/test/unit_test.hpp>
@@ -28,57 +44,48 @@ uint64_t * finished;
 CompletionEvent * ce;
 uint64_t finished_local = 0;
 
-void user_main(void * args) {
-  ce = new CompletionEvent(FLAGS_N);
-
-  on_all_cores([] {
-    finished = new uint64_t[FLAGS_N];
-    for (int i=0; i<FLAGS_N; i++) {
-      finished[i] = 0;
-     }
-  });
-
-  for (int i=0; i<FLAGS_N; i++) {
-//    BOOST_MESSAGE("Spawn " << i);
-    publicTask( [i] () {
-//      BOOST_MESSAGE("Run " << i << " on " << Grappa::mycore());
-      finished_local++;
-      finished[i] = 1;
-
-      delegate::call( 0, [] {
-        ce->complete();
-        }); 
-    });
-  }
-  ce->wait();
-
-  uint64_t total = 0;
-  for (uint64_t i=0; i<Grappa::cores(); i++) {
-    total += delegate::read(make_global(&finished_local,i)); 
-  }
-  
-  BOOST_MESSAGE( "total=" << total );
-  BOOST_CHECK( total == FLAGS_N );
-
-//  for ( uint64_t i = 0; i<N; i++ ) {
-//    uint64_t other = delegate::read( make_global(&finished[i],1));
-//    BOOST_MESSAGE( "i " << i << " fi "<<finished[i] <<" o " << other );
-//    BOOST_CHECK( (finished[i] ^ other) == 1 );
-//  }
-
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    ce = new CompletionEvent(FLAGS_N);
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-	       &(boost::unit_test::framework::master_test_suite().argv)
-	       );
+    on_all_cores([] {
+      finished = new uint64_t[FLAGS_N];
+      for (int i=0; i<FLAGS_N; i++) {
+        finished[i] = 0;
+       }
+    });
 
-  Grappa_activate();
+    for (int i=0; i<FLAGS_N; i++) {
+  //    BOOST_MESSAGE("Spawn " << i);
+      spawn<unbound>( [i] () {
+  //      BOOST_MESSAGE("Run " << i << " on " << Grappa::mycore());
+        finished_local++;
+        finished[i] = 1;
 
-  Grappa_run_user_main( &user_main, (void*)NULL );
+        delegate::call( 0, [] {
+          ce->complete();
+          }); 
+      });
+    }
+    ce->wait();
 
-  Grappa_finish( 0 );
+    uint64_t total = 0;
+    for (uint64_t i=0; i<Grappa::cores(); i++) {
+      total += delegate::read(make_global(&finished_local,i)); 
+    }
+  
+    BOOST_MESSAGE( "total=" << total );
+    BOOST_CHECK( total == FLAGS_N );
+
+  //  for ( uint64_t i = 0; i<N; i++ ) {
+  //    uint64_t other = delegate::read( make_global(&finished[i],1));
+  //    BOOST_MESSAGE( "i " << i << " fi "<<finished[i] <<" o " << other );
+  //    BOOST_CHECK( (finished[i] ^ other) == 1 );
+  //  }
+
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

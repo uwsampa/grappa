@@ -1,23 +1,31 @@
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 #ifndef TASK_HPP
 #define TASK_HPP
 
 #include <iostream>
 #include <deque>
 #include "Worker.hpp"
-#include "StatisticsTools.hpp"
-
-#ifdef VTRACE
-#include <vt_user.h>
-#endif
-#ifdef VTRACE_SAMPLED
-#include <vt_user.h>
-#endif
 
 #define PRIVATEQ_LIFO 1
 
@@ -25,8 +33,8 @@
 namespace Grappa {
   namespace impl {
 
-// forward declaration of Grappa Node
-typedef int16_t Node;
+// forward declaration of Grappa Core
+typedef int16_t Core;
 
 /// Represents work to be done. 
 /// A function pointer and 3 64-bit arguments.
@@ -99,10 +107,29 @@ static Task createTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   return t;
 }
 
+class TaskManagerMetrics {
+  public:
+    static void record_successful_steal_session();
+    static void record_failed_steal_session();
+    static void record_successful_steal( int64_t amount );
+    static void record_failed_steal();
+    static void record_successful_acquire();
+    static void record_failed_acquire();
+    static void record_release();
+    static void record_public_task_dequeue();
+    static void record_private_task_dequeue();
+    static void record_globalq_push( uint64_t amount, bool success );
+    static void record_globalq_pull_start( );
+    static void record_globalq_pull( uint64_t amount );
+    static void record_workshare_test();
+    static void record_remote_private_task_spawn();
+    static void record_workshare( int64_t change );
+};
+
 /// Keeps track of tasks, pairing workers with tasks, and load balancing.
 class TaskManager {
   private:
-    /// queue for tasks assigned specifically to this Node
+    /// queue for tasks assigned specifically to this Core
     std::deque<Task> privateQ; 
 
     /// indicates that all tasks *should* be finished
@@ -111,7 +138,7 @@ class TaskManager {
 
 
     /// machine-local id (to support hierarchical dynamic load balancing)
-    Node localId;
+    Core localId;
 
     bool all_terminate;
 
@@ -133,10 +160,10 @@ class TaskManager {
     bool gqPullLock;     // global queue pull lock
 
     /// local neighbors (to support hierarchical dynamic load balancing)
-    Node* neighbors;
+    Core* neighbors;
 
-    /// number of Nodes on local machine (to support hierarchical dynamic load balancing)
-    Node numLocalNodes;
+    /// number of Cores on local machine (to support hierarchical dynamic load balancing)
+    Core numLocalNodes;
 
     /// next victim to steal from (for selection by pseudo-random permutation)
     int64_t nextVictimIndex;
@@ -155,7 +182,7 @@ class TaskManager {
     /// @return true if local shared queue has elements
     bool publicHasEle() const;
 
-    /// @return true if Node-private queue has elements
+    /// @return true if Core-private queue has elements
     bool privateHasEle() const {
       return !privateQ.empty();
     }
@@ -178,193 +205,14 @@ class TaskManager {
     /// 
     /// @return new output stream 
     std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const;
+ 
 
   public:
-    class TaskStatistics {
-      private:
-        uint64_t single_steal_successes_;
-        TotalStatistic steal_amt_;
-        uint64_t single_steal_fails_;
-        uint64_t session_steal_successes_;
-        uint64_t session_steal_fails_;
-        uint64_t acquire_successes_;
-        uint64_t acquire_fails_;
-        uint64_t releases_;
-        uint64_t public_tasks_dequeued_;
-        uint64_t private_tasks_dequeued_;
-        uint64_t remote_private_tasks_spawned_;
 
-        uint64_t globalq_pushes_;
-        uint64_t globalq_push_attempts_;
-        TotalStatistic globalq_elements_pushed_;
-        uint64_t globalq_pulls_;
-        uint64_t globalq_pull_attempts_;
-        TotalStatistic globalq_elements_pulled_;
 
-        uint64_t workshare_tests_;
-        uint64_t workshares_initiated_;
-        TotalStatistic workshares_initiated_received_elements_;
-        TotalStatistic workshares_initiated_pushed_elements_;
-
-        // number of calls to sample() 
-        uint64_t sample_calls;
-
-#ifdef VTRACE_SAMPLED
-        unsigned task_manager_vt_grp;
-        unsigned privateQ_size_vt_ev;
-        unsigned publicQ_size_vt_ev;
-        unsigned session_steal_successes_vt_ev;
-        unsigned session_steal_fails_vt_ev;
-        unsigned single_steal_successes_vt_ev;
-        unsigned total_steal_tasks_vt_ev;
-        unsigned single_steal_fails_vt_ev;
-        unsigned acquire_successes_vt_ev;
-        unsigned acquire_fails_vt_ev;
-        unsigned releases_vt_ev;
-        unsigned public_tasks_dequeued_vt_ev;
-        unsigned private_tasks_dequeued_vt_ev;
-        unsigned remote_private_tasks_spawned_vt_ev;
-
-        unsigned globalq_pushes_vt_ev;
-        unsigned globalq_push_attempts_vt_ev;
-        unsigned globalq_elements_pushed_vt_ev;
-        unsigned globalq_pulls_vt_ev;
-        unsigned globalq_pull_attempts_vt_ev;
-        unsigned globalq_elements_pulled_vt_ev;
-
-        unsigned shares_initiated_vt_ev;
-        unsigned shares_received_elements_vt_ev;
-        unsigned shares_pushed_elements_vt_ev;
-#endif
-
-        TaskManager * tm;
-
-      public:
-        TaskStatistics() { } // only for declarations that will be copy-assigned to
-
-        TaskStatistics(TaskManager * task_manager)
-          : steal_amt_ ()
-            , globalq_elements_pushed_ ()
-            , workshares_initiated_received_elements_ ()
-            , workshares_initiated_pushed_elements_ ()
-#ifdef VTRACE_SAMPLED
-            , task_manager_vt_grp( VT_COUNT_GROUP_DEF( "Task manager" ) )
-              , privateQ_size_vt_ev( VT_COUNT_DEF( "privateQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , publicQ_size_vt_ev( VT_COUNT_DEF( "publicQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , session_steal_successes_vt_ev( VT_COUNT_DEF( "session_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , session_steal_fails_vt_ev( VT_COUNT_DEF( "session_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , single_steal_successes_vt_ev( VT_COUNT_DEF( "single_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , total_steal_tasks_vt_ev( VT_COUNT_DEF( "total_steal_tasks", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , single_steal_fails_vt_ev( VT_COUNT_DEF( "single_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , acquire_successes_vt_ev( VT_COUNT_DEF( "acquire_successes", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , acquire_fails_vt_ev( VT_COUNT_DEF( "acquire_fails", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , releases_vt_ev( VT_COUNT_DEF( "releases", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , public_tasks_dequeued_vt_ev( VT_COUNT_DEF( "public_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , private_tasks_dequeued_vt_ev( VT_COUNT_DEF( "private_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , remote_private_tasks_spawned_vt_ev ( VT_COUNT_DEF( "remote_private_tasks_spawned", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-
-              , globalq_pushes_vt_ev( VT_COUNT_DEF( "globalq pushes", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_push_attempts_vt_ev( VT_COUNT_DEF( "globalq push attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_elements_pushed_vt_ev( VT_COUNT_DEF( "globalq elements pushed", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_pulls_vt_ev( VT_COUNT_DEF( "globalq pulls", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_pull_attempts_vt_ev( VT_COUNT_DEF( "globalq pull attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , globalq_elements_pulled_vt_ev( VT_COUNT_DEF( "globalq elements pulled", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-
-              , shares_initiated_vt_ev( VT_COUNT_DEF( "workshares initiated", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , shares_received_elements_vt_ev( VT_COUNT_DEF( "workshares received elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-              , shares_pushed_elements_vt_ev( VT_COUNT_DEF( "workshares pushed elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-#endif
-
-              , tm( task_manager )
-              { reset(); }
-
-        void sample();
-        void profiling_sample();
-
-        void record_successful_steal_session() {
-          session_steal_successes_++;
-        }
-
-        void record_failed_steal_session() {
-          session_steal_fails_++;
-        }
-
-        void record_successful_steal( int64_t amount ) {
-          single_steal_successes_++;
-          steal_amt_.update( amount );
-        }
-
-        void record_failed_steal() {
-          single_steal_fails_++;
-        }
-
-        void record_successful_acquire() {
-          acquire_successes_++;
-        }
-
-        void record_failed_acquire() {
-          acquire_fails_++;
-        }
-
-        void record_release() {
-          releases_++;
-        }
-
-        void record_public_task_dequeue() {
-          public_tasks_dequeued_++;
-        }
-
-        void record_private_task_dequeue() {
-          private_tasks_dequeued_++;
-        }
-
-        void record_globalq_push( uint64_t amount, bool success ) {
-          globalq_push_attempts_ += 1;
-          if (success) {
-            globalq_elements_pushed_.update(amount);
-            globalq_pushes_ += 1;
-          }
-        }
-
-        void record_globalq_pull_start( ) {
-          globalq_pull_attempts_ += 1;
-        }
-
-        void record_globalq_pull( uint64_t amount ) {
-          if ( amount > 0 ) {
-            globalq_elements_pulled_.update(amount);
-            globalq_pulls_ += 1;
-          }
-        }
-
-        void record_workshare_test() {
-          workshare_tests_++;
-        }
-
-        void record_remote_private_task_spawn() {
-          remote_private_tasks_spawned_++;
-        }
-
-        void record_workshare( int64_t change ) {
-          workshares_initiated_ += 1;
-          if ( change < 0 ) {
-            workshares_initiated_pushed_elements_.update((-change));
-          } else {
-            workshares_initiated_received_elements_.update( change );
-          }
-        }
-
-        void dump( std::ostream& o, const char * terminator );
-        void merge(const TaskStatistics * other);
-        void reset();
-    };
-
-    /// task statistics object
-    TaskStatistics stats;
-
-    //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+    //TaskManager (bool doSteal, Core localId, Core* neighbors, Core numLocalNodes, int chunkSize, int cbint);
     TaskManager();
-    void init (Node localId, Node* neighbors, Node numLocalNodes);
+    void init (Core localId, Core* neighbors, Core numLocalNodes);
     void activate();
 
     /// @return true if work is considered finished and
@@ -389,15 +237,14 @@ class TaskManager {
     template < typename A0, typename A1, typename A2 > 
       void spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 );
 
+    uint64_t numLocalPublicTasks() const;
+    uint64_t numLocalPrivateTasks() const;
+
     bool getWork ( Task * result );
 
     bool available ( ) const;
     bool local_available ( ) const;
 
-    void dump_stats( std::ostream& o, const char * terminator );
-    void dump_stats();
-    void merge_stats();
-    void reset_stats();
     void finish();
 
     friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
@@ -487,7 +334,6 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 
 #else
   privateQ.push_back( newtask );
 #endif
-  stats.record_remote_private_task_spawn();
   /// note from cbarrier implementation
   /*
    * local cancel cbarrier

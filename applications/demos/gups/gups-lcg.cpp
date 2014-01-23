@@ -14,8 +14,8 @@ using namespace Grappa;
 DEFINE_int64( sizeA, 1 << 30, "Size of array that GUPS increments" );
 DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
 
 const uint64_t lcgM = 6364136223846793005UL;
 const uint64_t lcgB = 1442695040888963407UL;
@@ -32,9 +32,9 @@ int main( int argc, char * argv[] ) {
 
       double start = walltime();
 
-      forall_global_public(0, FLAGS_sizeB, [=](int64_t i){
+      forall<unbound>(0, FLAGS_sizeB, [=](int64_t i){
           uint64_t b = (lcgM * i + lcgB) % FLAGS_sizeA;
-          delegate::increment_async( A + b, 1);
+          delegate::increment<async>( A + b, 1);
         });
 
       gups_runtime = walltime() - start;

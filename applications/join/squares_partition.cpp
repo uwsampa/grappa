@@ -88,7 +88,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
   // really just care about local edges; we get to them
   // indirectly through local vertices at the moment.
   // This is sequential access since edgeslists and vertices are sorted the same
-  forall_localized( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
+  forall( g->vs, g->nv, [sidelength](int64_t i, Vertex& v) {
       // hash function
       auto hf = makeHash( sidelength );
       Hypercube h( { sidelength, sidelength, sidelength, sidelength } );
@@ -106,7 +106,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_ab = h.slice( {hf(src), hf(dst), HypercubeSlice::ALL, HypercubeSlice::ALL} );
       for (auto l : locs_ab) {
       Edge e(src, dst);
-      delegate::call_async( l, [e] { 
+      delegate::call<async>( l, [e] { 
         localAssignedEdges_R1.push_back(e); 
         VLOG(5) << "received " << e << " as a->b";
         });
@@ -117,7 +117,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_bc = h.slice( {HypercubeSlice::ALL, hf(src), hf(dst), HypercubeSlice::ALL} );
       for (auto l : locs_bc) {
         Edge e(src, dst);
-        delegate::call_async( l, [e] { 
+        delegate::call<async>( l, [e] { 
             localAssignedEdges_R2.push_back(e); 
             VLOG(5) << "received " << e << " as b->c";
             });
@@ -128,7 +128,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_cd = h.slice( {HypercubeSlice::ALL, HypercubeSlice::ALL, hf(src), hf(dst)} );
       for (auto l : locs_cd) {
         Edge e(src, dst);
-        delegate::call_async( l, [e] { 
+        delegate::call<async>( l, [e] { 
             localAssignedEdges_R3.push_back(e); 
             VLOG(5) << "received " << e << " as c->d";
             });
@@ -139,7 +139,7 @@ void SquarePartition4way::execute(std::vector<tuple_graph> relations) {
       auto locs_da = h.slice( {hf(dst), HypercubeSlice::ALL, HypercubeSlice::ALL, hf(src)} );
       for (auto l : locs_da) {
         Edge e(src, dst);
-        delegate::call_async( l, [e] { 
+        delegate::call<async>( l, [e] { 
             localAssignedEdges_R4.push_back(e); 
             VLOG(5) << "received " << e << " as d->a";
             });

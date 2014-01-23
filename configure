@@ -24,8 +24,11 @@ OptionParser.new{|p|
   p.on('--mode=[Release]|Debug[,*]','Build mode. Default: Release (with debug symbols)'){|a| opt.mode = a }
   p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
-  p.on('--name=NAME',"Add an additional name to this configuration to distinguish it (i.e. compiler version)"){|n| opt.name = n }
-  p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies instead of re-building for each configuration."){|p| opt.third_party = p }
+  p.on('--name=NAME',"Add an additional name to this configuration to #{line_break}distinguish it (i.e. compiler version)"){|n| opt.name = n }
+  p.on('--tracing',"Enable VampirTrace/gperftools-based sampled tracing. #{line_break}Looks for VampirTrace build in 'third-party' dir."){|b| opt.tracing = true }
+  p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
+  p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
+  p.on('--shmmax=SIZE',"Manually set maximum SysV shared memory size"){|n| opt.shmmax = n }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -46,6 +49,10 @@ end
     abort("Must specify C compiler (either use '--cc=' flag, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
   end
 ### end
+
+if opt.tracing && not(opt.vampir) && opt.third_party
+  opt.vampir = opt.third_party
+end
 
 def configure(generator, mode, opt)
   root_dir = File.expand_path(File.dirname(__FILE__))
@@ -69,20 +76,35 @@ def configure(generator, mode, opt)
   end
   
   # determine shared memory size
-  opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
-  if not $?.success?
-    opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
+  unless opt.shmmax
+    opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
     if not $?.success?
-      opt.shmmax = nil
-      warn "warning: unable to determine Sys V shared memory size; continuing, but you may be unable to run programs"
+      opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
+      if not $?.success?
+        abort "error: unable to determine max SysV shared memory size automatically. Please set it manually with --shmmax option (usually half your main memory size)."
+      end
     end
   end
   args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
   
-  args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
-  args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
-  args << "-DBASE_C_COMPILER=#{opt.cc}"    if opt.cc
-  args << "-DBASE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+  if opt.tracing
+    vtcc = "#{opt.vampir}/bin/vtcc"
+    abort("error: Unable to find VampirTrace wrappers at #{vtcc}") if not File.exists?(vtcc)
+    
+    args << "-DVAMPIR_ROOT:PATH=#{opt.vampir}"
+    args << "-DCMAKE_C_COMPILER:FILEPATH=#{opt.vampir}/bin/vtcc"
+    args << "-DCMAKE_CXX_COMPILER:FILEPATH=#{opt.vampir}/bin/vtcxx"
+    args << "-DBASE_C_COMPILER:FILEPATH=#{opt.cc}"
+    args << "-DBASE_CXX_COMPILER:FILEPATH=#{opt.cxx}"
+    args << "-DCMAKE_C_FLAGS:STRING='-vt:cc #{opt.cc}'"
+    args << "-DCMAKE_CXX_FLAGS:STRING='-vt:cxx #{opt.cxx}'"
+    args << "-DTRACING:BOOL=ON"
+  else  
+    args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
+    args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+    args << "-DBASE_C_COMPILER=#{opt.cc}"
+    args << "-DBASE_CXX_COMPILER=#{opt.cxx}"
+  end
   
   args << "-DTHIRD_PARTY_ROOT:PATH=#{opt.third_party}" if opt.third_party
   
@@ -99,6 +121,7 @@ def configure(generator, mode, opt)
   
   build_dir = "build/#{generator}"
   build_dir << "+#{mode}" if mode
+  build_dir << "+Tracing" if opt.vampir
   build_dir << "+#{opt.name}" if opt.name
   
   mkdir_p build_dir

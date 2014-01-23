@@ -21,12 +21,12 @@ namespace Grappa {
 
   template<typename ConditionVariable>
   inline void signal( const GlobalAddress<ConditionVariable> m ) {
-    if (m.node() == Grappa::mycore()) {
+    if (m.core() == Grappa::mycore()) {
       // if local, just signal
       Grappa::signal(m.pointer());
     } else {
       // if remote, signal via active message
-      send_heap_message(m.node(), [m]{
+      send_heap_message(m.core(), [m]{
         Grappa::signal(m.pointer());
       });
     }

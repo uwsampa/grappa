@@ -5,8 +5,6 @@ set(SOURCES
   oned_csr.cpp
   options.h
   options.cpp
-  rmat.h
-  rmat.cpp
   timer.h
   verify.hpp
   verify.cpp
@@ -20,8 +18,6 @@ set(BFS_VARIANTS
   bfs
   bfs_local
   bfs_beamer
-  bfs_nosteal
-  bfs_steal_phases
 )
 
 # make separate build targets for each BFS variant

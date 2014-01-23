@@ -76,7 +76,7 @@ uts-dot:  uts_dot.c $(RNG_SRC) $(COMMON_SRCS)
 	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) -o $@ $+
 
 uts-stat: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) -DUTS_STAT -o $@ $+
+	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) -DUTS_METRIC -o $@ $+
 
 time_rng:  time_rng.c $(RNG_SRC) $(COMMON_SRCS)
 	$(CC) $(CC_OPTS) $(RNG_DEF) -o $@ $+ $(LD_OPTS)

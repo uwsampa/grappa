@@ -1,13 +1,10 @@
 #include "common.h"
 #include "timer.h"
 #include <Grappa.hpp>
-#include <ForkJoin.hpp>
 #include <Cache.hpp>
 #include <Delegate.hpp>
 #include <PerformanceTools.hpp>
 #include <GlobalAllocator.hpp>
-#include <GlobalTaskJoiner.hpp>
-#include <AsyncParallelFor.hpp>
 #include <PushBuffer.hpp>
 #include <Collective.hpp>
 #include <Array.hpp>
@@ -15,19 +12,6 @@
 #include <ParallelLoop.hpp>
 
 using namespace Grappa;
-
-//#include <boost/hash.hpp>
-//#include <boost/unordered_set.hpp>
-//#include <boost/dynamic_bitset.hpp>
-
-GRAPPA_DEFINE_EVENT_GROUP(bfs);
-
-
-//#define read      Grappa_delegate_read_word
-//#define write     Grappa_delegate_write_word
-//#define cmp_swap  Grappa_delegate_compare_and_swap_word
-//#define fetch_add Grappa_delegate_fetch_and_add_word
-//#define allreduce_add Grappa_allreduce<int64_t,coll_add<int64_t>,0>
 
 static PushBuffer<int64_t> vlist_buf;
 
@@ -116,7 +100,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
   LOG_FIRST_N(INFO,1) << "bfs_version: 'localized'";
   
   int64_t NV = g->nv;
-  GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
+  GlobalAddress<int64_t> _vlist = Grappa::global_alloc<int64_t>(NV);
   DVLOG(1) << "make_bfs_tree(" << root << ")";
 #ifdef VTRACE 
   if (marker == -1) marker = VT_MARKER_DEF("bfs_level", VT_MARKER_TYPE_HINT);
@@ -137,11 +121,6 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
   auto& graph = *g;
   
   on_all_cores([_vlist,graph,_bfs_tree,k2addr,root]{
-    if ( !bfs_counters_added ) {
-      bfs_counters_added = true;
-      Grappa_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
-      Grappa_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
-    }
     
     // setup globals
     vlist = _vlist;
@@ -174,7 +153,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
     VLOG(2) << "k1=" << k1 << ", k2=" << _k2;
     const int64_t oldk2 = _k2;
     
-    forall_localized(_vlist+k1, _k2-k1, [](int64_t index, int64_t& source_v) {
+    forall(_vlist+k1, _k2-k1, [](int64_t index, int64_t& source_v) {
       DVLOG(4) << "[" << index << "] source_v = " << source_v;
       ++bfs_vertex_visited;
       
@@ -187,11 +166,11 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
       ////for (int64_t i=vstart; i<vend; i++) { ss << read(xadj+i) << " "; }
       ////VLOG(1) << ss.str();
       //VLOG(1) << "vstart: " << vstart << ", vend-vstart = " << vend-vstart;
-      //VLOG(1) << "start node: " << (xadj+vstart).node();
+      //VLOG(1) << "start node: " << (xadj+vstart).core();
       //}
       
       //  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
-      forall_localized_async(xadj+vstart, vend-vstart, [source_v](int64_t index, int64_t& ev){
+      forall<async>(xadj+vstart, vend-vstart, [source_v](int64_t index, int64_t& ev){
         ++bfs_neighbors_visited;
         
         DCHECK( source_v < nv ) << "| v = " << source_v << ", nv = " << nv;
@@ -230,7 +209,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
 //  VLOG(1) << "cmp_swaps_shorted: " << cmp_swaps_shorted;
 //  VLOG(1) << "cmp_swaps_total: " << cmp_swaps_total;
 
-  Grappa_free(_vlist);
+  Grappa::global_free(_vlist);
   
   return t;
 }

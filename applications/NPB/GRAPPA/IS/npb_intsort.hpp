@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 enum NPBClass                     {  S,  W,  A,  B,  C,  D,  E };
 static const int NKEY_LOG2[]    = { 16, 20, 23, 25, 27, 29, 31 };
@@ -19,6 +35,7 @@ inline NPBClass get_npb_class(char c) {
     case 'C': return NPBClass::C;
     case 'D': return NPBClass::D;
     case 'E': return NPBClass::E;
+    default: return NPBClass::S;
   }
 }
 inline char npb_class_char(NPBClass c) {
@@ -30,5 +47,6 @@ inline char npb_class_char(NPBClass c) {
     case NPBClass::C: return 'C';
     case NPBClass::D: return 'D';
     case NPBClass::E: return 'E';
+    default: return 'S';
   }
 }

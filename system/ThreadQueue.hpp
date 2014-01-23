@@ -3,6 +3,9 @@
 #include "Worker.hpp"
 #include <limits>
 #include <glog/logging.h>
+#include <iostream>
+
+namespace Grappa {
 
 
 /// A queue of threads
@@ -12,13 +15,13 @@ class ThreadQueue {
         Worker * tail;
         uint64_t len;
         
+      public:
         std::ostream& dump( std::ostream& o ) const {
             return o << "[length:" << len
                      << "; head:" << (void*)head
                      << "; tail:" << (void*)tail << "]";
         }
 
-    public:
         ThreadQueue ( ) 
             : head ( NULL )
             , tail ( NULL )
@@ -35,11 +38,10 @@ class ThreadQueue {
 
         bool empty() {
             return (head==NULL);
-        }
-        
-        friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
+        }     
 };
 
+}
 
 template< typename T >
 T _max(const T& a, const T& b) {
@@ -50,6 +52,7 @@ T _min(const T& a, const T& b) {
   return (a<b) ? a : b;
 }
 
+namespace Grappa {
 
 class PrefetchingThreadQueue {
   private:
@@ -153,12 +156,10 @@ class PrefetchingThreadQueue {
       }
     }
 
-
-    friend std::ostream& operator<< ( std::ostream& o, const PrefetchingThreadQueue& tq );
 };
 
 
-/// Remove a Thread from the queue and return it
+/// Remove a Worker from the queue and return it
 inline Worker * ThreadQueue::dequeue() {
     Worker * result = head;
     if (result != NULL) {
@@ -189,7 +190,7 @@ inline Worker * ThreadQueue::dequeueLazy() {
     return result;
 }
 
-/// Add a Thread to the queue
+/// Add a Worker to the queue
 inline void ThreadQueue::enqueue( Worker * t) {
     if (head==NULL) {
         head = t;
@@ -206,4 +207,7 @@ inline Worker * ThreadQueue::front() const {
   return head;
 }
 
+}
 
+std::ostream& operator<< ( std::ostream& o, const Grappa::ThreadQueue& tq );
+std::ostream& operator<< ( std::ostream& o, const Grappa::PrefetchingThreadQueue& tq );

@@ -5,12 +5,12 @@
 #include <GlobalAllocator.hpp>
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 
 #include <list>
 
 // for all hash tables
-//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
+//GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
 
 
 // for naming the types scoped in MatchesDHT
@@ -80,20 +80,20 @@ class MatchesDHT {
     MatchesDHT( ) {}
 
     static void init_global_DHT( MatchesDHT<K,V,HF> * globally_valid_local_pointer, size_t capacity ) {
-      GlobalAddress<Cell> base = Grappa_typed_malloc<Cell>( capacity );
+      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity] {
         *globally_valid_local_pointer = MatchesDHT<K,V,HF>( base, capacity );
       });
 
-      Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
         Cell empty;
         c = empty;
       });
     }
 
     static void set_RO_global( MatchesDHT<K,V,HF> * globally_valid_local_pointer ) {
-      Grappa::forall_localized( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = c.entries;
 
@@ -121,14 +121,14 @@ class MatchesDHT {
       GlobalAddress< Cell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
-      lookup_result result = Grappa::delegate::call( target.node(), [key,target,this]() {
+      lookup_result result = Grappa::delegate::call( target.core(), [key,target,this]() {
 
         MDHT_TYPE(lookup_result) lr;
         lr.num = 0;
 
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
-          lr.matches = e.vs->getReadBuffer();
+          lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
           lr.num = e.vs->getLength();
         }
 
@@ -149,11 +149,11 @@ class MatchesDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
-      remotePrivateTask<GCE>( target.node(), [key, target, f, this]() {
+      spawnRemote<GCE>( target.node(), [key, target, f, this]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           V * results = e.vs->getReadBuffer().pointer(); // global address to local array
-          forall_here_async<GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
+          forall_here<async,GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               // call the continuation with the lookup result
               f(results[i]); 
@@ -169,7 +169,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call_async( target.node(), [key, target, f]() {
+      Grappa::delegate::call<async>( target.node(), [key, target, f]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           V * results = e.vs->getReadBuffer().pointer(); // global address to local array
@@ -188,7 +188,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 //FIXME: remove index capture
-      bool result = Grappa::delegate::call( target.node(), [index,key, target]() {   // TODO: have an additional version that returns void
+      bool result = Grappa::delegate::call( target.core(), [index,key, target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
@@ -226,7 +226,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call( target.node(), [key, val, target]() {   // TODO: upgrade to call_async
+      Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
 
