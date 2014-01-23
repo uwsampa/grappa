@@ -44,13 +44,10 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 # TODO: use -stdlib=libc++ too?
 
 #########################################
-# Determine tools to build
+# Determine third party tools to build
 if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools" CACHE TYPE PATH)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE TYPE PATH)
 endif()
-
-# always need these
-set(tool_list "")
 
 ###########################
 # Use RUNPATH if available
@@ -113,7 +110,6 @@ endif()
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
-  # list(APPEND tool_list tool-gperftools)
 endif()
 
 # pre-compiled external dependencies
@@ -270,5 +266,5 @@ add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(system)
-add_subdirectory(tools)
+add_subdirectory(third-party)
 add_subdirectory(tutorial)
