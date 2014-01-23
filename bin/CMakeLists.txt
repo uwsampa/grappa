@@ -1,5 +1,3 @@
-# file(COPY . DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(GLOB scripts "*")
 
 set(symlinked_scripts
   distcc_make
