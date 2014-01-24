@@ -2,6 +2,7 @@
 #include "DelegateExtractor.hpp"
 
 #include <llvm/InstVisitor.h>
+#include <llvm/IR/IRBuilder.h>
 
 using namespace llvm;
 
@@ -367,6 +368,25 @@ Function* DelegateExtractor::extractFunction() {
         DEBUG( errs() << " !! wrong function!" );
       }
       DEBUG( errs() << "\n" );
+    }
+  }
+  
+  // any global* loads/stores must be local, so fix them up
+  for (auto bb = new_fn->begin(); bb != new_fn->end(); bb++) {
+    for (auto inst = bb->begin(); inst != bb->end(); ) {
+      Instruction *orig = inst;
+      inst++;
+      if (auto ld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(orig)) {
+        outs() << "!! found a global load:" << *orig << "\n";
+        Value *v = ld->getPointerOperand();
+        IRBuilder<> b(ld);
+        v = b.CreateBitCast(v, void_gptr_ty);
+        v = b.CreateCall(ginfo.get_pointer_fn, (Value*[]){ v });
+        v = b.CreateBitCast(v, getAddrspaceType(ld->getPointerOperand()->getType()));
+        v = b.CreateLoad(v, ld->isVolatile(), ld->getName());
+        ld->replaceAllUsesWith(v);
+        ld->eraseFromParent();
+      }
     }
   }
 

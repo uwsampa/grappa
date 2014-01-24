@@ -62,6 +62,13 @@ namespace llvm {
   static const int GLOBAL_SPACE = 100;
   static const int SYMMETRIC_SPACE = 200;
   
+  inline PointerType* getAddrspaceType(Type *orig, int addrspace = 0) {
+    if (auto p = dyn_cast<PointerType>(orig)) {
+      return PointerType::get(p->getElementType(), addrspace);
+    }
+    return nullptr;
+  }
+  
   struct GlobalPtrInfo {
     Function *call_on_fn, *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
     
