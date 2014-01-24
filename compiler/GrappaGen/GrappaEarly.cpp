@@ -23,8 +23,6 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/IR/DataLayout.h>
-#include <llvm/Analysis/Dominators.h>
-#include <llvm/Analysis/DomPrinter.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"

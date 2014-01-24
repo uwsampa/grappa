@@ -34,7 +34,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/IR/DataLayout.h>
-#include <llvm/Analysis/Dominators.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/Analysis/DomPrinter.h>
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/Support/GraphWriter.h>

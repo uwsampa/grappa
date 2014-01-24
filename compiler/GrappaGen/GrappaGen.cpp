@@ -23,7 +23,7 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/IR/DataLayout.h>
-#include <llvm/Analysis/Dominators.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/Analysis/DomPrinter.h>
 #include <llvm/IR/IRBuilder.h>
 
@@ -418,7 +418,7 @@ namespace {
     virtual bool runOnFunction(Function &F) {
 //      DEBUG( outs() << F.getName() << "\n" );
       auto& mod = *F.getParent();
-      DT = &getAnalysis<DominatorTree>();
+      DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
       bool changed = false;
       // errs() << "processing fn: " << F.getName() << "\n";
@@ -600,7 +600,7 @@ namespace {
     }
     
     virtual void getAnalysisUsage(AnalysisUsage& AU) const {
-      AU.addRequired<DominatorTree>();
+      AU.addRequired<DominatorTreeWrapperPass>();
     }
     
     ~GrappaGen() { }
