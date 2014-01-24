@@ -511,11 +511,25 @@ namespace {
             } else if (auto call = dyn_cast<CallInst>(&inst)) {
               // look for CallInst that take a symmetric ptr as first arg (methods)
               
-              if (call->getCalledFunction()->getName() == "_ZN3Foo3barEv") {
-                errs() << "Foo::bar() => " << *call << "\n";
+              if (call->getNumArgOperands() == 0) continue;
+              
+              FunctionType *fnTy;
+              if (call->getCalledFunction()) {
+                fnTy = call->getCalledFunction()->getFunctionType();
+              } else {
+                fnTy = dyn_cast<FunctionType>(call->getCalledValue()->getType());
+                if (!fnTy) continue;
               }
               
-              if (dyn_cast_addr<SYMMETRIC_SPACE>(call->getOperand(0)->getType())) {
+              auto opTy = call->getArgOperand(0)->getType();
+              auto argTy = fnTy->getParamType(0);
+              
+              if (dyn_cast_addr<SYMMETRIC_SPACE>(opTy) &&
+                  !dyn_cast_addr<SYMMETRIC_SPACE>(argTy)) {
+                symms.push_back(&inst);
+              }
+            } else if (auto c = dyn_cast<AddrSpaceCastInst>(&inst)) {
+              if (c->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
                 symms.push_back(&inst);
               }
             }
@@ -525,25 +539,40 @@ namespace {
       
       for (auto inst : symms) {
         Value* gptr = nullptr;
+        bool replaceInst = false;
+        
         if (auto orig = dyn_cast<LoadInst>(inst)) {
-          errs() << "load<symmetric> => " << *orig << "\n";
+          errs() << "load<symmetric>         =>" << *orig << "\n";
           gptr = orig->getPointerOperand();
         } else if (auto orig = dyn_cast<StoreInst>(inst)) {
-          errs() << "store<symmetric> => " << *orig << "\n";
+          errs() << "store<symmetric>        =>" << *orig << "\n";
           gptr = orig->getPointerOperand();
         } else if (auto orig = dyn_cast<CallInst>(inst)) {
-          errs() << "call<symmetric> => " << *orig << "\n";
+          errs() << "call<symmetric>         =>" << *orig << "\n";
           gptr = orig->getOperand(0);
+        } else if (auto orig = dyn_cast<AddrSpaceCastInst>(inst)) {
+          errs() << "addrspacecast<symmetric> =>" << *orig << "\n";
+          gptr = orig->getOperand(0);
+          replaceInst = true;
         }
+        
         auto gptr_ty = dyn_cast<PointerType>(gptr->getType());
         auto ptr_ty = PointerType::get(gptr_ty->getElementType(), 0);
         
-        auto bc = new BitCastInst(gptr, void_symmptr_ty, "symm.bc." + inst->getName(), inst);
-        auto ptr = CallInst::Create(get_pointer_symm_fn, (Value*[]){ bc },
-                                    "symm.ptr." + inst->getName(), inst);
-        auto bcback = new BitCastInst(ptr, ptr_ty, "symm.bcback." + inst->getName(), inst);
+        auto name = gptr->getName().size() == 0 ? "symm" : gptr->getName()+".symm";
         
-        inst->replaceUsesOfWith(gptr, bcback);
+        auto bc = new BitCastInst(gptr, void_symmptr_ty, name+".bc", inst);
+        auto ptr = CallInst::Create(get_pointer_symm_fn, (Value*[]){ bc }, name+".ptr", inst);
+        auto bcback = new BitCastInst(ptr, ptr_ty, name+".local", inst);
+        
+        if (replaceInst) {
+          inst->replaceAllUsesWith(bcback);
+          inst->eraseFromParent();
+        } else {
+          inst->replaceUsesOfWith(gptr, bcback);
+          DEBUG(errs() << "inst => " << *inst << "\n");
+        }
+        
       }
       
       /////////////////////////////////////
