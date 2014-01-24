@@ -411,6 +411,7 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
       DEBUG( errs() << "load to same gptr: ok\n" );
       return true;
     }
+    
   } else if (auto g = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(inst)) {
     if (gptrs.count(g->getPointerOperand())) {
       DEBUG( errs() << "store to same gptr: great!\n" );
@@ -419,12 +420,22 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
       DEBUG( errs() << "store to different gptr: not supported yet.\n" );
       return false;
     }
+    
+  } else if (dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(inst) ||
+             dyn_cast_addr<SYMMETRIC_SPACE,StoreInst>(inst)) {
+    DEBUG(errs() << "symmetric access: ok\n");
+    return true;
+    
   } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
     DEBUG( errs() << "load/store to normal memory: " << *inst << "\n" );
     return false;
-  } else if ( isa<GetElementPtrInst>(inst) ) {
+  } else if ( auto gep = dyn_cast<GetElementPtrInst>(inst) ) {
+    
+    if (gep->getAddressSpace() == SYMMETRIC_SPACE) return true;
+    
     // TODO: fix this, some GEP's should be alright...
     return false;
+    
   } else if ( isa<PHINode>(inst) ) {
     return true;
   } else if ( isa<TerminatorInst>(inst) ) {
@@ -434,7 +445,19 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
     return false;
   } else if (auto call = dyn_cast<CallInst>(inst)) {
     auto fn = call->getCalledFunction();
-    if (fn->getName() == "llvm.dbg.value") return true;
+    if (fn->getName() == "llvm.dbg.value" ||
+        fn->doesNotAccessMemory())
+      return true;
+    
+    // allow method calls on `symmetric*`
+    // what we should see is an addrspacecast value as the first op
+    if (auto l = dyn_cast<AddrSpaceCastInst>(call->getOperand(0))) {
+      if (l->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
+        errs() << "!! method call on symmetric pointer\n";
+        return true;
+      }
+    }
+    
     // TODO: detect if function is pure / inline it and see??
     return false;
   } else {
