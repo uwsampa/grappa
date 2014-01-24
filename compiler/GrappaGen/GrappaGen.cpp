@@ -25,6 +25,7 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/Analysis/Dominators.h>
 #include <llvm/Analysis/DomPrinter.h>
+#include <llvm/IR/IRBuilder.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"
@@ -499,80 +500,57 @@ namespace {
       /////////////////////////////////////
       // Fix symmetric loads
       
-      std::vector<Instruction*> symms;
-      
-      for (auto f : fns) {
-        for (auto& bb : *f) {
-          for (auto& inst : bb) {
-            if (dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(&inst) ||
-                dyn_cast_addr<SYMMETRIC_SPACE,StoreInst>(&inst)) {
-              DEBUG( errs() << "~~~~~~~~~~~~~~~~~~~~~\nfixing 'symmetric*' use: " << inst << "\n" );
-              symms.push_back(&inst);
-            } else if (auto call = dyn_cast<CallInst>(&inst)) {
-              // look for CallInst that take a symmetric ptr as first arg (methods)
-              
-              if (call->getNumArgOperands() == 0) continue;
-              
-              FunctionType *fnTy;
-              if (call->getCalledFunction()) {
-                fnTy = call->getCalledFunction()->getFunctionType();
-              } else {
-                fnTy = dyn_cast<FunctionType>(call->getCalledValue()->getType());
-                if (!fnTy) continue;
-              }
-              
-              auto opTy = call->getArgOperand(0)->getType();
-              auto argTy = fnTy->getParamType(0);
-              
-              if (dyn_cast_addr<SYMMETRIC_SPACE>(opTy) &&
-                  !dyn_cast_addr<SYMMETRIC_SPACE>(argTy)) {
-                symms.push_back(&inst);
-              }
-            } else if (auto c = dyn_cast<AddrSpaceCastInst>(&inst)) {
-              if (c->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
-                symms.push_back(&inst);
+      for (auto fn : fns) {
+        for (auto bb = fn->begin(); bb != fn->end(); bb++) {
+          for (auto inst = bb->begin(); inst != bb->end(); ) {
+            
+            bool replaceOrig = false;
+            Value *sptr = nullptr;
+            if (auto orig = dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(inst)) {
+              outs() << "load<sym>          =>" << *orig << "\n";
+              sptr = orig->getPointerOperand();
+            } else if (auto orig = dyn_cast_addr<SYMMETRIC_SPACE,StoreInst>(inst)) {
+              outs() << "store<sym>         =>" << *orig << "\n";
+              sptr = orig->getPointerOperand();
+            } else if (auto orig = dyn_cast<AddrSpaceCastInst>(inst)) {
+              if (orig->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
+              outs() << "addrspacecast<sym> =>" << *orig << "\n";
+                sptr = orig->getOperand(0);
+                replaceOrig = true;
               }
             }
+            
+            // doing this so we don't lose the iterator if we replace inst
+            Instruction *orig = inst;
+            inst++;
+            
+            // inst doesn't need to be replaced
+            if (!sptr) continue;
+            
+            // find the 'addrspace(0)*' version of the symmetric ptr type
+            // sptrTy('T symmetric*') -> lptrTy('T*')
+            auto sptrTy = dyn_cast<PointerType>(sptr->getType());
+            auto lptrTy = PointerType::get(sptrTy->getElementType(), 0);
+            
+            // get local pointer out of symmetric pointer
+            IRBuilder<> b(orig); Value *v;
+            v = b.CreateBitCast(sptr, void_symmptr_ty);
+            v = b.CreateCall(get_pointer_symm_fn, (Value*[]){ v });
+            v = b.CreateBitCast(v, lptrTy);
+            
+            auto lptr = v;
+            lptr->setName(sptr->getName() + ".sym.local");
+            
+            // replace invalid use of symmetric pointer
+            if (replaceOrig) {
+              orig->replaceAllUsesWith(lptr);
+              orig->eraseFromParent();
+            } else {
+              orig->replaceUsesOfWith(sptr, lptr);
+            }
+            
           }
         }
-      }
-      
-      for (auto inst : symms) {
-        Value* gptr = nullptr;
-        bool replaceInst = false;
-        
-        if (auto orig = dyn_cast<LoadInst>(inst)) {
-          errs() << "load<symmetric>         =>" << *orig << "\n";
-          gptr = orig->getPointerOperand();
-        } else if (auto orig = dyn_cast<StoreInst>(inst)) {
-          errs() << "store<symmetric>        =>" << *orig << "\n";
-          gptr = orig->getPointerOperand();
-        } else if (auto orig = dyn_cast<CallInst>(inst)) {
-          errs() << "call<symmetric>         =>" << *orig << "\n";
-          gptr = orig->getOperand(0);
-        } else if (auto orig = dyn_cast<AddrSpaceCastInst>(inst)) {
-          errs() << "addrspacecast<symmetric> =>" << *orig << "\n";
-          gptr = orig->getOperand(0);
-          replaceInst = true;
-        }
-        
-        auto gptr_ty = dyn_cast<PointerType>(gptr->getType());
-        auto ptr_ty = PointerType::get(gptr_ty->getElementType(), 0);
-        
-        auto name = gptr->getName().size() == 0 ? "symm" : gptr->getName()+".symm";
-        
-        auto bc = new BitCastInst(gptr, void_symmptr_ty, name+".bc", inst);
-        auto ptr = CallInst::Create(get_pointer_symm_fn, (Value*[]){ bc }, name+".ptr", inst);
-        auto bcback = new BitCastInst(ptr, ptr_ty, name+".local", inst);
-        
-        if (replaceInst) {
-          inst->replaceAllUsesWith(bcback);
-          inst->eraseFromParent();
-        } else {
-          inst->replaceUsesOfWith(gptr, bcback);
-          DEBUG(errs() << "inst => " << *inst << "\n");
-        }
-        
       }
       
       /////////////////////////////////////
