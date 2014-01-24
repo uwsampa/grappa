@@ -28,7 +28,6 @@ file(GLOB compiler_includes "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
 # add_subdirectory( GrappaGen )
 add_llvm_loadable_module( LLVMGrappaGen
   "GrappaGen/GrappaGen.cpp"
-  "GrappaGen/GrappaEarly.cpp"
   "GrappaGen/DelegateExtractor.hpp"
   "GrappaGen/DelegateExtractor.cpp"
 )
