@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
       g->x = mycore();
       g->y = 12345;
       
-      pointer(g)->bar();
+      g->bar();
       
     });
     
