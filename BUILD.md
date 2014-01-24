@@ -69,7 +69,7 @@ To build, after calling `configure`, cd into the generated directory, and use th
 **Debug:** builds with `-DDEBUG -O1`
 
 ## Third-party dependencies
-CMake will download and build `gflags`, `boost`, and `gperfools`. It will build and install `GASNet` and `google-glog` from the `tools/` directory.
+CMake will download and build `gflags`, `boost`, and `gperfools`. It will build and install `GASNet` and `google-glog` from the `third-party/` directory.
 
 The external dependencies can be shared between Grappa configurations. If you specify a directory to `--third-party`, CMake will build and install the dependencies there, and then any other configurations will reuse them. Sometimes this won't work; for instance, if using two different compilers, you may have difficulty sharing a third-party directory. If this happens, just make a new third-party directory and rebuild them using the new configuration, or don't specify it and have this configuration build them just for itself.
 
