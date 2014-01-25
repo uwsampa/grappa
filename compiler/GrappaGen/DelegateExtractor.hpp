@@ -47,6 +47,23 @@
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
 
+#define void_ty      Type::getVoidTy(*ctx)
+#define i64_ty       Type::getInt64Ty(*ctx)
+#define i16_ty       Type::getInt16Ty(*ctx)
+#define void_ptr_ty  Type::getInt8PtrTy(*ctx, 0)
+#define void_gptr_ty Type::getInt8PtrTy(*ctx, GLOBAL_SPACE)
+#define void_sptr_ty Type::getInt8PtrTy(*ctx, SYMMETRIC_SPACE)
+
+/// helper for iterating over preds/succs/uses
+#define for_each(var, arg, prefix) \
+for (auto var = prefix##_begin(arg), _var##_end = prefix##_end(arg); var != _var##_end; var++)
+
+#define for_each_op(var, arg) \
+for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
+
+#define for_each_use(var, arg) \
+for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
+
 namespace llvm {
   
 
@@ -116,7 +133,9 @@ namespace llvm {
     
     SetVector<BasicBlock*> bbs;
 //    DominatorTree* dom;
-    Module& mod;
+    LLVMContext *ctx;
+    Module* mod;
+    
     DataLayout* layout;
     GlobalPtrInfo& ginfo;
     

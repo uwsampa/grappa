@@ -133,8 +133,7 @@ namespace {
 
   template< typename T >
   void ir_comment(T* target, StringRef label, const DebugLoc& dloc) {
-    auto& ctx = target->getContext();
-    target->setMetadata(label, dloc.getAsMDNode(ctx));
+    target->setMetadata(label, dloc.getAsMDNode(target->getContext()));
   }
   
   struct GrappaGen : public FunctionPass {
@@ -154,156 +153,11 @@ namespace {
     
     Function *myprint_i64;
     
-    Type *void_ty, *void_ptr_ty, *void_gptr_ty, *void_symmptr_ty, *i64_ty;
-    
     DominatorTree *DT;
     
+    LLVMContext *ctx;
+    
     GrappaGen() : FunctionPass(ID) { }
-    
-    
-    /// Experimental code to replace FetchAdd with a `grappa_on` using CodeExtractor directly
-    void replaceFetchAdd(FetchAdd& fa) {
-      errs() << "#########################################\nfetch_add:\n" << *fa.ld << "  " << *fa.op << "  " << *fa.store << "\n";
-      
-      fa.ld->getPointerOperand()->setName("gptr");
-      
-      BasicBlock* block = fa.ld->getParent();
-      assert( block == fa.op->getParent() && block == fa.store->getParent() );
-      
-      auto find_in_bb = [](BasicBlock *bb, Value *v) {
-        for (auto it = bb->begin(), end = bb->end(); it != end; it++) {
-          if (&*it == v) return it;
-        }
-        return bb->end();
-      };
-      
-      auto ld_gptr = fa.ld->getPointerOperand();
-      
-      // split basic block into pre-delegate (block), delegate_blk, and post_blk
-      auto load_loc = find_in_bb(block, fa.ld);
-      auto delegate_blk = block->splitBasicBlock(load_loc, "grappa.delegate");
-      
-      auto store_loc = find_in_bb(delegate_blk, fa.store);
-      auto post_blk = delegate_blk->splitBasicBlock(++store_loc, "delegate.post");
-      
-      // get type of load inst
-      auto ld_ty = dyn_cast<PointerType>(ld_gptr->getType())->getElementType()->getPointerTo();
-      
-      errs() << "\n-- pre block:\n" << *block;
-      errs() << "\n-- delegate block:\n" << *delegate_blk;
-      errs() << "\n-- post block:\n" << *post_blk;
-      
-      // remove debug call that was holding onto references to insts moved to other fn
-      // TODO: generalize this to remove anything with function-local refs (or even better: repair function-local refs)
-      for (BasicBlock::iterator i = post_blk->begin(); i != post_blk->end(); ) {
-        auto inst = i++;
-        if (auto c = dyn_cast<CallInst>(inst)) {
-          if (c->getCalledFunction()->getName() == "llvm.dbg.value") {
-            c->eraseFromParent();
-          }
-        }
-      }
-      
-      auto struct_args = false;
-      CodeExtractor ex(delegate_blk, struct_args);
-      SetVector<Value*> ins, outs;
-      ex.findInputsOutputs(ins, outs);
-      errs() << "\nins:"; for (auto v : ins) errs() << "\n  " << *v; errs() << "\n";
-      errs() << "outs:"; for (auto v : outs) errs() << "\n  " << *v; errs() << "\n";
-      assert( ins.size()  == 1 );
-      assert( outs.size() == 1 );
-      
-      auto delegate_fn = ex.extractCodeRegion();
-      errs() << "\n--------\ndelegate: " << *delegate_fn;
-      
-      auto prepost = block->getNextNode();
-      
-      // find call to extracted function created by CodeExtrator
-      CallInst *delegate_call;
-      for (auto& i : *prepost) {
-        if (auto call = dyn_cast<CallInst>(&i)) {
-          if (call->getCalledFunction() == delegate_fn) {
-            delegate_call = call;
-            break;
-          }
-        }
-      }
-      assert( delegate_call->getNumArgOperands() == 2 );
-      
-      errs() <<"\n-----------\nblock:\n" << *block;
-      errs() << "\n---------\nprepost: " << *prepost;
-      
-      // first load global pointer from pointer-to-pointer
-      //        auto arg_input = delegate_call->getArgOperand(0);
-      //        errs() << "arg_input: " << *arg_input << "\n  type: " << *arg_input->getType() << "\n";
-      auto arg_ptr = fa.ld->getPointerOperand();
-      auto arg_ptrptr = new BitCastInst(arg_ptr, arg_ptr->getType()->getPointerTo(), "", fa.ld);
-      auto ld_input = new LoadInst(arg_ptrptr, "", fa.ld);
-      
-      auto vptr = CallInst::Create(get_pointer_fn, (Value*[]){
-        new BitCastInst(ld_input, void_gptr_ty, "", fa.ld),
-      }, "", fa.ld);
-      
-      auto ptr = new BitCastInst(vptr, ld_ty, "", fa.ld);
-      
-      fa.ld->setOperand(fa.ld->getPointerOperandIndex(), ptr);
-      fa.store->setOperand(fa.store->getPointerOperandIndex(), ptr);
-      
-      errs() << "\n--------\ndelegate <fixed up>: " << *delegate_fn;
-      
-      // get size (in bytes) of the value pointed-to as a ConstantInt*
-      auto get_size_bytes = [this](Value *p) {
-        assert( p->getType()->isPointerTy() );
-        auto p_ty = p->getType()->getPointerElementType();
-        assert( p_ty->getScalarSizeInBits() % 8 == 0 );
-        auto sz_val = p_ty->getScalarSizeInBits() / 8;
-        auto const_int = ConstantInt::get(i64_ty, sz_val);
-        assert( const_int != NULL );
-        return const_int;
-      };
-      
-      errs() << "@@@@@@\ndelegate_call: ";
-      for (unsigned i=0; i< delegate_call->getNumOperands(); i++) {
-        errs() << "  " << *delegate_call->getOperand(i) << "\n";
-      }
-      errs() << "\n";
-      
-      auto gptr = delegate_call->getOperand(0);
-      
-      //        Value *arg_in; // has to be pointer to the arg
-      //        if (auto gptrptr = dyn_cast<LoadInst>(gptr)) {
-      //          arg_in = gptrptr->getPointerOperand();
-      //        } else {
-      //          arg_in = nullptr;
-      //          assert(false && "need to implement alloca");
-      //        }
-      auto arg_in = gptr;
-      
-      auto arg_in_sz = get_size_bytes(arg_in);
-      auto arg_out = delegate_call->getOperand(1);
-      auto arg_out_sz = get_size_bytes(arg_out);
-      
-      //        Value *get_core_args = { fa.ld->getPointerOperand() };
-      //        auto target_core = CallInst::Create(get_core_fn, get_core_args, "", delegate_call);
-      auto target_core = CallInst::Create(get_core_fn, (Value*[]){
-        new BitCastInst(gptr, void_gptr_ty, "", delegate_call)
-      }, "", delegate_call);
-      
-      auto on_fn_ty = call_on_fn->getFunctionType()->getParamType(1);
-      
-      CallInst::Create(call_on_fn, (Value*[]){
-        target_core,
-        new BitCastInst(delegate_fn, on_fn_ty, "", delegate_call),
-        new BitCastInst(arg_in, void_ptr_ty, "", delegate_call),
-        arg_in_sz,
-        new BitCastInst(arg_out, void_ptr_ty, "", delegate_call),
-        arg_out_sz
-      }, "", delegate_call);
-      delegate_call->eraseFromParent();
-      
-      errs() << "-- prepost now: " << *prepost;
-      
-    }
     
     void specializeFetchAdd(FetchAdd& fa) {
       Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
@@ -416,8 +270,7 @@ namespace {
     }
     
     virtual bool runOnFunction(Function &F) {
-//      DEBUG( outs() << F.getName() << "\n" );
-      auto& mod = *F.getParent();
+      ctx = &F.getContext();
       DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
       bool changed = false;
@@ -456,7 +309,7 @@ namespace {
       todo.push(F.begin());
       
       while (!todo.empty()) {
-        auto& dex = *new DelegateExtractor(mod, ginfo);
+        auto& dex = *new DelegateExtractor(*F.getParent(), ginfo);
 
         auto bb = todo.pop();
         
@@ -534,7 +387,7 @@ namespace {
             
             // get local pointer out of symmetric pointer
             IRBuilder<> b(orig); Value *v;
-            v = b.CreateBitCast(sptr, void_symmptr_ty);
+            v = b.CreateBitCast(sptr, void_sptr_ty);
             v = b.CreateCall(get_pointer_symm_fn, (Value*[]){ v });
             v = b.CreateBitCast(v, lptrTy);
             
@@ -580,16 +433,6 @@ namespace {
       ginfo.get_pointer_symm_fn = get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
       
       myprint_i64 = getFunction("myprint_i64");
-      
-      i64_ty = llvm::Type::getInt64Ty(module.getContext());
-      void_ptr_ty = Type::getInt8PtrTy(module.getContext(), 0);
-      void_gptr_ty = Type::getInt8PtrTy(module.getContext(), GLOBAL_SPACE);
-      void_symmptr_ty = Type::getInt8PtrTy(module.getContext(), SYMMETRIC_SPACE);
-      void_ty = Type::getVoidTy(module.getContext());
-      
-      // module = &m;
-      // auto int_ty = m.getTypeByName("int");
-      // delegate_read_fn = m.getOrInsertFunction("delegate_read_int", int_ty, );
       
       return false;
     }

@@ -36,25 +36,9 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
   }, name, insert);
 };
 
-#define void_ty      Type::getVoidTy(mod.getContext())
-#define i64_ty       Type::getInt64Ty(mod.getContext())
-#define i16_ty       Type::getInt16Ty(mod.getContext())
-#define void_ptr_ty  Type::getInt8PtrTy(mod.getContext(), 0)
-#define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GLOBAL_SPACE)
-
-
-/// helper for iterating over preds/succs/uses
-#define for_each(var, arg, prefix) \
-  for (auto var = prefix##_begin(arg), _var##_end = prefix##_end(arg); var != _var##_end; var++)
-
-#define for_each_op(var, arg) \
-  for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
-
-#define for_each_use(var, arg) \
-  for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
 
 DelegateExtractor::DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo):
-  mod(mod), ginfo(ginfo)
+  ctx(&mod.getContext()), mod(&mod), ginfo(ginfo)
 {
   layout = new DataLayout(&mod);
 }
@@ -156,16 +140,14 @@ Function* DelegateExtractor::extractFunction() {
   for (auto& p : inputs)  {  in_types.push_back(p->getType()); }
   for (auto& p : outputs) { out_types.push_back(p->getType()); }
   
-  auto in_struct_ty = StructType::get(mod.getContext(), in_types);
-  auto out_struct_ty = StructType::get(mod.getContext(), out_types);
+  auto in_struct_ty = StructType::get(*ctx, in_types);
+  auto out_struct_ty = StructType::get(*ctx, out_types);
   
   // create function shell
   auto new_fn_ty = FunctionType::get(i16_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
-  auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + bbin->getName(), &mod);
+  auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + bbin->getName(), mod);
   
-  auto& ctx = mod.getContext();
-  
-  auto entrybb = BasicBlock::Create(ctx, "d.entry", new_fn);
+  auto entrybb = BasicBlock::Create(*ctx, "d.entry", new_fn);
   
   auto i64_num = [=](long v) { return ConstantInt::get(i64_ty, v); };
   
@@ -223,16 +205,16 @@ Function* DelegateExtractor::extractFunction() {
   
   auto old_fn = bbin->getParent();
   
-  auto retbb = BasicBlock::Create(ctx, "ret." + bbin->getName(), new_fn);
+  auto retbb = BasicBlock::Create(*ctx, "ret." + bbin->getName(), new_fn);
   
-  auto retTy = Type::getInt16Ty(ctx);
+  auto retTy = Type::getInt16Ty(*ctx);
   
   // create PHI for selecting which return value to use
   // make sure it's the first thing in the BB
   auto retphi = PHINode::Create(retTy, exits.size(), "d.retphi", retbb);
   
   // return from end of created block
-  ReturnInst::Create(ctx, retphi, retbb);
+  ReturnInst::Create(*ctx, retphi, retbb);
   
   // store outputs before return
   for (int i = 0; i < outputs.size(); i++) {
