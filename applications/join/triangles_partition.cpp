@@ -6,6 +6,7 @@
 #include <Delegate.hpp>
 #include <Grappa.hpp>
 #include "local_graph.hpp"
+#include "utility.hpp"
 
 #ifdef PROGRESS
 extern "C" {
@@ -121,11 +122,6 @@ std::vector<Edge> localAssignedEdges_R1;
 std::vector<Edge> localAssignedEdges_R2;
 std::vector<Edge> localAssignedEdges_R3;
 
-//TODO
-std::function<int64_t (int64_t)> makeHash( int64_t dim ) {
-  // identity
-  return [dim](int64_t x) { return x % dim; };
-}
 
 void triangles(GlobalAddress<Graph<Vertex>> g) {
   

@@ -1,8 +1,8 @@
 # Grappa
-Enabling high-throughput graph processing on commodity clusters.
+Scaling irregular applications on commodity clusters.
 
 ## Quick Start
-Ensure that you have CMake version >= 2.8.6, GCC version >= 4.7, and MPI on your path. If you have Boost version >= 1.51 installed, find where it is. To use the convenient job-launch script we provide, you must have Slurm on your system as well. Then:
+Ensure that you have Ruby >= 1.9, CMake version >= 2.8.6, GCC version >= 4.7, and MPI on your path. If you have Boost version >= 1.51 installed, find where it is. To use the convenient job-launch script we provide, you must have Slurm on your system as well. Then:
 
 ```bash
 git clone git@github.com:uwsampa/grappa.git
@@ -19,6 +19,8 @@ We use CMake to build Grappa, including downloading and building some dependenci
 See more detailed building instructions in [BUILD.md](BUILD.md).
 
 ## Dependences
+* Build system
+  * Ruby >= 1.9
 * Compiler
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
   * Or: Clang >= 3.4
@@ -29,9 +31,9 @@ See more detailed building instructions in [BUILD.md](BUILD.md).
   * glog
 * Downloaded and built automatically:
   * gflags
-  * gperftools (with `GOOGLE_PROFILER ON` or `TRACING` defined)
-  * VampirTrace (with `TRACING` defined)
-* Slurm job manager (in theory just need to be able to launch MPI jobs, but Slurm is the best tested)
+  * gperftools (only needed with `GOOGLE_PROFILER ON` or `TRACING` defined)
+  * VampirTrace (only needed with `TRACING` defined)
+* Slurm job manager (in theory just need to be able to launch MPI jobs, but we provide scripts that work with Slurm)
 
 ## Documentation
 The Grappa system directory is documented with Doxygen comments. To generate the documentation, you must verify that you have Doxygen installed, then build the `docs` target. For example:

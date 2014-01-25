@@ -149,7 +149,7 @@ class MatchesDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
-      remotePrivateTask<GCE>( target.node(), [key, target, f, this]() {
+      spawnRemote<GCE>( target.node(), [key, target, f, this]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           V * results = e.vs->getReadBuffer().pointer(); // global address to local array

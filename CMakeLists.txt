@@ -35,10 +35,6 @@ if(TRACING)
 
   include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   
-  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
-  set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
 
 # global C++ flags
@@ -48,13 +44,10 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 # TODO: use -stdlib=libc++ too?
 
 #########################################
-# Determine tools to build
+# Determine third party tools to build
 if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/tools" CACHE TYPE PATH)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE TYPE PATH)
 endif()
-
-# always need these
-set(tool_list "")
 
 ###########################
 # Use RUNPATH if available
@@ -74,11 +67,11 @@ if("${isSystemDir}" STREQUAL "-1")
    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
-# TODO: check if not OSX, or find out how to do "try" in CMake
+## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
 # set runpath, too
-if(NOT APPLE)
-  set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
-endif()
+# if(NOT APPLE)
+#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+# endif()
 
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
 
@@ -117,7 +110,6 @@ endif()
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
-  # list(APPEND tool_list tool-gperftools)
 endif()
 
 # pre-compiled external dependencies
@@ -154,7 +146,6 @@ if(Boost_FOUND)
 else()
   message("-- Boost not found.")
   message("   !! Will download and build Boost, which may take a while.")
-  set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )  
 endif()
 
 ######################################
@@ -275,7 +266,7 @@ add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(system)
-add_subdirectory(tools)
+add_subdirectory(third-party)
 add_subdirectory(tutorial)
 
 if(DEFINED LLVM_ROOT)

@@ -5,6 +5,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 nnode=${DISTCC_NNODE-8}
 
-exec salloc -N$nnode "$DIR/distcc.sh" make "$@"
+exec salloc -N$nnode "$DIR/launch_distcc.sh" make "$@"
 
 # note: for Bash Completion to work with this, find the bash_completion/make and add 'distcc_make' to the list of make commands to complete for (near the end of the file)
