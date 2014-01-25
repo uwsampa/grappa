@@ -19,6 +19,10 @@ BOOST_AUTO_TEST_SUITE( GlobalAllocator_tests );
 
 const size_t local_size_bytes = 1 << 14;
 
+struct Foo {
+  long x, y;
+} GRAPPA_BLOCK_ALIGNED;
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS, local_size_bytes );
   Grappa::run([]{
@@ -50,7 +54,16 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     Grappa::global_free( b );
 
     BOOST_CHECK_EQUAL( global_allocator->total_bytes_in_use(), 0 );
-  
+    
+    BOOST_MESSAGE("symmetric tests");
+    
+    auto s = Grappa::symmetric_global_alloc<Foo>();
+    
+    call_on_all_cores([s]{
+      s->x = 1;
+      s->y = 3;
+    });
+    
     LOG(INFO) << "done!";
   });
   Grappa::finalize();

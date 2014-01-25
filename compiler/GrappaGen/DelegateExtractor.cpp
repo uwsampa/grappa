@@ -2,6 +2,7 @@
 #include "DelegateExtractor.hpp"
 
 #include <llvm/InstVisitor.h>
+#include <llvm/IR/IRBuilder.h>
 
 using namespace llvm;
 
@@ -35,19 +36,9 @@ GetElementPtrInst* struct_elt_ptr(Value *struct_ptr, int idx, const Twine& name,
   }, name, insert);
 };
 
-#define void_ty      Type::getVoidTy(mod.getContext())
-#define i64_ty       Type::getInt64Ty(mod.getContext())
-#define i16_ty       Type::getInt16Ty(mod.getContext())
-#define void_ptr_ty  Type::getInt8PtrTy(mod.getContext(), 0)
-#define void_gptr_ty Type::getInt8PtrTy(mod.getContext(), GlobalPtrInfo::SPACE)
-
-
-/// helper for iterating over preds/succs/uses
-#define for_each(var, arg, prefix) \
-  for (auto var = prefix##_begin(arg), var##_end = prefix##_end(arg); var != var##_end; var++)
 
 DelegateExtractor::DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo):
-  mod(mod), ginfo(ginfo)
+  ctx(&mod.getContext()), mod(&mod), ginfo(ginfo)
 {
   layout = new DataLayout(&mod);
 }
@@ -60,24 +51,24 @@ void DelegateExtractor::findInputsOutputsUses(ValueSet& inputs, ValueSet& output
   for (auto bb : bbs) {
     for (auto& ii : *bb) {
       
-      if (auto gld = dyn_cast_global<LoadInst>(&ii)) {
+      if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(&ii)) {
         auto p = gld->getPointerOperand();
         if (gptrs.count(p) == 0) gptrs[p] = {};
         gptrs[p].loads++;
         gvals[gld] = p;
-      } else if (auto gi = dyn_cast_global<StoreInst>(&ii)) {
+      } else if (auto gi = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(&ii)) {
         auto p = gi->getPointerOperand();
         if (gptrs.count(p) == 0) gptrs[p] = {};
         gptrs[p].stores++;
       }
       
-      for (auto op = ii.op_begin(), opend = ii.op_end(); op != opend; op++) {
+      for_each_op(op, ii) {
         if (definedInCaller(bbs, *op)) inputs.insert(*op);
         if (gvals.count(*op) > 0) {
           gptrs[gvals[*op]].uses++;
         }
       }
-      for (auto use = ii.use_begin(), useend = ii.use_end(); use != useend; use++) {
+      for_each_use(use, ii) {
         if (!definedInRegion(bbs, *use)) {
           outputs.insert(&ii);
           break;
@@ -149,16 +140,14 @@ Function* DelegateExtractor::extractFunction() {
   for (auto& p : inputs)  {  in_types.push_back(p->getType()); }
   for (auto& p : outputs) { out_types.push_back(p->getType()); }
   
-  auto in_struct_ty = StructType::get(mod.getContext(), in_types);
-  auto out_struct_ty = StructType::get(mod.getContext(), out_types);
+  auto in_struct_ty = StructType::get(*ctx, in_types);
+  auto out_struct_ty = StructType::get(*ctx, out_types);
   
   // create function shell
   auto new_fn_ty = FunctionType::get(i16_ty, (Type*[]){ void_ptr_ty, void_ptr_ty }, false);
-  auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + bbin->getName(), &mod);
+  auto new_fn = Function::Create(new_fn_ty, GlobalValue::InternalLinkage, "delegate." + bbin->getName(), mod);
   
-  auto& ctx = mod.getContext();
-  
-  auto entrybb = BasicBlock::Create(ctx, "d.entry", new_fn);
+  auto entrybb = BasicBlock::Create(*ctx, "d.entry", new_fn);
   
   auto i64_num = [=](long v) { return ConstantInt::get(i64_ty, v); };
   
@@ -200,7 +189,7 @@ Function* DelegateExtractor::extractFunction() {
     Value *final_in = in_val;
     
     // if it's a global pointer, get local address for it
-    if (auto in_gptr_ty = dyn_cast_global(in_val->getType())) {
+    if (auto in_gptr_ty = dyn_cast_addr<GLOBAL_SPACE>(in_val->getType())) {
       auto ptr_ty = in_gptr_ty->getElementType()->getPointerTo();
       auto bc = new BitCastInst(in_val, void_gptr_ty, "getptr.bc", entrybb);
       auto vptr = CallInst::Create(ginfo.get_pointer_fn, (Value*[]){ bc }, "getptr", entrybb);
@@ -216,16 +205,16 @@ Function* DelegateExtractor::extractFunction() {
   
   auto old_fn = bbin->getParent();
   
-  auto retbb = BasicBlock::Create(ctx, "ret." + bbin->getName(), new_fn);
+  auto retbb = BasicBlock::Create(*ctx, "ret." + bbin->getName(), new_fn);
   
-  auto retTy = Type::getInt16Ty(ctx);
+  auto retTy = Type::getInt16Ty(*ctx);
   
   // create PHI for selecting which return value to use
   // make sure it's the first thing in the BB
   auto retphi = PHINode::Create(retTy, exits.size(), "d.retphi", retbb);
   
   // return from end of created block
-  ReturnInst::Create(ctx, retphi, retbb);
+  ReturnInst::Create(*ctx, retphi, retbb);
   
   // store outputs before return
   for (int i = 0; i < outputs.size(); i++) {
@@ -340,10 +329,8 @@ Function* DelegateExtractor::extractFunction() {
   
   // use clone_map to remap values in new function
   // (including branching to new retbb instead of exit blocks)
-  for (auto& bb : *new_fn) {
-    for (auto& inst : bb) {
-      RemapInstruction(&inst, clone_map, RF_IgnoreMissingEntries);
-    }
+  for_each(inst, new_fn, inst) {
+    RemapInstruction(&*inst, clone_map, RF_IgnoreMissingEntries);
   }
   
   // load outputs
@@ -363,6 +350,25 @@ Function* DelegateExtractor::extractFunction() {
         DEBUG( errs() << " !! wrong function!" );
       }
       DEBUG( errs() << "\n" );
+    }
+  }
+  
+  // any global* loads/stores must be local, so fix them up
+  for (auto bb = new_fn->begin(); bb != new_fn->end(); bb++) {
+    for (auto inst = bb->begin(); inst != bb->end(); ) {
+      Instruction *orig = inst;
+      inst++;
+      if (auto ld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(orig)) {
+        outs() << "!! found a global load:" << *orig << "\n";
+        Value *v = ld->getPointerOperand();
+        IRBuilder<> b(ld);
+        v = b.CreateBitCast(v, void_gptr_ty);
+        v = b.CreateCall(ginfo.get_pointer_fn, (Value*[]){ v });
+        v = b.CreateBitCast(v, getAddrspaceType(ld->getPointerOperand()->getType()));
+        v = b.CreateLoad(v, ld->isVolatile(), ld->getName());
+        ld->replaceAllUsesWith(v);
+        ld->eraseFromParent();
+      }
     }
   }
 
@@ -401,13 +407,14 @@ Function* DelegateExtractor::extractFunction() {
 }
 
 bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available_vals) {
-  if (auto gld = dyn_cast_global<LoadInst>(inst)) {
+  if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(inst)) {
     if (gptrs.count(gld->getPointerOperand())) {
       available_vals.insert(gld);
       DEBUG( errs() << "load to same gptr: ok\n" );
       return true;
     }
-  } else if (auto g = dyn_cast_global<StoreInst>(inst)) {
+    
+  } else if (auto g = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(inst)) {
     if (gptrs.count(g->getPointerOperand())) {
       DEBUG( errs() << "store to same gptr: great!\n" );
       return true;
@@ -415,12 +422,22 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
       DEBUG( errs() << "store to different gptr: not supported yet.\n" );
       return false;
     }
+    
+  } else if (dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(inst) ||
+             dyn_cast_addr<SYMMETRIC_SPACE,StoreInst>(inst)) {
+    DEBUG(errs() << "symmetric access: ok\n");
+    return true;
+    
   } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
     DEBUG( errs() << "load/store to normal memory: " << *inst << "\n" );
     return false;
-  } else if ( isa<GetElementPtrInst>(inst) ) {
+  } else if ( auto gep = dyn_cast<GetElementPtrInst>(inst) ) {
+    
+    if (gep->getAddressSpace() == SYMMETRIC_SPACE) return true;
+    
     // TODO: fix this, some GEP's should be alright...
     return false;
+    
   } else if ( isa<PHINode>(inst) ) {
     return true;
   } else if ( isa<TerminatorInst>(inst) ) {
@@ -430,7 +447,19 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
     return false;
   } else if (auto call = dyn_cast<CallInst>(inst)) {
     auto fn = call->getCalledFunction();
-    if (fn->getName() == "llvm.dbg.value") return true;
+    if (fn->getName() == "llvm.dbg.value" ||
+        fn->doesNotAccessMemory())
+      return true;
+    
+    // allow method calls on `symmetric*`
+    // what we should see is an addrspacecast value as the first op
+    if (auto l = dyn_cast<AddrSpaceCastInst>(call->getOperand(0))) {
+      if (l->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
+        errs() << "!! method call on symmetric pointer\n";
+        return true;
+      }
+    }
+    
     // TODO: detect if function is pure / inline it and see??
     return false;
   } else {
@@ -459,9 +488,9 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
 BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
   Value *gptr = nullptr;
   for (auto i = bb->begin(); i != bb->end(); i++) {
-    if (auto gld = dyn_cast_global<LoadInst>(i)) {
+    if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(i)) {
       gptr = gld->getPointerOperand();
-    } else if (auto g = dyn_cast_global<StoreInst>(i)) {
+    } else if (auto g = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(i)) {
       gptr = g->getPointerOperand();
     }
     if (gptr) {

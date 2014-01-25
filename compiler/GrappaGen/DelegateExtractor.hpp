@@ -34,11 +34,11 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/IR/DataLayout.h>
-#include <llvm/Analysis/Dominators.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/Analysis/DomPrinter.h>
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/Support/GraphWriter.h>
-
+#include <llvm/Support/InstIterator.h>
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 
 #include <list>
@@ -47,38 +47,67 @@
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
 
-namespace llvm {
+#define void_ty      Type::getVoidTy(*ctx)
+#define i64_ty       Type::getInt64Ty(*ctx)
+#define i16_ty       Type::getInt16Ty(*ctx)
+#define void_ptr_ty  Type::getInt8PtrTy(*ctx, 0)
+#define void_gptr_ty Type::getInt8PtrTy(*ctx, GLOBAL_SPACE)
+#define void_sptr_ty Type::getInt8PtrTy(*ctx, SYMMETRIC_SPACE)
 
-  struct OperandIterator {
-    Instruction* self;
-    OperandIterator(Instruction* self): self(self) {}
-    User::op_iterator begin() { return self->op_begin(); }
-    User::op_iterator end()   { return self->op_end(); }
-  };
+/// helper for iterating over preds/succs/uses
+#define for_each(var, arg, prefix) \
+for (auto var = prefix##_begin(arg), _var##_end = prefix##_end(arg); var != _var##_end; var++)
+
+#define for_each_op(var, arg) \
+for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
+
+#define for_each_use(var, arg) \
+for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
+
+namespace llvm {
+  
+
+  inline void replaceAllUsesInFnWith(Function *fn, Value *orig, Value *repl) {
+    for (auto inst = inst_begin(fn), ie = inst_end(fn); inst != ie; inst++) {
+      for (auto op = inst->op_begin(), op_e = inst->op_end(); op != op_e; op++) {
+        
+      }
+    }
+    
+  }
+  
+  static const int GLOBAL_SPACE = 100;
+  static const int SYMMETRIC_SPACE = 200;
+  
+  inline PointerType* getAddrspaceType(Type *orig, int addrspace = 0) {
+    if (auto p = dyn_cast<PointerType>(orig)) {
+      return PointerType::get(p->getElementType(), addrspace);
+    }
+    return nullptr;
+  }
   
   struct GlobalPtrInfo {
-    Function *call_on_fn, *get_core_fn, *get_pointer_fn;
-    
-    static const int SPACE = 100;
+    Function *call_on_fn, *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
     
     bool isaGlobalPointer(Type* type) {
       PointerType* pt = dyn_cast<PointerType>(type);
-      if( pt && pt->getAddressSpace() == SPACE ) return true;
+      if( pt && pt->getAddressSpace() == GLOBAL_SPACE ) return true;
       return false;
     }
     
   };
   
-  inline PointerType* dyn_cast_global(Type* ty) {
+  template< int AddrSpace >
+  inline PointerType* dyn_cast_addr(Type* ty) {
     PointerType *pt = dyn_cast<PointerType>(ty);
-    if (pt && pt->getAddressSpace() == GlobalPtrInfo::SPACE) return pt;
+    if (pt && pt->getAddressSpace() == AddrSpace) return pt;
     else return nullptr;
   }
-
-  template< typename InstType >
-  inline InstType* dyn_cast_global(Value* v) {
+  
+  template< int AddrSpace, typename InstType >
+  inline InstType* dyn_cast_addr(Value* v) {
     if (auto ld = dyn_cast<InstType>(v)) {
-      if (ld->getPointerAddressSpace() == GlobalPtrInfo::SPACE) {
+      if (ld->getPointerAddressSpace() == AddrSpace) {
         return ld;
       }
     }
@@ -104,7 +133,9 @@ namespace llvm {
     
     SetVector<BasicBlock*> bbs;
 //    DominatorTree* dom;
-    Module& mod;
+    LLVMContext *ctx;
+    Module* mod;
+    
     DataLayout* layout;
     GlobalPtrInfo& ginfo;
     

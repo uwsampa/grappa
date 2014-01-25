@@ -7,6 +7,7 @@
 #include <Delegate.hpp>
 
 #define global grappa_global
+#define symmetric grappa_symmetric
 
 template< typename T >
 inline T global* gptr(GlobalAddress<T> ga) {
@@ -17,6 +18,17 @@ template< typename T >
 inline GlobalAddress<T> gaddr(T global* ptr) {
   return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(ptr));
 }
+
+template< typename T >
+inline SymmetricAddress<T> symm_addr(T symmetric* ptr) {
+  return SymmetricAddress<T>(ptr);
+}
+
+template< typename T >
+inline GlobalAddress<T> gaddr(T symmetric* ptr) {
+  return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(ptr));
+}
+
 //template <>
 //inline GlobalAddress<char> gaddr(void global* ptr) {
 //  return GlobalAddress<char>::Raw(reinterpret_cast<intptr_t>(ptr));
@@ -28,6 +40,9 @@ namespace Grappa {
 
   template< typename T>
   T* pointer(T global* g) { return gaddr(g).pointer(); }
+
+  template< typename T>
+  T* pointer(T symmetric* g) { return symm_addr(g).pointer(); }
   
   template< typename T >
   inline T global* globalize( T* t, Core n = Grappa::mycore() ) {
@@ -41,6 +56,12 @@ Core grappa_get_core(void global* g) { return Grappa::core(g); }
 
 extern "C"
 void* grappa_get_pointer(void global* g) { return Grappa::pointer(g); }
+
+extern "C"
+void* grappa_get_pointer_symmetric(void symmetric* g) {
+  return SymmetricAddress<int8_t>(reinterpret_cast<int8_t symmetric*>(g)).pointer();
+}
+
 
 extern "C"
 long grappa_read_long(long global* a) {

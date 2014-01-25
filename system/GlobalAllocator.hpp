@@ -136,7 +136,7 @@ void global_free(GlobalAddress<T> address) {
 /// (must currently round up to a multiple of block_size plus an additional block 
 /// to ensure there is a valid address range no matter which core allocation starts on).
 template< typename T, Core MASTER_CORE = 0 >
-GlobalAddress<T> symmetric_global_alloc() {
+SymmetricAddress<T> symmetric_global_alloc() {
   static_assert(sizeof(T) % block_size == 0,
                 "must pad global proxy to multiple of block_size, or use GRAPPA_BLOCK_ALIGNED");
   // allocate enough space that we are guaranteed to get one on each core at same location
@@ -145,9 +145,8 @@ GlobalAddress<T> symmetric_global_alloc() {
   auto qa = static_cast<GlobalAddress<T>>(qac);
   CHECK_EQ(qa, qa.block_min());
   CHECK_EQ(qa.core(), MASTER_CORE);
-  return qa;
+  return SymmetricAddress<T>(qa.localize());
 }
-
 
 } // namespace Grappa
 
