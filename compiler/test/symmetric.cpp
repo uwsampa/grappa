@@ -9,6 +9,7 @@ struct Foo {
   long x, y;
   
   void bar(long z) {
+    y = z;
     printf("x: %ld, y: %ld, z: %ld\n", x, y, z);
   }
   
@@ -19,8 +20,8 @@ long z;
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
-    
-    Foo symmetric* s = symmetric_global_alloc<Foo>();
+    auto sa = symmetric_global_alloc<Foo>();
+    Foo symmetric* s = sa;
     
     on_all_cores([=]{
       
@@ -41,6 +42,11 @@ int main(int argc, char* argv[]) {
     long global* z1 = make_global(&z, 1);
     
     s->bar(*z1);
+    
+    call_on_all_cores([sa,z1]{
+      CHECK_EQ(sa->x, mycore());
+      if (mycore() == core(z1)) CHECK_EQ(sa->y, z);
+    });
     
   });
   finalize();
