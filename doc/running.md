@@ -1,6 +1,6 @@
 Running Grappa programs
 ===============================================================================
-The Grappa team does its development on machines 
+Grappa jobs are run like any other MPI job. This process varies depending on how your cluster is configured and what version of MPI you use. The Grappa team primarily works on machines that use the Slurm scheduler, and thus we have built a tools to make it easy to run Grappa programs under Slurm. However, it is not necessary to use these tools to run Grappa jobs---as long as you make sure the right environment variables are set, any MPI job launcher will work.
 
 Using Slurm and `grappa_srun`
 -------------------------------------------------------------------------------
