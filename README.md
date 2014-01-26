@@ -53,7 +53,7 @@ Getting Help
 -------------------------------------------------------------------------------
 The best way to ask questions is to submit an issue on GitHub: by keeping questions there we can make sure the answers are easy for everyone to find. View previously-discussed issues here: https://github.com/uwsampa/grappa/issues?labels=question. If your question isn't already answered, please submit an issue with the "Question" tag.
 
-Grappa developers communicate through a mailing list: grappa-dev@cs.washington.edu.
+Grappa developers communicate through the grappa-dev mailing list hosted at cs.washington.edu.
 
 Contributing
 -------------------------------------------------------------------------------
