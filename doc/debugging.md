@@ -12,7 +12,7 @@ Performance debugging tips
 -------------------------------------------------------------------------------
 
 * Grappa has a bunch of statistics that can be dumped (`Grappa::Metrics::merge_and_print()`), use these to find out basic coarse-grained information. You can also easily add your own using `GRAPPA_DEFINE_METRIC()`.
-* Grappa also supports collecting traces of the statistics over time using VampirTrace. These can be visualized in Vampir. Build with `VAMPIR_TRACE=1` and `GOOGLE_SAMPLED=1`.
+* Grappa also supports collecting traces of the statistics over time using VampirTrace. These can be visualized in Vampir. See the next section for how to enable tracing.
 
 Tracing
 -------------------------------------------------------------------------------
