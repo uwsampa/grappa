@@ -6,7 +6,7 @@ Grappa is a research project and is still young! Please expect things to break. 
 
 Dependences
 -------------------------------------------------------------------------------
-You must have the following installed to build Grappa:
+You must have a Linux system with the following installed to build Grappa:
 
 * Build system
   * Ruby >= 1.9.3
