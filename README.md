@@ -35,7 +35,7 @@ make -j demo-hello_world.exe
 
 Now you should have a binary which you can launch as an MPI job. If you have Slurm installed on your system, you can use our convenient job-launch script:
 ```bash
-bin/grappa_srun.rb --nnode=2 --ppn=2 -- applications/demos/hello_world/demo-hello_world.exe
+bin/grappa_srun --nnode=2 --ppn=2 -- applications/demos/hello_world/demo-hello_world.exe
 ```
 
 For more detailed instructions on building Grappa, see [BUILD.md](BUILD.md).

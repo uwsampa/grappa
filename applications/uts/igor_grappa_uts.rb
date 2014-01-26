@@ -34,7 +34,7 @@ Igor do
   }
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb
+  command %Q[ %{tdir}/grappa_srun
     -- %{tdir}/uts_grappa.exe
     #{expand_flags(*GFLAGS.keys)} --vertices_size=%{vertices_size}
     -- %{tree_args} 

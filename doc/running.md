@@ -2,9 +2,9 @@ Running Grappa programs
 ===============================================================================
 The Grappa team does its development on machines 
 
-Using Slurm and `grappa_srun.rb`
+Using Slurm and `grappa_srun`
 -------------------------------------------------------------------------------
-The Ruby script `bin/grappa_srun.rb` can be used to automatically manage the pesky `srun` flags and GASNET settings that are needed to run Grappa programs correctly on a number of machines that we've tested on. Try running `bin/grappa_srun.rb --help` for more detailed usage information.
+The Ruby script `bin/grappa_srun` can be used to automatically manage the pesky `srun` flags and GASNET settings that are needed to run Grappa programs correctly on a number of machines that we've tested on. Try running `bin/grappa_srun --help` for more detailed usage information.
 
 ### Running an application: ###
 ```bash
@@ -12,7 +12,7 @@ The Ruby script `bin/grappa_srun.rb` can be used to automatically manage the pes
 # build the desired executable #
 make -j graph_new.exe
 # launch a Slurm job to run it: #
-bin/grappa_srun.rb --nnode=2 --ppn=2 -- graph_new.exe --scale=26 --bench=bfs --nbfs=8 --num_starting_workers=512
+bin/grappa_srun --nnode=2 --ppn=2 -- graph_new.exe --scale=26 --bench=bfs --nbfs=8 --num_starting_workers=512
 ```
 
 ### Running a Grappa test: ###
@@ -22,7 +22,7 @@ bin/grappa_srun.rb --nnode=2 --ppn=2 -- graph_new.exe --scale=26 --bench=bfs --n
 make -j check-New_delegate_tests
 # or in two steps: #
 make -j New_delegate_tests.test
-bin/grappa_srun.rb --nnode=2 --ppn=2 --test=New_delegate_tests
+bin/grappa_srun --nnode=2 --ppn=2 --test=New_delegate_tests
 ```
 
 Using another MPI job launcher

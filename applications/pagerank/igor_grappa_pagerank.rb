@@ -43,7 +43,7 @@ Igor do
   }
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb
+  command %Q[ %{tdir}/grappa_srun
     -- %{tdir}/#{exec_name}
     #{expand_flags(*GFLAGS.keys)} 
   ].gsub(/\s+/,' ')
