@@ -22,7 +22,7 @@
 ////////////////////////////////////////////////////////////////////////
 
 // to run, do something like
-// make -j demo-gups4.exe
+// make -j demo-gups4
 // bin/grappa_run --ppn 8 --nnode 12 -- demo-gups4.exe --sizeB=$(( 1 << 28 )) --loop_threshold=1024
 
 #include <Grappa.hpp>

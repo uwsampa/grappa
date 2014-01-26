@@ -30,12 +30,13 @@ git clone git@github.com:uwsampa/grappa.git
 cd grappa
 ./configure
 cd build/Make+Release
-make -j demo-hello_world.exe
+make -j demo-hello_world
 ```
 
 Now you should have a binary which you can launch as an MPI job. If you have Slurm installed on your system, you can use our convenient job-launch script:
+
 ```bash
-bin/grappa_srun --nnode=2 --ppn=2 -- applications/demos/hello_world/demo-hello_world.exe
+bin/grappa_srun --nnode=2 --ppn=2 -- applications/demos/hello_world/hello_world.exe
 ```
 
 For more detailed instructions on building Grappa, see [BUILD.md](BUILD.md).
