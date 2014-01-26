@@ -24,31 +24,24 @@ This is the simplest build configuration. You are likely to want to specify more
 
 Requirements
 -------------------------------------------------------------------------------
-- Ruby version >= 1.9.3
-- CMake version >= 2.8.6
-  - on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
-  - on PNNL PAL cluster: `module load cmake`
-- GCC version >= 4.7.
-  - on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
-  - on PNNL PAL cluster: `module load gcc-4.7.2`
-- MPI (tested with OpenMPI & Mvapich2)
-  - on Sampa: should be autodetected
-  - on PNNL PAL cluter: `module load mvapich2/1.9b`
-
 You must have the following to be able to build Grappa:
 
 * Build system
   * Ruby >= 1.9.3
   * CMake >= 2.8.6
+    * on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
+    * on PNNL PAL cluster: `module load cmake`
 * Compiler
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
   * Or: Clang >= 3.4
+    * on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
+    * on PNNL's PAL cluster: `module load gcc-4.7.2`
 * External:
-  * MPI (tested with OpenMPI >= 1.5.4 and Mvapich2 >= 1.7, but should work with any)
+  * MPI (tested with OpenMPI >= 1.5.4 and Mvapich2 >= 1.7, but we're not picky)
+    * on the Sampa cluster: should be autodetected
+    * on PNNL's PAL cluster: `module load mvapich2/1.9b`
 
-The configure script deals with some other dependences automatically. You may want to override the default behavior for your specific system. See [BUILD.md](BUILD.md) for more details.
-
-The following dependencies are dealt with automatically:
+The following dependencies are dealt with automatically. You may want to override the default behavior for your specific system as described in the next section, especially in the case of Boost (if you already have a copy in a non-standard place).
 
 * Slightly modified versions distributed with Grappa:
   * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)

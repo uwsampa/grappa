@@ -1,5 +1,11 @@
-# Grappa Tutorial
-## Section 1: Hello World
+Grappa Tutorial
+===============================================================================
+This guide will try to outline the key features of Grappa from an application's perspective at a high level. Detailed description of functionality is left out here; look at the generated Doxygen documentation for details.
+
+*Warning*: Grappa is a research project, and the programming interface for Grappa is still in flux. If you run a problem, please visit our GitHub questions page at https://github.com/uwsampa/grappa/issues?labels=question, where you may find a solution or ask for help.
+
+Section 1: Hello World
+-------------------------------------------------------------------------------
 Topics in this section:
 
 - global-view programming model
@@ -80,7 +86,8 @@ This should look familiar to the MPI programmer. The call to `on_all_cores()` sp
 
 This also introduces the API for identifying cores. In Grappa, each core is a separate destination. The physical node on which a core resides is referred to as its "locale" (borrowed from Chapel's terminology). The next section will refer to these functions more when dealing with how memory is partitioned among cores.
 
-## Section 2: Global memory
+Section 2: Global memory
+-------------------------------------------------------------------------------
 In Grappa, all memory on all cores is addressable by any other core. This is done using the `GlobalAddress<T>` template class. In the spirit of other Partitioned Global Address Space (PGAS) languages and runtimes, Grappa provides mechanisms for easily distributing data across the various memories of nodes in a cluster.
 
 This section will:
@@ -184,7 +191,8 @@ int main(int argc, char *argv[]) {
 
 In this example, we want a copy of the Data struct on each core so tasks can access a local version no matter where they run. After calling `symmetric_global_alloc()` the structs have not been initialized, so we must call `init()` on each copy. Here we use the `->` operator overload for symmetric addresses to get the pointer to the local copy and call the method on it. Finally, we can now reference that allocated struct by just passing around the GlobalAddress to the symmetric allocation.
 
-## Section 3: Delegate operations
+Section 3: Delegate operations
+-------------------------------------------------------------------------------
 One of the core tenets of Grappa's programming model is the idea of *delegating* remote memory accesses to the core that owns the memory. By ensuring that only one core ever accesses each piece of memory, we can provide strong atomicity guarantees to Grappa programs that even single-node multithreaded applications typically do not. It also allows us to more confidently play with the memory hierarchy to optimize for low-locality access by careful management of caches and pre-fetching. Finally, delegating work to where the data is provides several advantages: it allows work to be distributed evenly across the machine and in some cases minimizes communication, provided the data is laid out well.
 
 <!-- (leaving out details about cooperative scheduling) For one thing, this plays well with applications with low locality, as it allows work to be distributed evenly across the machine, provided the data is distributed well. It also plays a key role in providing a simple consistency model to programmers: due to Grappa's cooperative scheduling of tasks and communication within a core, atomicity is guaranteed between yield points (i.e. communication). -->
@@ -243,7 +251,8 @@ for (size_t i = 0; i < N; i += 10) {
 
 This is still using the single root task to do all the work, so it is all still serial. The next section will cover how to spawn lots of parallel work efficiently.
 
-## Tasking
+Section 4: Tasking
+-------------------------------------------------------------------------------
 **Be aware:** Terminology about threading is very overloaded; everyone means something different when talking about them. In Grappa, we try to avoid using the term "thread". Instead, we have *tasks* which are a (typically small) unit of work and *workers* which execute tasks. This is explained in more detail in this section.
 
 The most basic unit of parallelism in Grappa is the *task*. A *task* is a unit of work that has some state and some code to run; this is typically specified using a C++11 *lambda*, but can also be specified with a more traditional C++ *functor* (a class with `operator()` overloaded). Tasks are not run immediately after they are created; instead, they go on a queue of un-started tasks.
@@ -335,8 +344,8 @@ Finally, each of the parallel loops allows specifying template parameters which 
 
 Because of a bunch of overloaded declarations, these template parameters can be specified in roughly any order, with the rest being left as default. So each of these is valid: `forall<unbound>`, `forall<async>`, `forall<async,unbound>`, `forall<unbound,async,1>`, `forall<&my_gce>`, ...
 
-## Bringing it all together: GUPS
-
+Section 5: Bringing it all together with GUPS
+-------------------------------------------------------------------------------
 We will use a simple benchmark to illustrate the use of parallel loops and delegate operations. "GUPS", which stands for "Giga-Updates Per Second" is a measure and a benchmark for random access rate. The basic premise is to see how quickly you can issue updates to a global array, but the updates are indexed by another array.
 
 ```cpp
@@ -456,8 +465,8 @@ forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
 });
 ```
 
-## Nested dynamic parallelism
-
+Section 6: Nested dynamic parallelism
+-------------------------------------------------------------------------------
 We will use a tree search to illustrate the spawning and syncing of an unpredictable
 number of dynamic tasks.
 
@@ -593,3 +602,19 @@ if (v.color == search_color) {
 
 The member dereference operator (`operator->()`) has been overloaded for GlobalAddress to get at the pointer for the current core. In order for this to work correctly, it has to be called *on the core where it is valid*. In the case of symmetric GlobalAddresses like this one, it is valid to do this on any core, but *it must be called on the core it is used on*. You must be careful not to extract the pointer and then pass that around, as some computation has to be done by GlobalAddress to resolve the address differently on each core. With that overloaded operator, it is then easy to call GlobalVector's `push` method with the current vertex id. This blocks until the `push` has finished, just like other delegate operations.
 
+Section 7: Further reading
+-------------------------------------------------------------------------------
+For more on Grappa's design decisions, see our papers, available from the Grappa webiste.
+
+To find out more about Grappa's API, take a look at the autogenerated API docs. `BUILD.md` discusses building them for yourself, or you can examine the copy on the Grappa website. 
+
+Finally, here are some good examples in the repo:
+
+- `system/New_loop_tests.cpp`
+- `system/New_delegate_tests.cpp`
+- `system/CompletionEvent_tests.cpp`
+- `system/Collective_tests.cpp`
+- `applications/graph500/grappa/{main_new,bfs_local_adj,cc_new}.cpp`
+- `applications/NPB/GRAPPA/IS/intsort.cpp`
+- `applications/suite/grappa/{centrality.cpp,main.cpp}`
+- `applications/pagerank/pagerank.cpp`
