@@ -12,4 +12,4 @@ Non-exhaustive list of test targets:
 - `check-all-pass`: build and run all passing tests
 - `check-all-pass-compile-only`: just build all the tests expected to pass
 
-Someday we'll get this up and running with some CI server, but until then, we'll just try and run it whenever we make significant changes.
+Someday we'll get this up and running with some CI server, but until then, we just try and run it whenever we make significant changes.
