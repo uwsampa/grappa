@@ -229,11 +229,11 @@ macro(add_grappa_test name nnode ppn)
   
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
     DEPENDS Grappa ${name}
   )
   add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
   )
   
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
@@ -267,7 +267,7 @@ add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(system)
 add_subdirectory(third-party)
-add_subdirectory(tutorial)
+add_subdirectory(doc)
 
 if(DEFINED LLVM_ROOT)
   add_subdirectory(compiler)

@@ -27,7 +27,7 @@ Igor do
   
   params.merge!(GFLAGS)
   
-  @c = ->{ %Q[ %{tdir}/grappa_srun.rb
+  @c = ->{ %Q[ %{tdir}/grappa_srun
     -- %{tdir}/graph_new.exe
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }

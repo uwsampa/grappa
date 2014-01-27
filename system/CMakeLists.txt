@@ -136,6 +136,16 @@ set(SYSTEM_SOURCES
   stack.S
 )
 
+################
+# Graph sources
+list(APPEND SYSTEM_SOURCES
+  graph/Graph.hpp
+  graph/Graph.cpp
+  graph/TupleGraph.hpp
+  graph/KroneckerGenerator.cpp
+)
+list(APPEND GRAPPA_LIBS graph500-generator)
+include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")
@@ -201,10 +211,12 @@ add_check( RateMeasure_tests.cpp             2 1  pass )
 add_check( Reducer_tests.cpp                 2 1  pass )
 add_check( Scheduler_benchmarking_tests.cpp  2 1  pass )
 add_check( Semaphore_tests.cpp               2 1  pass )
-add_check( Metrics_tests.cpp              2 1  pass )
+add_check( Metrics_tests.cpp                 2 1  pass )
 add_check( Stealing_tests.cpp                2 1  fail ) # deprecated?
 add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
+
+add_check( graph/Graph_tests.cpp             2 1  pass )
 
 
 # add a target to generate API documentation with Doxygen

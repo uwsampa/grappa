@@ -56,7 +56,7 @@ module Isolatable
     FileUtils.mkdir_p(@ldir)
     
     exes = [exes] unless exes.is_a? Array
-    exes << 'mpirun' << "#{File.dirname(__FILE__)}/../bin/grappa_srun.rb" \
+    exes << 'mpirun' << "#{File.dirname(__FILE__)}/../bin/grappa_srun" \
                      << "#{File.dirname(__FILE__)}/../bin/grappa_srun_prolog.rb" \
                      << "#{File.dirname(__FILE__)}/../bin/grappa_srun_epilog.sh"
     

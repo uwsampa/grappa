@@ -9,7 +9,7 @@ Most Grappa files are licensed under the Affero General Public
 License, version 1.0, as described in the file COPYING. See individual
 file for details.
 
-As an exception, the files under the tools/ and applications/
+As an exception, the files under the third-party/ and applications/
 directories are licensed under their own separate licenses. Please see
 those files for their licensing terms.
 
