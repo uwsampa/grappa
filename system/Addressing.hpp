@@ -512,6 +512,8 @@ public:
     return reinterpret_cast<T*>(global_base() + storage_);
   }
   
+  inline T* localize() const { return pointer(); }
+  
   inline Core core() const { return Grappa::mycore(); }
   
   T* operator->() const { return pointer(); }

@@ -86,7 +86,7 @@ public:
     Master() { clear(); }
     ~Master() {}
     
-    static void master_combine(GlobalAddress<GlobalVector> self) {
+    static void master_combine(SymmetricAddress<GlobalVector> self) {
       auto* m = &self->master;
       m->combining = true;
       
@@ -162,7 +162,7 @@ public:
     }
     
     template< typename Q, typename F >
-    static auto request(GlobalAddress<GlobalVector> self, Q yield_q, F func) -> decltype(func()) {
+    static auto request(SymmetricAddress<GlobalVector> self, Q yield_q, F func) -> decltype(func()) {
       using R = decltype(func());
       
       FullEmpty<R> result;
@@ -185,7 +185,7 @@ public:
       return r;
     }
     
-    static void push(GlobalAddress<GlobalVector> self, T * buffer, int64_t npush) {
+    static void push(SymmetricAddress<GlobalVector> self, T * buffer, int64_t npush) {
       auto yield_q = [](Master * m){ return &m->push_q; };
       auto origin = mycore();
       auto push_at = request(self, yield_q, [self,npush,origin]{
@@ -201,7 +201,7 @@ public:
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
 
-    static void pop(GlobalAddress<GlobalVector> self, T * buffer, int64_t npop) {
+    static void pop(SymmetricAddress<GlobalVector> self, T * buffer, int64_t npop) {
       auto origin = mycore();
       auto yield_q = [](Master * m){ return &m->pop_q; };
       size_t pop_at = request(self, yield_q, [self,npop,origin]{
@@ -217,7 +217,7 @@ public:
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
     
-    static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t ndeq) {
+    static void dequeue(SymmetricAddress<GlobalVector> self, T * buffer, int64_t ndeq) {
       auto origin = mycore();
       auto yield_q = [](Master * m){ return &m->deq_q; };
       auto deq_at = request(self, yield_q, [self,ndeq,origin]{
@@ -315,7 +315,7 @@ public:
   GlobalAddress<T> base;
   size_t capacity;
 protected:
-  GlobalAddress<GlobalVector> self;
+  SymmetricAddress<GlobalVector> self;
   
   Master master;
   FlatCombiner<Proxy> proxy;
@@ -323,21 +323,17 @@ protected:
 public:
   GlobalVector(): proxy(locale_new<Proxy>(this)) {}
   
-  GlobalVector(GlobalAddress<GlobalVector> self, GlobalAddress<T> storage_base, size_t total_capacity)
-    : proxy(locale_new<Proxy>(this))
-  {
-    this->self = self;
-    base = storage_base;
-    capacity = total_capacity;
-  }
+  GlobalVector(SymmetricAddress<GlobalVector> self, GlobalAddress<T> base, size_t capacity)
+    : proxy(locale_new<Proxy>(this)), self(self), base(base), capacity(capacity) {}
+  
   ~GlobalVector() {}
   
-  static GlobalAddress<GlobalVector> create(size_t total_capacity) {
+  static SymmetricAddress<GlobalVector> create(size_t total_capacity) {
     auto base = global_alloc<T>(total_capacity);
     auto self = symmetric_global_alloc<GlobalVector>();
     VLOG(3) << "create:\n  self = " << self << "\n  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
-      new (self.localize()) GlobalVector(self, base, total_capacity);
+      new (&*self) GlobalVector(self, base, total_capacity);
     });
     return self;
   }
@@ -420,10 +416,16 @@ public:
     return delegate::call(MASTER, [self]{ return self->master.size; });
   }
   
+  /// Non-const overload (TODO: remove this when no longer needed)
+  size_t size() { return const_cast<const GlobalVector*>(this)->size(); }
+  
   bool empty() const { return size() == 0; }
   
   /// Return a Linear GlobalAddress to the first element of the vector.
   GlobalAddress<T> begin() const { return this->base + master.head; }
+  
+  /// Non-const overload (TODO: remove this when no longer needed)
+  GlobalAddress<T> begin() { return const_cast<const GlobalVector*>(this)->begin(); }
   
   /// Return a Linear GlobalAddress to the end of the vector, that is, one past the last element.
   GlobalAddress<T> end() const { return this->base + master.tail; }
@@ -462,7 +464,7 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
           typename T = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall(GlobalAddress<GlobalVector<T>> self, F func) {
+void forall(SymmetricAddress<GlobalVector<T>> self, F func) {
   self->forall_elements(func);
 }
 
