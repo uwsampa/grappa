@@ -16,5 +16,5 @@ add_library(graph500-generator STATIC ${GENERATOR_SOURCES})
 add_dependencies(graph500-generator all-third-party)
 set_target_properties(graph500-generator PROPERTIES
   COMPILE_FLAGS "-Drestrict=__restrict__ -DGRAPH_GENERATOR_SEQ -ffast-math ${STATIC_FLAGS}"
-  PROPERTY FOLDER "Third Party"
+  FOLDER "Third Party"
 )
