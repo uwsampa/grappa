@@ -63,9 +63,9 @@ namespace Grappa {
     int64_t * adj_buf;
     int64_t * scratch;
   
-    GlobalAddress<Graph> self;
+    SymmetricAddress<Graph> self;
     
-    Graph(GlobalAddress<Graph> self, GlobalAddress<V> vs, int64_t nv)
+    Graph(SymmetricAddress<Graph> self, GlobalAddress<V> vs, int64_t nv)
       : self(self)
       , vs(vs)
       , nv(nv)
@@ -79,6 +79,8 @@ namespace Grappa {
       for (V& v : iterate_local(vs, nv)) { v.~V(); }
       if (adj_buf) locale_free(adj_buf);
     }
+    
+    GlobalAddress<V> vertices() { return vs; }
   
     void destroy() {
       auto self = this->self;
@@ -88,7 +90,7 @@ namespace Grappa {
     }
   
     template< int LEVEL = 0 >
-    static void dump(GlobalAddress<Graph> g) {
+    static void dump(SymmetricAddress<Graph> g) {
       for (int64_t i=0; i<g->nv; i++) {
         delegate::call(g->vs+i, [i](V * v){
           std::stringstream ss;
@@ -102,15 +104,15 @@ namespace Grappa {
     /// Cast graph to new type, and allow user to re-initialize each V by providing a 
     /// functor (the body of a forall() over the vertices)
     template< typename VNew, typename VOld, typename InitFunc = decltype(nullptr) >
-    static GlobalAddress<Graph<VNew>> transform_vertices(GlobalAddress<Graph<VOld>> o, InitFunc init) {
+    static SymmetricAddress<Graph<VNew>> transform_vertices(SymmetricAddress<Graph<VOld>> o, InitFunc init) {
       static_assert(sizeof(VNew) == sizeof(V), "transformed vertex size must be the unchanged.");
-      auto g = static_cast<GlobalAddress<Graph<VNew>>>(o);
+      auto g = static_cast<SymmetricAddress<Graph<VNew>>>(o);
       forall(g->vs, g->nv, init);
       return g;
     }
   
     // Constructor
-    static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false) {
+    static SymmetricAddress<Graph> create(const TupleGraph& tg, bool directed = false) {
       double t;
       auto g = symmetric_global_alloc<Graph<V>>();
   
@@ -257,7 +259,7 @@ namespace Grappa {
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename V = decltype(nullptr),
             typename F = decltype(nullptr) >
-  void forall(GlobalAddress<Graph<V>> g, F loop_body) {
+  void forall(SymmetricAddress<Graph<V>> g, F loop_body) {
     forall(g->vs, g->nv, loop_body);
   }
   
