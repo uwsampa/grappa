@@ -1,3 +1,2 @@
-#pragma once
-#include "graph.hpp"
+#include "Graph.hpp"
 

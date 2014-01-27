@@ -8,10 +8,9 @@
 #include <Delegate.hpp>
 #include <AsyncDelegate.hpp>
 #include <Array.hpp>
+#include "TupleGraph.hpp"
 
 #include <algorithm>
-
-#include "common.h"
 
 // #define USE_MPI3_COLLECTIVES
 #undef USE_MPI3_COLLECTIVES
@@ -111,13 +110,13 @@ struct Graph {
   }
   
   // Constructor
-  static GlobalAddress<Graph> create(const tuple_graph& tg, bool directed = false) {
+  static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false) {
     double t;
     auto g = symmetric_global_alloc<Graph<V>>();
   
     // find nv
         t = walltime();
-    forall(tg.edges, tg.nedge, [g](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g](TupleGraph::Edge& e){
       if (e.v0 > g->nv) { g->nv = e.v0; }
       if (e.v1 > g->nv) { g->nv = e.v1; }
     });
@@ -148,7 +147,7 @@ struct Graph {
     });
                                                               t = walltime();
     // count the outgoing/undirected edges per vertex
-    forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g,directed](TupleGraph::Edge& e){
       CHECK_LT(e.v0, g->nv); CHECK_LT(e.v1, g->nv);
   #ifdef SMALL_GRAPH
       // g->scratch[e.v0]++;
@@ -157,7 +156,7 @@ struct Graph {
       if (!directed) __sync_fetch_and_add(g->scratch+e.v1, 1);
   #else    
       auto count = [](GlobalAddress<V> v){
-        delegate::call<async>(v.core(), [v]{ v->local_sz++; });
+        delegate::call<SyncMode::Async>(v.core(), [v]{ v->local_sz++; });
       };
       count(g->vs+e.v0);
       if (!directed) count(g->vs+e.v1);
@@ -196,10 +195,10 @@ struct Graph {
     VLOG(3) << "after adj allocs";
   
     // scatter
-    forall(tg.edges, tg.nedge, [g,directed](packed_edge& e){
+    forall(tg.edges, tg.nedge, [g,directed](TupleGraph::Edge& e){
       auto scatter = [g](int64_t vi, int64_t adj) {
         auto vaddr = g->vs+vi;
-        delegate::call<async>(vaddr.core(), [vaddr,adj]{
+        delegate::call<SyncMode::Async>(vaddr.core(), [vaddr,adj]{
           auto& v = *vaddr.pointer();
           v.local_adj[v.nadj++] = adj;
         });

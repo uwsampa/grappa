@@ -136,6 +136,16 @@ set(SYSTEM_SOURCES
   stack.S
 )
 
+################
+# Graph sources
+list(APPEND SYSTEM_SOURCES
+  graph/Graph.hpp
+  graph/Graph.cpp
+  graph/TupleGraph.hpp
+  graph/KroneckerGenerator.cpp
+)
+list(APPEND GRAPPA_LIBS graph500-generator)
+include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")

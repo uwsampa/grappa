@@ -1,3 +1,5 @@
+#include <Addressing.hpp>
+#include <GlobalAllocator.hpp>
 
 namespace Grappa {
 
@@ -5,7 +7,7 @@ namespace Grappa {
   public:    
     struct Edge { int64_t v0, v1; };
 
-    GlobalAddress<packed_edge> edges;
+    GlobalAddress<Edge> edges;
     int64_t nedge; /* Number of edges in graph, in both cases */
   
     static TupleGraph generate_kronecker(int scale, int64_t desired_nedge, 
