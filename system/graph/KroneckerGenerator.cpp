@@ -6,7 +6,7 @@
 
 namespace Grappa {
 
-  TupleGraph TupleGraph::generate_kronecker(int scale, int64_t nedge, 
+  TupleGraph TupleGraph::Kronecker(int scale, int64_t nedge, 
                                             uint64_t seed1, uint64_t seed2) {    
     static_assert(sizeof(TupleGraph::Edge) == sizeof(packed_edge),
                   "TupleGraph::Edge doesn't match Graph500 generator's.");

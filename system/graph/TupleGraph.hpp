@@ -10,7 +10,8 @@ namespace Grappa {
     GlobalAddress<Edge> edges;
     int64_t nedge; /* Number of edges in graph, in both cases */
   
-    static TupleGraph generate_kronecker(int scale, int64_t desired_nedge, 
+    /// Use Graph500 Kronecker generator (@see graph/KroneckerGenerator.cpp)
+    static TupleGraph Kronecker(int scale, int64_t desired_nedge, 
                                          uint64_t seed1, uint64_t seed2);
     
   protected:
