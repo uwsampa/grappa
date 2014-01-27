@@ -109,7 +109,7 @@ A couple notes about adding new targets for CMake to build. First: each director
 
 There are a couple custom macros defined for creating Grappa executables:
 
-- `add_grappa_exe(target_name.exe [list of sources])`: creates an executable that links with `libGrappa`, depends on all the "third-party" and has the correct properties set. Convention is that these use the '.exe' extension.
+- `add_grappa_exe(target_name.exe [list of sources])`: creates an executable that links with `libGrappa`, depends on all the "third-party" and has the correct properties set. Our convention is that these use the '.exe' extension, even though we're running on Linux.
 - `add_grappa_application(target_name [list of sources])`: same as `add_grappa_exe` but sets a property so it is tagged as an 'Application' in Xcode/VS.
 - `add_grappa_test(target_name.test [list of sources])`: builds/links as a Boost Unit Test. Convention is to use '.test' for the extension. This will also create a second target: `check-#{target_name}` (without '.test'), which will build and run the test. This target also adds itself to the list of all test, which can be run with the `check-all` target.
 
