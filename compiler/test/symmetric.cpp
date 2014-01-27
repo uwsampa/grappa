@@ -1,7 +1,6 @@
 #include <Grappa.hpp>
+#include <GlobalVector.hpp>
 #include <Primitive.hpp>
-#include <Collective.hpp>
-#include <GlobalAllocator.hpp>
 
 using namespace Grappa;
 
@@ -47,6 +46,23 @@ int main(int argc, char* argv[]) {
       CHECK_EQ(sa->x, mycore());
       if (mycore() == core(z1)) CHECK_EQ(sa->y, z);
     });
+    
+    ///////////////////////////
+    // GlobalVector
+    size_t N = 1024;
+    auto va = GlobalVector<long>::create(N);
+    auto v = as_ptr(va);
+    
+    CHECK_EQ(v->size(), 0);
+    
+    on_all_cores([=]{
+      auto r = blockDist(0, 10);
+      for (int i = r.start; i < r.end; i++) {
+        v->push( i );
+      }
+    });
+    
+    LOG(INFO) << util::array_str("vector", v->begin(), v->size());
     
   });
   finalize();
