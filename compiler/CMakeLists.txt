@@ -58,3 +58,4 @@ macro(add_grappaclang_exe target exe)
 endmacro()
 
 add_subdirectory( test )
+add_subdirectory( apps )
