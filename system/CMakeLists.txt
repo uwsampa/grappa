@@ -211,10 +211,12 @@ add_check( RateMeasure_tests.cpp             2 1  pass )
 add_check( Reducer_tests.cpp                 2 1  pass )
 add_check( Scheduler_benchmarking_tests.cpp  2 1  pass )
 add_check( Semaphore_tests.cpp               2 1  pass )
-add_check( Metrics_tests.cpp              2 1  pass )
+add_check( Metrics_tests.cpp                 2 1  pass )
 add_check( Stealing_tests.cpp                2 1  fail ) # deprecated?
 add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
+
+add_check( graph/Graph_tests.cpp             2 1  pass )
 
 
 # add a target to generate API documentation with Doxygen
