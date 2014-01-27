@@ -49,6 +49,14 @@ namespace Grappa {
     return gptr(make_global(t, n));
   }
   
+  /// Helper to make it simple to get 'T global*' from a GlobalAddress<T>
+  template< typename T >
+  inline T global* as_ptr(GlobalAddress<T> a) { return a; }
+  
+  /// Helper to make it simple to get 'T symmetric*' from a SymmetricAddress<T>
+  template< typename T >
+  inline T symmetric* as_ptr(SymmetricAddress<T> a) { return a; }
+  
 }
 
 extern "C"
