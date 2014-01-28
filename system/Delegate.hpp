@@ -440,6 +440,14 @@ namespace Grappa {
       });
     });
   }
+
+  // overload to specify just the GCE
+  template< GlobalCompletionEvent * C,
+            TaskMode B = TaskMode::Bound,
+            typename F = decltype(nullptr) >
+  void spawnRemote(Core dest, F f) {
+    spawnRemote<B, C, F>( dest, f );
+  }
     
 } // namespace Grappa
 /// @}
