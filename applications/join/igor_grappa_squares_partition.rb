@@ -33,7 +33,7 @@ Igor do
   }
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} -t 60
+  command %Q[ %{tdir}/grappa_srun --nnode=%{nnode} --ppn=%{ppn} -t 60
     -- %{tdir}/Query.exe
     #{expand_flags(*GFLAGS.keys)}
   ].gsub(/\s+/,' ')

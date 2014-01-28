@@ -33,7 +33,7 @@ Igor do
   }
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb
+  command %Q[ %{tdir}/grappa_srun
     -- %{tdir}/triangles.exe
     #{expand_flags(*GFLAGS.keys)}
   ].gsub(/\s+/,' ')
