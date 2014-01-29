@@ -149,10 +149,10 @@ class MatchesDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
-      spawnRemote<GCE>( target.node(), [key, target, f, this]() {
+      spawnRemote<GCE>( target.core(), [key, target, f, this]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
-          V * results = e.vs->getReadBuffer().pointer(); // global address to local array
+          V * results = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer()).pointer(); // global address to local array
           forall_here<async,GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               // call the continuation with the lookup result
@@ -169,10 +169,10 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call<async>( target.node(), [key, target, f]() {
+      Grappa::delegate::call<async>( target.core(), [key, target, f]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
-          V * results = e.vs->getReadBuffer().pointer(); // global address to local array
+          V * results = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer()).pointer(); // global address to local array
           uint64_t len = e.vs->getLength();
           f(results, len); 
         }
