@@ -368,6 +368,18 @@ Function* DelegateExtractor::extractFunction() {
         v = b.CreateLoad(v, ld->isVolatile(), ld->getName());
         ld->replaceAllUsesWith(v);
         ld->eraseFromParent();
+      } else if (auto addrcast = dyn_cast<AddrSpaceCastInst>(orig)) {
+        Value *new_val = nullptr;
+        if (addrcast->getSrcTy() == addrcast->getType()) {
+          new_val = addrcast->getOperand(0);
+        } else if (addrcast->getSrcTy()->getPointerAddressSpace() == addrcast->getType()->getPointerAddressSpace()) {
+          new_val = new BitCastInst(addrcast->getOperand(0), addrcast->getType(), addrcast->getName(), addrcast);
+        }
+        if (new_val) {
+          errs() << "!! removing obsolete addrspacecast...\n";
+          addrcast->replaceAllUsesWith(new_val);
+          addrcast->eraseFromParent();
+        }
       }
     }
   }
@@ -429,11 +441,22 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
     return true;
     
   } else if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
-    DEBUG( errs() << "load/store to normal memory: " << *inst << "\n" );
-    return false;
+    Value *ptr = nullptr;
+    if (auto m = dyn_cast<LoadInst>(inst))  ptr = m->getPointerOperand();
+    if (auto m = dyn_cast<StoreInst>(inst)) ptr = m->getPointerOperand();
+    
+    if (isa<GlobalVariable>(ptr)) {
+      DEBUG( errs() << "!! static global variable\n" );
+      return true;
+    } else {
+      DEBUG( errs() << "load/store to normal memory: " << *inst << "\n" );
+      return false;
+    }
+    
   } else if ( auto gep = dyn_cast<GetElementPtrInst>(inst) ) {
     
     if (gep->getAddressSpace() == SYMMETRIC_SPACE) return true;
+    if (isa<GlobalVariable>(gep->getPointerOperand())) return true;
     
     // TODO: fix this, some GEP's should be alright...
     return false;
@@ -455,7 +478,10 @@ bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available
     // what we should see is an addrspacecast value as the first op
     if (auto l = dyn_cast<AddrSpaceCastInst>(call->getOperand(0))) {
       if (l->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
-        errs() << "!! method call on symmetric pointer\n";
+        errs() << "method call on symmetric pointer\n";
+        return true;
+      } else if (gptrs.count(l->getOperand(0))) {
+        errs() << "method call on same global ptr\n";
         return true;
       }
     }
@@ -492,6 +518,10 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
       gptr = gld->getPointerOperand();
     } else if (auto g = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(i)) {
       gptr = g->getPointerOperand();
+    } else if (auto c = dyn_cast<AddrSpaceCastInst>(i)) {
+      if (c->getSrcTy()->getPointerAddressSpace() == GLOBAL_SPACE) {
+        gptr = c->getOperand(0);
+      }
     }
     if (gptr) {
       gptrs.insert(gptr);
@@ -509,7 +539,7 @@ BasicBlock* DelegateExtractor::findStart(BasicBlock *bb) {
   return nullptr;
 }
 
-
+// Expand region to include some, all, or none of the given BB, recursively
 bool DelegateExtractor::expand(BasicBlock *bb) {
   assert(gptrs.size() == 1);
   
