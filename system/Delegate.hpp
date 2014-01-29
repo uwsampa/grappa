@@ -94,14 +94,47 @@ namespace Grappa {
   
   namespace delegate {
     
-#define INVOCATION impl::Specializer<S,C,F>::call(dest, f, &F::operator())
-    
+#define AUTO_INVOKE(expr) decltype(expr) { return expr; }
+        
     template< SyncMode S = SyncMode::Blocking, 
               GlobalCompletionEvent * C = &impl::local_gce,
               typename F = decltype(nullptr) >
-    auto call(Core dest, F f) -> decltype(INVOCATION) { return INVOCATION; }
+    auto call(Core dest, F f) -> AUTO_INVOKE((impl::Specializer<S,C,F>::call(dest, f, &F::operator())));
+        
+  } // namespace delegate
     
-#undef INVOCATION
+  namespace impl {
+    template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
+    inline auto call(GlobalAddress<T> t, F func, R (F::*mf)(T&) const) -> decltype(func(*t.pointer())) {
+      return delegate::call<S,C>(t.core(), [t,func]{ return func(*t.pointer()); });
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
+    inline auto call(GlobalAddress<T> t, F func, R (F::*mf)(T*) const) -> decltype(func(t.pointer())) {
+      return delegate::call<S,C>(t.core(), [t,func]{ return func(t.pointer()); });
+    }
+  }
+
+  namespace delegate {
+
+    /// Helper that makes it easier to implement custom delegate operations on global
+    /// addresses specifically.
+    ///
+    /// Example:
+    /// @code
+    ///   GlobalAddress<int> xa;
+    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
+    ///
+    ///   // or by reference:
+    ///   bool is_zero = delegate::call(xa, [](int& x){ return x == 0; });
+    /// @endcode
+    template< SyncMode S = SyncMode::Blocking,
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr),
+              typename F = decltype(nullptr) >
+    inline auto call(GlobalAddress<T> t, F func) ->
+      AUTO_INVOKE((impl::call<S,C>(t,func,&F::operator())));
+    
+#undef AUTO_INVOKE
     
     /// Try lock on remote mutex. Does \b not lock or unlock, creates a SuspendedDelegate if lock has already
     /// been taken, which is triggered on unlocking of the Mutex.
@@ -395,32 +428,6 @@ namespace Grappa {
       delegate::call<SyncMode::Async,C>(target.core(), [target,inc]{
         (*target.pointer()) += inc;
       });
-    }
-    
-        
-    // /// Implements essentially a remote procedure call. Callable object (lambda,
-    // /// function pointer, or functor object) is called from the `dest` core and the return
-    // /// value is sent back to the calling task.
-    // template< SyncMode S = SyncMode::Blocking, typename F = decltype(nullptr) >
-    // inline auto call(Core dest, F func) -> decltype(func()) {
-    //   if (S == SyncMode::Blocking) {
-    //     return impl::call(dest, func, &F::operator());
-    //   } else {
-    //     return impl::call_async()
-    //   }
-    // }
-  
-    /// Helper that makes it easier to implement custom delegate operations on global
-    /// addresses specifically.
-    ///
-    /// Example:
-    /// @code
-    ///   GlobalAddress<int> xa;
-    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
-    /// @endcode
-    template< typename T, typename F >
-    inline auto call(GlobalAddress<T> target, F func) -> decltype(func(target.pointer())) {
-      return call(target.core(), [target,func]{ return func(target.pointer()); });
     }
     
   } // namespace delegate

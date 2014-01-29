@@ -253,7 +253,23 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     });
     Grappa::wait(&waiter);
     BOOST_CHECK_EQUAL(seed, 222);
-  
+    
+    // new delegate::call(GlobalAddress) overload
+    call_on_all_cores([]{ global_x = 0; });
+    
+    auto xa = make_global(&global_x, 1);
+    
+    auto r = delegate::call(xa, [](int& x){ BOOST_CHECK_EQUAL(x, 0); x = 1; return true; });
+    BOOST_CHECK(r);
+    
+    delegate::call(xa, [](int* x){ BOOST_CHECK_EQUAL(*x, 1); *x = 2; });
+    
+    finish([xa]{
+      for (int i=0; i < 10; i++) {
+        delegate::call<async>(xa, [](int& x){ BOOST_CHECK_EQUAL(x, 2); x++; });
+      }
+    });
+    
     Grappa::Metrics::stop_tracing();
     Grappa::Metrics::merge_and_print();
   });
