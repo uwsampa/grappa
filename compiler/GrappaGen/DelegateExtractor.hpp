@@ -44,15 +44,7 @@
 #include <list>
 #include <queue>
 
-#undef DEBUG_TYPE
-#define DEBUG_TYPE "grappa"
-
-#define void_ty      Type::getVoidTy(*ctx)
-#define i64_ty       Type::getInt64Ty(*ctx)
-#define i16_ty       Type::getInt16Ty(*ctx)
-#define void_ptr_ty  Type::getInt8PtrTy(*ctx, 0)
-#define void_gptr_ty Type::getInt8PtrTy(*ctx, GLOBAL_SPACE)
-#define void_sptr_ty Type::getInt8PtrTy(*ctx, SYMMETRIC_SPACE)
+#include "Passes.h"
 
 /// helper for iterating over preds/succs/uses
 #define for_each(var, arg, prefix) \
@@ -74,44 +66,6 @@ namespace llvm {
       }
     }
     
-  }
-  
-  static const int GLOBAL_SPACE = 100;
-  static const int SYMMETRIC_SPACE = 200;
-  
-  inline PointerType* getAddrspaceType(Type *orig, int addrspace = 0) {
-    if (auto p = dyn_cast<PointerType>(orig)) {
-      return PointerType::get(p->getElementType(), addrspace);
-    }
-    return nullptr;
-  }
-  
-  struct GlobalPtrInfo {
-    Function *call_on_fn, *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
-    
-    bool isaGlobalPointer(Type* type) {
-      PointerType* pt = dyn_cast<PointerType>(type);
-      if( pt && pt->getAddressSpace() == GLOBAL_SPACE ) return true;
-      return false;
-    }
-    
-  };
-  
-  template< int AddrSpace >
-  inline PointerType* dyn_cast_addr(Type* ty) {
-    PointerType *pt = dyn_cast<PointerType>(ty);
-    if (pt && pt->getAddressSpace() == AddrSpace) return pt;
-    else return nullptr;
-  }
-  
-  template< int AddrSpace, typename InstType >
-  inline InstType* dyn_cast_addr(Value* v) {
-    if (auto ld = dyn_cast<InstType>(v)) {
-      if (ld->getPointerAddressSpace() == AddrSpace) {
-        return ld;
-      }
-    }
-    return nullptr;
   }
   
   struct GlobalPtrUse {

@@ -362,22 +362,11 @@ Function* DelegateExtractor::extractFunction() {
       bool isVolatile = false;
       if (auto ld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(orig)) {
         outs() << "!! found a global load:" << *orig << "\n";
-        v = ld->getPointerOperand();
+        ginfo.replace_global_with_local(ld->getPointerOperand(), ld);
+
       } else if (auto st = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(orig)) {
         outs() << "!! found a global store:" << *orig << "\n";
-        v = st->getPointerOperand();
-      }
-      if (v) {
-        
-        Type *ty = getAddrspaceType(v->getType());
-        IRBuilder<> b(orig);
-        Twine name = v->getName().size() ? v->getName()+".g" : "g";
-        v = b.CreateBitCast(v, void_gptr_ty, name+".void");
-        v = b.CreateCall(ginfo.get_pointer_fn, (Value*[]){ v }, name+".lvoid");
-        v = b.CreateBitCast(v, ty, name+".lptr");
-        v = b.CreateLoad(v, isVolatile, name+".val");
-        orig->replaceAllUsesWith(v);
-        orig->eraseFromParent();
+        ginfo.replace_global_with_local(st->getPointerOperand(), st);
         
       } else if (auto addrcast = dyn_cast<AddrSpaceCastInst>(orig)) {
         Value *new_val = nullptr;

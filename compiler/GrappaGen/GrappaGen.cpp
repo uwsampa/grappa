@@ -42,6 +42,8 @@
 
 #include <cxxabi.h>
 
+#include "Passes.h"
+
 //// I'm not sure why, but I can't seem to enable debug output in the usual way
 //// (with command line flags). Here's a hack.
 //#undef DEBUG
@@ -152,8 +154,7 @@ namespace {
     
     GlobalPtrInfo ginfo;
     
-    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn, *call_on_fn, *get_core_fn,
-             *get_pointer_fn, *get_pointer_symm_fn;
+    Function *get_fn, *put_fn, *read_long_fn, *fetchadd_i64_fn;
     
     Function *myprint_i64;
     
@@ -397,21 +398,8 @@ namespace {
             // inst doesn't need to be replaced
             if (!sptr) continue;
             
-            // find the 'addrspace(0)*' version of the symmetric ptr type
-            // sptrTy('T symmetric*') -> lptrTy('T*')
-            auto sptrTy = dyn_cast<PointerType>(sptr->getType());
-            
-            // for casts, already have a type; for others, just get the addrspace(0) version
-            if (!lptrTy) lptrTy = PointerType::get(sptrTy->getElementType(), 0);
-            
             // get local pointer out of symmetric pointer
-            IRBuilder<> b(orig); Value *v;
-            Twine name = sptr->getName().size() > 0 ? sptr->getName()+".s" : "s";
-            v = b.CreateBitCast(sptr, void_sptr_ty,                name+".void");
-            v = b.CreateCall(get_pointer_symm_fn, (Value*[]){ v }, name+".lvoid");
-            v = b.CreateBitCast(v, lptrTy,                         name+".local");
-            
-            auto lptr = v;
+            auto lptr = ginfo.symm_get_ptr(orig, sptr, lptrTy);
             
             // replace invalid use of symmetric pointer
             if (replaceOrig) {
@@ -446,12 +434,9 @@ namespace {
       put_fn = getFunction("grappa_put");
       read_long_fn = getFunction("grappa_read_long");
       fetchadd_i64_fn = getFunction("grappa_fetchadd_i64");
-      ginfo.call_on_fn = call_on_fn = getFunction("grappa_on");
-      ginfo.get_core_fn = get_core_fn = getFunction("grappa_get_core");
-      ginfo.get_pointer_fn = get_pointer_fn = getFunction("grappa_get_pointer");
-      ginfo.get_pointer_symm_fn = get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
-      
       myprint_i64 = getFunction("myprint_i64");
+      
+      disabled |= ginfo.init(module);
       
       auto global_annos = module.getNamedGlobal("llvm.global.annotations");
       if (global_annos) {
@@ -486,17 +471,15 @@ namespace {
   
   //////////////////////////////
   // Register optional pass
-  static RegisterPass<GrappaGen> X(
-                                   "grappa-gen", "Grappa Code Generator",
-                                   false, false
-                                   );
+  static RegisterPass<GrappaGen> X("grappa-gen", "Grappa Code Gen", false, false);
   
   //////////////////////////////
   // Register as default pass
-  static void registerGrappaGen(const PassManagerBuilder&, PassManagerBase& PM) {
-    fprintf(stderr, "Registered GrappaGen pass!\n");
-    PM.add(new GrappaGen());
-  }
-  static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_ScalarOptimizerLate, registerGrappaGen);
+  static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_ScalarOptimizerLate,
+    [](const PassManagerBuilder&, PassManagerBase& PM){
+      outs() << "Registered Grappa passes.\n";
+      PM.add(new GrappaGen());
+      PM.add(new Grappa::ExtractorPass());
+    });
   
 }

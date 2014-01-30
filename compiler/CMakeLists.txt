@@ -27,10 +27,12 @@ file(GLOB compiler_includes "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
 
 # add_subdirectory( GrappaGen )
 add_llvm_loadable_module( LLVMGrappaGen
-  "GrappaGen/GrappaGen.cpp"
-  "GrappaGen/PrePass.cpp"
-  "GrappaGen/DelegateExtractor.hpp"
-  "GrappaGen/DelegateExtractor.cpp"
+  GrappaGen/Passes.h
+  GrappaGen/GrappaGen.cpp
+  GrappaGen/PrePass.cpp
+  GrappaGen/ExtractorPass.cpp
+  GrappaGen/DelegateExtractor.hpp
+  GrappaGen/DelegateExtractor.cpp
 )
 set_target_properties( LLVMGrappaGen PROPERTIES COMPILE_FLAGS "-fno-rtti" )
 set_property(TARGET LLVMGrappaGen PROPERTY FOLDER "Compiler")
