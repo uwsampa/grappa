@@ -358,6 +358,7 @@ namespace {
           for (auto inst = bb->begin(); inst != bb->end(); ) {
             
             bool replaceOrig = false;
+            Type *lptrTy = nullptr;
             Value *sptr = nullptr;
             if (auto orig = dyn_cast_addr<SYMMETRIC_SPACE,LoadInst>(inst)) {
               outs() << "load<sym>          =>" << *orig << "\n";
@@ -367,8 +368,9 @@ namespace {
               sptr = orig->getPointerOperand();
             } else if (auto orig = dyn_cast<AddrSpaceCastInst>(inst)) {
               if (orig->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
-              outs() << "addrspacecast<sym> =>" << *orig << "\n";
+                outs() << "addrspacecast<sym> =>" << *orig << "\n";
                 sptr = orig->getOperand(0);
+                lptrTy = orig->getType();
                 replaceOrig = true;
               }
             }
@@ -383,7 +385,9 @@ namespace {
             // find the 'addrspace(0)*' version of the symmetric ptr type
             // sptrTy('T symmetric*') -> lptrTy('T*')
             auto sptrTy = dyn_cast<PointerType>(sptr->getType());
-            auto lptrTy = PointerType::get(sptrTy->getElementType(), 0);
+            
+            // for casts, already have a type; for others, just get the addrspace(0) version
+            if (!lptrTy) lptrTy = PointerType::get(sptrTy->getElementType(), 0);
             
             // get local pointer out of symmetric pointer
             IRBuilder<> b(orig); Value *v;
