@@ -17,6 +17,7 @@ ir = ARGF.read
 metamap = {}
 ir.scan(/!(\d+) = metadata !{metadata !"(.*)"}/){ metamap[$~[1]] = $~[2] }
 # /\!(\d+) = metadata \!\{metadata !"hello world"}/
+
 # require 'awesome_print'; ap metamap
 
 # replace metadata refs !\d+ with string (in comment)
@@ -24,6 +25,7 @@ ir.scan(/!(\d+) = metadata !{metadata !"(.*)"}/){ metamap[$~[1]] = $~[2] }
 ir.each_line do |line|
   line.gsub!(/!(\d+)(?! = metadata)\s*$/){ ";@'#{metamap[$~[1]]}'" }
   line.gsub!(/addrspace\(100\)/,'global')
+  line.gsub!(/addrspace\(200\)/,'symmetric')
   
   puts line
 end
