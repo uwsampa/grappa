@@ -391,12 +391,12 @@ namespace {
             
             // get local pointer out of symmetric pointer
             IRBuilder<> b(orig); Value *v;
-            v = b.CreateBitCast(sptr, void_sptr_ty);
-            v = b.CreateCall(get_pointer_symm_fn, (Value*[]){ v });
-            v = b.CreateBitCast(v, lptrTy);
+            Twine name = sptr->getName().size() > 0 ? sptr->getName()+".s" : "s";
+            v = b.CreateBitCast(sptr, void_sptr_ty,                name+".void");
+            v = b.CreateCall(get_pointer_symm_fn, (Value*[]){ v }, name+".lvoid");
+            v = b.CreateBitCast(v, lptrTy,                         name+".local");
             
             auto lptr = v;
-            lptr->setName(sptr->getName() + ".sym.local");
             
             // replace invalid use of symmetric pointer
             if (replaceOrig) {
