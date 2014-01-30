@@ -11,19 +11,20 @@
 # > ir_debug basic.ll
 ##########################################################
 
-ir = ARGF.read
+# ir = ARGF.read
 
 # scan for !\d+ metadata ""
-metamap = {}
-ir.scan(/!(\d+) = metadata !{metadata !"(.*)"}/){ metamap[$~[1]] = $~[2] }
+# metamap = {}
+# ir.scan(/!(\d+) = metadata !{metadata !"(.*)"}/){ metamap[$~[1]] = $~[2] }
 # /\!(\d+) = metadata \!\{metadata !"hello world"}/
 
 # require 'awesome_print'; ap metamap
 
 # replace metadata refs !\d+ with string (in comment)
 # replace addrspace(100) -> grappa_global
-ir.each_line do |line|
-  line.gsub!(/!(\d+)(?! = metadata)\s*$/){ ";@'#{metamap[$~[1]]}'" }
+
+STDIN.each_line do |line|
+  # line.gsub!(/!(\d+)(?! = metadata)\s*$/){ ";@'#{metamap[$~[1]]}'" }
   line.gsub!(/addrspace\(100\)/,'global')
   line.gsub!(/addrspace\(200\)/,'symmetric')
   

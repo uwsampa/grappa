@@ -168,13 +168,24 @@ namespace Grappa {
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
   
-    
+  namespace impl {
+    /// Exists just to get the "async" annotation on the task function for LLVM passes to use.
+    template< typename F >
+    struct AsyncFunctor {
+      F func;
+      AsyncFunctor(F func): func(func) {}
+      __attribute__((annotate("async"), noinline)) void operator()() const {
+        func();
+      }
+    };
+  }
+  
   template< TaskMode B = TaskMode::Bound, typename F = decltype(nullptr) >
   void spawn(F f) {
     if (B == TaskMode::Bound) {
-      privateTask(f);
+      privateTask(impl::AsyncFunctor<F>(f));
     } else if (B == TaskMode::Unbound) {
-      publicTask(f);
+      publicTask(impl::AsyncFunctor<F>(f));
     }
   }
   

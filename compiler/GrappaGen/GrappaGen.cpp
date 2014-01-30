@@ -40,6 +40,8 @@
 #include <queue>
 #include <list>
 
+#include <cxxabi.h>
+
 //// I'm not sure why, but I can't seem to enable debug output in the usual way
 //// (with command line flags). Here's a hack.
 //#undef DEBUG
@@ -159,6 +161,8 @@ namespace {
     
     LLVMContext *ctx;
     
+    std::set<Function*> task_fns;
+    
     GrappaGen() : FunctionPass(ID), disabled(false) { }
     
     void specializeFetchAdd(FetchAdd& fa) {
@@ -273,6 +277,13 @@ namespace {
     
     virtual bool runOnFunction(Function &F) {
       if (disabled) return false;
+      if (task_fns.count(&F) == 0) return false;
+      
+      char *taskname = abi::__cxa_demangle(F.getName().data(), 0, 0, 0);
+      outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\ntask " << taskname << "\n";
+      free(taskname);
+      
+//      outs() << "~~~~~~~~~~~~~~~~~~~~~~\n" << F << "\n~~~~~~~~~~~~~~~~~~~~~~\n";
       
       ctx = &F.getContext();
       DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
@@ -441,6 +452,20 @@ namespace {
       ginfo.get_pointer_symm_fn = get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
       
       myprint_i64 = getFunction("myprint_i64");
+      
+      auto global_annos = module.getNamedGlobal("llvm.global.annotations");
+      if (global_annos) {
+        auto a = cast<ConstantArray>(global_annos->getOperand(0));
+        for (int i=0; i<a->getNumOperands(); i++) {
+          auto e = cast<ConstantStruct>(a->getOperand(i));
+          
+          if (auto fn = cast<Function>(e->getOperand(0)->getOperand(0))) {
+            auto anno = cast<ConstantDataArray>(cast<GlobalVariable>(e->getOperand(1)->getOperand(0))->getOperand(0))->getAsCString();
+            
+            if (anno == "async") { task_fns.insert(fn); }
+          }
+        }
+      }
       
       return false;
     }
