@@ -139,6 +139,8 @@ namespace {
   struct GrappaGen : public FunctionPass {
     static char ID;
     
+    bool disabled;
+    
     struct FetchAdd {
       LoadInst *ld;
       StoreInst *store;
@@ -157,7 +159,7 @@ namespace {
     
     LLVMContext *ctx;
     
-    GrappaGen() : FunctionPass(ID) { }
+    GrappaGen() : FunctionPass(ID), disabled(false) { }
     
     void specializeFetchAdd(FetchAdd& fa) {
       Value *args[] = { fa.ld->getPointerOperand(), fa.inc };
@@ -270,6 +272,8 @@ namespace {
     }
     
     virtual bool runOnFunction(Function &F) {
+      if (disabled) return false;
+      
       ctx = &F.getContext();
       DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
 
@@ -418,11 +422,11 @@ namespace {
     virtual bool doInitialization(Module& module) {
       outs() << "-- Grappa Pass:\n";
       DEBUG( errs() << "  * debug on\n" );
-      auto getFunction = [&module](StringRef name) {
+      auto getFunction = [this,&module](StringRef name) {
         auto fn = module.getFunction(name);
         if (!fn) {
-          llvm::errs() << "unable to find " << name << "\n";
-          abort();
+          llvm::errs() << "unable to find " << name << " -- disabling GrappaGen pass\n";
+          disabled = true;
         }
         return fn;
       };
