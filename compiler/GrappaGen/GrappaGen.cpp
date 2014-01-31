@@ -26,6 +26,7 @@
 #include <llvm/IR/Dominators.h>
 #include <llvm/Analysis/DomPrinter.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Support/CommandLine.h>
 
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 //#include "MyCodeExtractor.h"
@@ -52,6 +53,12 @@
 using namespace llvm;
 
 //STATISTIC(grappaGlobalRefs, "calls to Grappa's distributed shared memory system");
+
+static cl::opt<bool> DoExtractor("grappa-extractor",
+                        cl::desc("Run pass to automatically extract delegates."));
+
+static cl::opt<bool> DoPutGet("grappa-putget",
+                        cl::desc("Replaces global load/store with put/get."));
 
 namespace {
   
@@ -479,7 +486,12 @@ namespace {
     [](const PassManagerBuilder&, PassManagerBase& PM){
       outs() << "Registered Grappa passes.\n";
       PM.add(new GrappaGen());
-      PM.add(new Grappa::ExtractorPass());
+      if (DoExtractor) {
+        PM.add(new Grappa::ExtractorPass());
+      }
+      if (DoPutGet) {
+        outs() << "PutGetPass not implemented yet.\n";
+      }
     });
   
 }
