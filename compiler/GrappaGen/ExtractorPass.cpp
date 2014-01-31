@@ -15,7 +15,35 @@ namespace Grappa {
   
   bool ExtractorPass::runOnModule(Module& M) {
     bool changed = false;
+    
+    if (! ginfo.init(M) ) return false;
+    
+    //////////////////////////
+    // Find 'task' functions
+    auto global_annos = M.getNamedGlobal("llvm.global.annotations");
+    if (global_annos) {
+      auto a = cast<ConstantArray>(global_annos->getOperand(0));
+      for (int i=0; i<a->getNumOperands(); i++) {
+        auto e = cast<ConstantStruct>(a->getOperand(i));
         
+        if (auto fn = dyn_cast<Function>(e->getOperand(0)->getOperand(0))) {
+          auto anno = cast<ConstantDataArray>(cast<GlobalVariable>(e->getOperand(1)->getOperand(0))->getOperand(0))->getAsCString();
+          
+          if (anno == "async") { task_fns.insert(fn); }
+        }
+      }
+    }
+    
+    std::vector<DelegateExtractor*> candidates;
+    
+    for (auto fn : task_fns) {
+      
+      auto dex = new DelegateExtractor(M, ginfo);
+      
+      
+      
+    }
+    
     return changed;
   }
     
