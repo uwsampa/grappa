@@ -42,7 +42,7 @@ require_relative "srun_prolog.rb"
 setarch = ""
 
 # Special rules for known clusters
-case `hostname -A`
+case `hostname --fqdn`
 when /pal|node\d+/ # PNNL Pal cluster
   srun_flags << "--account=pal"
   # disable address randomization (doesn't seem to actually fix pprof multi-node problems)
