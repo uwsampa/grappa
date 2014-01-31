@@ -43,6 +43,8 @@
 
 #include <list>
 #include <queue>
+#include <map>
+#include <set>
 
 #include "Passes.h"
 
@@ -95,6 +97,9 @@ namespace llvm {
     
     Function* outer_fn;
     
+    std::map<Value*,Value*> provenance;
+    std::set<Value*> locals;
+    
   public:
     
     DelegateExtractor(Module& mod, GlobalPtrInfo& ginfo);
@@ -109,6 +114,7 @@ namespace llvm {
     Function* extractFunction();
     
     bool valid_in_delegate(Instruction* inst, ValueSet& available_vals);
+    Value* find_provenance(Instruction *inst, Value *val = nullptr);
     
     /// find start of DelegateRegion
     BasicBlock* findStart(BasicBlock *bb);

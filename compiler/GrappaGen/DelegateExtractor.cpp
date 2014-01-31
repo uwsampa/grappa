@@ -418,6 +418,36 @@ Function* DelegateExtractor::extractFunction() {
   return new_fn;
 }
 
+Value* DelegateExtractor::find_provenance(Instruction *inst, Value *val) {
+  if (!val) val = inst;
+  
+  // see if we already know the answer
+  if (provenance.count(val)) {
+    provenance[inst] = provenance[val];
+    return provenance[inst];
+  }
+  
+  // check if it's a potentially-valid pointer in its own right
+  // TODO: pull this out into own function, use in 'valid_in_delegate' to check what 'find_provenance' returns...
+  if (dyn_cast_addr<SYMMETRIC_SPACE>(val->getType())) {
+    return (provenance[inst] = val);
+  } else if (dyn_cast_addr<GLOBAL_SPACE>(val->getType())) {
+    if (gptrs.count(val)) {
+      return (provenance[inst] = val);
+    }
+  } else if (isa<GlobalVariable>(val)) {
+    return (provenance[inst] = val);
+  }
+  
+  // now start inspecting the instructions and recursing
+  if (auto gep = dyn_cast<GetElementPtrInst>(inst)) {
+    return (provenance[gep] = find_provenance(inst, gep->getPointerOperand()));
+  } else if (auto c = dyn_cast<CastInst>(inst)) {
+    return (provenance[c] = find_provenance(inst, c->getOperand(0)));
+  }
+  
+}
+
 bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available_vals) {
   if (auto gld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(inst)) {
     if (gptrs.count(gld->getPointerOperand())) {
