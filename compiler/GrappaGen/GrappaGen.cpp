@@ -54,6 +54,9 @@ using namespace llvm;
 
 //STATISTIC(grappaGlobalRefs, "calls to Grappa's distributed shared memory system");
 
+static cl::opt<bool> DoGenPass("grappa-gen",
+                                 cl::desc("Run the old GrappaGen pass."));
+
 static cl::opt<bool> DoExtractor("grappa-extractor",
                         cl::desc("Run pass to automatically extract delegates."));
 
@@ -484,8 +487,10 @@ namespace {
   // Register as default pass
   static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_ScalarOptimizerLate,
     [](const PassManagerBuilder&, PassManagerBase& PM){
-      outs() << "Registered Grappa passes.\n";
-      PM.add(new GrappaGen());
+      outs() << "Registering Grappa passes.\n";
+      if (DoGenPass) {
+        PM.add(new GrappaGen());
+      }
       if (DoExtractor) {
         PM.add(new Grappa::ExtractorPass());
       }
