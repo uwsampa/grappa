@@ -14,6 +14,7 @@ using namespace llvm;
 namespace Grappa {
   
   bool ExtractorPass::runOnModule(Module& M) {
+    outs() << "Running extractor...\n";
     bool changed = false;
     
     if (! ginfo.init(M) ) return false;
@@ -34,11 +35,17 @@ namespace Grappa {
       }
     }
     
+    outs() << "task_fns.count => " << task_fns.size() << "\n";
+    
     std::vector<DelegateExtractor*> candidates;
     
     for (auto fn : task_fns) {
+      outs() << "---------\n";
       
-      auto dex = new DelegateExtractor(M, ginfo);
+      auto& provenance = getAnalysis<ProvenanceProp>(*fn);
+      provenance.viewGraph(fn);
+//
+      // auto dex = new DelegateExtractor(M, ginfo);
       
       
       

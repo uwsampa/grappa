@@ -31,6 +31,7 @@ add_llvm_loadable_module( LLVMGrappaGen
   GrappaGen/GrappaGen.cpp
   GrappaGen/PrePass.cpp
   GrappaGen/ExtractorPass.cpp
+  GrappaGen/ProvenanceProp.cpp
   GrappaGen/DelegateExtractor.hpp
   GrappaGen/DelegateExtractor.cpp
 )

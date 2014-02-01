@@ -5,6 +5,7 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <set>
 
@@ -135,6 +136,25 @@ struct GlobalPtrInfo {
 
 namespace Grappa {
   
+  class ProvenanceProp : public FunctionPass {
+  public:
+    static const Value* INDETERMINATE; // 'bottom' (will not be able to determine)
+    static const Value* UNKNOWN;       // 'top' (no information yet)
+    
+    std::map<Value*,Value*> provenance;
+    
+    static char ID;
+    
+    ProvenanceProp() : FunctionPass(ID) {}
+    
+    virtual bool runOnFunction(Function& F);
+    
+    virtual void getAnalysisUsage(AnalysisUsage& AU) const { AU.setPreservesAll(); }
+    
+    void viewGraph(Function *fn);
+    
+  };
+  
   struct ExtractorPass : public ModulePass {
     static char ID;
     
@@ -148,5 +168,9 @@ namespace Grappa {
     virtual bool doInitialization(Module& M);
     virtual bool doFinalization(Module& M);
     
+    virtual void getAnalysisUsage(AnalysisUsage& AU) const {
+      AU.addRequired<ProvenanceProp>();
+    }
   };
+  
 }
