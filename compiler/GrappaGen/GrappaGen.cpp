@@ -443,7 +443,7 @@ namespace {
       fetchadd_i64_fn = getFunction("grappa_fetchadd_i64");
       myprint_i64 = getFunction("myprint_i64");
       
-      disabled |= ginfo.init(module);
+      disabled |= !ginfo.init(module);
       
       auto global_annos = module.getNamedGlobal("llvm.global.annotations");
       if (global_annos) {

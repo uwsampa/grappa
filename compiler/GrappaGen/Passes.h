@@ -76,7 +76,7 @@ struct GlobalPtrInfo {
     get_pointer_fn = getFunction("grappa_get_pointer");
     get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
     
-    return disabled;
+    return !disabled;
   }
   
   bool isaGlobalPointer(Type* type) {

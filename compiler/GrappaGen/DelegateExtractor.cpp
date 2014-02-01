@@ -446,6 +446,7 @@ Value* DelegateExtractor::find_provenance(Instruction *inst, Value *val) {
     return (provenance[c] = find_provenance(inst, c->getOperand(0)));
   }
   
+  return nullptr;
 }
 
 bool DelegateExtractor::valid_in_delegate(Instruction* inst, ValueSet& available_vals) {
