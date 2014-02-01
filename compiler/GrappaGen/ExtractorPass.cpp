@@ -40,11 +40,11 @@ namespace Grappa {
     std::vector<DelegateExtractor*> candidates;
     
     for (auto fn : task_fns) {
-      outs() << "---------\n";
       
       auto& provenance = getAnalysis<ProvenanceProp>(*fn);
-      provenance.viewGraph(fn);
-//
+//      provenance.viewGraph(fn);
+      provenance.prettyPrint(*fn);
+      
       // auto dex = new DelegateExtractor(M, ginfo);
       
       

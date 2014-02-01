@@ -153,6 +153,8 @@ namespace Grappa {
     
     void viewGraph(Function *fn);
     
+    void prettyPrint(Function& fn);
+    
   };
   
   struct ExtractorPass : public ModulePass {

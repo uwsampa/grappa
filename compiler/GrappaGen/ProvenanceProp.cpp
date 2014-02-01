@@ -7,15 +7,55 @@ using namespace Grappa;
 const Value* ProvenanceProp::UNKNOWN       = reinterpret_cast<Value*>(0);
 const Value* ProvenanceProp::INDETERMINATE = reinterpret_cast<Value*>(1);
 
-char ProvenanceProp::ID = 0;
-
-bool ProvenanceProp::runOnFunction(Function& F) {
-  return false;
-}
-
 //////////////////////////////
 // Register optional pass
 static RegisterPass<ProvenanceProp> X( "provenance-prop", "Provenance Prop", false, false );
+char ProvenanceProp::ID = 0;
+
+
+bool ProvenanceProp::runOnFunction(Function& F) {
+  
+  
+  
+  return false;
+}
+
+void ProvenanceProp::prettyPrint(Function& fn) {
+  outs().changeColor(raw_ostream::YELLOW);
+  outs() << "-------------------\n";
+  outs().changeColor(raw_ostream::BLUE);
+  outs() << *fn.getFunctionType();
+  outs().resetColor();
+  outs() << " {\n";
+  
+  for (auto& bb : fn) {
+    
+    outs() << bb.getName() << ":\n";
+    
+    for (auto& inst : bb) {
+      
+      if (provenance[&inst] == ProvenanceProp::UNKNOWN) {
+        outs() << "  ";
+        outs().changeColor(raw_ostream::BLACK);
+      } else if (provenance[&inst] == ProvenanceProp::INDETERMINATE) {
+        outs() << "!!";
+        outs().changeColor(raw_ostream::RED);
+      } else if (dyn_cast_addr<SYMMETRIC_SPACE>(inst.getType())) {
+        outs() << "++";
+        outs().changeColor(raw_ostream::GREEN);
+      } else if (dyn_cast_addr<GLOBAL_SPACE>(inst.getType())) {
+        outs() << "**";
+        outs().changeColor(raw_ostream::BLUE);
+      }
+      
+      outs() << "  " << inst << "\n";
+      
+      outs().resetColor();
+    }
+  }
+  
+  outs() << "}\n";
+}
 
 
 struct ProvenancePropPrinter {
