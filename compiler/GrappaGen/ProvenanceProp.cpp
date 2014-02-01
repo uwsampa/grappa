@@ -20,6 +20,20 @@ bool ProvenanceProp::runOnFunction(Function& F) {
   return false;
 }
 
+ProvenanceClass ProvenanceProp::getClassification(Value* v) {
+  if (provenance[v] == ProvenanceProp::UNKNOWN) {
+    return ProvenanceClass::Unknown;
+  } else if (provenance[v] == ProvenanceProp::INDETERMINATE) {
+    return ProvenanceClass::Indeterminate;
+  } else if (dyn_cast_addr<SYMMETRIC_SPACE>(provenance[v]->getType())) {
+    return ProvenanceClass::Symmetric;
+  } else if (dyn_cast_addr<GLOBAL_SPACE>(provenance[v]->getType())) {
+    return ProvenanceClass::Global;
+  } else {
+    return ProvenanceClass::Unknown;
+  }
+}
+
 void ProvenanceProp::prettyPrint(Function& fn) {
   outs().changeColor(raw_ostream::YELLOW);
   outs() << "-------------------\n";
@@ -33,24 +47,32 @@ void ProvenanceProp::prettyPrint(Function& fn) {
     outs() << bb.getName() << ":\n";
     
     for (auto& inst : bb) {
-      
-      if (provenance[&inst] == ProvenanceProp::UNKNOWN) {
-        outs() << "  ";
-        outs().changeColor(raw_ostream::BLACK);
-      } else if (provenance[&inst] == ProvenanceProp::INDETERMINATE) {
-        outs() << "!!";
-        outs().changeColor(raw_ostream::RED);
-      } else if (dyn_cast_addr<SYMMETRIC_SPACE>(inst.getType())) {
-        outs() << "++";
-        outs().changeColor(raw_ostream::GREEN);
-      } else if (dyn_cast_addr<GLOBAL_SPACE>(inst.getType())) {
-        outs() << "**";
-        outs().changeColor(raw_ostream::BLUE);
+      switch (getClassification(&inst)) {
+        case ProvenanceClass::Unknown:
+          outs() << "  ";
+          outs().changeColor(raw_ostream::BLACK);
+          break;
+        case ProvenanceClass::Indeterminate:
+          outs() << "!!";
+          outs().changeColor(raw_ostream::RED);
+          break;
+        case ProvenanceClass::Static:
+          outs() << "++";
+          outs().changeColor(raw_ostream::GREEN);
+          break;
+        case ProvenanceClass::Symmetric:
+          outs() << "<>";
+          outs().changeColor(raw_ostream::CYAN);
+          break;
+        case ProvenanceClass::Global:
+          outs() << "**";
+          outs().changeColor(raw_ostream::BLUE);
+          break;
       }
       
       outs() << "  " << inst << "\n";
-      
       outs().resetColor();
+      
     }
   }
   

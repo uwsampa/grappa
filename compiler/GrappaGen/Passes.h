@@ -136,25 +136,24 @@ struct GlobalPtrInfo {
 
 namespace Grappa {
   
+  enum class ProvenanceClass { Unknown, Indeterminate, Global, Symmetric, Static };
+  
   class ProvenanceProp : public FunctionPass {
   public:
+    static const Value* UNKNOWN;       // 'top'/'null' (no information yet)
     static const Value* INDETERMINATE; // 'bottom' (will not be able to determine)
-    static const Value* UNKNOWN;       // 'top' (no information yet)
     
     std::map<Value*,Value*> provenance;
     
-    static char ID;
-    
-    ProvenanceProp() : FunctionPass(ID) {}
-    
-    virtual bool runOnFunction(Function& F);
-    
-    virtual void getAnalysisUsage(AnalysisUsage& AU) const { AU.setPreservesAll(); }
+    ProvenanceClass getClassification(Value* v);
     
     void viewGraph(Function *fn);
-    
     void prettyPrint(Function& fn);
     
+    static char ID;
+    ProvenanceProp() : FunctionPass(ID) {}
+    virtual void getAnalysisUsage(AnalysisUsage& AU) const { AU.setPreservesAll(); }
+    virtual bool runOnFunction(Function& F);
   };
   
   struct ExtractorPass : public ModulePass {
