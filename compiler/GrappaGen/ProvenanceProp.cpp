@@ -1,6 +1,7 @@
 #include "Passes.h"
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/Support/GraphWriter.h>
+#include <llvm/Support/CommandLine.h>
 
 using namespace Grappa;
 
@@ -8,6 +9,9 @@ using namespace Grappa;
 // Register optional pass
 static RegisterPass<ProvenanceProp> X( "provenance-prop", "Provenance Prop", false, false );
 char ProvenanceProp::ID = 0;
+
+static cl::opt<bool> DisableANSI("no-color",
+                              cl::desc("Disable ANSI colors."));
 
 Value* ProvenanceProp::search(Value *val, int depth) {
   if (depth > 20) return UNKNOWN;
@@ -132,11 +136,11 @@ Value* ProvenanceProp::meet(Value* a, Value* b) {
 }
 
 void ProvenanceProp::prettyPrint(Function& fn) {
-  outs().changeColor(raw_ostream::YELLOW);
+  if (!DisableANSI) outs().changeColor(raw_ostream::YELLOW);
   outs() << "-------------------\n";
-  outs().changeColor(raw_ostream::BLUE);
+  if (!DisableANSI) outs().changeColor(raw_ostream::BLUE);
   outs() << *fn.getFunctionType();
-  outs().resetColor();
+  if (!DisableANSI) outs().resetColor();
   outs() << " {\n";
   
   for (auto& bb : fn) {
@@ -150,36 +154,36 @@ void ProvenanceProp::prettyPrint(Function& fn) {
       switch (classify(provenance[&inst])) {
         case ProvenanceClass::Unknown:
           outs() << "  ";
-          outs().changeColor(raw_ostream::BLACK);
+          if (!DisableANSI) outs().changeColor(raw_ostream::BLACK);
           break;
         case ProvenanceClass::Indeterminate:
           outs() << "!!";
-          outs().changeColor(raw_ostream::RED);
+          if (!DisableANSI) outs().changeColor(raw_ostream::RED);
           break;
         case ProvenanceClass::Static:
           outs() << "++";
-          outs().changeColor(raw_ostream::GREEN);
+          if (!DisableANSI) outs().changeColor(raw_ostream::GREEN);
           break;
         case ProvenanceClass::Symmetric:
           outs() << "<>";
-          outs().changeColor(raw_ostream::CYAN);
+          if (!DisableANSI) outs().changeColor(raw_ostream::CYAN);
           break;
         case ProvenanceClass::Global:
           outs() << "**";
-          outs().changeColor(raw_ostream::BLUE);
+          if (!DisableANSI) outs().changeColor(raw_ostream::BLUE);
           break;
         case ProvenanceClass::Const:
           outs() << "--";
-          outs().changeColor(raw_ostream::YELLOW);
+          if (!DisableANSI) outs().changeColor(raw_ostream::YELLOW);
           break;
         case ProvenanceClass::Stack:
           outs() << "%%";
-          outs().changeColor(raw_ostream::MAGENTA);
+          if (!DisableANSI) outs().changeColor(raw_ostream::MAGENTA);
           break;
       }
       
       outs() << "  " << inst << "\n";
-      outs().resetColor();
+      if (!DisableANSI) outs().resetColor();
       
     }
   }
