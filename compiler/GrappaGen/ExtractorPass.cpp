@@ -17,7 +17,8 @@ namespace Grappa {
     outs() << "Running extractor...\n";
     bool changed = false;
     
-    if (! ginfo.init(M) ) return false;
+//    if (! ginfo.init(M) ) return false;
+    ginfo.init(M);
     
     //////////////////////////
     // Find 'task' functions
