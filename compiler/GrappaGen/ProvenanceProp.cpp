@@ -4,33 +4,130 @@
 
 using namespace Grappa;
 
-const Value* ProvenanceProp::UNKNOWN       = reinterpret_cast<Value*>(0);
-const Value* ProvenanceProp::INDETERMINATE = reinterpret_cast<Value*>(1);
-
 //////////////////////////////
 // Register optional pass
 static RegisterPass<ProvenanceProp> X( "provenance-prop", "Provenance Prop", false, false );
 char ProvenanceProp::ID = 0;
 
+Value* ProvenanceProp::search(Value *val, int depth) {
+  if (depth > 20) return UNKNOWN;
+  if (!val) return UNKNOWN;
+  
+  // see if we already know the answer
+  if (provenance.count(val)) {
+    return provenance[val];
+  }
+  
+  // check if it's a potentially-valid pointer in its own right
+  switch (classify(val)) {
+    case Unknown:
+      break; // need to recurse
+    default:
+      return (provenance[val] = val);
+  }
+  
+  // now start inspecting the instructions and recursing
+  auto i = dyn_cast<Instruction>(val);
+  
+  assert(i && "val not an instruction?");
+  
+  
+  if (i->getNumOperands() == 0) return INDETERMINATE;
+  
+  //  if (isa<GetElementPtrInst>(i) || isa<CallInst>(i) || isa<InvokeInst>(i)) {
+  auto r = search(i->getOperand(0), depth+1);
+  for (int o = 1; o < i->getNumOperands(); o++) {
+    r = meet(r, search(i->getOperand(o), depth+1));
+  }
+  return (provenance[i] = r);
+//  } else if (auto c = dyn_cast<CastInst>(i)) {
+//    return (provenance[i] = search(c->getOperand(0), depth+1));
+//  } else if (auto ld = dyn_cast<LoadInst>(i)) {
+//    return (provenance[i] = search(ld->getPointerOperand(), depth+1));
+//  } else if (auto st = dyn_cast<StoreInst>(i)) {
+//    return (provenance[i] = search(st->getPointerOperand(), depth+1));
+//  } else if (isa<BinaryOperator>(i) || isa<CmpInst>(i)) {
+//    return (provenance[i] = meet(
+//             search(i->getOperand(0), depth+1),
+//             search(i->getOperand(1), depth+1))
+//           );
+//  }
+//
+//  return UNKNOWN;
+}
+
 
 bool ProvenanceProp::runOnFunction(Function& F) {
   
+  for (auto& bb : F) {
+    for (auto& inst : bb) {
+      if (provenance.size() > 1<<12) goto done;
+      search(&inst);
+    }
+  }
   
-  
+done:
   return false;
 }
 
-ProvenanceClass ProvenanceProp::getClassification(Value* v) {
-  if (provenance[v] == ProvenanceProp::UNKNOWN) {
+ProvenanceClass ProvenanceProp::classify(Value* v) {
+  
+  if (v == ProvenanceProp::UNKNOWN)
     return ProvenanceClass::Unknown;
-  } else if (provenance[v] == ProvenanceProp::INDETERMINATE) {
+  
+  if (v == ProvenanceProp::INDETERMINATE)
     return ProvenanceClass::Indeterminate;
-  } else if (dyn_cast_addr<SYMMETRIC_SPACE>(provenance[v]->getType())) {
+  
+  if (isa<GlobalVariable>(v) || isa<Argument>(v) || isa<MDNode>(v) || isa<BasicBlock>(v))
+    return ProvenanceClass::Static;
+  
+  if (isa<AllocaInst>(v))
+    return ProvenanceClass::Stack;
+  
+  if (isa<Constant>(v))
+    return ProvenanceClass::Const;
+  
+  if (dyn_cast_addr<SYMMETRIC_SPACE>(v->getType()))
     return ProvenanceClass::Symmetric;
-  } else if (dyn_cast_addr<GLOBAL_SPACE>(provenance[v]->getType())) {
+  
+  if (dyn_cast_addr<GLOBAL_SPACE>(v->getType()))
     return ProvenanceClass::Global;
+  
+  return ProvenanceClass::Unknown;
+}
+
+Value* ProvenanceProp::meet(Value* a, Value* b) {
+  ProvenanceClass ac = classify(provenance[a]),
+                  bc = classify(provenance[b]);
+  
+  if (ac == Indeterminate || bc == Indeterminate) {
+    return INDETERMINATE;
+  } else if (ac == Global || bc == Global) {
+    if (ac == Global && bc == Global)
+      return (a == b) ? a : INDETERMINATE;
+    else if (ac == Global)
+      return a;
+    else
+      return b;
+  } else if (ac == Stack || bc == Stack) {
+    if (ac == Stack)
+      return a;
+    else
+      return b;
+  } else if (ac == Symmetric || bc == Symmetric) {
+    if (ac == Symmetric)
+      return a;
+    else
+      return b;
+  } else if (ac == Static || bc == Static) {
+    if (ac == Static)
+      return a;
+    else
+      return b;
+  } else if (ac == Const && bc == Const) {
+    return a;
   } else {
-    return ProvenanceClass::Unknown;
+    return UNKNOWN;
   }
 }
 
@@ -47,7 +144,10 @@ void ProvenanceProp::prettyPrint(Function& fn) {
     outs() << bb.getName() << ":\n";
     
     for (auto& inst : bb) {
-      switch (getClassification(&inst)) {
+      // skip printing intrinsics (llvm.dbg, etc)
+      if (isa<IntrinsicInst>(&inst)) continue;
+      
+      switch (classify(provenance[&inst])) {
         case ProvenanceClass::Unknown:
           outs() << "  ";
           outs().changeColor(raw_ostream::BLACK);
@@ -68,6 +168,14 @@ void ProvenanceProp::prettyPrint(Function& fn) {
           outs() << "**";
           outs().changeColor(raw_ostream::BLUE);
           break;
+        case ProvenanceClass::Const:
+          outs() << "--";
+          outs().changeColor(raw_ostream::YELLOW);
+          break;
+        case ProvenanceClass::Stack:
+          outs() << "%%";
+          outs().changeColor(raw_ostream::MAGENTA);
+          break;
       }
       
       outs() << "  " << inst << "\n";
@@ -82,7 +190,7 @@ void ProvenanceProp::prettyPrint(Function& fn) {
 
 struct ProvenancePropPrinter {
   Function *fn;
-  std::map<Value*,Value*>& provenance;
+  DenseMap<Value*,Value*>& provenance;
 };
 
 template <>

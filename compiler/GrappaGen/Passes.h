@@ -1,13 +1,15 @@
 #pragma once
 
 #include <llvm/Pass.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Module.h>
+#include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <set>
+#include <unordered_map>
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
@@ -136,16 +138,22 @@ struct GlobalPtrInfo {
 
 namespace Grappa {
   
-  enum class ProvenanceClass { Unknown, Indeterminate, Global, Symmetric, Static };
+  enum ProvenanceClass { Unknown, Indeterminate, Global, Symmetric, Static, Const, Stack };
   
   class ProvenanceProp : public FunctionPass {
   public:
-    static const Value* UNKNOWN;       // 'top'/'null' (no information yet)
-    static const Value* INDETERMINATE; // 'bottom' (will not be able to determine)
+    // 'top'/'null' (no information yet)
+    constexpr static Value *const UNKNOWN = 0;
+    // 'bottom' (will not be able to determine)
+    constexpr static Value *const INDETERMINATE = __builtin_constant_p(UNKNOWN+1) ? UNKNOWN+1 : UNKNOWN+1;
     
-    std::map<Value*,Value*> provenance;
+//    std::unordered_map<Value*,Value*> provenance;
+    DenseMap<Value*,Value*> provenance;
     
-    ProvenanceClass getClassification(Value* v);
+    ProvenanceClass classify(Value* v);
+    Value* meet(Value* a, Value* b);
+    
+    Value* search(Value *val = nullptr, int depth = 0);
     
     void viewGraph(Function *fn);
     void prettyPrint(Function& fn);
