@@ -65,11 +65,31 @@ Value* ProvenanceProp::search(Value *val, int depth) {
 
 
 bool ProvenanceProp::runOnFunction(Function& F) {
+  auto& C = F.getContext();
   
   for (auto& bb : F) {
     for (auto& inst : bb) {
       if (provenance.size() > 1<<12) goto done;
       search(&inst);
+      
+      if (auto gep = dyn_cast<GetElementPtrInst>(&inst)) {
+        if (gep->hasIndices()) {
+          auto firstIdx = gep->getOperand(1);
+          if (firstIdx == Constant::getNullValue(firstIdx->getType())) {
+            // first index is 0, so must be a field offset, which is supposed to be local
+            provenance[&inst] = search(gep->getPointerOperand());
+          }
+        }
+      }
+      
+      Value *pv;
+      switch (classify(provenance[&inst])) {
+        case Unknown:       pv = MDString::get(C, "unknown");       break;
+        case Indeterminate: pv = MDString::get(C, "indeterminate"); break;
+        default:            pv = provenance[&inst];                 break;
+      }
+      inst.setMetadata("provenance", MDNode::get(C, pv));
+      
     }
   }
   
@@ -96,7 +116,18 @@ ProvenanceClass ProvenanceProp::classify(Value* v) {
   
   if (dyn_cast_addr<SYMMETRIC_SPACE>(v->getType()))
     return ProvenanceClass::Symmetric;
+
+//  // count just 'load global**' as provenance base
+//  // (seems too conservative, leaves out GEP-generated ones)
+//  if (auto l = dyn_cast<LoadInst>(v)) {
+//    if (auto ptrTy = dyn_cast<PointerType>(l->getType())) {
+//      if (ptrTy->getPointerAddressSpace() == GLOBAL_SPACE) {
+//        return ProvenanceClass::Global;
+//      }
+//    }
+//  }
   
+  // count any global* as a provenance base (requires merging global* sets)
   if (dyn_cast_addr<GLOBAL_SPACE>(v->getType()))
     return ProvenanceClass::Global;
   
