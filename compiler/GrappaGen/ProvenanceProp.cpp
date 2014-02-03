@@ -38,12 +38,15 @@ Value* ProvenanceProp::search(Value *val, int depth) {
   
   if (i->getNumOperands() == 0) return INDETERMINATE;
   
-  //  if (isa<GetElementPtrInst>(i) || isa<CallInst>(i) || isa<InvokeInst>(i)) {
+//  return UNKNOWN;
+  
   auto r = search(i->getOperand(0), depth+1);
   for (int o = 1; o < i->getNumOperands(); o++) {
     r = meet(r, search(i->getOperand(o), depth+1));
   }
   return (provenance[i] = r);
+
+//  if (isa<GetElementPtrInst>(i) || isa<CallInst>(i) || isa<InvokeInst>(i)) {
 //  } else if (auto c = dyn_cast<CastInst>(i)) {
 //    return (provenance[i] = search(c->getOperand(0), depth+1));
 //  } else if (auto ld = dyn_cast<LoadInst>(i)) {
