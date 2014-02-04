@@ -13,63 +13,84 @@ char ProvenanceProp::ID = 0;
 static cl::opt<bool> DisableANSI("no-color",
                               cl::desc("Disable ANSI colors."));
 
-Value* ProvenanceProp::search(Value *val, int depth) {
-  if (depth > 20) return UNKNOWN;
-  if (!val) return UNKNOWN;
-  
-  // see if we already know the answer
-  if (provenance.count(val)) {
-    return provenance[val];
+
+MDNode* ProvenanceProp::provenance(Value* v) {
+  switch (classify(v)) {
+    case Unknown: {
+      auto inst = cast<Instruction>(v);
+      return inst->getMetadata("provenance");
+    }
+    default: {
+      return MDNode::get(*ctx, v);
+    }
   }
+}
+
+void setProvenance(Instruction* inst, MDNode* m) {
+  inst->setMetadata("provenance", m);
+}
+
+MDNode* ProvenanceProp::search(Value *v) {
+  if (!v) return nullptr;
   
-  // check if it's a potentially-valid pointer in its own right
-  switch (classify(val)) {
-    case Unknown:
-      break; // need to recurse
-    default:
-      return (provenance[val] = val);
+//  // see if we already know the answer
+//  if (prov.count(v)) {
+//    return provenance(v);
+//  }
+//  
+//  // check if it's a potentially-valid pointer in its own right
+//  auto c = classify(v);
+//  switch (c) {
+//    case Unknown:
+//      break; // need to recurse
+//    default:
+//      prov.insert({v, c});
+//      return provenance(v);
+//  }
+  if (auto m = provenance(v)) {
+    if (!prov.count(v)) prov.insert({v, classify(v)});
+    return m;
   }
   
   // now start inspecting the instructions and recursing
-  auto i = dyn_cast<Instruction>(val);
+  auto i = cast<Instruction>(v);
   
-  assert(i && "val not an instruction?");
-  
-  
-  if (i->getNumOperands() == 0) return INDETERMINATE;
-  
-//  return UNKNOWN;
-  
-  auto r = search(i->getOperand(0), depth+1);
-  for (int o = 1; o < i->getNumOperands(); o++) {
-    r = meet(r, search(i->getOperand(o), depth+1));
-  }
-  return (provenance[i] = r);
-
-//  if (isa<GetElementPtrInst>(i) || isa<CallInst>(i) || isa<InvokeInst>(i)) {
-//  } else if (auto c = dyn_cast<CastInst>(i)) {
-//    return (provenance[i] = search(c->getOperand(0), depth+1));
-//  } else if (auto ld = dyn_cast<LoadInst>(i)) {
-//    return (provenance[i] = search(ld->getPointerOperand(), depth+1));
-//  } else if (auto st = dyn_cast<StoreInst>(i)) {
-//    return (provenance[i] = search(st->getPointerOperand(), depth+1));
-//  } else if (isa<BinaryOperator>(i) || isa<CmpInst>(i)) {
-//    return (provenance[i] = meet(
-//             search(i->getOperand(0), depth+1),
-//             search(i->getOperand(1), depth+1))
-//           );
+//  if (i->getNumOperands() == 0) {
+//    prov.insert({v, Indeterminate});
+//    return INDETERMINATE;
 //  }
-//
+  
 //  return UNKNOWN;
+  
+  SmallVector<Value*,8> vs;
+  
+  for (auto o = i->op_begin(); o != i->op_end(); o++) {
+    auto m = search(*o);
+    for (auto j = 0; j < m->getNumOperands(); j++) {
+      auto mo = m->getOperand(j);
+      switch (prov[mo]) {
+        case Global:
+        case Symmetric:
+        case Stack:
+          vs.push_back(mo);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+  
+  auto m = MDNode::get(*ctx, vs);
+  setProvenance(i, m);
+  return m;
 }
 
-
 bool ProvenanceProp::runOnFunction(Function& F) {
-  auto& C = F.getContext();
+  ctx = &F.getContext();
   
   for (auto& bb : F) {
     for (auto& inst : bb) {
-      if (provenance.size() > 1<<12) goto done;
+      
       search(&inst);
       
       if (auto gep = dyn_cast<GetElementPtrInst>(&inst)) {
@@ -77,38 +98,47 @@ bool ProvenanceProp::runOnFunction(Function& F) {
           auto firstIdx = gep->getOperand(1);
           if (firstIdx == Constant::getNullValue(firstIdx->getType())) {
             // first index is 0, so must be a field offset, which is supposed to be local
-            provenance[&inst] = search(gep->getPointerOperand());
+            setProvenance(&inst, search(gep->getPointerOperand()));
           }
         }
       }
       
-      Value *pv;
-      switch (classify(provenance[&inst])) {
-        case Unknown:       pv = MDString::get(C, "unknown");       break;
-        case Indeterminate: pv = MDString::get(C, "indeterminate"); break;
-        default:            pv = provenance[&inst];                 break;
-      }
-      inst.setMetadata("provenance", MDNode::get(C, pv));
+//      SmallVector<Value*, 8> pv;
+//      switch (classify(provenance[&inst])) {
+//        case Indeterminate:
+//          for (auto o = inst.op_begin(); o != inst.op_end(); o++) {
+//            pv.push_back(provenance[&inst]);
+//          }
+//          break;
+//        case Unknown:       pv.push_back(MDString::get(C, "unknown"));       break;
+//        default:            pv.push_back(provenance[&inst]);                 break;
+//      }
+//      inst.setMetadata("provenance", MDNode::get(C, pv));
       
     }
   }
   
-done:
+  ctx = nullptr;
   return false;
 }
 
 ProvenanceClass ProvenanceProp::classify(Value* v) {
   
-  if (v == ProvenanceProp::UNKNOWN)
-    return ProvenanceClass::Unknown;
+//  if (v == ProvenanceProp::UNKNOWN)
+//    return ProvenanceClass::Unknown;
+//  
+//  if (v == ProvenanceProp::INDETERMINATE)
+//    return ProvenanceClass::Indeterminate;
   
-  if (v == ProvenanceProp::INDETERMINATE)
-    return ProvenanceClass::Indeterminate;
-  
-  if (isa<GlobalVariable>(v) || isa<Argument>(v) || isa<MDNode>(v) || isa<BasicBlock>(v))
+  if (isa<GlobalVariable>(v) || isa<MDNode>(v) || isa<BasicBlock>(v))
     return ProvenanceClass::Static;
   
-  if (isa<AllocaInst>(v))
+  // TODO: make a better decision about what to do with no-arg calls
+  if (auto c = dyn_cast<CallInst>(v))
+    if (c->getNumArgOperands() == 0)
+      return ProvenanceClass::Static;
+  
+  if (isa<AllocaInst>(v) || isa<Argument>(v))
     return ProvenanceClass::Stack;
   
   if (isa<Constant>(v))
@@ -134,40 +164,40 @@ ProvenanceClass ProvenanceProp::classify(Value* v) {
   return ProvenanceClass::Unknown;
 }
 
-Value* ProvenanceProp::meet(Value* a, Value* b) {
-  ProvenanceClass ac = classify(provenance[a]),
-                  bc = classify(provenance[b]);
-  
-  if (ac == Indeterminate || bc == Indeterminate) {
-    return INDETERMINATE;
-  } else if (ac == Global || bc == Global) {
-    if (ac == Global && bc == Global)
-      return (a == b) ? a : INDETERMINATE;
-    else if (ac == Global)
-      return a;
-    else
-      return b;
-  } else if (ac == Stack || bc == Stack) {
-    if (ac == Stack)
-      return a;
-    else
-      return b;
-  } else if (ac == Symmetric || bc == Symmetric) {
-    if (ac == Symmetric)
-      return a;
-    else
-      return b;
-  } else if (ac == Static || bc == Static) {
-    if (ac == Static)
-      return a;
-    else
-      return b;
-  } else if (ac == Const && bc == Const) {
-    return a;
-  } else {
-    return UNKNOWN;
-  }
-}
+//Value* ProvenanceProp::meet(Value* a, Value* b) {
+//  ProvenanceClass ac = prov[a]),
+//                  bc = prov[b]);
+//  
+//  if (ac == Indeterminate || bc == Indeterminate) {
+//    return INDETERMINATE;
+//  } else if (ac == Global || bc == Global) {
+//    if (ac == Global && bc == Global)
+//      return (a == b) ? a : INDETERMINATE;
+//    else if (ac == Global)
+//      return a;
+//    else
+//      return b;
+//  } else if (ac == Stack || bc == Stack) {
+//    if (ac == Stack)
+//      return a;
+//    else
+//      return b;
+//  } else if (ac == Symmetric || bc == Symmetric) {
+//    if (ac == Symmetric)
+//      return a;
+//    else
+//      return b;
+//  } else if (ac == Static || bc == Static) {
+//    if (ac == Static)
+//      return a;
+//    else
+//      return b;
+//  } else if (ac == Const && bc == Const) {
+//    return a;
+//  } else {
+//    return UNKNOWN;
+//  }
+//}
 
 void ProvenanceProp::prettyPrint(Function& fn) {
   if (!DisableANSI) outs().changeColor(raw_ostream::YELLOW);
@@ -185,7 +215,7 @@ void ProvenanceProp::prettyPrint(Function& fn) {
       // skip printing intrinsics (llvm.dbg, etc)
       if (isa<IntrinsicInst>(&inst)) continue;
       
-      switch (classify(provenance[&inst])) {
+      switch (prov[&inst]) {
         case ProvenanceClass::Unknown:
           outs() << "  ";
           if (!DisableANSI) outs().changeColor(raw_ostream::BLACK);
@@ -226,68 +256,68 @@ void ProvenanceProp::prettyPrint(Function& fn) {
 }
 
 
-struct ProvenancePropPrinter {
-  Function *fn;
-  DenseMap<Value*,Value*>& provenance;
-};
-
-template <>
-struct GraphTraits<ProvenancePropPrinter> : public GraphTraits<const BasicBlock*> {
-  static NodeType *getEntryNode(ProvenancePropPrinter p) { return &p.fn->getEntryBlock(); }
-  
-  // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-  typedef Function::iterator nodes_iterator;
-  static nodes_iterator nodes_begin(ProvenancePropPrinter p) { return p.fn->begin(); }
-  static nodes_iterator nodes_end  (ProvenancePropPrinter p) { return p.fn->end(); }
-  static size_t         size       (ProvenancePropPrinter p) { return p.fn->size(); }
-};
-
-template<>
-struct DOTGraphTraits<ProvenancePropPrinter> : public DefaultDOTGraphTraits {
-  DOTGraphTraits(bool simple=false): DefaultDOTGraphTraits(simple) {}
-  
-  using FTraits = DOTGraphTraits<const Function*>;
-  
-  static std::string getGraphName(ProvenancePropPrinter f) { return "ProvenanceProp"; }
-  
-  std::string getNodeLabel(const BasicBlock *Node, ProvenancePropPrinter p) {
-    // return FTraits::getCompleteNodeLabel(Node, p.fn);
-    std::string str;
-    raw_string_ostream o(str);
-    
-    o << "<<table border='0' cellborder='0'>";
-    
-    for (auto& inst : *const_cast<BasicBlock*>(Node)) {
-      const char * color = "black";
-      if (p.provenance[&inst] == ProvenanceProp::UNKNOWN)
-        color = "black";
-      else if (p.provenance[&inst] == ProvenanceProp::INDETERMINATE)
-        color = "red";
-      else if (dyn_cast_addr<GLOBAL_SPACE>(inst.getType()))
-        color = "blue";
-      else if (dyn_cast_addr<SYMMETRIC_SPACE>(inst.getType()))
-        color = "cyan";
-      
-      o << "<tr><td align='left'><font color='" << color << "'>" << inst << "</font></td></tr>";
-    }
-    
-    o << "</table>>";
-    
-    return o.str();
-  }
-  
-  template< typename T >
-  static std::string getEdgeSourceLabel(const BasicBlock *Node, T I) {
-    return FTraits::getEdgeSourceLabel(Node, I);
-  }
-  
-  static std::string getNodeAttributes(const BasicBlock* Node, ProvenancePropPrinter p) {
-    return "";
-  }
-};
-
-void ProvenanceProp::viewGraph(Function *fn) {
-  ProvenancePropPrinter ppp = {fn,provenance};
-  ViewGraph(ppp, "provenance." + Twine(fn->getValueID()));
-}
+//struct ProvenancePropPrinter {
+//  Function *fn;
+//  DenseMap<Value*,Value*>& provenance;
+//};
+//
+//template <>
+//struct GraphTraits<ProvenancePropPrinter> : public GraphTraits<const BasicBlock*> {
+//  static NodeType *getEntryNode(ProvenancePropPrinter p) { return &p.fn->getEntryBlock(); }
+//  
+//  // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
+//  typedef Function::iterator nodes_iterator;
+//  static nodes_iterator nodes_begin(ProvenancePropPrinter p) { return p.fn->begin(); }
+//  static nodes_iterator nodes_end  (ProvenancePropPrinter p) { return p.fn->end(); }
+//  static size_t         size       (ProvenancePropPrinter p) { return p.fn->size(); }
+//};
+//
+//template<>
+//struct DOTGraphTraits<ProvenancePropPrinter> : public DefaultDOTGraphTraits {
+//  DOTGraphTraits(bool simple=false): DefaultDOTGraphTraits(simple) {}
+//  
+//  using FTraits = DOTGraphTraits<const Function*>;
+//  
+//  static std::string getGraphName(ProvenancePropPrinter f) { return "ProvenanceProp"; }
+//  
+//  std::string getNodeLabel(const BasicBlock *Node, ProvenancePropPrinter p) {
+//    // return FTraits::getCompleteNodeLabel(Node, p.fn);
+//    std::string str;
+//    raw_string_ostream o(str);
+//    
+//    o << "<<table border='0' cellborder='0'>";
+//    
+//    for (auto& inst : *const_cast<BasicBlock*>(Node)) {
+//      const char * color = "black";
+//      if (p.provenance[&inst] == ProvenanceProp::UNKNOWN)
+//        color = "black";
+//      else if (p.provenance[&inst] == ProvenanceProp::INDETERMINATE)
+//        color = "red";
+//      else if (dyn_cast_addr<GLOBAL_SPACE>(inst.getType()))
+//        color = "blue";
+//      else if (dyn_cast_addr<SYMMETRIC_SPACE>(inst.getType()))
+//        color = "cyan";
+//      
+//      o << "<tr><td align='left'><font color='" << color << "'>" << inst << "</font></td></tr>";
+//    }
+//    
+//    o << "</table>>";
+//    
+//    return o.str();
+//  }
+//  
+//  template< typename T >
+//  static std::string getEdgeSourceLabel(const BasicBlock *Node, T I) {
+//    return FTraits::getEdgeSourceLabel(Node, I);
+//  }
+//  
+//  static std::string getNodeAttributes(const BasicBlock* Node, ProvenancePropPrinter p) {
+//    return "";
+//  }
+//};
+//
+//void ProvenanceProp::viewGraph(Function *fn) {
+//  ProvenancePropPrinter ppp = {fn,provenance};
+//  ViewGraph(ppp, "provenance." + Twine(fn->getValueID()));
+//}
 

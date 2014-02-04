@@ -142,18 +142,19 @@ namespace Grappa {
   
   class ProvenanceProp : public FunctionPass {
   public:
-    // 'top'/'null' (no information yet)
-    constexpr static Value *const UNKNOWN = 0;
-    // 'bottom' (will not be able to determine)
-    constexpr static Value *const INDETERMINATE = __builtin_constant_p(UNKNOWN+1) ? UNKNOWN+1 : UNKNOWN+1;
     
-//    std::unordered_map<Value*,Value*> provenance;
-    DenseMap<Value*,Value*> provenance;
+//    static MDNode *UNKNOWN, *INDETERMINATE;
+    
+    DenseMap<Value*,ProvenanceClass> prov;
+    
+    LLVMContext *ctx;
+    
+    MDNode* provenance(Value* v);
     
     ProvenanceClass classify(Value* v);
-    Value* meet(Value* a, Value* b);
+//    MDNode* meet(Value* a, Value* b);
     
-    Value* search(Value *val = nullptr, int depth = 0);
+    MDNode* search(Value *v);
     
     void viewGraph(Function *fn);
     void prettyPrint(Function& fn);
