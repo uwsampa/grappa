@@ -143,7 +143,7 @@ namespace Grappa {
   class ProvenanceProp : public FunctionPass {
   public:
     
-//    static MDNode *UNKNOWN, *INDETERMINATE;
+    static MDNode *INDETERMINATE;
     
     DenseMap<Value*,ProvenanceClass> prov;
     
@@ -163,6 +163,7 @@ namespace Grappa {
     ProvenanceProp() : FunctionPass(ID) {}
     virtual void getAnalysisUsage(AnalysisUsage& AU) const { AU.setPreservesAll(); }
     virtual bool runOnFunction(Function& F);
+    virtual bool doInitialization(Module& M);
   };
   
   struct ExtractorPass : public ModulePass {

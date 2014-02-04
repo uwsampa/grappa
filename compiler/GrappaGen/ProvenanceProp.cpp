@@ -2,6 +2,7 @@
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/Support/GraphWriter.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/CallSite.h>
 
 using namespace Grappa;
 
@@ -10,12 +11,22 @@ using namespace Grappa;
 static RegisterPass<ProvenanceProp> X( "provenance-prop", "Provenance Prop", false, false );
 char ProvenanceProp::ID = 0;
 
+MDNode* ProvenanceProp::INDETERMINATE = nullptr;
+
 static cl::opt<bool> DisableANSI("no-color",
                               cl::desc("Disable ANSI colors."));
 
+bool ProvenanceProp::doInitialization(Module& M) {
+  outs() << "initialized ProvenanceProp\n";
+  auto& C = M.getContext();
+  INDETERMINATE = MDNode::get(C, MDString::get(C, "indeterminate"));
+  return false;
+}
 
 MDNode* ProvenanceProp::provenance(Value* v) {
   switch (classify(v)) {
+    case Indeterminate:
+      return INDETERMINATE;
     case Unknown: {
       auto inst = cast<Instruction>(v);
       return inst->getMetadata("provenance");
@@ -26,6 +37,10 @@ MDNode* ProvenanceProp::provenance(Value* v) {
   }
 }
 
+MDNode* getProvenance(Instruction* inst) {
+  return inst->getMetadata("provenance");
+}
+
 void setProvenance(Instruction* inst, MDNode* m) {
   inst->setMetadata("provenance", m);
 }
@@ -33,56 +48,48 @@ void setProvenance(Instruction* inst, MDNode* m) {
 MDNode* ProvenanceProp::search(Value *v) {
   if (!v) return nullptr;
   
-//  // see if we already know the answer
-//  if (prov.count(v)) {
-//    return provenance(v);
-//  }
-//  
-//  // check if it's a potentially-valid pointer in its own right
-//  auto c = classify(v);
-//  switch (c) {
-//    case Unknown:
-//      break; // need to recurse
-//    default:
-//      prov.insert({v, c});
-//      return provenance(v);
-//  }
-  if (auto m = provenance(v)) {
-    if (!prov.count(v)) prov.insert({v, classify(v)});
-    return m;
+  // check if it's a potentially-valid pointer in its own right
+  switch (classify(v)) {
+    case Unknown:
+      break;
+    default:
+      if (!prov.count(v))
+        prov.insert({v, classify(v)});
   }
   
-  // now start inspecting the instructions and recursing
-  auto i = cast<Instruction>(v);
-  
-//  if (i->getNumOperands() == 0) {
-//    prov.insert({v, Indeterminate});
-//    return INDETERMINATE;
-//  }
-  
-//  return UNKNOWN;
-  
-  SmallVector<Value*,8> vs;
-  
-  for (auto o = i->op_begin(); o != i->op_end(); o++) {
-    auto m = search(*o);
-    for (auto j = 0; j < m->getNumOperands(); j++) {
-      auto mo = m->getOperand(j);
-      switch (prov[mo]) {
-        case Global:
-        case Symmetric:
-        case Stack:
-          vs.push_back(mo);
-          break;
-        default:
-          break;
+  // for instructions, inspect operands and recursively build up provenance
+  if (auto i = dyn_cast<Instruction>(v)) {
+    if (!getProvenance(i)) {
+      
+      SmallVector<Value*,8> vs;
+      
+      for (auto o = i->op_begin(); o != i->op_end(); o++) {
+        auto m = search(*o);
+        for (auto j = 0; j < m->getNumOperands(); j++) {
+          auto mo = m->getOperand(j);
+          switch (classify(mo)) {
+            case Indeterminate:
+              errs() << "indeterminate =>" << *mo << "\n";
+            case Global:
+            case Symmetric:
+            case Stack:
+              vs.push_back(mo);
+              break;
+            default:
+              break;
+          }
+        }
+      }
+      
+      if (!vs.empty()) {
+        auto m = MDNode::get(*ctx, vs);
+        setProvenance(i, m);
       }
     }
   }
+  // else: we can compute provenance node directly (Const|Static)
   
-  auto m = MDNode::get(*ctx, vs);
-  setProvenance(i, m);
-  return m;
+  return provenance(v);
 }
 
 bool ProvenanceProp::runOnFunction(Function& F) {
@@ -103,18 +110,6 @@ bool ProvenanceProp::runOnFunction(Function& F) {
         }
       }
       
-//      SmallVector<Value*, 8> pv;
-//      switch (classify(provenance[&inst])) {
-//        case Indeterminate:
-//          for (auto o = inst.op_begin(); o != inst.op_end(); o++) {
-//            pv.push_back(provenance[&inst]);
-//          }
-//          break;
-//        case Unknown:       pv.push_back(MDString::get(C, "unknown"));       break;
-//        default:            pv.push_back(provenance[&inst]);                 break;
-//      }
-//      inst.setMetadata("provenance", MDNode::get(C, pv));
-      
     }
   }
   
@@ -134,9 +129,30 @@ ProvenanceClass ProvenanceProp::classify(Value* v) {
     return ProvenanceClass::Static;
   
   // TODO: make a better decision about what to do with no-arg calls
-  if (auto c = dyn_cast<CallInst>(v))
-    if (c->getNumArgOperands() == 0)
+  
+  if (isa<CallInst>(v) || isa<InvokeInst>(v)) {
+    auto cs = CallSite(v);
+    
+    if (auto fn = cs.getCalledFunction()) {
+      if (fn->hasFnAttribute("unbound") || !cs->mayHaveSideEffects()) {
+        if (fn->getArgumentList().size() == 0) {
+          return Static;
+        } else {
+          return Unknown; // will inherit provenance of args
+        }
+      }
+    }
+    // else: indirect fn call, not handling these for now
+    return Indeterminate;
+  }
+  
+  if (auto c = dyn_cast<CallInst>(v)) {
+    if (c->getNumArgOperands() == 0) {
       return ProvenanceClass::Static;
+    } else if (c->mayHaveSideEffects()) {
+      return ProvenanceClass::Indeterminate;
+    }
+  }
   
   if (isa<AllocaInst>(v) || isa<Argument>(v))
     return ProvenanceClass::Stack;
