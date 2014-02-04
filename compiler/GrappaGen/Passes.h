@@ -173,6 +173,10 @@ namespace Grappa {
     
     std::set<Function*> task_fns;
     
+    std::set<Instruction*> anchors;
+    
+    void analyzeProvenance(Function& fn);
+    
     ExtractorPass() : ModulePass(ID) { }
     
     virtual bool runOnModule(Module& M);
