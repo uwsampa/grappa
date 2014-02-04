@@ -13,6 +13,44 @@ using namespace llvm;
 
 namespace Grappa {
   
+  Value* search(Value* v) {
+    if (auto gep = dyn_cast<GetElementPtrInst>(v)) {
+      if (gep->hasIndices()) {
+        auto idx = gep->getOperand(1);
+        if (idx != ConstantInt::get(idx->getType(), 0)) {
+          return gep;
+        }
+      }
+      return search(gep->getPointerOperand());
+    }
+    if (auto c = dyn_cast<CastInst>(v)) {
+      auto vv = search(c->getOperand(0));
+      if (isa<PointerType>(vv->getType()))
+        return vv;
+      else
+        return v;
+    }
+    return v;
+  }
+  
+  void analyze(Function& fn) {
+    auto& ctx = fn.getContext();
+    for (auto& bb: fn) {
+      for (auto& i : bb) {
+        Value *prov = nullptr;
+        if (auto l = dyn_cast<LoadInst>(&i)) {
+          prov = search(l->getPointerOperand());
+        } else if (auto s = dyn_cast<StoreInst>(&i)) {
+          prov = search(s->getPointerOperand());
+        }
+        if (prov) {
+          i.setMetadata("grappa.prov", MDNode::get(ctx, prov));
+        }
+      }
+    }
+    
+  }
+  
   bool ExtractorPass::runOnModule(Module& M) {
     outs() << "Running extractor...\n";
     bool changed = false;
@@ -34,13 +72,12 @@ namespace Grappa {
     
     for (auto fn : task_fns) {
       
-      auto& provenance = getAnalysis<ProvenanceProp>(*fn);
-//      provenance.viewGraph(fn);
-      provenance.prettyPrint(*fn);
+//      auto& provenance = getAnalysis<ProvenanceProp>(*fn);
+//      provenance.prettyPrint(*fn);
       
-      // auto dex = new DelegateExtractor(M, ginfo);
+//      auto dex = new DelegateExtractor(M, ginfo);
       
-      
+      analyze(*fn);
       
     }
     
