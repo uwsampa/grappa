@@ -42,9 +42,30 @@ namespace {
       return changed;
     }
     
-    virtual bool doInitialization(Module& module) {
+    virtual bool doInitialization(Module& M) {
       outs() << "-- Grappa Pre Pass --\n";
       outs().flush();
+      
+      if (auto fn = M.getFunction("printf")) {
+        fn->addFnAttr("unbound");
+      }
+      
+      //////////////////////////////////////////
+      // Add annotations as function attributes
+      auto global_annos = M.getNamedGlobal("llvm.global.annotations");
+      if (global_annos) {
+        auto a = cast<ConstantArray>(global_annos->getOperand(0));
+        for (int i=0; i<a->getNumOperands(); i++) {
+          auto e = cast<ConstantStruct>(a->getOperand(i));
+          
+          if (auto fn = dyn_cast<Function>(e->getOperand(0)->getOperand(0))) {
+            auto anno = cast<ConstantDataArray>(cast<GlobalVariable>(e->getOperand(1)->getOperand(0))->getOperand(0))->getAsCString();
+            
+            fn->addFnAttr(anno);
+          }
+        }
+      }
+      
       return false;
     }
     

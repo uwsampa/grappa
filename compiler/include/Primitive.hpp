@@ -9,6 +9,8 @@
 #define global grappa_global
 #define symmetric grappa_symmetric
 
+#define callable_anywhere __attribute__((annotate("unbound")))
+
 template< typename T >
 inline T global* gptr(GlobalAddress<T> ga) {
   return reinterpret_cast<T global*>(ga.raw_bits());
