@@ -2,5 +2,5 @@ language: cpp
 compiler:
   - gcc
 before_install:
-  - sudo apt-get install openmpi boost
+  - sudo apt-get install mpich2 libboost-all-dev
 script: ./configure --cc=$(which gcc) && cd build/Make+Release && make
