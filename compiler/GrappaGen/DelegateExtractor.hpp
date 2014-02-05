@@ -48,15 +48,6 @@
 
 #include "Passes.h"
 
-/// helper for iterating over preds/succs/uses
-#define for_each(var, arg, prefix) \
-for (auto var = prefix##_begin(arg), _var##_end = prefix##_end(arg); var != _var##_end; var++)
-
-#define for_each_op(var, arg) \
-for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
-
-#define for_each_use(var, arg) \
-for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
 
 namespace llvm {
   
