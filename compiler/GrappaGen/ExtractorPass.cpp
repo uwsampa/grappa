@@ -344,9 +344,6 @@ namespace Grappa {
     while (!worklist.empty()) {
       auto fn = worklist.pop();
       
-//      auto& provenance = getAnalysis<ProvenanceProp>(*fn);
-//      provenance.prettyPrint(*fn);
-//      auto dex = new DelegateExtractor(M, ginfo);
       AnchorSet anchors;
       analyzeProvenance(*fn, anchors);
       
@@ -354,13 +351,16 @@ namespace Grappa {
       
       for (auto a : anchors) {
         auto p = getProvenance(a);
-        if (isGlobalPtr(p)) {
+        if (candidate_map[a]) {
+          outs() << "anchor already in another delegate:\n";
+          outs() << "  anchor =>" << *a << "\n";
+          outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
+        } else if (isGlobalPtr(p)) {
           auto r = new CandidateRegion(a, candidate_map);
           r->valid_ptrs.insert(p);
           r->expandRegion();
           
           r->printHeader();
-//          r->dumpToDot();
           
           candidates[a] = r;
         }
