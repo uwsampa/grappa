@@ -7,9 +7,11 @@
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/raw_ostream.h>
-
+#include <llvm/ADT/SetVector.h>
 #include <set>
+#include <queue>
 #include <unordered_map>
+
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
@@ -32,6 +34,8 @@ for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var+
 for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
 
 using namespace llvm;
+
+using AnchorSet = SetVector<Instruction*>;
 
 ////////////////////
 /// Address spaces
@@ -196,15 +200,14 @@ namespace Grappa {
   };
   
   struct ExtractorPass : public ModulePass {
+    
     static char ID;
     
     GlobalPtrInfo ginfo;
     
     std::set<Function*> task_fns;
     
-    std::set<Instruction*> anchors;
-    
-    void analyzeProvenance(Function& fn);
+    void analyzeProvenance(Function& fn, AnchorSet& anchors);
     
     ExtractorPass() : ModulePass(ID) { }
     

@@ -5,6 +5,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Support/CallSite.h>
 
 #include "Passes.h"
 #include "DelegateExtractor.hpp"
@@ -56,7 +57,8 @@ namespace Grappa {
   
   bool isGlobalPtr(Value* v)    { return dyn_cast_addr<GLOBAL_SPACE>(v->getType()); }
   bool isSymmetricPtr(Value* v) { return dyn_cast_addr<SYMMETRIC_SPACE>(v->getType()); }
-  bool isStatic(Value* v)       { return isa<GlobalVariable>(v) || isa<BasicBlock>(v); }
+  bool isStatic(Value* v)       { return isa<GlobalVariable>(v); }
+  bool isConst(Value* v)       { return isa<Constant>(v) || isa<BasicBlock>(v); }
   bool isStack(Value* v)        { return isa<AllocaInst>(v) || isa<Argument>(v); }
   
   bool isAnchor(Instruction* inst) {
@@ -67,7 +69,7 @@ namespace Grappa {
       return false;
   }
   
-  void ExtractorPass::analyzeProvenance(Function& fn) {
+  void ExtractorPass::analyzeProvenance(Function& fn, AnchorSet& anchors) {
     for (auto& bb: fn) {
       for (auto& i : bb) {
         Value *prov = nullptr;
@@ -85,6 +87,120 @@ namespace Grappa {
       }
     }
   }
+  
+  struct CandidateRegion {
+    Instruction* entry;
+    std::map<Instruction*,Instruction*> exits;
+    
+    SmallSet<Value*,4> valid_ptrs;
+    
+    CandidateRegion(Instruction* entry): entry(entry) {}
+    
+    void expandRegion() {
+      UniqueQueue<Instruction*> worklist;
+      worklist.push(entry);
+      
+      SmallSet<BasicBlock*,8> bbs;
+      
+      while (!worklist.empty()) {
+        auto i = BasicBlock::iterator(worklist.pop());
+        auto bb = i->getParent();
+        
+        while ( i != bb->end() && validInRegion(i) ) i++;
+        
+        if (i == bb->end()) {
+          bbs.insert(bb);
+          for (auto sb = succ_begin(bb), se = succ_end(bb); sb != se; sb++) {
+            bool valid = true;
+            // all predecessors already in region
+            for_each(pb, *sb, pred) valid &= (bbs.count(*pb) > 0);
+            // at least first instruction is valid
+            auto target = (*sb)->begin();
+            valid &= validInRegion(target);
+            
+            if (valid) {
+              worklist.push(target);
+            } else {
+              // exit
+              auto ex = i->getPrevNode();
+              if (exits.count(target) > 0 && exits[target] != ex) {
+                assert(false && "unhandled case");
+              } else {
+                exits[target] = ex;
+              }
+            }
+          }
+        } else {
+          exits[i] = i->getPrevNode();
+        }
+      }
+      
+    }
+    
+    bool validInRegion(Instruction* i) {
+      if (i->mayReadOrWriteMemory()) {
+        if (auto p = getProvenance(i)) {
+          if (valid_ptrs.count(p) || isSymmetricPtr(p) || isStatic(p) || isConst(p)) {
+            return true;
+          }
+        } else if (isa<CallInst>(i) || isa<InvokeInst>(i)) {
+          // do nothing for now
+          auto cs = CallSite(i);
+          if (auto fn = cs.getCalledFunction()) {
+            if (fn->hasFnAttribute("unbound") || fn->doesNotAccessMemory()) {
+              return true;
+            }
+          }
+
+        } else {
+          errs() << "!! no provenance:" << *i;
+        }
+        return false;
+      } else {
+        return true;
+      }
+    }
+    
+    void prettyPrint(BasicBlock* bb = nullptr) {
+      outs() << "~~~~~~~~~~~~~~~~~~~~~~~\n";
+      outs() << "Candidate: {" << *entry << "  }\n";
+      outs() << "  valid_ptrs:\n";
+      for (auto p : valid_ptrs) outs() << "  " << *p << "\n";
+      outs() << "  exits:\n";
+      for (auto p : exits) outs() << "  " << *p.first << "\n     =>" << *p.second << "\n";
+      outs() << "\n";
+      
+      BasicBlock::iterator i;
+      if (!bb) {
+        bb = entry->getParent();
+        i = BasicBlock::iterator(entry);
+        if (i != bb->begin()) {
+          outs() << *i->getPrevNode() << "\n";
+        }
+      } else {
+        i = bb->begin();
+        outs() << bb->getName() << ":\n";
+      }
+      outs() << "--------------------\n";
+      
+      for (; i != bb->end(); i++) {
+        if (exits.count(i)) {
+          outs() << "--------------------\n";
+          i++;
+          if (i != bb->end()) outs() << *i << "\n";
+          break;
+        }
+        outs() << *i << "\n";
+      }
+      if (i == bb->end()) {
+        for_each(sb, bb, succ) {
+          prettyPrint(*sb);
+        }
+      }
+    }
+  };
+
+  
   
   bool ExtractorPass::runOnModule(Module& M) {
     outs() << "Running extractor...\n";
@@ -110,17 +226,29 @@ namespace Grappa {
 //      auto& provenance = getAnalysis<ProvenanceProp>(*fn);
 //      provenance.prettyPrint(*fn);
 //      auto dex = new DelegateExtractor(M, ginfo);
+      AnchorSet anchors;
+      analyzeProvenance(*fn, anchors);
       
-      analyzeProvenance(*fn);
+      for (auto a : anchors) {
+        auto p = getProvenance(a);
+        if (isGlobalPtr(p)) {
+          CandidateRegion r(a);
+          r.valid_ptrs.insert(p);
+          r.expandRegion();
+          
+          r.prettyPrint();
+          outs() << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+        }
+      }
       
     }
     
-    outs() << "<< anchors:\n";
-    for (auto a : anchors) {
-      outs() << "  " << *a << "\n";
-    }
-    outs() << ">>>>>>>>>>\n";
-    outs().flush();
+//    outs() << "<< anchors:\n";
+//    for (auto a : anchors) {
+//      outs() << "  " << *a << "\n";
+//    }
+//    outs() << ">>>>>>>>>>\n";
+//    outs().flush();
     
     return changed;
   }
