@@ -1,5 +1,7 @@
 Grappa
 ===============================================================================
+[![Build Status](https://travis-ci.org/uwsampa/grappa.png?branch=master)](https://travis-ci.org/uwsampa/grappa)
+
 Grappa is a runtime system for scaling irregular applications on commodity clusters. It's a PGAS library and runtime system that allows you to write global-view C++11 code that runs on distributed-memory computers.
 
 Grappa is a research project and is still young! Please expect things to break. Please do not expect amazing performance yet. Please ask for help if you run into problems. We're excited for you to use the software and to help make Grappa a great tool for the irregular applications community!
