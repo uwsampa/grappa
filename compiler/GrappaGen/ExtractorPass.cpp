@@ -6,11 +6,21 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/CallSite.h>
+#include <llvm/Support/GraphWriter.h>
 
 #include "Passes.h"
 #include "DelegateExtractor.hpp"
 
 using namespace llvm;
+
+StringRef getColorString(unsigned ColorNumber) {
+  static const int NumColors = 20;
+  static const char* Colors[NumColors] = {
+    "red", "blue", "green", "gold", "cyan", "purple", "orange",
+    "darkgreen", "coral", "deeppink", "deepskyblue", "orchid", "brown", "yellowgreen",
+    "midnightblue", "firebrick", "peachpuff", "yellow", "limegreen", "khaki"};
+  return Colors[ColorNumber % NumColors];
+}
 
 namespace Grappa {
   
@@ -88,13 +98,23 @@ namespace Grappa {
     }
   }
   
+  
+  struct CandidateRegion;
+  using CandidateMap = std::map<Instruction*,CandidateRegion*>;
+  
   struct CandidateRegion {
+    static long id_counter;
+    long ID;
+    
     Instruction* entry;
     std::map<Instruction*,Instruction*> exits;
     
     SmallSet<Value*,4> valid_ptrs;
     
-    CandidateRegion(Instruction* entry): entry(entry) {}
+    CandidateMap& candidates;
+    
+    CandidateRegion(Instruction* entry, CandidateMap& candidates):
+    entry(entry), candidates(candidates) { ID = id_counter++; }
     
     void expandRegion() {
       UniqueQueue<Instruction*> worklist;
@@ -106,7 +126,10 @@ namespace Grappa {
         auto i = BasicBlock::iterator(worklist.pop());
         auto bb = i->getParent();
         
-        while ( i != bb->end() && validInRegion(i) ) i++;
+        while ( i != bb->end() && validInRegion(i) ) {
+          candidates[i] = this;
+          i++;
+        }
         
         if (i == bb->end()) {
           bbs.insert(bb);
@@ -151,7 +174,6 @@ namespace Grappa {
               return true;
             }
           }
-
         } else {
           errs() << "!! no provenance:" << *i;
         }
@@ -161,14 +183,19 @@ namespace Grappa {
       }
     }
     
-    void prettyPrint(BasicBlock* bb = nullptr) {
-      outs() << "~~~~~~~~~~~~~~~~~~~~~~~\n";
-      outs() << "Candidate: {" << *entry << "  }\n";
+    void printHeader() {
+      outs() << "Candidate " << ID << ":\n";
+      outs() << "  entry:\n" << *entry << "\n";
       outs() << "  valid_ptrs:\n";
       for (auto p : valid_ptrs) outs() << "  " << *p << "\n";
       outs() << "  exits:\n";
       for (auto p : exits) outs() << "  " << *p.first << "\n     =>" << *p.second << "\n";
       outs() << "\n";
+    }
+    
+    void prettyPrint(BasicBlock* bb = nullptr) {
+      outs() << "~~~~~~~~~~~~~~~~~~~~~~~\n";
+      printHeader();
       
       BasicBlock::iterator i;
       if (!bb) {
@@ -198,8 +225,94 @@ namespace Grappa {
         }
       }
     }
+    
+    static void dotBB(raw_ostream& o, CandidateMap& candidates, BasicBlock* bb, CandidateRegion* this_region = nullptr) {
+      o << "  \"" << bb << "\" [label=<\n";
+      o << "  <table cellborder='0' border='0'>\n";
+      
+      for (auto& i : *bb) {
+        std::string s;
+        raw_string_ostream os(s);
+        os << i;
+        s = DOT::EscapeString(s);
+        
+        o << "    <tr><td align='left'>";
+        
+        if (candidates[&i]) {
+          o << "<font color='"
+            << getColorString(candidates[&i]->ID)
+            << "'>" << s << "</font>";
+        } else {
+          o << s;
+        }
+        o << "</td></tr>\n";
+      }
+      
+      o << "  </table>\n";
+      o << "  >];\n";
+      
+      for_each(sb, bb, succ) {
+        o << "  \"" << bb << "\"->\"" << *sb << "\"\n";
+        if (this_region && candidates[sb->begin()] == this_region) {
+          dotBB(o, candidates, *sb, this_region);
+        }
+      }
+    }
+    
+    void dumpToDot() {
+      Function& F = *entry->getParent()->getParent();
+      
+      auto s = F.getParent()->getModuleIdentifier();
+      auto base = s.substr(s.rfind("/")+1);
+      
+      std::string _s;
+      raw_string_ostream fname(_s);
+      fname <<  "dots/" << base << "." << ID << ".dot";
+      
+      std::string err;
+      outs() << "dot => " << fname.str() << "\n";
+      raw_fd_ostream o(fname.str().c_str(), err);
+      if (err.size()) {
+        errs() << "dot error: " << err;
+      }
+      
+      o << "digraph Candidate {\n";
+      o << "  node[shape=record];\n";
+      dotBB(o, candidates, entry->getParent());
+      o << "}\n";
+      
+      o.close();
+    }
+    
+    static void dumpToDot(Function& F, CandidateMap& candidates, int ID) {
+      auto s = F.getParent()->getModuleIdentifier();
+      auto base = s.substr(s.rfind("/")+1);
+      
+      std::string _s;
+      raw_string_ostream fname(_s);
+      fname <<  "dots/" << base << ".task" << ID << ".dot";
+      
+      std::string err;
+      outs() << "dot => " << fname.str() << "\n";
+      raw_fd_ostream o(fname.str().c_str(), err);
+      if (err.size()) {
+        errs() << "dot error: " << err;
+      }
+      
+      o << "digraph Candidate {\n";
+      o << "  node[shape=record];\n";
+      
+      for (auto& bb : F) {
+        dotBB(o, candidates, &bb);
+      }
+      
+      o << "}\n";
+      
+      o.close();
+    }
   };
-
+  
+  long CandidateRegion::id_counter = 0;
   
   
   bool ExtractorPass::runOnModule(Module& M) {
@@ -218,8 +331,11 @@ namespace Grappa {
     }
     
     outs() << "task_fns.count => " << task_fns.size() << "\n";
+    outs().flush();
+//    std::vector<DelegateExtractor*> candidates;
     
-    std::vector<DelegateExtractor*> candidates;
+    CandidateMap candidate_map;
+    int ct = 0;
     
     for (auto fn : task_fns) {
       
@@ -229,18 +345,23 @@ namespace Grappa {
       AnchorSet anchors;
       analyzeProvenance(*fn, anchors);
       
+      std::map<Value*,CandidateRegion*> candidates;
+      
       for (auto a : anchors) {
         auto p = getProvenance(a);
         if (isGlobalPtr(p)) {
-          CandidateRegion r(a);
-          r.valid_ptrs.insert(p);
-          r.expandRegion();
+          auto r = new CandidateRegion(a, candidate_map);
+          r->valid_ptrs.insert(p);
+          r->expandRegion();
           
-          r.prettyPrint();
-          outs() << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+          r->printHeader();
+//          r->dumpToDot();
+          
+          candidates[a] = r;
         }
       }
       
+      if (anchors.size() > 0) CandidateRegion::dumpToDot(*fn, candidate_map, ct++);
     }
     
 //    outs() << "<< anchors:\n";
