@@ -300,6 +300,7 @@ namespace Grappa {
       }
       
       o << "digraph Candidate {\n";
+      o << "  label=\"" << demangle(F.getName()) << "\"";
       o << "  node[shape=record];\n";
       
       for (auto& bb : F) {
@@ -337,7 +338,11 @@ namespace Grappa {
     CandidateMap candidate_map;
     int ct = 0;
     
-    for (auto fn : task_fns) {
+    UniqueQueue<Function*> worklist;
+    for (auto fn : task_fns) worklist.push(fn);
+    
+    while (!worklist.empty()) {
+      auto fn = worklist.pop();
       
 //      auto& provenance = getAnalysis<ProvenanceProp>(*fn);
 //      provenance.prettyPrint(*fn);
@@ -361,7 +366,15 @@ namespace Grappa {
         }
       }
       
-      if (anchors.size() > 0) CandidateRegion::dumpToDot(*fn, candidate_map, ct++);
+      if (candidates.size() > 0) CandidateRegion::dumpToDot(*fn, candidate_map, ct++);
+      
+      for_each(it, *fn, inst) {
+        auto inst = &*it;
+        if (isa<CallInst>(inst) || isa<InvokeInst>(inst)) {
+          CallSite cs(inst);
+          if (cs.getCalledFunction()) worklist.push(cs.getCalledFunction());
+        }
+      }
     }
     
 //    outs() << "<< anchors:\n";
