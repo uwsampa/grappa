@@ -9,4 +9,7 @@ before_install:
 install:
   - sudo apt-get install mpich2
 script:
-  - ./configure && cd build/Make+Release && make
+  - ./configure && cd build/Make+Release && make VERBOSE=1
+branches:
+  only:
+    - master
