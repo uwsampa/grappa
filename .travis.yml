@@ -1,5 +1,6 @@
 language: cpp
 compiler:
   - gcc
-before_install: sudo apt-get install openmpi boost
+before_install:
+  - sudo apt-get install openmpi boost
 script: ./configure --cc=$(which gcc) && cd build/Make+Release && make
