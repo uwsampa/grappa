@@ -65,24 +65,6 @@ static cl::opt<bool> DoPutGet("grappa-putget",
 
 namespace {
   
-  template< typename T, unsigned SizeHint = 32 >
-  class UniqueQueue {
-    std::queue<T> q;
-    SmallSet<T,SizeHint> visited;
-  public:
-    void push(T bb) {
-      if (visited.count(bb) == 0) {
-        visited.insert(bb);
-        q.push(bb);
-      }
-    }
-    T pop() {
-      auto bb = q.front();
-      q.pop();
-      return bb;
-    }
-    bool empty() { return q.empty(); }
-  };
   
 #define dump_var_l(before, dumpee, after) \
     errs() << before << #dumpee << ": "; \

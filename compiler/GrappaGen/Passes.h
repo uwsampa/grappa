@@ -63,6 +63,25 @@ inline InstType* dyn_cast_addr(Value* v) {
   return nullptr;
 }
 
+template< typename T, unsigned SizeHint = 32 >
+class UniqueQueue {
+  std::queue<T> q;
+  SmallSet<T,SizeHint> visited;
+public:
+  void push(T bb) {
+    if (visited.count(bb) == 0) {
+      visited.insert(bb);
+      q.push(bb);
+    }
+  }
+  T pop() {
+    auto bb = q.front();
+    q.pop();
+    return bb;
+  }
+  bool empty() { return q.empty(); }
+};
+
 ////////////////////////////////////////////////
 /// Utilities for working with Grappa pointers
 struct GlobalPtrInfo {
