@@ -1,0 +1,4 @@
+language: cpp
+compiler:
+  - gcc
+script: ./configure --cc=$(which gcc) && cd build/Make+Release && make
