@@ -9,6 +9,8 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Support/CallSite.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 
 #include "DelegateExtractor.hpp"
 
@@ -48,6 +50,12 @@ namespace {
       
       if (auto fn = M.getFunction("printf")) {
         fn->addFnAttr("unbound");
+      }
+      
+      for (auto& F : M.getFunctionList()) {
+        if (F.getName().find("google10LogMessage") != std::string::npos) {
+          F.addFnAttr("unbound");
+        }
       }
       
       //////////////////////////////////////////
