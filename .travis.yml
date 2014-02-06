@@ -1,7 +1,7 @@
 language: cpp
 compiler:
   - clang
-  # - gcc
+# - gcc
 # before_install:
 #   - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 #   - sudo apt-get update -qq
@@ -14,3 +14,6 @@ script:
 branches:
   only:
     - master
+notifications:
+  email:
+    - grappa-dev@cs.washington.edu
