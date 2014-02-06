@@ -263,9 +263,9 @@ include_directories(system/tasks)
 
 ####################################
 # subdirectories
+add_subdirectory(third-party)
+add_subdirectory(system)
 add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
-add_subdirectory(system)
-add_subdirectory(third-party)
 add_subdirectory(doc)
