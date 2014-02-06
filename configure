@@ -87,6 +87,11 @@ def configure(generator, mode, opt)
   end
   args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
   
+  if not system("which ibv_devinfo")
+    puts "-- Unable to find `ibv_devinfo`, disabling IBV support."
+    args << "-DGASNET_USE_UDP:BOOL=ON"
+  end
+  
   if opt.tracing
     vtcc = "#{opt.vampir}/bin/vtcc"
     abort("error: Unable to find VampirTrace wrappers at #{vtcc}") if not File.exists?(vtcc)

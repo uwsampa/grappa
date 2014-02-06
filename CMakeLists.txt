@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
+option(GASNET_USE_UDP "Force Gasnet to use UDP (typically set by configure script)" OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -151,7 +152,7 @@ endif()
 ######################################
 # Gasnet
 ######################################
-if(DEFINED APPLE)
+if(DEFINED APPLE OR GASNET_USE_UDP)
   set(GASNET_CONDUIT "udp")
 else()
   set(GASNET_CONDUIT "ibv") # values: ibv,mpi
