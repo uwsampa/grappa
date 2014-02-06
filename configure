@@ -87,7 +87,8 @@ def configure(generator, mode, opt)
   end
   args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
   
-  if not system("which ibv_devinfo")
+  `which ibv_devinfo`
+  if not $?.success?
     puts "-- Unable to find `ibv_devinfo`, disabling IBV support."
     args << "-DGASNET_USE_UDP:BOOL=ON"
   end
