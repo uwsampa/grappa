@@ -116,6 +116,28 @@ namespace Grappa {
     CandidateRegion(Instruction* entry, CandidateMap& candidates):
     entry(entry), candidates(candidates) { ID = id_counter++; }
     
+    template< typename F >
+    void visit(F yield) {
+      UniqueQueue<Instruction*> q;
+      q.push(entry);
+      
+      while (!q.empty()) {
+        BasicBlock::iterator it(q.pop());
+        auto bb = it->getParent();
+        while (it != bb->end()) {
+          if (exits.count(it)) break;
+          auto iit = it;
+          it++;
+          yield(iit);
+        }
+        if (it == bb->end()) {
+          for (auto sb = succ_begin(bb), sbe = succ_end(bb); sb != sbe; sb++) {
+            q.push(sb->begin());
+          }
+        }
+      }
+    }
+    
     void expandRegion() {
       UniqueQueue<Instruction*> worklist;
       worklist.push(entry);
@@ -157,7 +179,6 @@ namespace Grappa {
           exits[i] = i->getPrevNode();
         }
       }
-      
     }
     
     bool validInRegion(Instruction* i) {
@@ -185,7 +206,7 @@ namespace Grappa {
     
     void printHeader() {
       outs() << "Candidate " << ID << ":\n";
-      outs() << "  entry:\n" << *entry << "\n";
+      outs() << "  entry:\n  " << *entry << "\n";
       outs() << "  valid_ptrs:\n";
       for (auto p : valid_ptrs) outs() << "  " << *p << "\n";
       outs() << "  exits:\n";
@@ -311,10 +332,10 @@ namespace Grappa {
       
       o.close();
     }
+
   };
   
   long CandidateRegion::id_counter = 0;
-  
   
   bool ExtractorPass::runOnModule(Module& M) {
     outs() << "Running extractor...\n";
