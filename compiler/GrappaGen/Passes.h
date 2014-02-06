@@ -38,9 +38,13 @@ using namespace llvm;
 
 inline std::string demangle(StringRef name) {
   char *cs = abi::__cxa_demangle(name.data(), 0, 0, 0);
-  std::string s(cs);
-  free(cs);
-  return s;
+  if (cs) {
+    std::string s(cs);
+    free(cs);
+    return s;
+  } else {
+    return name;
+  }
 }
 
 using AnchorSet = SetVector<Instruction*>;
