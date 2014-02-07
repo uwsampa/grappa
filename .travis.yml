@@ -1,0 +1,19 @@
+language: cpp
+compiler:
+  - clang
+# - gcc
+# before_install:
+#   - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+#   - sudo apt-get update -qq
+#   - if [ "$CXX" = "g++" ]; then sudo apt-get install -qq g++-4.7; fi
+#   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.7" CC="gcc-4.7"; fi
+install:
+  - sudo apt-get install mpich2
+script:
+  - ./configure && cd build/Make+Release && make VERBOSE=1 check-all-pass-compile-only
+branches:
+  only:
+    - master
+notifications:
+  email:
+    - grappa-dev@cs.washington.edu
