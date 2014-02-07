@@ -29,10 +29,10 @@
 for (auto var = prefix##_begin(arg), _var##_end = prefix##_end(arg); var != _var##_end; var++)
 
 #define for_each_op(var, arg) \
-for (auto var = arg.op_begin(), var##_end = arg.op_end(); var != var##_end; var++)
+for (auto var = (arg).op_begin(), var##_end = (arg).op_end(); var != var##_end; var++)
 
 #define for_each_use(var, arg) \
-for (auto var = arg.use_begin(), var##_end = arg.use_end(); var != var##_end; var++)
+for (auto var = (arg).use_begin(), var##_end = (arg).use_end(); var != var##_end; var++)
 
 using namespace llvm;
 
@@ -48,6 +48,8 @@ inline std::string demangle(StringRef name) {
 }
 
 using AnchorSet = SetVector<Instruction*>;
+using ValueSet = SetVector<Value*>;
+
 
 ////////////////////
 /// Address spaces
