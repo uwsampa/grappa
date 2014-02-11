@@ -136,45 +136,21 @@ namespace Grappa {
         }
       }
       
-      void replaceUsesOfWith(BasicBlock* old, BasicBlock* rep) {
-        if (old == rep) return;
-        outs() << "replacing: " << old->getName() << " => " << rep->getName() << "\n";
-//        if (m.count(old)) {
-//          auto tmp = m[old];
-//          m.erase(old);
-//          m[rep] = tmp;
-//        }
-        SmallVector<Value*,8> vs;
-        for (auto p : m)
-          if (p.second == old)
-            vs.push_back(p.first);
-        for (auto v : vs)
-          m[v] = rep;
-      }
-      
       void add(Instruction* pred, BasicBlock* succ) {
         assert(pred && succ);
         m[succ] = pred;
       }
       
-      void set(Instruction* pred, BasicBlock* succ) {
-        bool found = false;
-        for (auto p : m) {
-          if (p.second == pred) {
-            m.erase(p.first);
-            found = true;
-            break;
-          }
-          else if (auto i = dyn_cast<Instruction>(p.first)) {
-            if (i == pred) {
-              m.erase(p.first);
-              found = true;
-              break;
-            }
-          }
+      void remove(Instruction* before, Instruction* after) {
+        auto bb_after = after->getParent();
+        if (m.count(bb_after)) {
+          assert(m[bb_after] == before);
+          m.erase(bb_after);
+        } else if (m.count(before)) {
+          m.erase(before);
+        } else {
+          assert(false && "trying to remove non-existent exit");
         }
-        assert(found || m.count(succ));
-        add(pred, succ);
       }
       
       void add(Instruction* before) {
@@ -363,11 +339,9 @@ namespace Grappa {
       
       if (BasicBlock::iterator(entry) != bb_in->begin()) {
         auto bb_new = bb_in->splitBasicBlock(entry, name+".eblk");
-        // exits.replaceUsesOfWith(bb_in, bb_new);
         bb_in = bb_new;
       }
       outs() << "bb_in => " << bb_in->getName() << "\n";
-//      bbs.insert(bb_in);
 
       outs() << "old exits:\n";
       exits.each([&](Instruction* before_exit, Instruction* after_exit){
@@ -375,16 +349,17 @@ namespace Grappa {
       });
       outs() << "\n";
       outs() << "^^^^^^^^^^^^^^^\nnew exits:\n";
-      exits.each([&](Instruction* before_exit, Instruction* after_exit){
-        outs() << "--" << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
-        auto bb_exit = before_exit->getParent();
+      exits.each([&](Instruction* before, Instruction* after){
+        auto bb_exit = before->getParent();
         BasicBlock* bb_after;
-        if (bb_exit == after_exit->getParent()) {
-          bb_after = bb_exit->splitBasicBlock(after_exit, name+".exit."+bb_exit->getName());
-          outs() << *before_exit << "\n  =>" << *bb_after->begin() << "\n";
-          exits.set(before_exit, bb_after);
+        if (bb_exit == after->getParent()) {
+          std::string bbname = Twine(name+".exit." + bb_exit->getName()).str();
+          bb_after = bb_exit->splitBasicBlock(after, bbname);
+          outs() << *bb_exit->getTerminator() << " (in " << before->getParent()->getName() << ")\n  =>" << *after << " (in " << after->getParent()->getName() << ")\n";
+          exits.remove(before, after);
+          exits.add(bb_exit->getTerminator(), bb_after);
         } else {
-          bb_after = after_exit->getParent();
+          bb_after = after->getParent();
           bool found = false;
           for_each(sb, bb_exit, succ) {
             if (*sb == bb_after) {
@@ -537,57 +512,46 @@ namespace Grappa {
       
       // switch among exit blocks
       int exit_id = 0;
-      exits.each([&](Instruction* before_exit, Instruction* after_exit){
-        assert(after_exit);
-        BasicBlock *bb_exit = after_exit->getParent();
-        assert(bb_exit->getParent() == old_fn);
-        assert(before_exit->getParent() != bb_exit);
+      exits.each([&](Instruction* before, Instruction* after){
+        assert(after);
+        BasicBlock *bb_after = after->getParent();
+        assert(bb_after->getParent() == old_fn);
+        assert(before->getParent() != bb_after);
         
-        if (static_cast<Instruction*>(bb_exit->begin()) != after_exit) {
+        if (static_cast<Instruction*>(bb_after->begin()) != after) {
           errs() << "!! after_exit not at beginning of bb (" << name << ")\n";
-          errs() << "   before_exit =>" << *before_exit << "\n";
-          errs() << "   after_exit =>" << *after_exit << "\n";
-          errs() << *bb_exit;
+          errs() << "   before_exit =>" << *before << "\n";
+          errs() << "   after_exit =>" << *after << "\n";
+          errs() << *bb_after;
           assert(false);
         }
-        assert(before_exit->getParent() != after_exit->getParent());
+        assert(before->getParent() != after->getParent());
         
         auto exit_code = ConstantInt::get(ty_ret, exit_id++);
         
-        if (clone_map.count(before_exit->getParent()) == 0) {
+        if (clone_map.count(before->getParent()) == 0) {
           outs() << "-------------------\n";
-          assert(before_exit->getParent()->getParent() == old_fn);
+          assert(before->getParent()->getParent() == old_fn);
           for (auto bb : bbs) outs() << bb << " -- " << clone_map.count(bb) << "\n";
-          outs() << "before_exit =>" << *before_exit << " (in " << before_exit->getParent() << ")\n";
+          outs() << "before_exit =>" << *before << " (in " << before->getParent() << ")\n";
           assert(false);
         }
-        auto bb_pred = cast<BasicBlock>(clone_map[before_exit->getParent()]);
+        auto bb_pred = cast<BasicBlock>(clone_map[before->getParent()]);
         assert(bb_pred->getParent() == new_fn);
         
         // hook up exit from region with phi node in return block
         phi_ret->addIncoming(exit_code, bb_pred);
         
         // jump to old exit block when call returns the corresponding code
-        exit_switch->addCase(exit_code, after_exit->getParent());
+        exit_switch->addCase(exit_code, after->getParent());
         assert(exit_switch->getParent()->getParent() == old_fn);
         
-        // rewrite any phi's in exit bb to get their values from bb_call
-        for (auto& inst : *bb_exit) {
-          if (auto phi = dyn_cast<PHINode>(&inst)) {
-            int i;
-            while ((i = phi->getBasicBlockIndex(bb_pred)) >= 0)
-              phi->setIncomingBlock(i, bb_call);
-          }
-        }
-        
-//        if (before_exit->getParent() == bb_call) {
-//          outs() << *before_exit->getParent();
-//        } else {
-////          before_exit->getParent()->replaceAllUsesWith(bb_call);
-//        }
+        auto bb_before = before->getParent();
+        assert(bbs.count(bb_before));
+        bb_before->replaceAllUsesWith(bb_call);
         
         // in extracted fn, remap branches outside to bb_ret
-        clone_map[bb_exit] = bb_ret;
+        clone_map[bb_after] = bb_ret;
       });
       
       // use clone_map to remap values in new function
