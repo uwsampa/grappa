@@ -1,11 +1,26 @@
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-#ifndef WORKER_HPP
-#define WORKER_HPP
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
+#pragma once
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -14,6 +29,7 @@
 #include "stack.h"
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
+#include "Addressing.hpp"
 
 #ifdef ENABLE_VALGRIND
 #include <valgrind/valgrind.h>
@@ -21,24 +37,23 @@
 
 #include <glog/logging.h>
 
-class Scheduler;
+namespace Grappa { class Scheduler; }
+
 typedef uint32_t threadid_t;
 #ifdef GRAPPA_TRACE
 // keeps track of last id assigned
 extern int thread_last_tau_taskid;
 #endif
 
-/// Size in bytes of the stack allocated for every Thread
+/// Size in bytes of the stack allocated for every Worker
 // const size_t STACK_SIZE = 1L<<19;
 DECLARE_int64(stack_size);
 #define STACK_SIZE FLAGS_stack_size
 
-class Worker;
-
 #include <sys/mman.h> // mprotect
 #include <errno.h>
-void checked_mprotect( void *addr, size_t len, int prot );
 
+namespace Grappa {
 
 /// Worker/coroutine
 class Worker {
@@ -114,18 +129,23 @@ class Worker {
     return remain;
   }
   
-  /// prefetch the Thread execution state
+  /// prefetch the Worker execution state
   inline void prefetch() {
     __builtin_prefetch( stack, 0, 3 ); // try to keep stack in cache
     __builtin_prefetch( next, 0, 3 ); // try to keep next worker in cache
 
     //if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
   }
-} __attribute__((aligned(64)));
+  } GRAPPA_BLOCK_ALIGNED;
+
+namespace impl {
+
+void checked_mprotect( void *addr, size_t len, int prot );
+
 
 typedef void (*thread_func)(Worker *, void *arg);
 
-/// Turns the current (system) thread into a Grappa Thread.
+/// Turns the current (system) thread into a Grappa Worker.
 /// This is simply necessary so that a Scheduler can
 /// cause a context switch back to the system thread when
 /// the Scheduler is done
@@ -173,8 +193,8 @@ static inline void * coro_invoke(Worker * me, Worker * to, void * val) {
   return val;
 }
 
-/// Called when a Thread completes its function.
-/// Thread->next will contain retval.
+/// Called when a Worker completes its function.
+/// Worker->next will contain retval.
 /// This function does not return to the caller.
 void thread_exit(Worker * me, void * retval);
 
@@ -208,7 +228,7 @@ static void tramp(Worker * me, void * arg) {
   // stop top level Tau task timer
   GRAPPA_PROFILE_THREAD_STOP( mainprof, my_thr );
 
-  // We shouldn't return, but if we do, kill the Thread.
+  // We shouldn't return, but if we do, kill the Worker.
   thread_exit(my_thr, NULL);
 }
 
@@ -225,9 +245,9 @@ void destroy_coro(Worker * c);
 void destroy_thread(Worker * thr);
 
 
-/// Perform a context switch to another Thread
-/// @param running the current Thread
-/// @param next the Thread to switch to
+/// Perform a context switch to another Worker
+/// @param running the current Worker
+/// @param next the Worker to switch to
 /// @param val pass a value to next
 inline void * thread_context_switch( Worker * running, Worker * next, void * val ) {
     // This timer ensures we are able to calculate exclusive time for the previous thing in this thread's callstack,
@@ -241,6 +261,5 @@ inline void * thread_context_switch( Worker * running, Worker * next, void * val
     return res; 
 }
 
-typedef Worker Thread; // FIXME: remove Thread references
-
-#endif // WORKER_HPP
+} // namespace impl
+} // namespace Grappa

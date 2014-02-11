@@ -32,7 +32,7 @@ Igor do
   }
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} --time=4:00:00
+  command %Q[ %{tdir}/grappa_srun --nnode=%{nnode} --ppn=%{ppn} --time=4:00:00
     -- %{tdir}/graph.exe
     #{expand_flags(*GFLAGS.keys)}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs} -w

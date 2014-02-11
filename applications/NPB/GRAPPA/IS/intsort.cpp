@@ -1,10 +1,3 @@
-
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
-
 #include "npb_intsort.hpp"
 #include "randlc.hpp"
 #include <Grappa.hpp>
@@ -20,6 +13,7 @@
 
 using namespace Grappa;
 
+static void parseOptions(int argc, char ** argv);
 
 /// Quick and dirty growable bucket that is padded to take up a full Grappa block so 
 /// that malloc'ing a global array round-robins buckets to nodes to keep it as even
@@ -208,7 +202,7 @@ void rank(int iteration) {
   // key_array, nkeys already available on all cores
   
   if (iteration == 0) {
-    forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+    forall<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
       // (global malloc doesn't call constructors)
       new (&bucket) bucket_t();
     });
@@ -225,17 +219,17 @@ void rank(int iteration) {
   });
   
   VLOG(2) << "histogramming";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
 
   // histogram to find out how many fall into each bucket  
-  forall_localized<&gce>(key_array, nkeys, [](int64_t i, key_t& k){
+  forall<&gce>(key_array, nkeys, [](int64_t i, key_t& k){
     size_t b = k >> BSHIFT;
     counts[b]++;
   });
   
-  histogram_time += Grappa_walltime() - _time;
+  histogram_time += Grappa::walltime() - _time;
   VLOG(2) << "allreducing";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
   
   // allreduce everyone's counts & compute global bucket_ranks (prefix sum)
   auto bl = bucketlist;
@@ -284,23 +278,23 @@ void rank(int iteration) {
     total_bucket_allocation = 0;
   });
   
-  allreduce_time += Grappa_walltime() - _time;
+  allreduce_time += Grappa::walltime() - _time;
     
   // print_array("counts", &counts[0], counts.size());
   // print_array("bucket_cores", bucket_cores);
   
   // allocate space in buckets
-  forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+  forall<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
     // (global malloc doesn't call constructors)
     bucket.reserve(counts[id]);
     bucket.nelems = 0;
   });
 
   VLOG(2) << "scattering into buckets";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
   
   // scatter into buckets
-  forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
+  forall<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
     size_t nbuckets = counts.size();
     // char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
     // MessagePool pool(msg_buf, sizeof(msg_buf));
@@ -311,15 +305,15 @@ void rank(int iteration) {
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async<&gce>(*shared_pool, destb.core(), [destb,v]{
+      delegate::call<async,&gce>(destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
   });
   
-  scatter_time += Grappa_walltime() - _time;
+  scatter_time += Grappa::walltime() - _time;
   VLOG(2) << "ranking locally";
-  _time = Grappa_walltime();
+  _time = Grappa::walltime();
   
   // Ranking of all keys occurs in this section
   on_all_cores([iteration]{
@@ -401,141 +395,131 @@ void rank(int iteration) {
     // }    
   });
   
-  local_rank_time += Grappa_walltime() - _time;
+  local_rank_time += Grappa::walltime() - _time;
 }
 
 void full_verify() {
   VLOG(1) << "starting verify...";
-  auto sorted_keys = Grappa_typed_malloc<key_t>(nkeys);
+  auto sorted_keys = Grappa::global_alloc<key_t>(nkeys);
   Grappa::memset(sorted_keys, -1, nkeys);
   
-  forall_localized<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
+  forall<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
     auto key_ranks = b.key_ranks - (b_id<<BSHIFT);
-    
-    // char msgbuf[Grappa::current_worker().stack_remaining()-8096];
-    MessagePool pool((1<<23)/(nbuckets/cores()));
     
     for (int64_t i=0; i<b.size(); i++) {
       key_t k = b[i];
       CHECK_LT(key_ranks[k], nkeys);
-      delegate::write_async<&gce>(pool, sorted_keys+key_ranks[k], k);
+      delegate::write<async,&gce>(sorted_keys+key_ranks[k], k);
       key_ranks[k]++;
     }
   });
   
   // print_array("sorted_keys", sorted_keys, nkeys);
   
-  forall_localized(sorted_keys, nkeys-1, [](int64_t i, key_t& k){
+  forall(sorted_keys, nkeys-1, [](int64_t i, key_t& k){
     key_t o = delegate::read(make_linear(&k)+1);
     CHECK_LE(k, o) << "sorted_keys[" << i << ":" << i+1 << "] = " << k << ", " << o;
   });
   VLOG(1) << "done";
 }
 
-void user_main(void * ignore) {
-  int             i, iteration, itemp;
-  
-  //  Printout initial NPB info 
-  printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
-  printf( "nkeys:       %ld  (class %c, 2^%d)\n", (long)nkeys, npb_class_char(npbclass), scale);
-  printf( "maxkey:      %ld (2^%d)\n", maxkey, log2maxkey);
-  printf( "niterations: %d\n", niterations);
-  printf( "cores:       %d\n", cores());
-
-  // Check to see whether total number of processes is within bounds.
-  if( cores() < MIN_PROCS || cores() > MAX_PROCS) {
-      printf( "\n ERROR: number of processes %d not within range %d-%d"
-             "\n Exiting program!\n\n", cores(), MIN_PROCS, MAX_PROCS);
-      return;
-  }
-
-  auto _key_array = Grappa_typed_malloc<key_t>(nkeys);
-
-  // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
-  auto _bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
-
-  generation_time = Grappa_walltime();
-
-  // initialize all cores
-  call_on_all_cores([_key_array, _bucketlist]{
-    init_seed();
-    key_array = _key_array;
-    bucketlist = _bucketlist;
-  });
-
-  // Generate random number sequence and subsequent keys on all procs
-  // Note: the distribution should be roughly Gaussian
-  forall_localized(key_array, nkeys, [](int64_t i, key_t& key){
-    key = next_seq_element();
-  });
-  
-  // on_all_cores([]{
-  //   // Determine where the partial verify test keys are, load into top of array bucket_size
-  //   for (int i=0; i<TEST_ARRAY_SIZE; i++) {
-  //     partial_verify_vals[i] = delegate::read(key_array+test_index_array[npbclass][i]);
-  //   }
-  // });
-  
-  generation_time = Grappa_walltime() - generation_time;
-  std::cerr << "generation_time: " << generation_time << "\n";
-
-  // Do one interation for free (i.e., untimed) to guarantee initialization of  
-  // all data and code pages and respective tables
-  rank(0);
-  
-  if( npbclass != NPBClass::S ) printf( "\n   iteration\n" );
-
-  histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
-  
-  Statistics::reset_all_cores();
-
-  Statistics::start_tracing();
-  
-  total_time = Grappa_walltime();
-
-  // This is the main iteration
-  for( iteration=1; iteration<=niterations; iteration++ ) {
-      if (npbclass != NPBClass::S ) printf( "        %d\n", iteration );
-      rank( iteration );
-  }
-
-  total_time = Grappa_walltime() - total_time;
-
-  Statistics::stop_tracing();
-  Statistics::merge_and_print();
-  
-  std::cerr << "total_time: " << total_time << "\n";
-  std::cerr << "histogram_time: " << histogram_time << "\n";
-  std::cerr << "allreduce_time: " << allreduce_time << "\n";
-  std::cerr << "scatter_time: " << scatter_time << "\n";
-  std::cerr << "local_rank_time: " << local_rank_time << "\n";
-
-  if (!skip_verify) {
-    full_verify_time = Grappa_walltime();
-    full_verify();
-    full_verify_time = Grappa_walltime() - full_verify_time;
-    std::cerr << "full_verify_time: " << full_verify_time << "\n";
-  }
-  
-  std::cerr << "problem_size: " << nkeys << "\n";
-  
-  double mops = static_cast<double>(niterations)*nkeys/total_time/1e6;
-  std::cerr << "mops_total: " << mops << "\n";
-  std::cerr << "mops_per_process: " << mops/cores() << "\n";
-}
-
-static void parseOptions(int argc, char ** argv);
-
 int main(int argc, char* argv[]) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
+  Grappa::init(&argc, &argv);
   
   parseOptions(argc, argv);
   
-  Grappa_run_user_main(&user_main, (void*)NULL);
+  Grappa::run([]{
+    int             i, iteration, itemp;
   
-  Grappa_finish(0);
-  return 0;
+    //  Printout initial NPB info 
+    printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
+    printf( "nkeys:       %ld  (class %c, 2^%d)\n", (long)nkeys, npb_class_char(npbclass), scale);
+    printf( "maxkey:      %d (2^%d)\n", maxkey, log2maxkey);
+    printf( "niterations: %d\n", niterations);
+    printf( "cores:       %d\n", cores());
+
+    // Check to see whether total number of processes is within bounds.
+    if( cores() < MIN_PROCS || cores() > MAX_PROCS) {
+        printf( "\n ERROR: number of processes %d not within range %d-%d"
+               "\n Exiting program!\n\n", cores(), MIN_PROCS, MAX_PROCS);
+        return;
+    }
+
+    auto _key_array = Grappa::global_alloc<key_t>(nkeys);
+
+    // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
+    auto _bucketlist = Grappa::global_alloc<bucket_t>(nbuckets);
+
+    generation_time = Grappa::walltime();
+
+    // initialize all cores
+    call_on_all_cores([_key_array, _bucketlist]{
+      init_seed();
+      key_array = _key_array;
+      bucketlist = _bucketlist;
+    });
+
+    // Generate random number sequence and subsequent keys on all procs
+    // Note: the distribution should be roughly Gaussian
+    forall(key_array, nkeys, [](int64_t i, key_t& key){
+      key = next_seq_element();
+    });
+  
+    // on_all_cores([]{
+    //   // Determine where the partial verify test keys are, load into top of array bucket_size
+    //   for (int i=0; i<TEST_ARRAY_SIZE; i++) {
+    //     partial_verify_vals[i] = delegate::read(key_array+test_index_array[npbclass][i]);
+    //   }
+    // });
+  
+    generation_time = Grappa::walltime() - generation_time;
+    std::cerr << "generation_time: " << generation_time << "\n";
+
+    // Do one interation for free (i.e., untimed) to guarantee initialization of  
+    // all data and code pages and respective tables
+    rank(0);
+  
+    if( npbclass != NPBClass::S ) printf( "\n   iteration\n" );
+
+    histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
+  
+    Metrics::reset_all_cores();
+
+    Metrics::start_tracing();
+  
+    total_time = Grappa::walltime();
+
+    // This is the main iteration
+    for( iteration=1; iteration<=niterations; iteration++ ) {
+        if (npbclass != NPBClass::S ) printf( "        %d\n", iteration );
+        rank( iteration );
+    }
+
+    total_time = Grappa::walltime() - total_time;
+
+    Metrics::stop_tracing();
+    Metrics::merge_and_print();
+  
+    std::cerr << "total_time: " << total_time << "\n";
+    std::cerr << "histogram_time: " << histogram_time << "\n";
+    std::cerr << "allreduce_time: " << allreduce_time << "\n";
+    std::cerr << "scatter_time: " << scatter_time << "\n";
+    std::cerr << "local_rank_time: " << local_rank_time << "\n";
+
+    if (!skip_verify) {
+      full_verify_time = Grappa::walltime();
+      full_verify();
+      full_verify_time = Grappa::walltime() - full_verify_time;
+      std::cerr << "full_verify_time: " << full_verify_time << "\n";
+    }
+  
+    std::cerr << "problem_size: " << nkeys << "\n";
+  
+    double mops = static_cast<double>(niterations)*nkeys/total_time/1e6;
+    std::cerr << "mops_total: " << mops << "\n";
+    std::cerr << "mops_per_process: " << mops/cores() << "\n";
+  });
+  Grappa::finalize();
 }
 
 static void printHelp(const char * exe) {
@@ -568,7 +552,7 @@ static void parseOptions(int argc, char ** argv) {
   // at least 2*num_nodes buckets by default
   nbuckets = 2;
   log2buckets = 1;
-  Node nodes = Grappa_nodes();
+  Core nodes = Grappa::cores();
   while (nbuckets < nodes) {
     nbuckets <<= 1;
     log2buckets++;
@@ -612,6 +596,6 @@ static void parseOptions(int argc, char ** argv) {
   }
   nkeys = 1L << scale;
   nbuckets = 1L << log2buckets;
-  maxkey = (log2maxkey == 64) ? (std::numeric_limits<uint64_t>::max()) : (1ul << log2maxkey) - 1;
+  maxkey = (log2maxkey == 64) ? (std::numeric_limits<key_t>::max()) : (1ul << log2maxkey) - 1;
 }
 

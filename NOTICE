@@ -1,0 +1,15 @@
+This distribution contains Grappa, a system for scaling irregular
+applications on commodity clusters.
+
+This software was created with Government support under DE
+AC05-76RL01830 awarded by the United States Department of Energy. The
+Government has certain rights in the software.
+
+Most Grappa files are licensed under the Affero General Public
+License, version 1.0, as described in the file COPYING. See individual
+file for details.
+
+As an exception, the files under the third-party/ and applications/
+directories are licensed under their own separate licenses. Please see
+those files for their licensing terms.
+

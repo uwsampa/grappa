@@ -1,10 +1,4 @@
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
-
 enum NPBClass                     {  S,  W,  A,  B,  C,  D,  E };
 static const int NKEY_LOG2[]    = { 16, 20, 23, 25, 27, 29, 31 };
 static const int MAX_KEY_LOG2[] = { 11, 16, 19, 21, 23, 27, 27 };
@@ -19,6 +13,7 @@ inline NPBClass get_npb_class(char c) {
     case 'C': return NPBClass::C;
     case 'D': return NPBClass::D;
     case 'E': return NPBClass::E;
+    default: return NPBClass::S;
   }
 }
 inline char npb_class_char(NPBClass c) {
@@ -30,5 +25,6 @@ inline char npb_class_char(NPBClass c) {
     case NPBClass::C: return 'C';
     case NPBClass::D: return 'D';
     case NPBClass::E: return 'E';
+    default: return 'S';
   }
 }

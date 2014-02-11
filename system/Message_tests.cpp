@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #define LEGACY_SEND
 
@@ -36,8 +52,8 @@ void user_main( void * args )
       m0.enqueue();
       x0 = true;
     }
-    Grappa_flush( 0 );
-    Grappa_poll( );
+    Grappa::flush( 0 );
+    Grappa::impl::poll( );
   }
 
   LOG(INFO) << "Test -1";
@@ -48,8 +64,8 @@ void user_main( void * args )
     m0.enqueue();
     x0 = true;
   }
-  Grappa_flush( 0 );
-  Grappa_poll( );
+  Grappa::flush( 0 );
+  Grappa::impl::poll( );
   
   LOG(INFO) << "Test 0";
   x0 = false;
@@ -66,8 +82,8 @@ void user_main( void * args )
     
     x0 = true;
   }
-  Grappa_flush( 0 );
-  Grappa_poll( );
+  Grappa::flush( 0 );
+  Grappa::impl::poll( );
   
 
   LOG(INFO) << "Test 1";
@@ -80,8 +96,8 @@ void user_main( void * args )
       //auto m1 = Grappa::message( 0, [&]{ x1 = true; } );
       m1.enqueue();
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
     BOOST_CHECK_EQUAL( x1, true );
   }
   
@@ -92,8 +108,8 @@ void user_main( void * args )
     //auto m2 = Grappa::message( 0, Check() );
     m2->x = true;
     m2.enqueue();
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
   }
 
   LOG(INFO) << "Test 4";
@@ -105,8 +121,8 @@ void user_main( void * args )
       auto f4 = [&]{ x4 = true; };
       auto m4 = Grappa::send_message( 0, f4 );
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
     BOOST_CHECK_EQUAL( x4, true );
   }
 
@@ -123,15 +139,15 @@ void user_main( void * args )
       //Grappa::SendPayloadMessage< decltype(f5) > m5( 0, f5, &x5, sizeof(x5) );
       auto m5 = Grappa::send_message( 0, f5, &x5, sizeof(x5) );
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
 
     {
       x5 = true;
       auto m5a = Grappa::send_message( 0, f5, &x5, sizeof(x5) );
     }
-    Grappa_flush( 0 );
-    Grappa_poll();
+    Grappa::flush( 0 );
+    Grappa::impl::poll();
   }
 
   LOG(INFO) << "Test 6";
@@ -140,16 +156,16 @@ void user_main( void * args )
     Grappa::ConditionVariable * cvp = &cv;
 
     auto m6 = Grappa::send_heap_message( 1, [cvp] { 
-        BOOST_CHECK_EQUAL( Grappa_mynode(), 1 );
+        BOOST_CHECK_EQUAL( Grappa::mycore(), 1 );
         auto m6a = Grappa::send_heap_message( 0, [cvp] {
-            BOOST_CHECK_EQUAL( Grappa_mynode(), 0 );
+            BOOST_CHECK_EQUAL( Grappa::mycore(), 0 );
             Grappa::signal( cvp );
           } );
-        Grappa_flush( 0 );
-        Grappa_poll();
+        Grappa::flush( 0 );
+        Grappa::impl::poll();
       } );
-    Grappa_flush( 1 );
-    Grappa_poll();
+    Grappa::flush( 1 );
+    Grappa::impl::poll();
     Grappa::wait( cvp );
     LOG(INFO) << "Test 6 done";
   }

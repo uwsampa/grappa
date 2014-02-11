@@ -1,8 +1,28 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
+
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #include <Grappa.hpp>
-#include <ParallelLoop.hpp>
 #include <GlobalVector.hpp>
-#include <Array.hpp>
 using namespace Grappa;
 
 DEFINE_uint64(log_vertices, 8, "log2(total number of vertices)");
@@ -55,7 +75,7 @@ struct Vertex {
       num_children = NUM_VERTICES - first_child;
     }
         
-    forall_public_async(first_child, num_children, [](index_t i){
+    forall<unbound,async>(first_child, num_children, [](int64_t i){
       Vertex child;
       child.init(i);
       delegate::write(vertex_array+i, child);
@@ -73,9 +93,11 @@ void create_tree() {
   });
   
   auto root = vertex_array+0;
-  Vertex v; v.init(0);
+  Vertex v;
+  finish([&v]{
+    v.init(0);
+  });
   delegate::write(root, v);
-  default_gce().wait();
 }
 
 void search(index_t vertex_index, long color) {
@@ -84,14 +106,14 @@ void search(index_t vertex_index, long color) {
     results->push(v.id);
   }
   // search children
-  forall_public_async(v.first_child, v.num_children, [color](index_t i){
+  forall<unbound,async>(v.first_child, v.num_children, [color](int64_t i){
     search(i, color);
   });
 }
 
 int main( int argc, char * argv[] ) {
   init( &argc, &argv );
-  run( [] {
+  run([]{
     //////////////////////////////////////////////////////////////////////////
     // vertex_array -> [
     //   (first_child:1,num_children:4,color:3),
@@ -116,7 +138,7 @@ int main( int argc, char * argv[] ) {
     LOG(INFO) << util::array_str("results (first 10)", results->begin(), 
                                   std::min(results->size(), (size_t)10));
     
-  } );
+  });
   finalize();
   return 0;
 }

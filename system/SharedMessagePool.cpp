@@ -1,5 +1,28 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
+
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
+
 #include "SharedMessagePool.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "ConditionVariable.hpp"
 #include <stack>
 
@@ -15,7 +38,7 @@ DEFINE_int64(shared_pool_size, 1L << 18, "Size (in bytes) of global SharedMessag
 DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
 DEFINE_double(shared_pool_memory_fraction, 0.5, "Fraction of remaining memory to use for shared pool (after taking out global_heap and stacks)");
 
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, shared_message_pools_allocated, 0);
 
 namespace Grappa {
 

@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 /// One implementation of GUPS. This does no load-balancing, and may
 /// suffer from some load imbalance.
@@ -12,13 +28,11 @@
 #include <algorithm>
 
 #include <Grappa.hpp>
-#include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
-#include "GlobalTaskJoiner.hpp"
 #include "Array.hpp"
 #include "Message.hpp"
 #include "CompletionEvent.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 #include "Collective.hpp"
 
 #include "LocaleSharedMemory.hpp"
@@ -30,15 +44,15 @@
 #include <boost/test/unit_test.hpp>
 
 DEFINE_int64( repeats, 1, "Repeats" );
-DEFINE_int64( iterations, 1 << 30, "Iterations" );
+DEFINE_int64( iterations, 1 << 25, "Iterations" );
 DEFINE_int64( sizeA, 1024, "Size of array that gups increments" );
 DEFINE_bool( validate, true, "Validate result" );
 
 DECLARE_string( load_balance );
 
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput_per_locale, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput_per_locale, 0 );
 
 const uint64_t LARGE_PRIME = 18446744073709551557UL;
 
@@ -64,58 +78,50 @@ void validate(GlobalAddress<int64_t> A, size_t n) {
 
 
 
-void user_main( int * args ) {
-
-  // allocate array
-  GlobalAddress<int64_t> A = Grappa_typed_malloc<int64_t>(FLAGS_sizeA);
-
-  do {
-
-    LOG(INFO) << "Starting";
-    Grappa::memset(A, 0, FLAGS_sizeA);
-
-    Grappa::Statistics::reset_all_cores();
-
-    double start = Grappa::walltime();
-
-    // best with loop threshold 1024
-    // shared pool size 2^16
-    Grappa::forall_global_public( 0, FLAGS_iterations-1, [A] ( int64_t i ) {
-        uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
-        Grappa::delegate::increment_async( A + b, 1 );
-      } );
-
-    double end = Grappa::walltime();
-
-    Grappa::on_all_cores( [] {
-        Grappa_stop_profiling();
-      } );
-    
-    gups_runtime = end - start;
-    gups_throughput = FLAGS_iterations / (end - start);
-    gups_throughput_per_locale = gups_throughput / Grappa::locales();
-
-    Grappa::Statistics::merge_and_print();
-
-    if( FLAGS_validate ) {
-      LOG(INFO) << "Validating....";
-      validate(A, FLAGS_sizeA);
-    }
-
-   } while (FLAGS_repeats-- > 1);
-
-  LOG(INFO) << "Done. ";
-}
-
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-		  &(boost::unit_test::framework::master_test_suite().argv) );
-    Grappa_activate();
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
 
-    Grappa_run_user_main( &user_main, (int*)NULL );
+    // allocate array
+    GlobalAddress<int64_t> A = Grappa::global_alloc<int64_t>(FLAGS_sizeA);
 
-    Grappa_finish( 0 );
+    do {
+
+      LOG(INFO) << "Starting";
+      Grappa::memset(A, 0, FLAGS_sizeA);
+
+      Grappa::Metrics::reset_all_cores();
+
+      double start = Grappa::walltime();
+
+      // best with loop threshold 1024
+      // shared pool size 2^16
+      Grappa::forall<unbound>( 0, FLAGS_iterations-1, [A] ( int64_t i ) {
+          uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
+          Grappa::delegate::increment<async>( A + b, 1 );
+        } );
+
+      double end = Grappa::walltime();
+
+      Grappa::Metrics::start_tracing();
+    
+      gups_runtime = end - start;
+      gups_throughput = FLAGS_iterations / (end - start);
+      gups_throughput_per_locale = gups_throughput / Grappa::locales();
+      
+      Grappa::Metrics::stop_tracing();
+      Grappa::Metrics::merge_and_print();
+
+      if( FLAGS_validate ) {
+        LOG(INFO) << "Validating....";
+        validate(A, FLAGS_sizeA);
+      }
+
+     } while (FLAGS_repeats-- > 1);
+
+    LOG(INFO) << "Done. ";
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

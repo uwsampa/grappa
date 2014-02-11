@@ -2,7 +2,7 @@
 #include <GlobalAllocator.hpp>
 #include <Delegate.hpp>
 #include <PerformanceTools.hpp>
-#include <Statistics.hpp>
+#include <Metrics.hpp>
 #include <Collective.hpp>
 
 #include "../generator/make_graph.h"
@@ -82,11 +82,11 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
   for (int64_t i=0; i < nroots; i++) {
     Grappa::memset(bfs_tree, -1, g->nv);
     
-    if (i == 0) Statistics::start_tracing();
+    if (i == 0) Metrics::start_tracing();
     
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
 
-    if (i == 0) Statistics::stop_tracing();
+    if (i == 0) Metrics::stop_tracing();
     
     VLOG(1) << "make_bfs_tree time: " << bfs_time[i];
     
@@ -112,57 +112,51 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
   global_free(bfs_tree);
   /* Print results. */
   output_results(FLAGS_scale, 1<<FLAGS_scale, FLAGS_edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
-  Statistics::merge_and_print();
-  Statistics::merge_and_dump_to_file();
+  Metrics::merge_and_print();
+  Metrics::merge_and_dump_to_file();
 }
 
-void user_main(void * ignore) {
-  double t, start_time;
-  start_time = walltime();
+int main(int argc, char* argv[]) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([]{
+    double t, start_time;
+    start_time = walltime();
   
-	int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
-	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
+  	int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
+  	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
   
-  LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
+    LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
   
-  // make raw graph edge tuples
-  tuple_graph tg;
-  tg.edges = global_alloc<packed_edge>(desired_nedge);
+    // make raw graph edge tuples
+    tuple_graph tg;
+    tg.edges = global_alloc<packed_edge>(desired_nedge);
   
-  t = walltime();
-  make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-  generation_time = walltime() - t;
-  LOG(INFO) << "graph_generation: " << generation_time;
+    t = walltime();
+    make_graph( FLAGS_scale, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+    generation_time = walltime() - t;
+    LOG(INFO) << "graph_generation: " << generation_time;
   
-  t = walltime();
-  auto g = Graph<>::create(tg);
-  construction_time = walltime() - t;
-  LOG(INFO) << "construction_time: " << construction_time;
+    t = walltime();
+    auto g = Graph<>::create(tg);
+    construction_time = walltime() - t;
+    LOG(INFO) << "construction_time: " << construction_time;
   
-  // Graph::dump(g);
+    // Graph::dump(g);
   
-  // choose benchmark
-  if (FLAGS_bench.find("bfs") != std::string::npos) {
-    bfs_benchmark(tg, g, FLAGS_nbfs);
-  }
-  if (FLAGS_bench.find("cc") != std::string::npos) {
-    long ncomponents = cc_benchmark(g);
-  }
+    // choose benchmark
+    if (FLAGS_bench.find("bfs") != std::string::npos) {
+      bfs_benchmark(tg, g, FLAGS_nbfs);
+    }
+    if (FLAGS_bench.find("cc") != std::string::npos) {
+      long ncomponents = cc_benchmark(g);
+    }
   
-  // Grappa::Statistics::merge_and_print(std::cout);
+    // Grappa::Metrics::merge_and_print(std::cout);
   
-  g->destroy();
-  global_free(tg.edges);
+    g->destroy();
+    global_free(tg.edges);
     
-  LOG(INFO) << "total_runtime: " << walltime() - start_time;
-}
-
-int main(int argc, char** argv) {
-  Grappa_init(&argc, &argv);
-  Grappa_activate();
-
-  Grappa_run_user_main(&user_main, (void*)NULL);
-  
-  Grappa_finish(0);
-  return 0;
+    LOG(INFO) << "total_runtime: " << walltime() - start_time;
+  });
+  Grappa::finalize();
 }

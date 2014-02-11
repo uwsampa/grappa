@@ -1,56 +1,37 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 /// Collection of utilities for monitoring performance
+#pragma once
 
-#ifndef PERFORMANCE_TOOLS_HPP
-#define PERFORMANCE_TOOLS_HPP
-
-#ifdef GRAPPA_TRACE
-#include <TAU.h>
-#endif
-
-#include "CurrentThread.hpp"
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-
-// need to define these when tau is disabled
-// because for some reason they are not even blank defined,
-// unlike other Tau api calls
-#ifndef GRAPPA_TRACE
-    #define TAU_DB_DUMP_PREFIX_TASK( a, b )
-#endif
 
 DECLARE_bool(record_grappa_events);
 
 /// Macros to trace events with Tau
 
 #define SAMPLE_RATE (1<<4)
-
-#define GRAPPA_DEFINE_EVENT_GROUP(group) \
-  DEFINE_bool( record_##group, true, "Enable tracing of events in group.")
-
-#define GRAPPA_DECLARE_EVENT_GROUP(group) \
-  DECLARE_bool( record_##group )
-
-#ifdef GRAPPA_TRACE
-#define GRAPPA_EVENT(name, text, frequency, group, val) \
-  static uint64_t name##_calls = 0; \
-  name##_calls++; \
-  if (FLAGS_##record_##group && (FLAGS_record_grappa_events) && (name##_calls % frequency == 0)) { \
-    TAU_REGISTER_EVENT(name, text); \
-    TAU_EVENT(name, val); \
-  } \
-  do {} while (0)
-#else
-#define GRAPPA_EVENT(name, text, frequency, group, val) do {} while (0)
-#endif
-
 
 // These are specifically meant to profile the current (or a given) grappa thread
 #ifdef GRAPPA_TRACE
@@ -59,8 +40,8 @@ DECLARE_bool(record_grappa_events);
     TAU_PROFILER_CREATE(timer, nametext, typetext, group)
 #define GRAPPA_PROFILE_THREAD_START(timer, thread) TAU_PROFILER_START_TASK( timer, Grappa_tau_id((thread)) )
 #define GRAPPA_PROFILE_THREAD_STOP(timer, thread) TAU_PROFILER_STOP_TASK( timer, Grappa_tau_id((thread)) )
-#define GRAPPA_PROFILE_START(timer) GRAPPA_PROFILE_THREAD_START( timer, Grappa_current_thread() ) 
-#define GRAPPA_PROFILE_STOP(timer) GRAPPA_PROFILE_THREAD_STOP( timer, Grappa_current_thread() ) 
+#define GRAPPA_PROFILE_START(timer) GRAPPA_PROFILE_THREAD_START( timer, impl::global_scheduler.get_current_thread() ) 
+#define GRAPPA_PROFILE_STOP(timer) GRAPPA_PROFILE_THREAD_STOP( timer, impl::global_scheduler.get_current_thread() ) 
 #else
 #define GRAPPA_PROFILE_CREATE(timer, nametext, typetext, group) do {} while (0)
 #define GRAPPA_PROFILE_THREAD_START(timer, thread) do {} while (0)
@@ -78,19 +59,19 @@ DECLARE_bool(record_grappa_events);
     GRAPPA_PROFILE_CREATE( timer, nametext, typetext, group ); \
     GrappaProfiler __cat( prof, __LINE__) ( timer, thread )
 
-#define GRAPPA_PROFILE( timer, nametext, typetext, group ) GRAPPA_THREAD_PROFILE( timer, nametext, typetext, group, Grappa_current_thread() )
+#define GRAPPA_PROFILE( timer, nametext, typetext, group ) GRAPPA_THREAD_PROFILE( timer, nametext, typetext, group, impl::global_scheduler.get_current_thread() )
 #include <boost/current_function.hpp>
 #define GRAPPA_FUNCTION_PROFILE( group ) GRAPPA_PROFILE( __cat(timer, __LINE__), BOOST_CURRENT_FUNCTION, "", group )
 #define GRAPPA_THREAD_FUNCTION_PROFILE( group, thread ) GRAPPA_THREAD_PROFILE( __cat(timer, __LINE__), BOOST_CURRENT_FUNCTION, "", group, thread )
 
-class Thread;
+class Worker;
 class GrappaProfiler {
     private:
         void* timer;
-        Thread * thr;
+        Worker * thr;
 
     public:
-        GrappaProfiler ( void* timer, Thread * thr ) 
+        GrappaProfiler ( void* timer, Worker * thr ) 
             : timer ( timer )
             , thr ( thr ) {
             
@@ -112,34 +93,4 @@ class GrappaProfiler {
 
 void dump_all_task_profiles();
 
-
-// include profiler groups
-#include "ProfilerGroups.hpp"
-
-
-void Grappa_set_profiler_argv0( char * argv0 );
-
-void Grappa_start_profiling();
-void Grappa_stop_profiling();
-
-extern bool take_profiling_sample;
-
-
-#include <string>
-/// User-registered sampled counters
-void Grappa_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal );
-void Grappa_add_profiling_integer(int64_t * counter, std::string name, std::string abbrev, bool reset, int64_t resetVal  );
-void Grappa_add_profiling_value( double * counter, std::string name, std::string abbrev, bool reset, double resetVal );
-void Grappa_profiling_sample_user();
-
-void Grappa_dump_user_stats( std::ostream& o, const char * terminator );
-void Grappa_reset_user_stats();
-
-#ifdef VTRACE
-#define GRAPPA_TRACER(name) VT_TRACER(name)
-#else
-#define GRAPPA_TRACER(name) do {} while (0)
-#endif
-
-#endif // PERFORMANCE_TOOLS_HPP
 

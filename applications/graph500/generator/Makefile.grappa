@@ -22,7 +22,7 @@ genlib: $(GENERATOR_OBJS) $(GENERATOR_HEADERS)
 generator_test_mpi: generator_test_mpi.c $(GENERATOR_SOURCES) $(GENERATOR_HEADERS)
 	$(MPICC) $(CFLAGS) $(LDFLAGS) -o generator_test_mpi generator_test_mpi.c $(GENERATOR_SOURCES) -lm
 
-clean:
+clean::
 	rm -f generator_test_mpi
 	rm -f $(GENERATOR_OBJS) generator.a
 

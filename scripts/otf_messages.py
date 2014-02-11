@@ -6,8 +6,6 @@
 # Parameters:
 #    1. The path to the original .otf file for analysis
 #    2. The target location for the message dump file
-#    3. The number of processes per node
-#    4. The number of processes per core
 #
 # Message dump file logs sent message to file based on time they were sent in the trace.
 # 
@@ -42,17 +40,15 @@ RECEIVE_FLAG = "RECEIVE" # flag indicating message event was a receive
 
 # basic argument validation
 args = sys.argv
-if (len(args) != 5):
-    print "Error: Expected 4 args. Got " + str(len(args) - 1)
-    print "Example Usage: ./otf_message.py <tracefile.otf> <logfile> <ppn> <nnode>"
+if (len(args) != 3):
+    print "Error: Expected 2 args. Got " + str(len(args) - 1)
+    print "Example Usage: ./otf_message.py <tracefile.otf> <logfile>"
     exit(-1)
 else:
     pass
 
 OTF_FILE = args[1]
 MSG_FILE = args[2]
-PPN = args[3]
-NNODE = args[4]
 
 # validate that you got an otf file
 otf_ext = OTF_FILE[-4:]
@@ -70,7 +66,7 @@ os.system(command)
 ####################################################################################################
 #
 # Open the OTF file and extract time and message send events
-# 1. Extract number of ticks per second
+# 1. Extract number of ticks per second, process association with nodes
 # 2. Extract message events
 #
 # File Output Format:
@@ -80,8 +76,14 @@ os.system(command)
 #
 ####################################################################################################
 
+print "[Info] Processing OTF File: " + OTF_FILE
+
 TICKS_PER_SECOND = None
 NODE_PROCESS = dict()
+
+####################################################################################################
+# Scan for configuration parameters
+####################################################################################################
 
 # scan the file to populate the parameters
 file = open(DUMP_FILE, "r")
@@ -116,6 +118,13 @@ for line in file:
         assert(not node in NODE_PROCESS.keys())
         NODE_PROCESS[node] = ids
 
+# flatten the node numbers
+index = 0
+for key in NODE_PROCESS.keys():
+    NODE_PROCESS[index] = NODE_PROCESS[key]
+    del NODE_PROCESS[key]
+    index = index + 1
+
 # invert the dictionary to create process to node mapping
 PROCESS_NODE = dict()
 for key in NODE_PROCESS.keys():
@@ -123,13 +132,14 @@ for key in NODE_PROCESS.keys():
         assert(not item in PROCESS_NODE.keys())
         PROCESS_NODE[int(item.strip(" \n\t,"))] = key
 
+
 assert(TICKS_PER_SECOND != None)
 assert(len(NODE_PROCESS.keys()) > 0)
-print "Ticks per second: " + str(TICKS_PER_SECOND)
-print NODE_PROCESS
-print PROCESS_NODE
-
 file.close()
+
+####################################################################################################
+# Begin Logging Message Events
+####################################################################################################
 
 # re-scan the file for the message events
 file = open(DUMP_FILE, "r")
@@ -180,7 +190,11 @@ for line in file:
         LOG_FILE.write(str(time) + "," + str(sender_node) + "," + str(sender_process) + "," + str(receiver_node) + "," + str(receiver_process) + "," + str(length) + "," + SEND_FLAG + "\n")
 
     # process message receive events - TODO: not implemented
-    elif (line.find(RECEIVE_MESSAGE_STRING != -1)):
+    elif (line.find(RECEIVE_MESSAGE_STRING) != -1):
         pass
 
 file.close()
+
+print "[Info] Message events written to: " + str(MSG_FILE)
+
+exit(0)

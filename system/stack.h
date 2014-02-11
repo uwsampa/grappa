@@ -1,18 +1,34 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #ifndef STACK_H
 #define STACK_H
 
 
 
-class Worker;
+namespace Grappa { class Worker; }
 
-typedef void (*coro_func)(Worker *, void *arg);
+typedef void (*coro_func)(Grappa::Worker *, void *arg);
 
 /// Swap stacks. Save context to <old>, restore context from <new> and
 /// pass value <ret> to swapped-in stack.
@@ -44,7 +60,7 @@ static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
 /// Given memory going DOWN FROM <stack>, create a basic stack we can swap to
 /// (using swapstack) that will call <f>. (using <it> as its <me>).
 /// <me> is a location we can store the current stack.
-void makestack(void **me, void **stack, coro_func f, Worker * it)
+void makestack(void **me, void **stack, coro_func f, Grappa::Worker * it)
   asm ("_makestack");
 
 #endif

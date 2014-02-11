@@ -215,8 +215,12 @@ void generate_kronecker_range(
 
 #else // _GRAPPA
 
+<<<<<<< .merge_file_9FlYBY
 	//grappa for loop
   Grappa::forall_localized(edges+start_edge, end_edge-start_edge,
+=======
+  Grappa::forall(edges+start_edge, end_edge-start_edge,
+>>>>>>> .merge_file_qW4YhQ
     [nverts, logN, state, val0, val1](int64_t index, packed_edge& edge) {
       // copy the random generator state and seek
       mrg_state new_state = state;

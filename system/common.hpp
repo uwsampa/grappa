@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 /// useful utilities
 
@@ -26,8 +42,18 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
-namespace Grappa {
+/// Use to deprecate old APIs
+#define GRAPPA_DEPRECATED __attribute__((deprecated))
 
+namespace Grappa {
+  
+  /// Specify whether tasks are bound to the core they're spawned on, or if they can be load-balanced (via work-stealing).
+  enum class TaskMode { Bound /*default*/, Unbound };
+    
+  /// Specify whether an operation blocks until complete, or returns "immediately".
+  enum class SyncMode { Blocking /*default*/, Async };
+    
+  
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
 inline double walltime(void) {
 #if defined(__MTA__)
@@ -53,14 +79,11 @@ inline double walltime(void) {
 
 } // namespace Grappa
 
-// Legacy
-inline double Grappa_walltime(void) { return Grappa::walltime(); }
-
 #define GRAPPA_TIME(var, block) \
    	do { \
-		double _tmptime = Grappa_walltime(); \
+		double _tmptime = Grappa::walltime(); \
 		block \
-		var = Grappa_walltime()-_tmptime; \
+		var = Grappa::walltime()-_tmptime; \
 	} while(0)
 
 #define GRAPPA_TIMER(var) \

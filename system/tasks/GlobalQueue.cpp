@@ -1,172 +1,52 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
+
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
+
 #include "GlobalQueue.hpp"
 
-using namespace Grappa::Statistics;
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_reserve_request_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_reserve_request_total_bytes, 0);
 
-GlobalQueueStatistics Grappa::Statistics::global_queue_stats;
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_reserve_reply_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_reserve_reply_total_bytes, 0);
 
-GlobalQueueStatistics::GlobalQueueStatistics() 
-#ifdef VTRACE_SAMPLED
-  : globalq_grp_vt( VT_COUNT_GROUP_DEF( "GlobalQueue" ) )
-  , globalq_push_reserve_request_messages_ev_vt ( VT_COUNT_DEF("GQ push reserve requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
-  , globalq_pull_reserve_request_messages_ev_vt( VT_COUNT_DEF("GQ pull reserve requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
-  , globalq_push_entry_request_messages_ev_vt( VT_COUNT_DEF("GQ push entry requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
-  , globalq_pull_entry_request_messages_ev_vt( VT_COUNT_DEF("GQ pull entry requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
-#endif
-{
-  reset();
-}
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_reserve_request_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_reserve_request_total_bytes, 0);
 
-void GlobalQueueStatistics::profiling_sample() {
-#ifdef VTRACE_SAMPLED
-  VT_COUNT_UNSIGNED_VAL( globalq_push_reserve_request_messages_ev_vt, globalq_push_reserve_request_messages );
-  VT_COUNT_UNSIGNED_VAL( globalq_pull_reserve_request_messages_ev_vt, globalq_pull_reserve_request_messages );
-  VT_COUNT_UNSIGNED_VAL( globalq_push_entry_request_messages_ev_vt, globalq_push_entry_request_messages );
-  VT_COUNT_UNSIGNED_VAL( globalq_pull_entry_request_messages_ev_vt, globalq_pull_entry_request_messages );
-#endif
-}
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_entry_request_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_entry_request_total_bytes, 0);
 
-void GlobalQueueStatistics::reset() {
-  globalq_pull_reserve_request_messages = 0;
-  globalq_pull_reserve_request_total_bytes = 0;
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_reserve_reply_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_reserve_reply_total_bytes, 0);
 
-  globalq_pull_reserve_reply_messages = 0;
-  globalq_pull_reserve_reply_total_bytes = 0;
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_entry_request_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_entry_request_total_bytes, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_entry_reply_messages, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_entry_reply_total_bytes, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_reserve_hadConsumer, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_pull_reserve_noConsumer, 0);
 
-  globalq_push_reserve_request_messages = 0;
-  globalq_push_reserve_request_total_bytes = 0;
-
-  globalq_push_entry_request_messages = 0;
-  globalq_push_entry_request_total_bytes = 0;
-
-  globalq_push_reserve_reply_messages = 0;
-  globalq_push_reserve_reply_total_bytes = 0;
-
-  globalq_pull_entry_request_messages = 0;
-  globalq_pull_entry_request_total_bytes = 0;
-  globalq_pull_entry_reply_messages = 0;
-  globalq_pull_entry_reply_total_bytes = 0;
-  globalq_pull_reserve_hadConsumer = 0;
-  globalq_pull_reserve_noConsumer = 0;
-
-  globalq_push_request_accepted = 0;
-  globalq_push_request_rejected = 0;
-  globalq_push_entry_hadConsumer = 0;
-  globalq_push_entry_noConsumer = 0;
-}
-
-#include "DictOut.hpp"
-void GlobalQueueStatistics::dump(std::ostream& o = std::cout, const char * terminator = "") {
-  DictOut dout;
-  DICT_ADD( dout, globalq_pull_reserve_request_messages );
-  DICT_ADD( dout, globalq_pull_reserve_request_total_bytes );
-
-  DICT_ADD( dout, globalq_pull_reserve_reply_messages );
-  DICT_ADD( dout, globalq_pull_reserve_reply_total_bytes );
-
-  DICT_ADD( dout, globalq_push_reserve_request_messages );
-  DICT_ADD( dout, globalq_push_reserve_request_total_bytes );
-
-  DICT_ADD( dout, globalq_push_entry_request_messages );
-  DICT_ADD( dout, globalq_push_entry_request_total_bytes );
-
-  DICT_ADD( dout, globalq_push_reserve_reply_messages );
-  DICT_ADD( dout, globalq_push_reserve_reply_total_bytes );
-
-  DICT_ADD( dout, globalq_pull_entry_request_messages );
-  DICT_ADD( dout, globalq_pull_entry_request_total_bytes );
-  DICT_ADD( dout, globalq_pull_entry_reply_messages );
-  DICT_ADD( dout, globalq_pull_entry_reply_total_bytes );
-  DICT_ADD( dout, globalq_pull_reserve_hadConsumer );
-  DICT_ADD( dout, globalq_pull_reserve_noConsumer );
-
-  DICT_ADD( dout, globalq_push_request_accepted );
-  DICT_ADD( dout, globalq_push_request_rejected );
-  DICT_ADD( dout, globalq_push_entry_hadConsumer );
-  DICT_ADD( dout, globalq_push_entry_noConsumer );
-
-  o << "   \"GlobalQueueStatistics\": " << dout.toString() << terminator << std::endl;
-}
-
-void GlobalQueueStatistics::merge( const GlobalQueueStatistics * other ) {
-  globalq_pull_reserve_request_messages += other->globalq_pull_reserve_request_messages;
-  globalq_pull_reserve_request_total_bytes += other->globalq_pull_reserve_request_total_bytes;
-
-  globalq_pull_reserve_reply_messages += other->globalq_pull_reserve_reply_messages;
-  globalq_pull_reserve_reply_total_bytes += other->globalq_pull_reserve_reply_total_bytes;
-
-  globalq_push_reserve_request_messages += other->globalq_push_reserve_request_messages;
-  globalq_push_reserve_request_total_bytes += other->globalq_push_reserve_request_total_bytes;
-
-  globalq_push_entry_request_messages += other->globalq_push_entry_request_messages;
-  globalq_push_entry_request_total_bytes += other->globalq_push_entry_request_total_bytes;
-
-  globalq_push_reserve_reply_messages += other->globalq_push_reserve_reply_messages;
-  globalq_push_reserve_reply_total_bytes += other->globalq_push_reserve_reply_total_bytes;
-
-  globalq_pull_entry_request_messages += other->globalq_pull_entry_request_messages; 
-  globalq_pull_entry_request_total_bytes += other->globalq_pull_entry_request_total_bytes;
-  globalq_pull_entry_reply_messages += other->globalq_pull_entry_reply_messages;
-  globalq_pull_entry_reply_total_bytes += other->globalq_pull_entry_reply_total_bytes;
-  globalq_pull_reserve_hadConsumer += other->globalq_pull_reserve_hadConsumer;
-  globalq_pull_reserve_noConsumer += other->globalq_pull_reserve_noConsumer;
-
-  globalq_push_request_accepted += other->globalq_push_request_accepted;
-  globalq_push_request_rejected += other->globalq_push_request_rejected;
-  globalq_push_entry_hadConsumer += other->globalq_push_entry_hadConsumer;
-  globalq_push_entry_noConsumer += other->globalq_push_entry_noConsumer;
-} 
-
-void GlobalQueueStatistics::record_pull_reserve_request( size_t msg_bytes ) {
-  globalq_pull_reserve_request_messages += 1;
-  globalq_pull_reserve_request_total_bytes += msg_bytes;
-}
-
-void GlobalQueueStatistics::record_push_entry_request( size_t msg_bytes, bool had_consumer ) {
-  globalq_push_entry_request_messages += 1;
-  globalq_push_entry_request_total_bytes += msg_bytes;
-
-  if ( had_consumer ) {
-    globalq_push_entry_hadConsumer += 1;
-  } else {
-    globalq_push_entry_noConsumer += 1;
-  }
-}
-
-void GlobalQueueStatistics::record_push_reserve_request( size_t msg_bytes, bool accepted ) {
-  globalq_push_reserve_request_messages += 1;
-  globalq_push_reserve_request_total_bytes += msg_bytes;
-
-  if ( accepted ) {
-    globalq_push_request_accepted += 1;
-  } else {
-    globalq_push_request_rejected += 1;
-  }
-}
-
-void GlobalQueueStatistics::record_pull_entry_request( size_t msg_bytes ) {
-  globalq_pull_entry_request_messages += 1;
-  globalq_pull_entry_request_total_bytes += msg_bytes;
-}
-
-void GlobalQueueStatistics::record_push_reserve_reply( size_t msg_bytes ) {
-  globalq_push_reserve_reply_messages += 1;
-  globalq_push_reserve_reply_total_bytes += msg_bytes;
-}
-
-void GlobalQueueStatistics::record_pull_reserve_reply( size_t msg_bytes, bool consumer_waited ) {
-  globalq_pull_reserve_reply_messages += 1;
-  globalq_pull_reserve_reply_total_bytes += msg_bytes;
-
-  if ( consumer_waited ) {
-    globalq_pull_reserve_hadConsumer += 1;
-  } else {
-    globalq_pull_reserve_noConsumer += 1;
-  }
-}
-
-void GlobalQueueStatistics::record_pull_entry_reply( size_t msg_bytes ) {
-  globalq_pull_entry_reply_messages += 1;
-  globalq_pull_entry_reply_total_bytes += msg_bytes;
-}
-
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_request_accepted, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_request_rejected, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_entry_hadConsumer, 0);
+GRAPPA_DEFINE_METRIC(BasicMetric<uint64_t>, globalq_push_entry_noConsumer, 0);
 

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# calls 'salloc', launches distcc on each of the nodes of the allocation, 
+# and fires up a new bash shell with  DISTCC_HOSTS set up
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+nnode=${DISTCC_NNODE-8}
+
+exec salloc -N$nnode "$DIR/launch_distcc.sh" ninja "$@"

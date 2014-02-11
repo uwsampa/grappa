@@ -12,8 +12,8 @@ csr_graph g;
 GlobalAddress<range_t> eoff;
 GlobalAddress<long> bfs_tree;
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_vertex_visited);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, bfs_edge_visited);
 
 double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");
@@ -42,10 +42,10 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   
   while (!frontier->empty()) {
     // for each vertex in frontier
-    forall_localized(frontier->begin(), frontier->size(), [frontier,next](long si, long& sv) {
+    forall(frontier->begin(), frontier->size(), [frontier,next](long si, long& sv) {
       // for each adjacency
       auto r = delegate::read(eoff+sv);
-      forall_localized_async(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
+      forall<async>(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
         // if doesn't have a parent yet... 
         if (delegate::compare_and_swap(bfs_tree+ev, -1, sv)) {
           // add to next phase

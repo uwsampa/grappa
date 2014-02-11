@@ -1,16 +1,28 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #include <boost/test/unit_test.hpp>
-#include "Delegate.hpp"
-#include "AsyncDelegate.hpp"
-#include "GlobalCompletionEvent.hpp"
-#include "MessagePool.hpp"
-#include "Collective.hpp"
+#include "Grappa.hpp"
 #include "PerformanceTools.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_delegate_tests );
@@ -57,7 +69,7 @@ void check_remote() {
   auto gw = make_global(&w);
   
   send_message(1, [ga, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::read(ga), 0);
       signal(gw);
     });
@@ -67,7 +79,7 @@ void check_remote() {
   
   // write
   send_message(1, [ga, gw] {
-    privateTask([=]{
+    spawn([=]{
       delegate::write(ga, 7);
       signal(gw);
     });
@@ -79,7 +91,7 @@ void check_remote() {
   double b = 3.14;
   auto gb = make_global(&b);
   send_message(1, [gb, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::compare_and_swap(gb, 3.14, 2.0), true);
       signal(gw);
     });
@@ -87,7 +99,7 @@ void check_remote() {
   wait(&w);
   BOOST_CHECK_EQUAL(b, 2.0);
   send_message(1, [gb, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::compare_and_swap(gb, 3.14, 3.0), false);
       signal(gw);
     });
@@ -99,7 +111,7 @@ void check_remote() {
   uint64_t c = 1;
   auto gc = make_global(&c);
   send_message(1, [gc, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::fetch_and_add(gc, 1), 1);
       signal(gw);
     });
@@ -107,7 +119,7 @@ void check_remote() {
   wait(&w);
   BOOST_CHECK_EQUAL(c, 2);
   send_message(1, [gc, gw] {
-    privateTask([=]{
+    spawn([=]{
       BOOST_CHECK_EQUAL(delegate::fetch_and_add(gc, -2), 2);
       signal(gw);
     });
@@ -125,23 +137,21 @@ void check_async_delegates() {
   BOOST_MESSAGE("  feed forward...");
   const int N = 1 << 8;
   
-  MessagePool pool(3*N*(1<<8));
-
   delegate::write(make_global(&global_x,1), 0);
   
   for (int i=0; i<N; i++) {
-    delegate::call_async<&mygce>(pool, 1, []{ global_x++; });
+    delegate::call<async,&mygce>(1, []{ global_x++; });
   }
   mygce.wait();
   
   BOOST_CHECK_EQUAL(delegate::read(make_global(&global_x,1)), N);
   
   auto xa = make_global(&global_x,1);
-  delegate::write_async<&mygce>(pool, xa, 0);
+  delegate::write<async,&mygce>(xa, 0);
   mygce.wait();
   
   for (int i=0; i<N; i++) {
-    delegate::increment_async<&mygce>(pool, xa, 1);
+    delegate::increment<async,&mygce>(xa, 1);
   }
   mygce.wait();
   
@@ -154,7 +164,7 @@ void check_async_delegates() {
   BOOST_MESSAGE("  promises...");
   delegate::Promise<int> a[N];
   for (int i=0; i<N; i++) {
-    a[i].call_async(pool, 1, [i]()->int {
+    a[i].call_async( 1, [i]()->int {
       global_y++;
       return global_x+i;
     });
@@ -176,7 +186,7 @@ void check_fetch_add_combining() {
   
   uint64_t actual_total = 0;
   for (int i=0; i<N; i++) {
-    privateTask([&fc,&actual_total,&done] {
+    spawn([&fc,&actual_total,&done] {
       fc.promise();
       // just find a reason to suspend
       // to make fetch_and_add likely to aggregate
@@ -208,55 +218,65 @@ void check_call_suspending() {
   BOOST_CHECK_EQUAL(x, y);
 }
 
-void user_main(void * args) {
-  CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
-
-  Grappa::Statistics::start_tracing();
-
-  check_short_circuiting();
-  
-  check_remote();
-  
-  check_async_delegates();
-
-  check_fetch_add_combining();
- 
-  check_call_suspending();
- 
-  int64_t seed = 111;
-  GlobalAddress<int64_t> seed_addr = make_global(&seed);
-
-  Grappa::ConditionVariable waiter;
-  auto waiter_addr = make_global(&waiter);
-  
-  send_message(1, [seed_addr, waiter_addr] {
-    // on node 1
-    privateTask([seed_addr, waiter_addr] {
-      int64_t vseed = delegate::read(seed_addr);
-      BOOST_CHECK_EQUAL(111, vseed);
-      
-      delegate::write(seed_addr, 222);
-      signal(waiter_addr);
-    });
-  });
-  Grappa::wait(&waiter);
-  BOOST_CHECK_EQUAL(seed, 222);
-  
-  Grappa::Statistics::stop_tracing();
-  Grappa::Statistics::merge_and_print();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-	       &(boost::unit_test::framework::master_test_suite().argv)
-	       );
+    Grappa::Metrics::start_tracing();
 
-  Grappa_activate();
+    check_short_circuiting();
+  
+    check_remote();
+  
+    check_async_delegates();
 
-  Grappa_run_user_main( &user_main, (void*)NULL );
+    check_fetch_add_combining();
+ 
+    check_call_suspending();
+ 
+    int64_t seed = 111;
+    GlobalAddress<int64_t> seed_addr = make_global(&seed);
 
-  Grappa_finish( 0 );
+    Grappa::ConditionVariable waiter;
+    auto waiter_addr = make_global(&waiter);
+  
+    send_message(1, [seed_addr, waiter_addr] {
+      // on node 1
+      spawn([seed_addr, waiter_addr] {
+        int64_t vseed = delegate::read(seed_addr);
+        BOOST_CHECK_EQUAL(111, vseed);
+      
+        delegate::write(seed_addr, 222);
+        signal(waiter_addr);
+      });
+    });
+    Grappa::wait(&waiter);
+    BOOST_CHECK_EQUAL(seed, 222);
+    
+    // new delegate::call(GlobalAddress) overload
+    call_on_all_cores([]{ global_x = 0; });
+    
+    auto xa = make_global(&global_x, 1);
+    
+    auto r = delegate::call(xa, [](int& x){ BOOST_CHECK_EQUAL(x, 0); x = 1; return true; });
+    BOOST_CHECK(r);
+    
+    delegate::call(xa, [](int* x){ BOOST_CHECK_EQUAL(*x, 1); *x = 2; });
+    
+    finish([xa]{
+      for (int i=0; i < 10; i++) {
+        delegate::call<async>(xa, [](int& x){
+          BOOST_CHECK(x >= 2 && x < 12);
+          x++;
+        });
+      }
+    });
+    
+    Grappa::Metrics::stop_tracing();
+    Grappa::Metrics::merge_and_dump_to_file();
+  });
+  Grappa::finalize();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

@@ -1,9 +1,25 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
 
-// Copyright 2010-2012 University of Washington. All Rights Reserved.
-// LICENSE_PLACEHOLDER
-// This software was created with Government support under DE
-// AC05-76RL01830 awarded by the United States Department of
-// Energy. The Government has certain rights in the software.
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
 
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
@@ -12,7 +28,7 @@
 #include "Delegate.hpp"
 #include "GlobalHashMap.hpp"
 #include "GlobalHashSet.hpp"
-#include "Statistics.hpp"
+#include "Metrics.hpp"
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
@@ -36,7 +52,7 @@ DEFINE_bool(insert_async, false, "do async inserts");
 
 DEFINE_double(fraction_lookups, 0.0, "fraction of accesses that should be lookups");
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, trial_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, trial_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -65,12 +81,11 @@ enum class Exp { INSERT };
 
 template< Exp EXP,
           typename K, typename V,
-          CompletionEvent* CE = &impl::local_ce,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
 double test_insert_throughput(GlobalAddress<GlobalHashMap<K,V>> ha) {
-  double t = Grappa_walltime();
+  double t = Grappa::walltime();
 
-  forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
+  forall<TH>(0, FLAGS_nelems, [ha](int64_t i){
     auto k = next_random<long>() % FLAGS_max_key;
     if (choose_random(FLAGS_fraction_lookups)) {
       K v;
@@ -80,7 +95,7 @@ double test_insert_throughput(GlobalAddress<GlobalHashMap<K,V>> ha) {
     }
   });
   
-  t = Grappa_walltime() - t;
+  t = Grappa::walltime() - t;
   return t;
 }
 
@@ -96,11 +111,11 @@ void test_correctness() {
     BOOST_CHECK_EQUAL(val, 42);
   }
   
-  forall_global_private(10, FLAGS_nelems-10, [ha](int64_t i){
+  forall(10, FLAGS_nelems-10, [ha](int64_t i){
     ha->insert(i, 42);
   });
 
-  forall_localized(ha, [](long key, long& val){
+  forall(ha, [](long key, long& val){
     BOOST_CHECK_EQUAL(val, 42);
   });
   
@@ -130,21 +145,20 @@ void test_set_correctness() {
   sa->destroy();
 }
 
-CompletionEvent lce;
-
 double test_set_insert_throughput() {
   auto sa = GlobalHashSet<long>::create(FLAGS_global_hash_size);
   
   double t = walltime();
   
-  forall_global_private<&lce>(0, FLAGS_nelems, [sa](int64_t i){
+  forall(0, FLAGS_nelems, [sa](int64_t i){
     auto k = next_random<long>() % FLAGS_max_key;
     if (choose_random(FLAGS_fraction_lookups)) {
       sa->lookup(k);
     } else {
       if (FLAGS_insert_async) {
-        lce.enroll();
-        sa->insert_async(k, []{ lce.complete(); });
+        default_gce().enroll();
+        auto origin = mycore();
+        sa->insert_async(k, [origin]{ default_gce().send_completion(origin); });
       } else {
         sa->insert(k);
       }
@@ -159,36 +173,30 @@ double test_set_insert_throughput() {
   return t;
 }
 
-void user_main( void * ignore ) {
-  if (FLAGS_map_perf) {
-    auto ha = GlobalHashMap<long,long>::create(FLAGS_global_hash_size);
-    
-    for (int i=0; i<FLAGS_ntrials; i++) {
-      trial_time += test_insert_throughput<Exp::INSERT>(ha);
-      ha->clear();
-    }
-    
-    ha->destroy();
-    
-  } else if (FLAGS_set_perf) { 
-    for (int i=0; i<FLAGS_ntrials; i++) {
-      trial_time += test_set_insert_throughput();
-    }
-  } else {
-    test_correctness();
-    test_set_correctness();
-  }
-  
-  Statistics::merge_and_print();
-}
-
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
-  Grappa_activate();
-  Grappa_run_user_main( &user_main, (void*)NULL );
-  Grappa_finish( 0 );
+  Grappa::init( GRAPPA_TEST_ARGS );
+  Grappa::run([]{
+    if (FLAGS_map_perf) {
+      auto ha = GlobalHashMap<long,long>::create(FLAGS_global_hash_size);
+    
+      for (int i=0; i<FLAGS_ntrials; i++) {
+        trial_time += test_insert_throughput<Exp::INSERT>(ha);
+        ha->clear();
+      }
+      
+      ha->destroy();
+    
+    } else if (FLAGS_set_perf) { 
+      for (int i=0; i<FLAGS_ntrials; i++) {
+        trial_time += test_set_insert_throughput();
+      }
+    } else {
+      test_correctness();
+      test_set_correctness();
+    }
+  
+    Metrics::merge_and_print();
+  });
+  Grappa::finalize();
 }
-
 BOOST_AUTO_TEST_SUITE_END();
-

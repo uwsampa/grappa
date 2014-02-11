@@ -1,3 +1,28 @@
+////////////////////////////////////////////////////////////////////////
+// This file is part of Grappa, a system for scaling irregular
+// applications on commodity clusters. 
+
+// Copyright (C) 2010-2014 University of Washington and Battelle
+// Memorial Institute. University of Washington authorizes use of this
+// Grappa software.
+
+// Grappa is free software: you can redistribute it and/or modify it
+// under the terms of the Affero General Public License as published
+// by Affero, Inc., either version 1 of the License, or (at your
+// option) any later version.
+
+// Grappa is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Affero General Public License for more details.
+
+// You should have received a copy of the Affero General Public
+// License along with this program. If not, you may obtain one from
+// http://www.affero.org/oagpl.html.
+////////////////////////////////////////////////////////////////////////
+
+#pragma once
+
 #include "Addressing.hpp"
 #include "Communicator.hpp"
 #include "Collective.hpp"
@@ -5,22 +30,23 @@
 #include "Cache.hpp"
 #include "FlatCombiner.hpp"
 #include "ParallelLoop.hpp"
+#include "Delegate.hpp"
 #include <queue>
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_ops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_msgs);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pops);
-GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pushes);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_pop_latency);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_push_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_push_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_pop_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_pop_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_deq_ops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_deq_msgs);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_matched_pops);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, global_vector_matched_pushes);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_push_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_deq_latency);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_pop_latency);
 
 // tracks number of operations combined at a time on the master
-GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_master_combined);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_master_combined);
 
 namespace Grappa {
 /// @addtogroup Containers
@@ -106,7 +132,7 @@ public:
             invoke(m->deq_q.pop());
           }
           DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
-          m->ce.wait(new_suspended_delegate([self,m,c] {
+          m->ce.wait(SuspendedDelegate::create([self,m,c] {
             switch (c) {
               case Choice::PUSH: m->tail = m->tail_allocator; break;
               case Choice::POP:  m->tail_allocator = m->tail; break;
@@ -136,7 +162,7 @@ public:
         m->ce.enroll();
         invoke(m->deq_q.pop());
       }
-      m->ce.wait(new_suspended_delegate([self,m,ncombined] {
+      m->ce.wait(SuspendedDelegate::create([self,m,ncombined] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
         m->tail = m->tail_allocator;
         m->head = m->head_allocator;
@@ -147,7 +173,7 @@ public:
           invoke(m->pop_q.pop());
         }
         global_vector_master_combined += ncombined2;
-        m->ce.wait(new_suspended_delegate([self,m] {
+        m->ce.wait(SuspendedDelegate::create([self,m] {
           DVLOG(2) << "after pops: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
           m->tail_allocator = m->tail;
           // find new combiner...
@@ -169,7 +195,7 @@ public:
       auto do_call = [self,result_addr,yield_q,func]{
         auto m = &self->master;
         auto q = yield_q(m);
-        q->push(new_suspended_delegate([result_addr,func]{
+        q->push(SuspendedDelegate::create([result_addr,func]{
           auto val = func();
           auto set_result = [result_addr,val]{ result_addr->writeXF(val); };
           
@@ -351,7 +377,7 @@ public:
   /// Push element on the back (queue or stack)
   void push(const T& e) {
     ++global_vector_push_ops;
-    double t = Grappa_walltime();
+    double t = Grappa::walltime();
     if (FLAGS_flat_combining) {
       proxy.combine([&e](Proxy& p) {
         if (p.npop > 0) {
@@ -368,12 +394,12 @@ public:
       ++global_vector_push_msgs;
       Master::push(self, &val, 1);
     }
-    global_vector_push_latency += (Grappa_walltime() - t);
+    global_vector_push_latency += (Grappa::walltime() - t);
   }
   
   T pop() {
     ++global_vector_pop_ops;
-    double t = Grappa_walltime();
+    double t = Grappa::walltime();
     T val;
     if (FLAGS_flat_combining) {
       proxy.combine([&val](Proxy& p){
@@ -390,7 +416,7 @@ public:
       ++global_vector_pop_msgs;
       Master::pop(self, &val, 1);
     }
-    global_vector_pop_latency += (Grappa_walltime() - t);
+    global_vector_pop_latency += (Grappa::walltime() - t);
     return val;
   }
   
@@ -398,7 +424,7 @@ public:
   
   T dequeue() {
     ++global_vector_deq_ops;
-    double t = Grappa_walltime();
+    double t = Grappa::walltime();
     
     T val;
     if (FLAGS_flat_combining) {
@@ -410,7 +436,7 @@ public:
       ++global_vector_deq_msgs;
       Master::dequeue(self, &val, 1);
     }
-    global_vector_deq_latency += (Grappa_walltime() - t);
+    global_vector_deq_latency += (Grappa::walltime() - t);
     return val;
   }
   
@@ -434,8 +460,25 @@ public:
   
   GlobalAddress<T> storage() const { return this->base; }
 
-  template< GlobalCompletionEvent * GCE, int64_t Threshold, typename TT, typename F >
-  friend void forall_localized(GlobalAddress<GlobalVector<TT>> self, F func);  
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename F = decltype(nullptr) >
+  void forall_elements(F func) {
+    struct Range {size_t start, end, size; };
+    auto self = this->self;
+    auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
+    if (a.size == self->capacity) {
+      forall<SyncMode::Async,GCE,Threshold>(self->base, self->capacity, func);
+    } else if (a.start < a.end) {
+      Range r = {a.start, a.end};
+      forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+    } else if (a.start > a.end) {
+      for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
+        forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+      }
+    }
+    GCE->wait();
+  }
 
 // make sure it's aligned to linear address block_size so we can mirror-allocate it
 } GRAPPA_BLOCK_ALIGNED;
@@ -444,20 +487,8 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
           typename T = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall_localized(GlobalAddress<GlobalVector<T>> self, F func) {
-  struct Range {size_t start, end, size; };
-  auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
-  if (a.size == self->capacity) {
-    forall_localized_async<GCE,Threshold>(self->base, self->capacity, func);
-  } else if (a.start < a.end) {
-    Range r = {a.start, a.end};
-    forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
-  } else if (a.start > a.end) {
-    for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
-      forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
-    }
-  }
-  GCE->wait();
+void forall(GlobalAddress<GlobalVector<T>> self, F func) {
+  self->forall_elements(func);
 }
 
 /// @}
