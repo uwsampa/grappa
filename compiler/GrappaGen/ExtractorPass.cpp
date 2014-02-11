@@ -107,23 +107,97 @@ namespace Grappa {
     long ID;
     
     Instruction* entry;
-//    std::map<Instruction*,Instruction*> exits;
-    ValueMap<Value*,WeakVH> exits;
+    
+    class ExitMap {
+      // holds either:
+      // - Instruction* before
+      // - BasicBlock* successor -> pred
+      using Map = ValueMap<Value*,WeakVH>;
+      Map m;
+
+    public:
+      template< typename F >
+      void each(F yield) const {
+        SmallVector<Map::value_type,8> v;
+        for (auto p : m) v.push_back(p);
+        
+        for (auto p : v) {
+          if (auto before = dyn_cast<Instruction>(p.first)) {
+            yield(before, BasicBlock::iterator(before)->getNextNode());
+          } else if (auto succ = dyn_cast<BasicBlock>(p.first)) {
+            auto pred = cast<BasicBlock>(p.second);
+            assert(pred->getTerminator());
+            yield(pred->getTerminator(), succ->begin());
+          } else {
+            assert(false && "unknown exit");
+          }
+        }
+      }
+      
+      void add(BasicBlock* pred, BasicBlock* succ) {
+        assert(pred && succ);
+        m[succ] = pred;
+      }
+      
+      void set(BasicBlock* pred, BasicBlock* succ) {
+        bool found = false;
+        for (auto p : m) {
+          if (p.second == pred) {
+            m.erase(p.first);
+            found = true;
+            break;
+          }
+          else if (auto i = dyn_cast<Instruction>(p.first)) {
+            if (i->getParent() == pred) {
+              m.erase(p.first);
+              found = true;
+              break;
+            }
+          }
+        }
+        assert(found || m.count(succ));
+        add(pred, succ);
+      }
+      
+      void add(Instruction* before) {
+        assert(before);
+        m[before] = nullptr;
+      }
+      
+      void removeSuccessor(BasicBlock* succ) {
+        m.erase(succ);
+      }
+      
+      bool isExitStart(Instruction* i) const {
+        if (m.count(i)) {
+          return true;
+        } else if (isa<TerminatorInst>(i)) {
+          auto pred = i->getParent();
+          for (auto p : m)
+            if (p.second == pred)
+              return true;
+        }
+        return false;
+      }
+      
+      bool isExitEnd(BasicBlock* b) const { return m.count(b); }
+      
+      unsigned size() { return m.size(); }
+    };
+    
+    ExitMap exits;
+    
     
     WeakVH target_ptr;
     SmallSet<Value*,4> valid_ptrs;
     
-    CandidateMap& candidates;
+    CandidateMap& owner;
     
-    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& candidates):
-      ID(id_counter++), entry(entry), target_ptr(target_ptr), candidates(candidates) {}
+    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner):
+      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner) {}
     
     template< typename F >
     void visit(F yield) {
-      SmallSet<Instruction*,8> exit_begins;
-      for (auto e : exits)
-        exit_begins.insert(cast<Instruction>(e.second));
-      
       UniqueQueue<Instruction*> q;
       q.push(entry);
       
@@ -131,16 +205,15 @@ namespace Grappa {
         BasicBlock::iterator it(q.pop());
         auto bb = it->getParent();
         while (it != bb->end()) {
-          if (exits.count(it)) break;
           auto iit = it;
           it++;
           yield(iit);
-          if (exit_begins.count(iit)) break;
+          if (exits.isExitStart(iit)) break;
         }
         if (it == bb->end()) {
-          for (auto sb = succ_begin(bb), sbe = succ_end(bb); sb != sbe; sb++) {
-            q.push(sb->begin());
-          }
+          for_each(sb, bb, succ)
+            if (!exits.isExitEnd(*sb))
+              q.push(sb->begin());
         }
       }
     }
@@ -157,7 +230,7 @@ namespace Grappa {
         auto bb = i->getParent();
         
         while ( i != bb->end() && validInRegion(i) ) {
-          candidates[i] = this;
+          owner[i] = this;
           i++;
         }
         
@@ -182,30 +255,27 @@ namespace Grappa {
             if (valid) {
               worklist.push(target);
             } else {
-              // exit
-              auto ex = i->getPrevNode();
-              if (exits.count(target) > 0 && exits[target] != ex) {
-                assert(false && "unhandled case");
-              } else {
-                exits[target] = ex;
-              }
+              // exit at bb boundary
+              exits.add(bb, *sb);
             }
           }
         } else {
-          exits[i] = i->getPrevNode();
+          exits.add(i->getPrevNode());
         }
         
         // check try-again list
         for (auto bb : try_again) {
           bool valid = true;
           for_each(pb, bb, pred) valid &= (bbs.count(*pb) > 0);
-          assert(exits.count(bb->begin()));
-          exits.erase(bb->begin());
-          try_again.remove(bb);
-          worklist.push(bb->begin());
-          break;
+          if (valid) {
+            auto b = bb;
+            exits.removeSuccessor(b);
+            try_again.remove(b);
+            worklist.push(b->begin());
+            break;
+          }
         }
-      }
+      } // while (!worklist.empty())
     }
     
     bool validInRegion(Instruction* i) {
@@ -246,6 +316,12 @@ namespace Grappa {
       
       SmallSet<BasicBlock*,8> bbs;
       
+      outs() << "pre exits:\n";
+      exits.each([&](Instruction* before_exit, Instruction* after_exit){
+        outs() << *before_exit << "\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+      });
+      outs() << "\n";
+      
       //////////////////////////////////////////////////////////////
       // first slice and dice at boundaries and build up set of BB's
       auto bb_in = entry->getParent();
@@ -259,33 +335,36 @@ namespace Grappa {
       }
       outs() << "bb_in => " << bb_in->getName() << "\n";
 //      bbs.insert(bb_in);
-      
-      DenseMap<Instruction*,Instruction*> befores;
-//      SmallVector<Instruction*,8> befores;
-      for (auto e : exits) {
-        befores.insert({cast<Instruction>(e.second), cast<Instruction>(e.first)});
-      }
-      exits.clear();
-      
+
+      outs() << "old exits:\n";
+      exits.each([&](Instruction* before_exit, Instruction* after_exit){
+        outs() << *before_exit << "\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+      });
+      outs() << "\n";
       outs() << "new exits:\n";
-      for (auto b : befores) {
-        auto before_exit = b.first;
-        auto after_exit = b.second;
+      exits.each([&](Instruction* before_exit, Instruction* after_exit){
         auto bb_exit = before_exit->getParent();
-        auto immed = BasicBlock::iterator(before_exit)->getNextNode();
-        auto bb_after = after_exit->getParent();
-        if (immed != bb_exit->end()) {
-          bb_after = bb_exit->splitBasicBlock(immed, name+".exit");
+        BasicBlock* bb_after;
+        if (bb_exit == after_exit->getParent()) {
+          bb_after = bb_exit->splitBasicBlock(after_exit, name+".exit");
+          outs() << *before_exit << "\n  =>" << *bb_after->begin() << "\n";
+          exits.set(bb_exit, bb_after);
         } else {
+          bb_after = after_exit->getParent();
           bool found = false;
-          for_each(sb, bb_exit, succ)
-            if (*sb == bb_after)
+          for_each(sb, bb_exit, succ) {
+            if (*sb == bb_after) {
               found = true;
+              break;
+            }
+          }
+          if (!found) {
+            outs() << *bb_exit;
+            outs() << *bb_after;
+          }
           assert(found && "after_exit not in an immediate successor of before_exit");
         }
-        outs() << *before_exit << "\n  =>" << *bb_after->begin() << "\n";
-        exits[bb_after->begin()] = before_exit;
-      }
+      });
       
       visit([&](BasicBlock::iterator it){
         outs() << "**" << *it << "\n";
@@ -418,11 +497,11 @@ namespace Grappa {
       
       // switch among exit blocks
       int exit_id = 0;
-      for (auto e : exits) {
-        Instruction *before_exit = cast<Instruction>(e.second);
-        Instruction *after_exit = cast<Instruction>(e.first);
+      exits.each([&](Instruction* before_exit, Instruction* after_exit){
+        assert(after_exit);
         BasicBlock *bb_exit = after_exit->getParent();
         assert(bb_exit->getParent() == old_fn);
+        assert(before_exit->getParent() != bb_exit);
         
         if (static_cast<Instruction*>(bb_exit->begin()) != after_exit) {
           errs() << "!! after_exit not at beginning of bb (" << name << ")\n";
@@ -462,7 +541,7 @@ namespace Grappa {
         
         // in extracted fn, remap branches outside to bb_ret
         clone_map[bb_exit] = bb_ret;
-      }
+      });
       
       // use clone_map to remap values in new function
       // (including branching to new bb_ret instead of exit blocks)
@@ -563,7 +642,9 @@ namespace Grappa {
       outs() << "  valid_ptrs:\n";
       for (auto p : valid_ptrs) outs() << "  " << *p << "\n";
       outs() << "  exits:\n";
-      for (auto p : exits) outs() << "  " << *p.first << "\n     =>" << *p.second << "\n";
+      exits.each([&](Instruction* s, Instruction* e){
+        outs() << "  " << *s << "\n     =>" << *e << "\n";
+      });
       outs() << "\n";
     }
     
@@ -571,33 +652,17 @@ namespace Grappa {
       outs() << "~~~~~~~~~~~~~~~~~~~~~~~\n";
       printHeader();
       
-      BasicBlock::iterator i;
-      if (!bb) {
-        bb = entry->getParent();
-        i = BasicBlock::iterator(entry);
-        if (i != bb->begin()) {
+      visit([&](BasicBlock::iterator i){
+        if (static_cast<Instruction*>(i) == entry) {
           outs() << *i->getPrevNode() << "\n";
-        }
-      } else {
-        i = bb->begin();
-        outs() << bb->getName() << ":\n";
-      }
-      outs() << "--------------------\n";
-      
-      for (; i != bb->end(); i++) {
-        if (exits.count(i)) {
           outs() << "--------------------\n";
-          i++;
-          if (i != bb->end()) outs() << *i << "\n";
-          break;
         }
-        outs() << *i << "\n";
-      }
-      if (i == bb->end()) {
-        for_each(sb, bb, succ) {
-          prettyPrint(*sb);
+        outs() << i << "\n";
+        if (exits.isExitStart(i)) {
+          outs() << "--------------------\n";
+          outs() << *i->getNextNode() << "\n";
         }
-      }
+      });
     }
     
     static void dotBB(raw_ostream& o, CandidateMap& candidates, BasicBlock* bb, CandidateRegion* this_region = nullptr) {
@@ -653,7 +718,7 @@ namespace Grappa {
       
       o << "digraph Candidate {\n";
       o << "  node[shape=record];\n";
-      dotBB(o, candidates, entry->getParent());
+      dotBB(o, owner, entry->getParent());
       o << "}\n";
       
       o.close();
