@@ -116,6 +116,9 @@ namespace Grappa {
       Map m;
 
     public:
+      
+      void clear() { m.clear(); }
+      
       template< typename F >
       void each(F yield) const {
         SmallVector<Map::value_type,8> v;
@@ -336,6 +339,19 @@ namespace Grappa {
         outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
       });
       outs() << "\n";
+      
+      if (exits.size() > 1) {
+        SmallSetVector<Instruction*,8> preds;
+        exits.each([&](Instruction* before, Instruction* after){
+          preds.insert(before);
+        });
+        if (preds.size() == 1) {
+          exits.clear();
+          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
+          outs() << "@bh unique_pred =>" << *preds[0] << "\n";
+          exits.add(p);
+        }
+      }
       
       //////////////////////////////////////////////////////////////
       // first slice and dice at boundaries and build up set of BB's
