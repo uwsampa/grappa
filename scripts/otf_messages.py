@@ -24,7 +24,13 @@ SEND_MESSAGE_STRING = "SendMessage"       # search string to identify send messa
 RECEIVE_MESSAGE_STRING = "ReceiveMessage" # search string to identify receive message events
 DEF_PROCESS_GROUP = "DefProcessGroup"     # process group definition string
 DEF_TIMER_RESOLUTION = "DefTimerResolution"# identify timer resolution string
-PROCESS_NUMBER_STRING = "procs"              # identifies process prefix in group def line
+PROCESS_NUMBER_STRING = "procs"            # identifies process prefix in group def line
+
+SENDER_TAG = "sender"    # tag identifying sender process
+RECEIVER_TAG = "receiver"# tag identifying receiver process
+LENGTH_TAG = "length"    # tag identifying length of sent message
+SEND_FLAG = "SEND"       # flag indicating message event was a send
+RECEIVE_FLAG = "RECEIVE" # flag indicating message event was a receive
 
 ####################################################################################################
 #
@@ -67,14 +73,20 @@ os.system(command)
 # 1. Extract number of ticks per second
 # 2. Extract message events
 #
+# File Output Format:
+# <time>, <sender node>, <sender process>, <receiver node> , <receiver process>, <message size>, <SEND FLAG>
+# - SEND FLAG indicates if the event is a message send or receiver event
+# - Receives currently not logged
+#
 ####################################################################################################
 
 TICKS_PER_SECOND = None
-NODE_PROCESSES = dict()
+NODE_PROCESS = dict()
 
 # scan the file to populate the parameters
 file = open(DUMP_FILE, "r")
 
+# start iterating through the file
 for line in file:
     # search for the number of ticks for second - may be multiple definitions
     if (line.find(DEF_TIMER_RESOLUTION) != -1 and line.find(TIME_TICKS_STRING) != -1):
@@ -101,10 +113,74 @@ for line in file:
         ids = ids.split(",")
         
         # log the ids for the node
-        assert(not node in NODE_PROCESSES.keys())
-        NODE_PROCESSES[node] = ids
+        assert(not node in NODE_PROCESS.keys())
+        NODE_PROCESS[node] = ids
+
+# invert the dictionary to create process to node mapping
+PROCESS_NODE = dict()
+for key in NODE_PROCESS.keys():
+    for item in NODE_PROCESS[key]:
+        assert(not item in PROCESS_NODE.keys())
+        PROCESS_NODE[int(item.strip(" \n\t,"))] = key
 
 assert(TICKS_PER_SECOND != None)
-assert(len(NODE_PROCESSES.keys()) > 0)
+assert(len(NODE_PROCESS.keys()) > 0)
 print "Ticks per second: " + str(TICKS_PER_SECOND)
-print NODE_PROCESSES
+print NODE_PROCESS
+print PROCESS_NODE
+
+file.close()
+
+# re-scan the file for the message events
+file = open(DUMP_FILE, "r")
+LOG_FILE = open(MSG_FILE, "w")
+
+# begin the scan through the file
+for line in file:
+
+    # process message send events and log them to file
+    if (line.find(SEND_MESSAGE_STRING) != -1):
+        time = None;
+        sender_process = None;
+        receiver_process = None;
+        length = None;
+
+        # process the time of the event
+        tline = line[:line.find(SEND_MESSAGE_STRING)]
+        tsplit = tline.split("\t")
+        timestamp = tsplit[1]
+        timestamp.strip(" \t\n")
+        time = float(timestamp) / float(TICKS_PER_SECOND)
+
+        # process the rest of the fields
+        fields = line[line.find(SEND_MESSAGE_STRING) + len(SEND_MESSAGE_STRING):].split(",")
+        for field in fields:
+            if (field.find(SENDER_TAG) != -1):
+                assert(sender_process == None)
+                sender_process = int(field[field.find(SENDER_TAG) + len(SENDER_TAG):].strip(", \t\n"))
+            elif (field.find(RECEIVER_TAG) != -1):
+                assert(receiver_process == None)
+                receiver_process = int(field[field.find(RECEIVER_TAG) + len(RECEIVER_TAG):].strip(", \t\n"))
+            elif (field.find(LENGTH_TAG) != -1):
+                assert(length == None)
+                length = int(field[field.find(LENGTH_TAG) + len(LENGTH_TAG):].strip(", \t\n"))
+
+        assert(sender_process != None)
+        assert(receiver_process != None)
+        assert(length != None)
+        assert(time != None)
+
+        assert(sender_process in PROCESS_NODE.keys())
+        assert(receiver_process in PROCESS_NODE.keys())
+
+        sender_node = PROCESS_NODE[sender_process]
+        receiver_node = PROCESS_NODE[receiver_process]
+
+        # log the message events to the file
+        LOG_FILE.write(str(time) + "," + str(sender_node) + "," + str(sender_process) + "," + str(receiver_node) + "," + str(receiver_process) + "," + str(length) + "," + SEND_FLAG + "\n")
+
+    # process message receive events - TODO: not implemented
+    elif (line.find(RECEIVE_MESSAGE_STRING != -1)):
+        pass
+
+file.close()
