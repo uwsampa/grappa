@@ -134,6 +134,22 @@ namespace Grappa {
         }
       }
       
+      void replaceUsesOfWith(BasicBlock* old, BasicBlock* rep) {
+        if (old == rep) return;
+        outs() << "replacing: " << old->getName() << " => " << rep->getName() << "\n";
+//        if (m.count(old)) {
+//          auto tmp = m[old];
+//          m.erase(old);
+//          m[rep] = tmp;
+//        }
+        SmallVector<Value*,8> vs;
+        for (auto p : m)
+          if (p.second == old)
+            vs.push_back(p.first);
+        for (auto v : vs)
+          m[v] = rep;
+      }
+      
       void add(BasicBlock* pred, BasicBlock* succ) {
         assert(pred && succ);
         m[succ] = pred;
@@ -318,7 +334,7 @@ namespace Grappa {
       
       outs() << "pre exits:\n";
       exits.each([&](Instruction* before_exit, Instruction* after_exit){
-        outs() << *before_exit << "\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+        outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
       });
       outs() << "\n";
       
@@ -331,18 +347,21 @@ namespace Grappa {
       auto old_fn = bb_in->getParent();
       
       if (BasicBlock::iterator(entry) != bb_in->begin()) {
-        bb_in = bb_in->splitBasicBlock(entry, name+".eblk");
+        auto bb_new = bb_in->splitBasicBlock(entry, name+".eblk");
+        exits.replaceUsesOfWith(bb_in, bb_new);
+        bb_in = bb_new;
       }
       outs() << "bb_in => " << bb_in->getName() << "\n";
 //      bbs.insert(bb_in);
 
       outs() << "old exits:\n";
       exits.each([&](Instruction* before_exit, Instruction* after_exit){
-        outs() << *before_exit << "\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+        outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
       });
       outs() << "\n";
-      outs() << "new exits:\n";
+      outs() << "^^^^^^^^^^^^^^^\nnew exits:\n";
       exits.each([&](Instruction* before_exit, Instruction* after_exit){
+        outs() << "--" << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
         auto bb_exit = before_exit->getParent();
         BasicBlock* bb_after;
         if (bb_exit == after_exit->getParent()) {
@@ -365,6 +384,7 @@ namespace Grappa {
           assert(found && "after_exit not in an immediate successor of before_exit");
         }
       });
+      outs() << "^^^^^^^^^^^^^^^\n";
       
       visit([&](BasicBlock::iterator it){
         outs() << "**" << *it << "\n";
@@ -514,9 +534,6 @@ namespace Grappa {
         
         auto exit_code = ConstantInt::get(ty_ret, exit_id++);
         
-        if (clone_map.count(before_exit) == 0) {
-          errs() << before_exit;
-        }
         assert(clone_map.count(before_exit->getParent()));
         auto bb_pred = cast<BasicBlock>(clone_map[before_exit->getParent()]);
         assert(bb_pred->getParent() == new_fn);
@@ -537,7 +554,11 @@ namespace Grappa {
           }
         }
         
-        before_exit->getParent()->replaceAllUsesWith(bb_call);
+        if (before_exit->getParent() == bb_call) {
+          outs() << *before_exit->getParent();
+        } else {
+          before_exit->getParent()->replaceAllUsesWith(bb_call);
+        }
         
         // in extracted fn, remap branches outside to bb_ret
         clone_map[bb_exit] = bb_ret;
@@ -625,8 +646,8 @@ namespace Grappa {
 //      }
 
       // delete old bbs
-//      for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
-//      for (auto bb : bbs) bb->eraseFromParent();
+      for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
+      for (auto bb : bbs) bb->eraseFromParent();
       
       outs() << "-------------------------------\n";
       outs() << *new_fn;
@@ -668,13 +689,17 @@ namespace Grappa {
     static void dotBB(raw_ostream& o, CandidateMap& candidates, BasicBlock* bb, CandidateRegion* this_region = nullptr) {
       o << "  \"" << bb << "\" [label=<\n";
       o << "  <table cellborder='0' border='0'>\n";
-      o << "    <tr><td align='left'>" << bb->getName() << "</td></td>\n";
+      o << "    <tr><td align='left'>" << bb->getName() << "</td></tr>\n";
       
       for (auto& i : *bb) {
-        std::string s;
-        raw_string_ostream os(s);
+        std::string _s;
+        raw_string_ostream os(_s);
         os << i;
-        s = DOT::EscapeString(s);
+        auto s = DOT::EscapeString(os.str());
+        
+        size_t p;
+        while ((p = s.find("\\n")) != std::string::npos)
+          s.replace(p, 2, "<br/>");
         
         o << "    <tr><td align='left'>";
         
@@ -692,7 +717,7 @@ namespace Grappa {
       o << "  >];\n";
       
       for_each(sb, bb, succ) {
-        o << "  \"" << bb << "\"->\"" << *sb << "\"\n";
+        o << "  \"" << bb << "\"->\"" << *sb << "\";\n";
         if (this_region && candidates[sb->begin()] == this_region) {
           dotBB(o, candidates, *sb, this_region);
         }
@@ -822,7 +847,7 @@ namespace Grappa {
       
       auto taskname = "task" + Twine(ct++);
       if (cnds.size() > 0) {
-//        CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
+        CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
       }
       
       for_each(it, *fn, inst) {
@@ -833,12 +858,12 @@ namespace Grappa {
         }
       }
       
-      if (found_functions) {
+      if (found_functions && cnds.size() > 0) {
         for (auto cnd : cnds) {
           auto new_fn = cnd->extractRegion(ginfo, *layout);
-          
 //          CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
         }
+        CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
       }
       
       for (auto c : cnds) delete c;
