@@ -125,9 +125,8 @@ namespace Grappa {
           if (auto before = dyn_cast<Instruction>(p.first)) {
             yield(before, BasicBlock::iterator(before)->getNextNode());
           } else if (auto succ = dyn_cast<BasicBlock>(p.first)) {
-            auto pred = cast<BasicBlock>(p.second);
-            assert(pred->getTerminator());
-            yield(pred->getTerminator(), succ->begin());
+            auto pred = cast<Instruction>(p.second);
+            yield(pred, succ->begin());
           } else {
             assert(false && "unknown exit");
           }
@@ -150,12 +149,12 @@ namespace Grappa {
           m[v] = rep;
       }
       
-      void add(BasicBlock* pred, BasicBlock* succ) {
+      void add(Instruction* pred, BasicBlock* succ) {
         assert(pred && succ);
         m[succ] = pred;
       }
       
-      void set(BasicBlock* pred, BasicBlock* succ) {
+      void set(Instruction* pred, BasicBlock* succ) {
         bool found = false;
         for (auto p : m) {
           if (p.second == pred) {
@@ -164,7 +163,7 @@ namespace Grappa {
             break;
           }
           else if (auto i = dyn_cast<Instruction>(p.first)) {
-            if (i->getParent() == pred) {
+            if (i == pred) {
               m.erase(p.first);
               found = true;
               break;
@@ -272,7 +271,7 @@ namespace Grappa {
               worklist.push(target);
             } else {
               // exit at bb boundary
-              exits.add(bb, *sb);
+              exits.add(bb->getTerminator(), *sb);
             }
           }
         } else {
@@ -348,7 +347,7 @@ namespace Grappa {
       
       if (BasicBlock::iterator(entry) != bb_in->begin()) {
         auto bb_new = bb_in->splitBasicBlock(entry, name+".eblk");
-        exits.replaceUsesOfWith(bb_in, bb_new);
+        // exits.replaceUsesOfWith(bb_in, bb_new);
         bb_in = bb_new;
       }
       outs() << "bb_in => " << bb_in->getName() << "\n";
@@ -365,9 +364,9 @@ namespace Grappa {
         auto bb_exit = before_exit->getParent();
         BasicBlock* bb_after;
         if (bb_exit == after_exit->getParent()) {
-          bb_after = bb_exit->splitBasicBlock(after_exit, name+".exit");
+          bb_after = bb_exit->splitBasicBlock(after_exit, name+".exit."+bb_exit->getName());
           outs() << *before_exit << "\n  =>" << *bb_after->begin() << "\n";
-          exits.set(bb_exit, bb_after);
+          exits.set(before_exit, bb_after);
         } else {
           bb_after = after_exit->getParent();
           bool found = false;
@@ -380,6 +379,7 @@ namespace Grappa {
           if (!found) {
             outs() << *bb_exit;
             outs() << *bb_after;
+            old_fn->viewCFG();
           }
           assert(found && "after_exit not in an immediate successor of before_exit");
         }
@@ -441,6 +441,10 @@ namespace Grappa {
       ValueToValueMapTy clone_map;
       for (auto bb : bbs) {
         clone_map[bb] = CloneBasicBlock(bb, clone_map, ".clone", new_fn);
+      }
+      for (auto bb : bbs) {
+        assert(clone_map.count(bb));
+        outs() << bb->getName() << " => " << clone_map[bb]->getName() << "\n";
       }
       
       ///////////////////////////
@@ -534,7 +538,13 @@ namespace Grappa {
         
         auto exit_code = ConstantInt::get(ty_ret, exit_id++);
         
-        assert(clone_map.count(before_exit->getParent()));
+        if (clone_map.count(before_exit->getParent()) == 0) {
+          outs() << "-------------------\n";
+          assert(before_exit->getParent()->getParent() == old_fn);
+          for (auto bb : bbs) outs() << bb << " -- " << clone_map.count(bb) << "\n";
+          outs() << "before_exit =>" << *before_exit << " (in " << before_exit->getParent() << ")\n";
+          assert(false);
+        }
         auto bb_pred = cast<BasicBlock>(clone_map[before_exit->getParent()]);
         assert(bb_pred->getParent() == new_fn);
         
@@ -554,11 +564,11 @@ namespace Grappa {
           }
         }
         
-        if (before_exit->getParent() == bb_call) {
-          outs() << *before_exit->getParent();
-        } else {
-          before_exit->getParent()->replaceAllUsesWith(bb_call);
-        }
+//        if (before_exit->getParent() == bb_call) {
+//          outs() << *before_exit->getParent();
+//        } else {
+////          before_exit->getParent()->replaceAllUsesWith(bb_call);
+//        }
         
         // in extracted fn, remap branches outside to bb_ret
         clone_map[bb_exit] = bb_ret;
@@ -633,17 +643,6 @@ namespace Grappa {
           }
         }
       }
-//        for (auto& i : *bb) {
-//          for (auto u = i.use_begin(), ue = i.use_end(); u != ue; u++) {
-//            if (auto uu = dyn_cast<Instruction>(*u)) {
-//              if (bbs.count(uu->getParent()) == 0) {
-//                errs() << "use escaped => " << *uu << *bb;
-//                assert(false);
-//              }
-//            }
-//          }
-//        }
-//      }
 
       // delete old bbs
       for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
@@ -699,7 +698,7 @@ namespace Grappa {
         
         size_t p;
         while ((p = s.find("\\n")) != std::string::npos)
-          s.replace(p, 2, "<br/>");
+          s.replace(p, 2, "</td></tr><tr><td align='left'>");
         
         o << "    <tr><td align='left'>";
         
@@ -861,6 +860,8 @@ namespace Grappa {
       if (found_functions && cnds.size() > 0) {
         for (auto cnd : cnds) {
           auto new_fn = cnd->extractRegion(ginfo, *layout);
+          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after." + new_fn->getName());
+          
 //          CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
         }
         CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");

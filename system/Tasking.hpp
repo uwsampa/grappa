@@ -49,6 +49,8 @@ DECLARE_uint64( num_starting_workers );
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, tasks_heap_allocated);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, tasks_created);
 
+#define grappa_async_fn __attribute__((annotate("async"), noinline))
+
 ///
 /// Task routines
 ///
@@ -174,7 +176,7 @@ namespace Grappa {
     struct AsyncFunctor {
       F func;
       AsyncFunctor(F func): func(func) {}
-      __attribute__((annotate("async"), noinline)) void operator()() const {
+      grappa_async_fn void operator()() const {
         func();
       }
     };

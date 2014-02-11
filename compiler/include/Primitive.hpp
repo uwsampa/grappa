@@ -8,8 +8,10 @@
 
 #define global grappa_global
 #define symmetric grappa_symmetric
+#define async_fn grappa_async_fn
 
 #define callable_anywhere __attribute__((annotate("unbound")))
+
 
 template< typename T >
 inline T global* gptr(GlobalAddress<T> ga) {

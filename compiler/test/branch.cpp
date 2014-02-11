@@ -1,11 +1,9 @@
 #include <Grappa.hpp>
 #include <Primitive.hpp>
-#include <Collective.hpp>
-#include <GlobalAllocator.hpp>
 
 using namespace Grappa;
 
-void foo(long& x) {
+async_fn void foo(long& x) {
   long global* xa = make_global(&x);
   long y = 0;
   long global* ya = make_global(&y);
@@ -52,7 +50,7 @@ int main(int argc, char* argv[]) {
     
     foo(x);
     
-    Statistics::merge_and_dump_to_file();
+    Metrics::merge_and_dump_to_file();
   });
   finalize();
   return 0;
