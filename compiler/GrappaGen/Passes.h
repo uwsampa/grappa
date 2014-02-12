@@ -166,8 +166,6 @@ struct GlobalPtrInfo {
     v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
     v = b.CreateBitCast(v, ty, name+".lptr");
     
-    gptr->replaceAllUsesWith(v);
-    
     if (auto ld = dyn_cast<LoadInst>(orig)) {
       v = b.CreateLoad(gptr, ld->isVolatile(), name+".val");
     } else if (auto st = dyn_cast<StoreInst>(orig)) {

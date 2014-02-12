@@ -626,15 +626,6 @@ namespace Grappa {
         }
       }
       
-      // TODO: fixup global* uses in new_fn
-      
-      outs() << "~~~~~~~~~~~~~~~\n";
-      for (auto bb : bbs) {
-        outs() << *bb;
-      }
-      outs() << "~~~~~~~~~~~~~~~\n";
-      
-      // verify that all uses of these bbs are contained
       for (auto bb : bbs) {
         for (auto u = bb->use_begin(), ue = bb->use_end(); u != ue; u++) {
           if (auto uu = dyn_cast<Instruction>(*u)) {
@@ -866,7 +857,7 @@ namespace Grappa {
           auto new_fn = cnd->extractRegion(ginfo, *layout);
 //          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after." + new_fn->getName());
           
-//          CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+          CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
         }
         CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
       }
