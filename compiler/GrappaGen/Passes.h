@@ -155,7 +155,6 @@ struct GlobalPtrInfo {
     return symm_get_ptr(b, sptr, lptrTy);
   }
 
-  
   Value* replace_global_with_local(Value *gptr, Instruction *orig) {
     IRBuilder<> b(orig);
     
@@ -166,6 +165,8 @@ struct GlobalPtrInfo {
     v = b.CreateBitCast(v, void_gptr_ty, name+".void");
     v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
     v = b.CreateBitCast(v, ty, name+".lptr");
+    
+    gptr->replaceAllUsesWith(v);
     
     if (auto ld = dyn_cast<LoadInst>(orig)) {
       v = b.CreateLoad(gptr, ld->isVolatile(), name+".val");
@@ -180,6 +181,74 @@ struct GlobalPtrInfo {
     
     return v;
   }
+
+  Value* replace_global_with_local(Value *gptr, Instruction *orig,
+                                   SmallDenseMap<Value*,Value*>& lptrs) {
+    // insert after gptr use for better reuse
+    assert(!isa<TerminatorInst>(gptr));
+    IRBuilder<> b(cast<Instruction>(gptr)->getNextNode());
+
+    Twine name = gptr->getName().size() ? gptr->getName()+".g" : "g";
+    
+    auto lptr = lptrs[gptr];
+    if (!lptr) {
+      Type *ty = getAddrspaceType(gptr->getType(), 0);
+      Value *v = gptr;
+             v = b.CreateBitCast(v, void_gptr_ty, name+".void");
+             v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
+             v = b.CreateBitCast(v, ty, name+".lptr");
+      lptr = lptrs[gptr] = v;
+    }
+    
+    Value *v = nullptr;
+    b.SetInsertPoint(orig);
+    
+    if (auto ld = dyn_cast<LoadInst>(orig)) {
+      v = b.CreateLoad(lptr, ld->isVolatile(), name+".val");
+    } else if (auto st = dyn_cast<StoreInst>(orig)) {
+      v = b.CreateStore(st->getOperand(0), lptr, st->isVolatile());
+    } else if (auto ac = dyn_cast<AddrSpaceCastInst>(orig)) {
+      v = b.CreateBitCast(lptr, ac->getType(), name+".bc");
+    } else {
+      assert(false && "tried to replace instruction of unknown type!");
+    }
+    
+    if (v) {
+      orig->replaceAllUsesWith(v);
+      orig->eraseFromParent();
+    }
+    
+    return v;
+  }
+  
+  Value* global_ptr_operand(Instruction* orig) {
+    if (auto ld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(orig)) {
+      return ld->getPointerOperand();
+    } else if (auto st = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(orig)) {
+      return st->getPointerOperand();
+    } else if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
+      if (c->getSrcTy()->getPointerAddressSpace() == GLOBAL_SPACE) {
+        return c->getOperand(0);
+      }
+    }
+    return nullptr;
+  }
+  
+  Instruction* insert_get_pointer(Instruction *gptr) {
+    assert(!isa<TerminatorInst>(gptr));
+    IRBuilder<> b(gptr->getNextNode());
+    
+    Type *ty = getAddrspaceType(gptr->getType(), 0);
+    Twine name = gptr->getName().size() ? gptr->getName()+".g" : "g";
+    
+    Value *v = gptr;
+    v = b.CreateBitCast(v, void_gptr_ty, name+".void");
+    v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
+    v = b.CreateBitCast(v, ty, name+".lptr");
+    
+    return cast<Instruction>(v);
+  }
+
   
 };
 
