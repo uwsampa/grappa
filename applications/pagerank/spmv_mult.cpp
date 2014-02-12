@@ -180,30 +180,18 @@ void R_vector_out( vector * v, std::ostream& o ) {
 }
 */
 
-void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, vindex y ) {
-  // cannot capture in all for loops, so just set on all cores
-  on_all_cores([v,x,y]{
-    spmv::v = v;
-    spmv::x = x;
-    spmv::y = y;
-  });
-
+void spmv_mult( GlobalAddress<Graph<PagerankVertex>> g ) {
   // forall rows
-  forall<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
-    double yaccum = 0;
-    
-    forall_here(0, v.nadj, [&v,&yaccum](int64_t j){
-      double vj = readv(spmv::v.a + v.local_adj[j], spmv::x);
-      yaccum += v.weights[j] * vj;
-    });
-    
-    auto ytarget = spmv::v.a+i; 
-    delegate::call<async,&mmjoiner>(ytarget.core(), [ytarget,yaccum]{
-      ytarget->vp[spmv::y] = yaccum;
-    });
-    // could force local updates and bulk communication 
-    // here instead of relying on aggregation
-    // since we have to pay the cost of many increments and replies
+  forall<&mmjoiner>(g->vs, g->nv, [g](int64_t i, PagerankVertex& v){
+    for (auto j : v.adj_iter()) {
+      auto vjw = v->weights[j];
+      delegate::call<async,&mmjoiner>(g->vs+j, [vjw,i](PagerankVertex& vj){
+        auto yaccum = vjw * vj->x;
+        delegate::call<async,&mmjoiner>(g->vs+i, [yaccum](PagerankVertex& vi){
+          vi->y += yaccum;
+        });
+      });
+    }
   });
 }
 

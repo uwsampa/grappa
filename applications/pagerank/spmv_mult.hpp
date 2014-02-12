@@ -32,15 +32,21 @@ struct vector {
   uint64_t length;
 };
 
-struct WeightedAdjVertex : public Vertex {
-  double * weights;
+struct PagerankVertex : public Vertex {
+  struct Data {
+    double * weights;
+    double x;
+    double y;
+  };
   
-  WeightedAdjVertex(): Vertex(), weights(nullptr) {}
+  PagerankVertex(): Vertex() { vertex_data = new Data(); }
+  
+  Data* operator->() { return reinterpret_cast<Data*>(vertex_data); }
 };
 
 void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y );
 
-void spmv_mult(GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, vindex y);
+void spmv_mult(GlobalAddress<Graph<PagerankVertex>> g);
 
 void matrix_out( weighted_csr_graph * g, std::ostream& o, bool dense );
 void R_matrix_out( weighted_csr_graph * g, std::ostream& o);

@@ -1,19 +1,9 @@
 #include "spmv_mult.hpp"
 
-// graph500/
-#include "../graph500/generator/make_graph.h"
-#include "../graph500/generator/utils.h"
-#include "../graph500/grappa/timer.h"
-#include "../graph500/prng.h"
-#include "../graph500/grappa/graph.hpp"
-
 #include <Grappa.hpp>
-#include <GlobalAllocator.hpp>
-#include <Array.hpp>
-#include <ParallelLoop.hpp>
 #include <tasks/DictOut.hpp>
 #include <Reducer.hpp>
-#include <Metrics.hpp>
+#include <graph/Graph.hpp>
 
 #include <iostream>
 
@@ -45,7 +35,7 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, actual_nnz, 0);
 weighted_csr_graph mhat;
 
 /// calculate the damped matrix dM
-void calculate_dM( GlobalAddress<Graph<WeightedAdjVertex>> g, double d ) {
+void calculate_dM( GlobalAddress<Graph<PagerankVertex>> g, double d ) {
   // TODO
   // cleanup M to make it stochastic
   //for (j in cols)
@@ -54,7 +44,7 @@ void calculate_dM( GlobalAddress<Graph<WeightedAdjVertex>> g, double d ) {
   //  if sum == 0 { set all m[,j] to 1/N }
   //  else set m[,j] to m[,j]/sum
   
-  forall( g->vs, g->nv, [g,d](WeightedAdjVertex& v) {
+  forall( g->vs, g->nv, [g,d](PagerankVertex& v) {
     for (auto& w : util::iterate(v.weights, v.nadj)) w *= d;
   });
 }
@@ -136,7 +126,7 @@ struct pagerank_result {
 
 // Iterative method
 // R(t+1) = dMR(t) + (1-d)/N vec(1)
-pagerank_result pagerank( GlobalAddress<Graph<WeightedAdjVertex>> g, double d, double epsilon ) {
+pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, double epsilon ) {
   LOG(INFO) << "version: 'iterative_new'";
   
   // bookeeping for which vector is which
@@ -155,14 +145,8 @@ pagerank_result pagerank( GlobalAddress<Graph<WeightedAdjVertex>> g, double d, d
 
     LOG(INFO) << "Allocate rank vectors";
     // current pagerank vector: initialize to random values on [0,1]
-    vector v;
-    v.length = g->nv;
-    v.a = global_alloc<element_pair>(v.length);
-    on_all_cores( [] { srand(0); } );
-    forall( v.a, v.length, [V](element_pair& ele ) {
-      ele.vp[V] = ((double)rand()/RAND_MAX); //[0,1]
-    });
-
+    // (now encoded in Grap<PagerankVertex>)
+    
     //if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
     normalize( v, V );
 
@@ -266,27 +250,28 @@ int main(int argc, char* argv[]) {
     //init_random(); 
     //userseed = 10;
 
-    double time;
-    TIME(time, 
-      make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
-      //print_array("tuples", tg.edges, tg.nedge, 10);
-    );
-    LOG(INFO) << "make_graph: " << time;
-    make_graph_time_SO = time;
+    double t;
+    auto tg = TupleGraph::Kronecker(FLAGS_scale, desired_nnz, userseed, userseed);
+    t = walltime() - t;
+    LOG(INFO) << "make_graph: " << t;
+    make_graph_time_SO = t;
   
-    time = walltime();
-  
-    auto g = Graph<WeightedAdjVertex>::create(tg);
+    t = walltime();
     
-    tuples_to_csr_time_SO = walltime() - time;
+    auto g = Graph<PagerankVertex>::create(tg);
+    
+    tuples_to_csr_time_SO = walltime() - t;
     LOG(INFO) << "tuple->csr: " << tuples_to_csr_time_SO;
     actual_nnz_SO = g->nadj;
     //print_graph( &unweighted_g ); 
     LOG(INFO) << "final matrix has " << static_cast<double>(actual_nnz_SO)/N << " avg nonzeroes/row";
 
     // add weights to the csr graph
-    forall(g->vs, g->nv, [](WeightedAdjVertex& v){
-      v.weights = locale_alloc<double>(v.nadj);
+    forall(g->vs, g->nv, [](PagerankVertex& v){
+      v->weights = locale_alloc<double>(v.nadj);
+      v->x = 0;
+      v->y = 0;
+      
       // TODO random
       for (long i=0; i<v.nadj; i++) v.weights[i] = 0.2f;
     });
@@ -301,10 +286,10 @@ int main(int argc, char* argv[]) {
     Grappa::Metrics::start_tracing();
   
     pagerank_result result;
-    TIME(time,
+    TIME(t,
       result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
     );
-    pagerank_time_SO = time;
+    pagerank_time_SO = t;
   
     Grappa::Metrics::stop_tracing();
 
