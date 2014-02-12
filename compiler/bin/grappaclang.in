@@ -1,2 +1,18 @@
 #!/bin/bash
-exec @CMAKE_CXX_COMPILER@ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_LOCATION@ @GRAPPA_INCLUDES@ @GRAPPA_DEFINITIONS@ @CMAKE_CXX_FLAGS_DEBUG@ "$@" -rdynamic @GRAPPA_LIBRARIES@ -Qunused-arguments
+
+# handle my shorthand flags: '--NAME' -> '-mllvm -NAME'
+while [[ $# > 0 ]]; do
+  key="$1"
+  shift
+  case $key in
+    --*)
+      args="$args -mllvm ${key/--/-}"
+      ;;
+      
+    *) # else:
+      args="$args $key"
+      ;;
+  esac
+done
+
+exec @CMAKE_CXX_COMPILER@ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_LOCATION@ @GRAPPA_INCLUDES@ @GRAPPA_DEFINITIONS@ @CMAKE_CXX_FLAGS_DEBUG@ $args -rdynamic @GRAPPA_LIBRARIES@ -Qunused-arguments
