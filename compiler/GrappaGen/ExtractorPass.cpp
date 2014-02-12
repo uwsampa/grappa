@@ -840,7 +840,7 @@ namespace Grappa {
       if (found_functions && cnds.size() > 0) {
         for (auto cnd : cnds) {
           auto new_fn = cnd->extractRegion(ginfo, *layout);
-          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after." + new_fn->getName());
+//          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after." + new_fn->getName());
           
 //          CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
         }
