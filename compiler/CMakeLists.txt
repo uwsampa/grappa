@@ -48,6 +48,7 @@ add_custom_target( compiler
   SOURCES ${compiler_includes}
 )
 set_property(TARGET compiler PROPERTY FOLDER "Compiler")
+add_dependencies(compiler Grappa)
 
 # macro that runs the Grappa optimization pass when compiling
 macro(add_grappaclang_exe target exe)
