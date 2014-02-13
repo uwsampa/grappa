@@ -22,6 +22,10 @@ set(SOURCES
   "${APP_BFS}/common.h"
   "${APP_BFS}/graph.hpp"
   "${APP_BFS}/graph.cpp"
+  stats.h
+  stats.cpp
+  strings.h
+  strings.cc
 )
 set(INCLUDE_DIRS
   "${APP_GRAPH500}"
