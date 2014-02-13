@@ -308,6 +308,10 @@ private:
   /// number of bytes in each aggregation buffer
   static const unsigned int buffer_size_ = 65000 - 72;
 #endif
+#ifdef GASNET_CONDUIT_SMP
+  /// number of bytes in each aggregation buffer
+  static const unsigned int buffer_size_ = 4096 - 72;
+#endif
 
   /// buffer for sending non-aggregated messages
   char raw_send_buffer_[ buffer_size_ ];

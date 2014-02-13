@@ -90,7 +90,7 @@ def configure(generator, mode, opt)
   `which ibv_devinfo`
   if not $?.success?
     puts "-- Unable to find `ibv_devinfo`, disabling IBV support."
-    args << "-DGASNET_USE_UDP:BOOL=ON"
+    args << "-DGASNET_USE_SMP:BOOL=ON"
   end
   
   if opt.tracing
