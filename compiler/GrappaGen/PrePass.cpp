@@ -48,15 +48,15 @@ namespace {
       outs() << "-- Grappa Pre Pass --\n";
       outs().flush();
       
-      if (auto fn = M.getFunction("printf")) {
-        fn->addFnAttr("unbound");
-      }
+//      if (auto fn = M.getFunction("printf")) {
+//        fn->addFnAttr("unbound");
+//      }
       
-      for (auto& F : M.getFunctionList()) {
-        if (F.getName().find("google10LogMessage") != std::string::npos) {
-          F.addFnAttr("unbound");
-        }
-      }
+//      for (auto& F : M.getFunctionList()) {
+//        if (F.getName().find("google10LogMessage") != std::string::npos) {
+//          F.addFnAttr("unbound");
+//        }
+//      }
       
       //////////////////////////////////////////
       // Add annotations as function attributes
