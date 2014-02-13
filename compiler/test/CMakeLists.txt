@@ -20,4 +20,9 @@ foreach(file ${tests})
   add_grappaclang_exe(${target_name} "${base}.exe" ${file})
   set_property(TARGET ${target_name} PROPERTY FOLDER "Compiler")
   
+  # add_test(NAME "test-${base}"
+  #   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  #   COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+  # )
+  
 endforeach()

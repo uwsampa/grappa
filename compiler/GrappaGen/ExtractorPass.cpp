@@ -871,6 +871,15 @@ namespace Grappa {
     while (!worklist.empty()) {
       auto fn = worklist.pop();
       
+      struct DbgRemover : public InstVisitor<DbgRemover> {
+        void visitIntrinsicInst(IntrinsicInst& i) {
+          if (i.getCalledFunction()->getName() == "llvm.dbg.value") {
+            i.eraseFromParent();
+          }
+        }
+      } d;
+      d.visit(fn);
+            
       AnchorSet anchors;
       analyzeProvenance(*fn, anchors);
       
