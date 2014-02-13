@@ -172,30 +172,38 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
     
     int8_t _args[SMALL_MSG_SIZE];
     int8_t _out[SMALL_MSG_SIZE];
-    void* out = _out;
+    void* out_buf = _out;
     
     memcpy(_args, args, args_sz);
     
     Grappa::FullEmpty<retcode_t> fe;
     auto gfe = make_global(&fe);
     
-    Grappa::send_heap_message(dst, [fn,_args,gfe,out]{
+    Grappa::send_heap_message(dst, [fn,_args,gfe,out_buf]{
       
       int8_t _out[SMALL_MSG_SIZE];
       
       retcode_t retcode = fn((void*)_args, _out);
       
-      Grappa::send_heap_message(gfe.core(), [gfe,_out,out,retcode]{
+      Grappa::send_heap_message(gfe.core(), [gfe,_out,out_buf,retcode]{
         
-        memcpy(out, _out, SMALL_MSG_SIZE);
+        memcpy(out_buf, _out, SMALL_MSG_SIZE);
         gfe->writeEF(retcode);
-        
       });
       
     });
     
     retcode = fe.readFF();
+    VLOG(0) << "retcode = " << retcode;
+    if (out_sz == sizeof(long)) {
+      VLOG(0) << "out = " << *reinterpret_cast<long*>(_out);
+    }
+      
     memcpy(out, _out, out_sz);
+    
+    if (out_sz == sizeof(long)) {
+      VLOG(0) << "out = " << *reinterpret_cast<long*>(out_buf);
+    }
     
   } else {
     delegate_ops_payload_msg++;
