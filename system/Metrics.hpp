@@ -45,6 +45,8 @@ namespace Grappa {
     
     extern bool take_tracing_sample;
     void set_exe_name( char * name );
+
+    extern bool vtrace_enabled;
   }
   
   namespace Metrics {

@@ -53,6 +53,10 @@ namespace Grappa {
   }
   
   namespace impl {
+
+    // flag to tell if vampirtrace sampling is happening
+    bool vtrace_enabled = false;
+
     MetricList& registered_stats() {
       static MetricList r;
       return r;
@@ -206,6 +210,7 @@ namespace Grappa {
       #endif
       #ifdef VTRACE_SAMPLED
         VT_USER_START("sampling");
+        vtrace_enabled = true;
         sample();
       #endif
       #endif // GOOGLE_PROFILER
@@ -216,6 +221,7 @@ namespace Grappa {
         ProfilerStop( );
         impl::profile_handler(NULL);
         #ifdef VTRACE_SAMPLED
+          vtrace_enabled = false;
           VT_USER_END("sampling");
           
           sample();
