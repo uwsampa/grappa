@@ -37,10 +37,10 @@ int main(int argc, char* argv[]) {
         long r = -1;
         grappa_on(0, do_work, &ga, sizeof(ga), &r, sizeof(r));
         
-        CHECK_EQ(r, 7);
+        assert(r == 7);
       }
     });
-    CHECK_EQ(alpha, 8);
+    assert(alpha == 8);
     
     long x = 1, y = 7;
     long global* xa = make_global(&x);
@@ -49,27 +49,29 @@ int main(int argc, char* argv[]) {
     long global* array = global_alloc<long>(10);
     
     on_all_cores([=]{
-      LOG(INFO) << gaddr(xa);
+      fprintf(stderr, "xa = %d : %p\n", core(xa), pointer(xa));
+      fprintf(stderr, "ya = %d : %p\n", core(ya), pointer(ya));
       
       long y = *xa;
+      fprintf(stderr, "*xa = %ld\n", y);
+      
       long z = *ya;
       long w = *xa;
       
-      LOG(INFO) << "*xa = " << y;
-      CHECK(z == 7);
-      CHECK(y == w);
+      assert(z == 7);
+      assert(y == w);
       
       long i = (*xa)++;
-      CHECK(i >= 1);
+      assert(i >= 1);
       auto dxa = delegate::read(gaddr(xa));
-      LOG(INFO) << "dxa = " << dxa;
-      CHECK(dxa >= 2 || dxa <= 4);
-      CHECK_LT(i, 4);
-      LOG(INFO) << "i = " << i << ", *xa = " << *xa;
+      fprintf(stderr, "dxa = %ld\n", dxa);
+      assert(dxa >= 2 || dxa <= 4);
+      assert(i < 4);
+      fprintf(stderr, "i = %ld, *xa = %ld\n", i, *xa);
       
       long j = ++(*xa);
-      LOG(INFO) << "j = " << j;
-      CHECK_LE(j, 6);
+      fprintf(stderr, "j = %ld\n", j);
+      assert(j <= 6);
       
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {
@@ -78,11 +80,12 @@ int main(int argc, char* argv[]) {
         barrier();
       } else {
         barrier();
+        fprintf(stderr, "after barrier\n");
         long total = 0;
         for (long i=0; i<10; i++) {
           total += array[i];
         }
-        LOG(INFO) << "total: " << total;
+        fprintf(stderr, "total: %ld\n", total);
       }
       
     });

@@ -433,13 +433,14 @@ namespace Grappa {
       
       /////////////////////////////
       // now clone blocks
+      SmallDenseMap<BasicBlock*,BasicBlock*> bb_map;
       ValueToValueMapTy clone_map;
       for (auto bb : bbs) {
-        clone_map[bb] = CloneBasicBlock(bb, clone_map, ".clone", new_fn);
+        bb_map[bb] = CloneBasicBlock(bb, clone_map, ".clone", new_fn);
       }
       for (auto bb : bbs) {
-        assert(clone_map.count(bb));
-        outs() << bb->getName() << " => " << clone_map[bb]->getName() << "\n";
+        assert(bb_map.count(bb));
+        outs() << bb->getName() << " => " << bb_map[bb]->getName() << "\n";
       }
       
       ///////////////////////////
@@ -450,7 +451,7 @@ namespace Grappa {
                                     "in." + v->getName());
       }
       
-      auto bb_in_clone = cast<BasicBlock>(clone_map[bb_in]);
+      auto bb_in_clone = cast<BasicBlock>(bb_map[bb_in]);
       b.CreateBr(bb_in_clone);
       
       auto bb_ret = BasicBlock::Create(ctx, name+".ret", new_fn);
@@ -533,14 +534,16 @@ namespace Grappa {
         
         auto exit_code = ConstantInt::get(ty_ret, exit_id++);
         
-        if (clone_map.count(before->getParent()) == 0) {
-          outs() << "-------------------\n";
-          assert(before->getParent()->getParent() == old_fn);
-          for (auto bb : bbs) outs() << bb << " -- " << clone_map.count(bb) << "\n";
-          outs() << "before_exit =>" << *before << " (in " << before->getParent() << ")\n";
-          assert(false);
-        }
-        auto bb_pred = cast<BasicBlock>(clone_map[before->getParent()]);
+//        if (clone_map.count(before->getParent()) == 0) {
+//          outs() << "-------------------\n";
+//          assert(before->getParent()->getParent() == old_fn);
+//          for (auto bb : bbs) outs() << bb->getName() << " -- " << clone_map.count(bb) << "\n";
+//          outs() << "before_exit =>" << *before << " (in " << before->getParent()->getName() << ")\n";
+//          assert(false);
+//        }
+        auto bb_pred = bb_map[before->getParent()];
+//        if (clone_map.count(bb_pred)) bb_pred = cast<BasicBlock>(clone_map[bb_pred]);
+        
         assert(bb_pred->getParent() == new_fn);
         
         // hook up exit from region with phi node in return block
@@ -551,8 +554,25 @@ namespace Grappa {
         assert(exit_switch->getParent()->getParent() == old_fn);
         
         auto bb_before = before->getParent();
-        assert(bbs.count(bb_before));
-        bb_before->replaceAllUsesWith(bb_call);
+        bb_before->replaceSuccessorsPhiUsesWith(bb_call);
+        
+//        errs() << "@bh bb_before => " << bb_before->getName() << "\n";
+//        errs() << "@bh bb_after  => " << bb_after->getName() << "\n";
+//        for (auto& i : *bb_after) if (auto phi = dyn_cast<PHINode>(&i)) {
+//          phi->setIncomingBlock(phi->getBasicBlockIndex(bb_before), bb_call);
+////          phi->replaceUsesOfWith(bb_before, bb_call);
+//        }
+        
+//        auto bb_phi = after->getParent();
+//        assert(bbs.count(bb_phi));
+//        for (auto it = bb_phi->use_begin(); it != bb_phi->use_end();) {
+//          Value *u = *it; it++;
+//          if (auto i = dyn_cast<Instruction>(u)) {
+//            if (i->getParent()->getParent() == old_fn) {
+//              i->replaceUsesOfWith(bb_phi, bb_call);
+//            }
+//          }
+//        }
         
         // in extracted fn, remap branches outside to bb_ret
         clone_map[bb_after] = bb_ret;
@@ -560,9 +580,21 @@ namespace Grappa {
       
       // use clone_map to remap values in new function
       // (including branching to new bb_ret instead of exit blocks)
+      
+      for (auto bb : bbs) {
+        assert(bb_map.count(bb));
+        outs() << bb->getName() << " => " << bb_map[bb]->getName() << "\n";
+      }
+
+      for (auto p : bb_map) clone_map[p.first] = p.second;
+      
       for_each(inst, new_fn, inst) {
         RemapInstruction(&*inst, clone_map, RF_IgnoreMissingEntries);
       }
+      
+//      for (auto bb : bbs) {
+//        bb->replaceAllUsesWith(bb_call);
+//      }
       
       // load outputs (also rewriting uses, so have to do this *after* remap above)
       b.SetInsertPoint(exit_switch);
@@ -606,7 +638,7 @@ namespace Grappa {
           }
         }
         for_each(sb, &bb, succ) {
-          assert(sb->getParent() == new_fn);
+          assert2(sb->getParent() == new_fn, "bad successor", bb, sb->getName());
         }
         for (auto& i : bb) {
           for_each_use(u, i) {
@@ -638,6 +670,22 @@ namespace Grappa {
               errs() << "use escaped => " << *uubb << *bb;
               assert(uubb->getParent() == old_fn);
               assert(false);
+            }
+          } else {
+            errs() << "!! " << **u << "\n";
+          }
+        }
+        for (auto& i : *bb) {
+          for (auto u = i.use_begin(), ue = i.use_end(); u != ue; u++) {
+            if (auto uu = dyn_cast<Instruction>(*u)) {
+              if (bbs.count(uu->getParent()) == 0) {
+                auto uubb = uu->getParent();
+                errs() << "use escaped => " << *uubb << *bb;
+                assert(uubb->getParent() == old_fn);
+                assert(false);
+              }
+            } else {
+              errs() << "!! " << **u << "\n";
             }
           }
         }
@@ -880,6 +928,7 @@ namespace Grappa {
           
           if (PrintDot) {
             CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+//            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
           }
         }
         if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");

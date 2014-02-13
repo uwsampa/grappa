@@ -34,6 +34,9 @@ for (auto var = (arg).op_begin(), var##_end = (arg).op_end(); var != var##_end; 
 #define for_each_use(var, arg) \
 for (auto var = (arg).use_begin(), var##_end = (arg).use_end(); var != var##_end; var++)
 
+#define assert2(cond, msg, p1, p2) \
+  do { if (!(cond)) { errs() << "!! " << msg << "\n" << p1 << "\n" << p2 << "\n\n"; assert(false && msg); } } while (0)
+
 using namespace llvm;
 
 inline std::string demangle(StringRef name) {

@@ -195,10 +195,7 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
     
     retcode = fe.readFF();
     VLOG(0) << "retcode = " << retcode;
-    if (out_sz == sizeof(long)) {
-      VLOG(0) << "out = " << *reinterpret_cast<long*>(_out);
-    }
-      
+    
     memcpy(out, _out, out_sz);
     
     if (out_sz == sizeof(long)) {
