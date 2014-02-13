@@ -7,6 +7,8 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/CallSite.h>
 #include <llvm/Support/GraphWriter.h>
+#include <llvm/InstVisitor.h>
+#include <llvm/Support/CommandLine.h>
 
 #include "Passes.h"
 #include "DelegateExtractor.hpp"
@@ -21,6 +23,8 @@ StringRef getColorString(unsigned ColorNumber) {
     "midnightblue", "firebrick", "peachpuff", "yellow", "limegreen", "khaki"};
   return Colors[ColorNumber % NumColors];
 }
+
+static cl::opt<bool> PrintDot("grappa-dot", cl::desc("Dump pass info to dot format."));
 
 namespace Grappa {
   
@@ -686,25 +690,33 @@ namespace Grappa {
       o << "    <tr><td align='left'>" << bb->getName() << "</td></tr>\n";
       
       for (auto& i : *bb) {
-        std::string _s;
-        raw_string_ostream os(_s);
-        os << i;
-        auto s = DOT::EscapeString(os.str());
+        std::string s;
+        { std::string _s; raw_string_ostream os(_s);
+          os << i;
+          s = DOT::EscapeString(os.str());
+        }
+        
+        std::string cell_open  = "<tr><td align='left'>";
+        std::string cell_close = "</td></tr>";
+        
+        std::string font_tag;
+        { std::string _s; raw_string_ostream os(_s);
+          os << "<font face='Inconsolata LGC' point-size='10'";
+          if (candidates[&i])
+            os << " color='" << getColorString(candidates[&i]->ID) << "'";
+          os << ">";
+          font_tag = os.str();
+        }
+        
+        s = cell_open + font_tag + s + "</font></td></tr>";
+        
+        std::string newline = "</font>" + cell_close + "\n" + cell_open + font_tag;
         
         size_t p;
         while ((p = s.find("\\n")) != std::string::npos)
-          s.replace(p, 2, "</td></tr><tr><td align='left'>");
+          s.replace(p, 2, newline);
         
-        o << "    <tr><td align='left'>";
-        
-        if (candidates[&i]) {
-          o << "<font color='"
-            << getColorString(candidates[&i]->ID)
-            << "'>" << s << "</font>";
-        } else {
-          o << s;
-        }
-        o << "</td></tr>\n";
+        o << s << "\n";
       }
       
       o << "  </table>\n";
@@ -759,6 +771,7 @@ namespace Grappa {
       }
       
       o << "digraph TaskFunction {\n";
+      o << "  fontname=\"Inconsolata LGC\";\n";
       o << "  label=\"" << demangle(F.getName()) << "\"";
       o << "  node[shape=record];\n";
       
@@ -840,7 +853,7 @@ namespace Grappa {
       }
       
       auto taskname = "task" + Twine(ct++);
-      if (cnds.size() > 0) {
+      if (cnds.size() > 0 && PrintDot) {
         CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
       }
       
@@ -857,19 +870,21 @@ namespace Grappa {
           auto new_fn = cnd->extractRegion(ginfo, *layout);
 //          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after." + new_fn->getName());
           
-          CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+          if (PrintDot) {
+            CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+          }
+          outs() << "verifying"; verifier.visit(new_fn); outs() << "done\n";
         }
-        CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+        if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+        outs() << "verifying";
+        verifier.visit(fn);
+        outs() << "done\n";
       }
       
       for (auto c : cnds) delete c;
+      
     }
     
-//    outs() << "<< anchors:\n";
-//    for (auto a : anchors) {
-//      outs() << "  " << *a << "\n";
-//    }
-//    outs() << ">>>>>>>>>>\n";
     outs().flush();
     
     return changed;
