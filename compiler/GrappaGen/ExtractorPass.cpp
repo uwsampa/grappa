@@ -786,6 +786,55 @@ namespace Grappa {
 
   };
   
+  
+  struct MetadataVerifier : public InstVisitor<MetadataVerifier> {
+    
+    SmallPtrSet<MDNode*,32> mdvisited;
+    
+    void visitInstruction(Instruction &i) {
+      for_each_op(o, i)
+        if (auto m = dyn_cast<MDNode>(*o))
+          visitMDNode(*m, i.getParent()->getParent());
+    }
+    
+    void visitMDNode(MDNode &m, Function *fn) {
+      if (!mdvisited.insert(&m)) return;
+      
+      for (unsigned i = 0, e = m.getNumOperands(); i != e; ++i) {
+        Value *o = m.getOperand(i);
+        
+        if (!o)
+          continue;
+        if (isa<Constant>(o) || isa<MDString>(o))
+          continue;
+        if (MDNode *om = dyn_cast<MDNode>(o)) {
+          visitMDNode(*om, fn);
+          continue;
+        }
+        
+        if (m.isFunctionLocal()) {
+          // If this was an instruction, bb, or argument, verify that it is in the
+          // function that we expect.
+          Function *ActualF = 0;
+          if (Instruction *I = dyn_cast<Instruction>(o))
+            ActualF = I->getParent()->getParent();
+          else if (BasicBlock *BB = dyn_cast<BasicBlock>(o))
+            ActualF = BB->getParent();
+          else if (Argument *A = dyn_cast<Argument>(o))
+            ActualF = A->getParent();
+          
+          if (ActualF && ActualF != fn) {
+            outs() << "Function-local metatdata in wrong function:\n";
+            outs() << *o << "\n";
+            outs() << m << "\n";
+          } else {
+            outs() << ".";
+          }
+        }
+      }
+    }
+  };
+  
   long CandidateRegion::id_counter = 0;
   
   bool ExtractorPass::runOnModule(Module& M) {
@@ -810,6 +859,8 @@ namespace Grappa {
     outs() << "task_fns.count => " << task_fns.size() << "\n";
     outs().flush();
 //    std::vector<DelegateExtractor*> candidates;
+    
+    MetadataVerifier verifier;
     
     CandidateMap candidate_map;
     int ct = 0;
