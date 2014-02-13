@@ -57,8 +57,8 @@ module Isolatable
     
     exes = [exes] unless exes.is_a? Array
     exes << 'mpirun' << "#{File.dirname(__FILE__)}/../bin/grappa_srun" \
-                     << "#{File.dirname(__FILE__)}/../bin/grappa_srun_prolog.rb" \
-                     << "#{File.dirname(__FILE__)}/../bin/grappa_srun_epilog.sh"
+                     << "#{File.dirname(__FILE__)}/../bin/srun_prolog.rb" \
+                     << "#{File.dirname(__FILE__)}/../bin/srun_epilog.sh"
     
     exes.each do |exe|
       if not File.exists? exe
