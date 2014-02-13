@@ -188,6 +188,9 @@ Igor do
       # get rid of pesky 'nan's if they show up
       m.gsub!(/: -?nan/, ': 0')
 
+      # get rid of trailing ",", which JSON hates
+      m.gsub!(/,\s*}/, '}')
+
 
       blob = JSON.parse(m)
       flat = {}
