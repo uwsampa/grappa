@@ -595,16 +595,7 @@ namespace Grappa {
         
         auto exit_code = ConstantInt::get(ty_ret, exit_id++);
         
-//        if (clone_map.count(before->getParent()) == 0) {
-//          outs() << "-------------------\n";
-//          assert(before->getParent()->getParent() == old_fn);
-//          for (auto bb : bbs) outs() << bb->getName() << " -- " << clone_map.count(bb) << "\n";
-//          outs() << "before_exit =>" << *before << " (in " << before->getParent()->getName() << ")\n";
-//          assert(false);
-//        }
         auto bb_pred = bb_map[before->getParent()];
-//        if (clone_map.count(bb_pred)) bb_pred = cast<BasicBlock>(clone_map[bb_pred]);
-        
         assert(bb_pred->getParent() == new_fn);
         
         // hook up exit from region with phi node in return block
@@ -616,24 +607,6 @@ namespace Grappa {
         
         auto bb_before = before->getParent();
         bb_before->replaceSuccessorsPhiUsesWith(bb_call);
-        
-//        errs() << "@bh bb_before => " << bb_before->getName() << "\n";
-//        errs() << "@bh bb_after  => " << bb_after->getName() << "\n";
-//        for (auto& i : *bb_after) if (auto phi = dyn_cast<PHINode>(&i)) {
-//          phi->setIncomingBlock(phi->getBasicBlockIndex(bb_before), bb_call);
-////          phi->replaceUsesOfWith(bb_before, bb_call);
-//        }
-        
-//        auto bb_phi = after->getParent();
-//        assert(bbs.count(bb_phi));
-//        for (auto it = bb_phi->use_begin(); it != bb_phi->use_end();) {
-//          Value *u = *it; it++;
-//          if (auto i = dyn_cast<Instruction>(u)) {
-//            if (i->getParent()->getParent() == old_fn) {
-//              i->replaceUsesOfWith(bb_phi, bb_call);
-//            }
-//          }
-//        }
         
         // in extracted fn, remap branches outside to bb_ret
         clone_map[bb_after] = bb_ret;
@@ -652,10 +625,6 @@ namespace Grappa {
       for_each(inst, new_fn, inst) {
         RemapInstruction(&*inst, clone_map, RF_IgnoreMissingEntries);
       }
-      
-//      for (auto bb : bbs) {
-//        bb->replaceAllUsesWith(bb_call);
-//      }
       
       // load outputs (also rewriting uses, so have to do this *after* remap above)
       b.SetInsertPoint(exit_switch);
@@ -750,7 +719,7 @@ namespace Grappa {
           }
         }
       }
-
+      
       // delete old bbs
       for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
       for (auto bb : bbs) bb->eraseFromParent();
