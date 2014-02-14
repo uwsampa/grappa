@@ -870,8 +870,31 @@ namespace Grappa {
       
       o.close();
     }
-
+    
   };
+  
+  int fixupFunction(Function* fn, GlobalPtrInfo& ginfo) {
+    int fixed_up = 0;
+    SmallDenseMap<Value*,Value*> lptrs;
+    
+    for (auto& bb : *fn ) {
+      for (auto inst = bb.begin(); inst != bb.end(); ) {
+        Instruction *orig = inst++;
+        auto prov = getProvenance(orig);
+        if (isGlobalPtr(prov)) {
+          if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+            errs() << "!! too bad -- should do put/get\n";
+          }
+        } else if (isSymmetricPtr(prov)) {
+          if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+            ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+            fixed_up++;
+          }
+        }
+      }
+    }
+    return fixed_up;
+  }
   
   long CandidateRegion::id_counter = 0;
   
@@ -975,15 +998,26 @@ namespace Grappa {
 //            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
           }
         }
-        if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+      }
+      
+      if (found_functions) {
+        int nfixed = fixupFunction(fn, ginfo);
+        
+        if ((nfixed || cnds.size()) && PrintDot) {
+          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+        }
       }
       
       for (auto c : cnds) delete c;
-      
+    }
+    
+    ////////////////////////////////////////////////
+    // fixup any remaining global/symmetric things
+    for (auto& F : M) {
+      fixupFunction(&F, ginfo);
     }
     
     outs().flush();
-    
     return changed;
   }
     
