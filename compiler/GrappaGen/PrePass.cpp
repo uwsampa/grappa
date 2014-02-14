@@ -11,10 +11,14 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/CallSite.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <llvm/Support/CommandLine.h>
 
 #include "DelegateExtractor.hpp"
 
 using namespace llvm;
+
+static cl::opt<bool> InlineSpecialMethods("grappa-inline-methods",
+                                          cl::desc("Allow methods on global*/symmetric* to be inlined (means they might get split up)."));
 
 namespace {
   
@@ -26,15 +30,17 @@ namespace {
     virtual bool runOnFunction(Function &F) {
       bool changed = false;
       
-      for (auto inst = inst_begin(&F); inst != inst_end(&F); inst++) {
-        if (auto call = dyn_cast<CallInst>(&*inst)) {
-          if (call->getNumArgOperands() > 0) {
-            auto arg = call->getArgOperand(0);
-            if (auto cast = dyn_cast<AddrSpaceCastInst>(arg)) {
-              if (cast->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
-                errs() << "!! found method call on symmetric*\n";
-                call->setIsNoInline();
-                changed = true;
+      if (!InlineSpecialMethods) {
+        for (auto inst = inst_begin(&F); inst != inst_end(&F); inst++) {
+          if (auto call = dyn_cast<CallInst>(&*inst)) {
+            if (call->getNumArgOperands() > 0) {
+              auto arg = call->getArgOperand(0);
+              if (auto cast = dyn_cast<AddrSpaceCastInst>(arg)) {
+                if (cast->getSrcTy()->getPointerAddressSpace() == SYMMETRIC_SPACE) {
+                  DEBUG(outs() << "!! found method call on symmetric*\n");
+                  call->setIsNoInline();
+                  changed = true;
+                }
               }
             }
           }
