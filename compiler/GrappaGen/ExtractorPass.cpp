@@ -49,11 +49,8 @@ namespace Grappa {
       else
         return v;
     }
-    if (auto c = dyn_cast<ConstantExpr>(v)) {
-      auto ci = c->getAsInstruction();
-      auto vv = search(ci);
-      delete ci;
-      return vv;
+    if (isa<Constant>(v)) {
+      return v;
     }
     
     return v;
@@ -934,8 +931,11 @@ namespace Grappa {
             outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
           });
         } else if (isGlobalPtr(p)) {
+          outs() << *a << "\n";
+          outs() << p << "\n";
           auto r = new CandidateRegion(p, a, candidate_map, ginfo, *layout);
           r->valid_ptrs.insert(p);
+          outs() << "valid_ptr =>" << *p << "\n";
           r->expandRegion();
           
           r->printHeader();

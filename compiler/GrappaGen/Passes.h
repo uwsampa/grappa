@@ -201,7 +201,11 @@ struct GlobalPtrInfo {
     
     // insert after gptr use for better reuse
     assert(!isa<TerminatorInst>(xptr));
-    IRBuilder<> b(cast<Instruction>(xptr)->getNextNode());
+    
+    IRBuilder<> b(orig);
+    if (auto i = dyn_cast<Instruction>(xptr)) {
+      b.SetInsertPoint(i->getNextNode());
+    }
 
     Twine name = (xptr->getName().size() ? xptr->getName()+"." : "" ) + suffix;
     
