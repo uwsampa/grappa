@@ -9,6 +9,7 @@
 #include <llvm/Support/GraphWriter.h>
 #include <llvm/InstVisitor.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Format.h>
 
 #include "Passes.h"
 #include "DelegateExtractor.hpp"
@@ -115,6 +116,7 @@ namespace Grappa {
     long ID;
     
     Instruction* entry;
+    Type *ty_input, *ty_output;
     
     class ExitMap {
       // holds either:
@@ -195,8 +197,11 @@ namespace Grappa {
     
     CandidateMap& owner;
     
-    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner):
-      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner) {}
+    GlobalPtrInfo& ginfo;
+    DataLayout& layout;
+    
+    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
+      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
     
     template< typename F >
     void visit(F yield) {
@@ -278,6 +283,24 @@ namespace Grappa {
           }
         }
       } // while (!worklist.empty())
+      
+      //////////////////////////////////////////////////////
+      // rollback before branch if all exits from single bb
+      if (exits.size() > 1) {
+        SmallSetVector<Instruction*,8> preds;
+        exits.each([&](Instruction* before, Instruction* after){
+          preds.insert(before);
+        });
+        if (preds.size() == 1) {
+          exits.clear();
+          owner[preds[0]] = nullptr;
+          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
+          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
+          exits.add(p);
+        }
+      }
+
+      computeInputsOutputs();
     }
     
     bool validInRegion(Instruction* i) {
@@ -303,9 +326,44 @@ namespace Grappa {
       }
     }
     
-    Function* extractRegion(GlobalPtrInfo& ginfo, DataLayout& layout) {
+    /////////////////////////
+    // find inputs/outputs
+    void computeInputsOutputs() {
+      auto& ctx = entry->getContext();
+      
+      auto definedInRegion = [&](Value* v) {
+        if (auto i = dyn_cast<Instruction>(v))
+          if (owner[i] == this)
+            return true;
+        return false;
+      };
+      auto definedInCaller = [&](Value* v) {
+        if (isa<Argument>(v)) return true;
+        if (auto i = dyn_cast<Instruction>(v))
+          if (owner[i] != this)
+            return true;
+        return false;
+      };
+      
+      ValueSet inputs, outputs;
+      visit([&](BasicBlock::iterator it){
+        for_each_op(o, *it)  if (definedInCaller(*o)) inputs.insert(*o);
+        for_each_use(u, *it) if (!definedInRegion(*u)) { outputs.insert(it); break; }
+      });
+      
+      /////////////////////////////////////////////
+      // create struct types for inputs & outputs
+      SmallVector<Type*,8> in_types, out_types;
+      for (auto& p : inputs)  {  in_types.push_back(p->getType()); }
+      for (auto& p : outputs) { out_types.push_back(p->getType()); }
+      
+      ty_input = StructType::get(ctx, in_types);
+      ty_output = StructType::get(ctx, out_types);
+    }
+    
+    Function* extractRegion() {
       auto name = "d" + Twine(ID);
-      outs() << "//////////////////\n// extracting " << name << "\n";
+      DEBUG(outs() << "//////////////////\n// extracting " << name << "\n");
       DEBUG(outs() << "target_ptr =>" << *target_ptr << "\n");
       
       auto mod = entry->getParent()->getParent()->getParent();
@@ -325,19 +383,6 @@ namespace Grappa {
         });
         outs() << "\n";
       });
-      
-      if (exits.size() > 1) {
-        SmallSetVector<Instruction*,8> preds;
-        exits.each([&](Instruction* before, Instruction* after){
-          preds.insert(before);
-        });
-        if (preds.size() == 1) {
-          exits.clear();
-          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
-          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
-          exits.add(p);
-        }
-      }
       
       //////////////////////////////////////////////////////////////
       // first slice and dice at boundaries and build up set of BB's
@@ -428,6 +473,10 @@ namespace Grappa {
       
       auto in_struct_ty = StructType::get(ctx, in_types);
       auto out_struct_ty = StructType::get(ctx, out_types);
+      
+      assert2(in_struct_ty == ty_input, "different input types", *ty_input, *in_struct_ty);
+      if (out_struct_ty != ty_output) for (auto v : outputs) outs() << "-- " << *v << "\n";
+      assert2(out_struct_ty == ty_output, "different output types", *ty_output, *out_struct_ty);
       
       /////////////////////////
       // create function shell
@@ -716,13 +765,25 @@ namespace Grappa {
     }
     
     void printHeader() {
-      outs() << "Candidate " << ID << ":\n";
-      outs() << "  entry:\n  " << *entry << "\n";
+      outs() << "# Candidate " << ID << ":\n";
+      DEBUG(outs() << "  entry:\n  " << *entry << "\n");
+      
+      if (ty_input && ty_output) {
+        outs() << "  in:  (" << format("%2d", layout.getTypeAllocSize(ty_input)) << ") "
+               << *ty_input << "\n"
+               << "  out: (" << format("%2d", layout.getTypeAllocSize(ty_output)) << ") "
+               << *ty_output << "\n";
+      }
+      
       outs() << "  valid_ptrs:\n";
       for (auto p : valid_ptrs) outs() << "  " << *p << "\n";
-      outs() << "  exits:\n";
-      exits.each([&](Instruction* s, Instruction* e){
-        outs() << "  " << *s << "\n     =>" << *e << "\n";
+      
+      DEBUG({
+        outs() << "  exits:\n";
+        exits.each([&](Instruction* s, Instruction* e){
+          outs() << "  " << *s << "\n     =>" << *e << "\n";
+        });
+        outs() << "\n";
       });
       outs() << "\n";
     }
@@ -904,7 +965,7 @@ namespace Grappa {
             outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
           });
         } else if (isGlobalPtr(p)) {
-          auto r = new CandidateRegion(p, a, candidate_map);
+          auto r = new CandidateRegion(p, a, candidate_map, ginfo, *layout);
           r->valid_ptrs.insert(p);
           r->expandRegion();
           
@@ -938,7 +999,7 @@ namespace Grappa {
       if (found_functions && cnds.size() > 0) {
         for (auto cnd : cnds) {
           
-          auto new_fn = cnd->extractRegion(ginfo, *layout);
+          auto new_fn = cnd->extractRegion();
           
           if (PrintDot) {
             CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
