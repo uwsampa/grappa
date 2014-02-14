@@ -912,7 +912,7 @@ namespace Grappa {
         auto prov = getProvenance(orig);
         if (isGlobalPtr(prov)) {
           if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-            errs() << "!! too bad -- should do put/get\n";
+            assert(!gptr && "!! too bad -- should do put/get\n");
           }
         } else if (isSymmetricPtr(prov)) {
           if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
@@ -928,8 +928,6 @@ namespace Grappa {
   long CandidateRegion::id_counter = 0;
   
   bool ExtractorPass::runOnModule(Module& M) {
-    outs() << "Running extractor...\n";
-    bool changed = false;
     
     auto layout = new DataLayout(&M);
     
@@ -945,9 +943,6 @@ namespace Grappa {
         task_fns.insert(&F);
       }
     }
-    
-    outs() << "task_fns.count => " << task_fns.size() << "\n";
-    outs().flush();
     
     CandidateMap candidate_map;
     int ct = 0;
@@ -983,11 +978,10 @@ namespace Grappa {
             outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
           });
         } else if (isGlobalPtr(p)) {
-          outs() << *a << "\n";
-          outs() << p << "\n";
+
           auto r = new CandidateRegion(p, a, candidate_map, ginfo, *layout);
           r->valid_ptrs.insert(p);
-          outs() << "valid_ptr =>" << *p << "\n";
+          
           r->expandRegion();
           
           r->printHeader();
@@ -1047,7 +1041,7 @@ namespace Grappa {
     }
     
     outs().flush();
-    return changed;
+    return true;
   }
     
   bool ExtractorPass::doInitialization(Module& M) {
