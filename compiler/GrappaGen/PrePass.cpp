@@ -54,9 +54,9 @@ namespace {
       outs() << "-- Grappa Pre Pass --\n";
       outs().flush();
       
-//      if (auto fn = M.getFunction("printf")) {
-//        fn->addFnAttr("unbound");
-//      }
+      for (auto name : (StringRef[]){ "printf", "fprintf" })
+        if (auto fn = M.getFunction(name))
+          fn->addFnAttr("unbound");
       
 //      for (auto& F : M.getFunctionList()) {
 //        if (F.getName().find("google10LogMessage") != std::string::npos) {
