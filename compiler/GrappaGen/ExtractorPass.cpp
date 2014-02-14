@@ -803,6 +803,13 @@ namespace Grappa {
         while ((p = s.find("\\n")) != std::string::npos)
           s.replace(p, 2, newline);
         
+        for (auto fn : (StringRef[]){"@grappa_get_core", "@grappa_get_pointer", "@grappa_get_pointer_symmetric"}) {
+          auto fns = (fn+"(").str();
+          auto fnc = ("<font color='blue'>"+fn+"</font>").str();
+          while ((p = s.find(fns, p+fnc.size())) != std::string::npos)
+            s.replace(p, fn.size(), fnc);
+        }
+        
         o << s << "\n";
       }
       
