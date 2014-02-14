@@ -156,6 +156,7 @@ using retcode_t = int16_t;
 extern "C"
 retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz,
                void* out, size_t out_sz) {
+
   auto origin = Grappa::mycore();
   
   retcode_t retcode;
@@ -166,7 +167,7 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
     
     retcode = fn(args, out);
     
-  } else if ( args_sz < SMALL_MSG_SIZE && out_sz < SMALL_MSG_SIZE) {
+  } else if ( args_sz <= SMALL_MSG_SIZE && out_sz <= SMALL_MSG_SIZE) {
     VLOG(5) << "small_msg";
     delegate_ops_small_msg++;
     
@@ -194,13 +195,8 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
     });
     
     retcode = fe.readFF();
-    VLOG(0) << "retcode = " << retcode;
     
     memcpy(out, _out, out_sz);
-    
-    if (out_sz == sizeof(long)) {
-      VLOG(0) << "out = " << *reinterpret_cast<long*>(out_buf);
-    }
     
   } else {
     delegate_ops_payload_msg++;
@@ -210,15 +206,15 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
     
     Grappa::send_heap_message(dst, [fn,out,out_sz,gfe](void* args, size_t args_sz){
       
-      auto out = Grappa::locale_alloc<int8_t>(out_sz); // <-- this is slow
-      retcode_t retcode = fn(args, out);
+      auto out_buf = Grappa::locale_alloc<int8_t>(out_sz); // <-- this is slow
+      retcode_t retcode = fn(args, out_buf);
       
       auto msg = Grappa::heap_message(gfe.core(), [out,gfe,retcode](void* p, size_t psz){
         
         memcpy(out, p, psz);
         gfe->writeEF(retcode);
         
-      }, out, out_sz);
+      }, out_buf, out_sz);
       msg->delete_payload_after_send();
       msg->enqueue();
       
@@ -226,7 +222,6 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
     
     retcode = fe.readFF();
   }
-  
   return retcode;
 }
 
