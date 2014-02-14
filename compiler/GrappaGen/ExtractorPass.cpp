@@ -244,7 +244,7 @@ namespace Grappa {
             if (valid) for_each(pb, *sb, pred) {
               bool b = (bbs.count(*pb) > 0);
               if (!b) {
-                outs() << "!! deferring -- invalid preds:\n" << *bb << "\n" << **pb;
+                DEBUG(outs() << "!! deferring -- invalid preds:\n" << *bb << "\n" << **pb);
                 try_again.insert(*sb);
               }
               valid &= b;
@@ -301,8 +301,8 @@ namespace Grappa {
     
     Function* extractRegion(GlobalPtrInfo& ginfo, DataLayout& layout) {
       auto name = "d" + Twine(ID);
-      outs() << "--------------- extracting " << name << " ----------------\n";
-      errs() << "target_ptr =>" << *target_ptr << "\n";
+      outs() << "//////////////////\n// extracting " << name << "\n";
+      DEBUG(outs() << "target_ptr =>" << *target_ptr << "\n");
       
       auto mod = entry->getParent()->getParent()->getParent();
       auto& ctx = entry->getContext();
@@ -314,11 +314,13 @@ namespace Grappa {
       
       SmallSet<BasicBlock*,8> bbs;
       
-      outs() << "pre exits:\n";
-      exits.each([&](Instruction* before_exit, Instruction* after_exit){
-        outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+      DEBUG({
+        outs() << "pre exits:\n";
+        exits.each([&](Instruction* before_exit, Instruction* after_exit){
+          outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+        });
+        outs() << "\n";
       });
-      outs() << "\n";
       
       if (exits.size() > 1) {
         SmallSetVector<Instruction*,8> preds;
@@ -328,7 +330,7 @@ namespace Grappa {
         if (preds.size() == 1) {
           exits.clear();
           auto p = BasicBlock::iterator(preds[0])->getPrevNode();
-          outs() << "@bh unique_pred =>" << *preds[0] << "\n";
+          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
           exits.add(p);
         }
       }
@@ -336,8 +338,10 @@ namespace Grappa {
       //////////////////////////////////////////////////////////////
       // first slice and dice at boundaries and build up set of BB's
       auto bb_in = entry->getParent();
-      outs() << "entry =>" << *entry << "\n";
-      outs() << "bb_in => " << bb_in->getName() << "\n";
+      DEBUG(
+        outs() << "entry =>" << *entry << "\n";
+        outs() << "bb_in => " << bb_in->getName() << "\n";
+      );
 
       auto old_fn = bb_in->getParent();
       
@@ -345,21 +349,25 @@ namespace Grappa {
         auto bb_new = bb_in->splitBasicBlock(entry, name+".eblk");
         bb_in = bb_new;
       }
-      outs() << "bb_in => " << bb_in->getName() << "\n";
+      
+      DEBUG({
+        outs() << "bb_in => " << bb_in->getName() << "\n";
 
-      outs() << "old exits:\n";
-      exits.each([&](Instruction* before_exit, Instruction* after_exit){
-        outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+        outs() << "old exits:\n";
+        exits.each([&](Instruction* before_exit, Instruction* after_exit){
+          outs() << *before_exit << " (in " << before_exit->getParent()->getName() << ")\n  =>" << *after_exit << " (in " << after_exit->getParent()->getName() << ")\n";
+        });
+        outs() << "\n";
+        outs() << "^^^^^^^^^^^^^^^\nnew exits:\n";
       });
-      outs() << "\n";
-      outs() << "^^^^^^^^^^^^^^^\nnew exits:\n";
+      
       exits.each([&](Instruction* before, Instruction* after){
         auto bb_exit = before->getParent();
         BasicBlock* bb_after;
         if (bb_exit == after->getParent()) {
           std::string bbname = Twine(name+".exit." + bb_exit->getName()).str();
           bb_after = bb_exit->splitBasicBlock(after, bbname);
-          outs() << *bb_exit->getTerminator() << " (in " << before->getParent()->getName() << ")\n  =>" << *after << " (in " << after->getParent()->getName() << ")\n";
+          DEBUG(outs() << *bb_exit->getTerminator() << " (in " << before->getParent()->getName() << ")\n  =>" << *after << " (in " << after->getParent()->getName() << ")\n");
           exits.remove(before, after);
           exits.add(bb_exit->getTerminator(), bb_after);
         } else {
@@ -379,10 +387,10 @@ namespace Grappa {
           assert(found && "after_exit not in an immediate successor of before_exit");
         }
       });
-      outs() << "^^^^^^^^^^^^^^^\n";
+      DEBUG(outs() << "^^^^^^^^^^^^^^^\n");
       
       visit([&](BasicBlock::iterator it){
-        outs() << "**" << *it << "\n";
+        DEBUG(outs() << "**" << *it << "\n");
         bbs.insert(it->getParent());
       });
       
@@ -440,7 +448,7 @@ namespace Grappa {
       }
       for (auto bb : bbs) {
         assert(bb_map.count(bb));
-        outs() << bb->getName() << " => " << bb_map[bb]->getName() << "\n";
+        DEBUG(outs() << bb->getName() << " => " << bb_map[bb]->getName() << "\n");
       }
       
       ///////////////////////////
@@ -583,7 +591,7 @@ namespace Grappa {
       
       for (auto bb : bbs) {
         assert(bb_map.count(bb));
-        outs() << bb->getName() << " => " << bb_map[bb]->getName() << "\n";
+        DEBUG(outs() << bb->getName() << " => " << bb_map[bb]->getName() << "\n");
       }
 
       for (auto p : bb_map) clone_map[p.first] = p.second;
@@ -695,11 +703,12 @@ namespace Grappa {
       for (auto bb : bbs) for (auto& i : *bb) i.dropAllReferences();
       for (auto bb : bbs) bb->eraseFromParent();
       
-      outs() << "-------------------------------\n";
-      outs() << *new_fn;
-      outs() << "-------------------------------\n";
-      outs() << *bb_call;
-      
+      DEBUG(
+        outs() << "-------------------------------\n";
+        outs() << *new_fn;
+        outs() << "-------------------------------\n";
+        outs() << *bb_call;
+      );
       return new_fn;
     }
     
@@ -886,9 +895,11 @@ namespace Grappa {
       for (auto a : anchors) {
         auto p = getProvenance(a);
         if (candidate_map[a]) {
-          outs() << "anchor already in another delegate:\n";
-          outs() << "  anchor =>" << *a << "\n";
-          outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
+          DEBUG({
+            outs() << "anchor already in another delegate:\n";
+            outs() << "  anchor =>" << *a << "\n";
+            outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
+          });
         } else if (isGlobalPtr(p)) {
           auto r = new CandidateRegion(p, a, candidate_map);
           r->valid_ptrs.insert(p);
@@ -950,6 +961,7 @@ namespace Grappa {
   }
   
   bool ExtractorPass::doFinalization(Module& M) {
+    outs() << "---\n";
     outs().flush();
     return true;
   }
