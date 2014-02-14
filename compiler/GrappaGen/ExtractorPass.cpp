@@ -93,6 +93,25 @@ namespace Grappa {
           prov = search(l->getPointerOperand());
         } else if (auto s = dyn_cast<StoreInst>(&i)) {
           prov = search(s->getPointerOperand());
+        } else if (auto c = dyn_cast<AddrSpaceCastInst>(&i)) {
+          prov = search(c->getOperand(0));
+          
+          for_each_use(u, *c) {
+            if (auto m = dyn_cast<CallInst>(*u)) {
+              // call inherits provenance of this cast
+              setProvenance(m, prov);
+              
+              // TODO: do 'meet' of provenances of operands
+//              SmallSet<Value*,8> ps;
+//              for_each_op(o, *m) {
+//                auto po = search(*o);
+//                if (isGlobalPtr(po)) {
+//                  
+//                }
+//              }
+            }
+          }
+          
         }
         if (prov) {
           setProvenance(&i, prov);
