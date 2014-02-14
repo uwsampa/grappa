@@ -3,7 +3,7 @@
 
 using namespace Grappa;
 
-async_fn void foo(long& x) {
+void foo(long& x) {
   long global* xa = make_global(&x);
   long y = 0;
   long global* ya = make_global(&y);
