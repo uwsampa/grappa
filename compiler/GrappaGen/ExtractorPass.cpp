@@ -98,17 +98,20 @@ namespace Grappa {
           
           for_each_use(u, *c) {
             if (auto m = dyn_cast<CallInst>(*u)) {
+              if (auto pp = getProvenance(m)) {
+                assert2(pp == prov, "!! two different provenances\n", *c, *m);
+              }
+              // TODO: do 'meet' of provenances of operands
+              // for now, just making sure we're not doing anything dumb
+              for_each_op(o, *m) {
+                if (auto cc = dyn_cast<AddrSpaceCastInst>(*o)) {
+                  assert2(cc == c, "!! two different operands being addrspacecast'd\n", *c, *m);
+                }
+              }
+              
               // call inherits provenance of this cast
               setProvenance(m, prov);
               
-              // TODO: do 'meet' of provenances of operands
-//              SmallSet<Value*,8> ps;
-//              for_each_op(o, *m) {
-//                auto po = search(*o);
-//                if (isGlobalPtr(po)) {
-//                  
-//                }
-//              }
             }
           }
           
