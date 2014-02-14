@@ -614,19 +614,14 @@ namespace Grappa {
       
       /////////////////////////////////
       // fixup global* uses in new_fn
+      // (note: assuming any global* accesses are valid)
       SmallDenseMap<Value*,Value*> lptrs;
-      SmallSet<Value*, 4> new_valid_ptrs;
-      for (auto p : valid_ptrs)
-        if (clone_map.count(p))
-          new_valid_ptrs.insert(clone_map[p]);
-      for (auto p : new_valid_ptrs)
-        valid_ptrs.insert(p);
       
       for (auto bb = new_fn->begin(); bb != new_fn->end(); bb++) {
         for (auto inst = bb->begin(); inst != bb->end(); ) {
           Instruction *orig = inst++;
           auto prov = getProvenance(orig);
-          if (prov && valid_ptrs.count(prov)) {
+          if (prov && isGlobalPtr(prov)) {
             if (auto gptr = ginfo.global_ptr_operand(orig)) {
               ginfo.replace_global_with_local(gptr, orig, lptrs);
             }
