@@ -182,23 +182,37 @@ struct GlobalPtrInfo {
     
     return v;
   }
-
-  Value* replace_global_with_local(Value *gptr, Instruction *orig,
+  
+  template< int SPACE >
+  Value* replace_with_local(Value *xptr, Instruction *orig,
                                    SmallDenseMap<Value*,Value*>& lptrs) {
-    // insert after gptr use for better reuse
-    assert(!isa<TerminatorInst>(gptr));
-    IRBuilder<> b(cast<Instruction>(gptr)->getNextNode());
-
-    Twine name = gptr->getName().size() ? gptr->getName()+".g" : "g";
+    Function* get_xptr_fn = nullptr;
+    Type*     void_xptr_ty = nullptr;
+    StringRef suffix;
+    if (SPACE == GLOBAL_SPACE) {
+      get_xptr_fn = get_pointer_fn;
+      void_xptr_ty = void_gptr_ty;
+      suffix = "g";
+    } else if (SPACE == SYMMETRIC_SPACE) {
+      get_xptr_fn = get_pointer_symm_fn;
+      void_xptr_ty = void_sptr_ty;
+      suffix = "s";
+    }
     
-    auto lptr = lptrs[gptr];
+    // insert after gptr use for better reuse
+    assert(!isa<TerminatorInst>(xptr));
+    IRBuilder<> b(cast<Instruction>(xptr)->getNextNode());
+
+    Twine name = (xptr->getName().size() ? xptr->getName()+"." : "" ) + suffix;
+    
+    auto lptr = lptrs[xptr];
     if (!lptr) {
-      Type *ty = getAddrspaceType(gptr->getType(), 0);
-      Value *v = gptr;
-             v = b.CreateBitCast(v, void_gptr_ty, name+".void");
-             v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
-             v = b.CreateBitCast(v, ty, name+".lptr");
-      lptr = lptrs[gptr] = v;
+      Type *lty = getAddrspaceType(xptr->getType(), 0);
+      Value *v = xptr;
+             v = b.CreateBitCast(v, void_xptr_ty, name+".void");
+             v = b.CreateCall(get_xptr_fn, (Value*[]){ v }, name+".lvoid");
+             v = b.CreateBitCast(v, lty, name+".lptr");
+      lptr = lptrs[xptr] = v;
     }
     
     Value *v = nullptr;
@@ -222,13 +236,14 @@ struct GlobalPtrInfo {
     return v;
   }
   
-  Value* global_ptr_operand(Instruction* orig) {
-    if (auto ld = dyn_cast_addr<GLOBAL_SPACE,LoadInst>(orig)) {
+  template< int SPACE >
+  Value* ptr_operand(Instruction* orig) {
+    if (auto ld = dyn_cast_addr<SPACE,LoadInst>(orig)) {
       return ld->getPointerOperand();
-    } else if (auto st = dyn_cast_addr<GLOBAL_SPACE,StoreInst>(orig)) {
+    } else if (auto st = dyn_cast_addr<SPACE,StoreInst>(orig)) {
       return st->getPointerOperand();
     } else if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
-      if (c->getSrcTy()->getPointerAddressSpace() == GLOBAL_SPACE) {
+      if (c->getSrcTy()->getPointerAddressSpace() == SPACE) {
         return c->getOperand(0);
       }
     }

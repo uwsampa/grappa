@@ -69,11 +69,15 @@ namespace Grappa {
     return nullptr;
   }
   
-  bool isGlobalPtr(Value* v)    { return dyn_cast_addr<GLOBAL_SPACE>(v->getType()); }
-  bool isSymmetricPtr(Value* v) { return dyn_cast_addr<SYMMETRIC_SPACE>(v->getType()); }
-  bool isStatic(Value* v)       { return isa<GlobalVariable>(v); }
-  bool isConst(Value* v)       { return isa<Constant>(v) || isa<BasicBlock>(v); }
-  bool isStack(Value* v)        { return isa<AllocaInst>(v) || isa<Argument>(v); }
+#define X(expr) if (!v) return false; else return (expr);
+  
+  bool isGlobalPtr(Value* v)    { X(dyn_cast_addr<GLOBAL_SPACE>(v->getType())); }
+  bool isSymmetricPtr(Value* v) { X(dyn_cast_addr<SYMMETRIC_SPACE>(v->getType())); }
+  bool isStatic(Value* v)       { X(isa<GlobalVariable>(v)); }
+  bool isConst(Value* v)        { X(isa<Constant>(v) || isa<BasicBlock>(v)); }
+  bool isStack(Value* v)        { X(isa<AllocaInst>(v) || isa<Argument>(v)); }
+  
+#undef X
   
   bool isAnchor(Instruction* inst) {
     Value* ptr = getProvenance(inst);
@@ -621,9 +625,13 @@ namespace Grappa {
         for (auto inst = bb->begin(); inst != bb->end(); ) {
           Instruction *orig = inst++;
           auto prov = getProvenance(orig);
-          if (prov && isGlobalPtr(prov)) {
-            if (auto gptr = ginfo.global_ptr_operand(orig)) {
-              ginfo.replace_global_with_local(gptr, orig, lptrs);
+          if (isGlobalPtr(prov)) {
+            if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+              ginfo.replace_with_local<GLOBAL_SPACE>(gptr, orig, lptrs);
+            }
+          } else if (isSymmetricPtr(prov)) {
+            if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+              ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
             }
           }
         }
@@ -753,7 +761,7 @@ namespace Grappa {
         
         std::string font_tag;
         { std::string _s; raw_string_ostream os(_s);
-          os << "<font face='Inconsolata LGC' point-size='10'";
+          os << "<font face='Inconsolata LGC' point-size='11'";
           if (candidates[&i])
             os << " color='" << getColorString(candidates[&i]->ID) << "'";
           os << ">";

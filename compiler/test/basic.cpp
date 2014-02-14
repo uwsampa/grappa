@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include <Grappa.hpp>
 #include <Primitive.hpp>
 #include <Collective.hpp>
@@ -42,27 +46,32 @@ int main(int argc, char* argv[]) {
     });
     assert(alpha == 8);
     
-    long x = 1, y = 7;
+    fprintf(stderr, "-----------------\n");
+    
+    long x = 1, y1 = 7;
     long global* xa = make_global(&x);
-    long global* ya = make_global(&y);
+    long global* ya = make_global(&y1);
     
     long global* array = global_alloc<long>(10);
     
     on_all_cores([=]{
-      fprintf(stderr, "xa = %d : %p\n", core(xa), pointer(xa));
-      fprintf(stderr, "ya = %d : %p\n", core(ya), pointer(ya));
+      fprintf(stderr, "xa = %d : %p (%p)\n", core(xa), pointer(xa), reinterpret_cast<void*>(xa));
+      fprintf(stderr, "ya = %d : %p (%p)\n", core(ya), pointer(ya), reinterpret_cast<void*>(ya));
       
       long y = *xa;
       fprintf(stderr, "*xa = %ld\n", y);
       
       long z = *ya;
       long w = *xa;
-      
+//      fprintf(stderr, "w = %ld\n", w);
+    
       assert(z == 7);
       assert(y == w);
       
       long i = (*xa)++;
       assert(i >= 1);
+//      fprintf(stderr, "i = %ld\n", i);
+      
       auto dxa = delegate::read(gaddr(xa));
       fprintf(stderr, "dxa = %ld\n", dxa);
       assert(dxa >= 2 || dxa <= 4);
@@ -75,6 +84,7 @@ int main(int argc, char* argv[]) {
       
       if (mycore() == 0) {
         for (long i=0; i<10; i++) {
+          assert(array+i == gptr(gaddr(array)+i));
           array[i] = i;
         }
         barrier();
@@ -85,6 +95,7 @@ int main(int argc, char* argv[]) {
         for (long i=0; i<10; i++) {
           total += array[i];
         }
+        assert(total == 45);
         fprintf(stderr, "total: %ld\n", total);
       }
       
