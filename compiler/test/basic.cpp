@@ -2,10 +2,14 @@
 #undef NDEBUG
 #endif
 
+#define BOOST_TEST_MODULE basic
+#include <boost/test/unit_test.hpp>
+
 #include <Grappa.hpp>
 #include <Primitive.hpp>
-#include <Collective.hpp>
-#include <GlobalAllocator.hpp>
+
+
+BOOST_AUTO_TEST_SUITE( basic );
 
 using namespace Grappa;
 
@@ -25,8 +29,8 @@ retcode_t do_work(void *i, void *o) {
   return 0;
 }
 
-int main(int argc, char* argv[]) {
-  init(&argc, &argv);
+BOOST_AUTO_TEST_CASE( test1 ) {
+  init( GRAPPA_TEST_ARGS );
   run([]{
     
     long alpha = 7;
@@ -103,5 +107,7 @@ int main(int argc, char* argv[]) {
     Metrics::merge_and_dump_to_file();
   });
   finalize();
-  return 0;
 }
+
+BOOST_AUTO_TEST_SUITE_END();
+
