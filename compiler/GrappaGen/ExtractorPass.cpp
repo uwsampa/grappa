@@ -340,6 +340,8 @@ namespace Grappa {
           errs() << "!! no provenance:" << *i;
         }
         return false;
+      } else if (isa<ReturnInst>(i) || isa<InvokeInst>(i)){
+        return false;
       } else {
         return true;
       }
@@ -1036,7 +1038,7 @@ namespace Grappa {
     
     ////////////////////////////////////////////////
     // fixup any remaining global/symmetric things
-    for (auto& F : M) {
+    if (found_functions) for (auto& F : M) {
       fixupFunction(&F, ginfo);
     }
     
