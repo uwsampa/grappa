@@ -14,7 +14,7 @@ macro(add_grappaclang_test file flags suffix)
   
   add_test(NAME ${target}.test
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_srun" -n1 -p2 -- "${CMAKE_CURRENT_BINARY_DIR}/${exe}"
+    COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_srun" -n1 -p2 "--no-freeze-on-error" "--no-backtrace" -- "${CMAKE_CURRENT_BINARY_DIR}/${exe}"
   )
   add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${target})
   set_tests_properties(${target}.test PROPERTIES DEPENDS ${target}.build)
@@ -26,6 +26,7 @@ macro(add_grappaclang_test file flags suffix)
 endmacro()
 
 foreach(file ${tests})
-  add_grappaclang_test(${file} "" n)
   add_grappaclang_test(${file} "-mllvm -grappa-extractor" ext)
+  add_grappaclang_test(${file} "-mllvm -grappa-extractor -O1" ext.o1)
+  add_grappaclang_test(${file} "-mllvm -grappa-extractor -O3" ext.o3)
 endforeach()
