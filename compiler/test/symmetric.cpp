@@ -1,6 +1,11 @@
+#define BOOST_TEST_MODULE symmetric_tests
+#define BOOST_TEST_DYN_LINK
+#include <boost/test/unit_test.hpp>
 #include <Grappa.hpp>
 #include <GlobalVector.hpp>
 #include <Primitive.hpp>
+
+BOOST_AUTO_TEST_SUITE( BOOST_TEST_MODULE );
 
 using namespace Grappa;
 
@@ -16,8 +21,8 @@ struct Foo {
 
 long z;
 
-int main(int argc, char* argv[]) {
-  init(&argc, &argv);
+BOOST_AUTO_TEST_CASE( test1 ) {
+  init( GRAPPA_TEST_ARGS );
   run([]{
     auto sa = symmetric_global_alloc<Foo>();
     Foo symmetric* s = sa;
@@ -67,3 +72,5 @@ int main(int argc, char* argv[]) {
   });
   finalize();
 }
+
+BOOST_AUTO_TEST_SUITE_END();

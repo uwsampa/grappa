@@ -1,13 +1,17 @@
+#define BOOST_TEST_MODULE stress
+#define BOOST_TEST_DYN_LINK
+#include <boost/test/unit_test.hpp>
+
 #include <Grappa.hpp>
 #include <Primitive.hpp>
-#include <Collective.hpp>
-#include <GlobalAllocator.hpp>
+
+BOOST_AUTO_TEST_SUITE( BOOST_TEST_MODULE );
 
 using namespace Grappa;
 
 DEFINE_int64(N, 1024, "Iterations");
 
-void do_fetch_add(void *i, void *o) {
+int16_t do_fetch_add(void *i, void *o) {
   auto gaa = reinterpret_cast<long global**>(i);
   auto po = reinterpret_cast<long*>(o);
   
@@ -15,10 +19,12 @@ void do_fetch_add(void *i, void *o) {
     
   *po = *p;
   *p += 1;
+  
+  return 0;
 }
 
-int main(int argc, char* argv[]) {
-  init(&argc, &argv);
+BOOST_AUTO_TEST_CASE( test1 ) {
+  init( GRAPPA_TEST_ARGS );
   run([]{
     long c = 0;
     long global* gc = make_global(&c);
@@ -35,5 +41,6 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "success!";
   });
   finalize();
-  return 0;
 }
+
+BOOST_AUTO_TEST_SUITE_END();

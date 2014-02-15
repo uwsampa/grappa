@@ -1,5 +1,11 @@
+#define BOOST_TEST_MODULE branch
+#define BOOST_TEST_DYN_LINK
+#include <boost/test/unit_test.hpp>
+
 #include <Grappa.hpp>
 #include <Primitive.hpp>
+
+BOOST_AUTO_TEST_SUITE( BOOST_TEST_MODULE );
 
 using namespace Grappa;
 
@@ -24,8 +30,8 @@ void foo(long& x) {
   CHECK_EQ(y, 2);
 }
 
-int main(int argc, char* argv[]) {
-  init(&argc, &argv);
+BOOST_AUTO_TEST_CASE( test1 ) {
+  init( GRAPPA_TEST_ARGS );
   run([]{
     
     long x = 0;
@@ -53,5 +59,6 @@ int main(int argc, char* argv[]) {
     Metrics::merge_and_dump_to_file();
   });
   finalize();
-  return 0;
 }
+
+BOOST_AUTO_TEST_SUITE_END();
