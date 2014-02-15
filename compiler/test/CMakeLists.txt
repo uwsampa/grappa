@@ -1,28 +1,32 @@
 
 file(GLOB tests "*.cpp")
 
-foreach(file ${tests})
+macro(add_grappaclang_test file flags suffix)
   get_filename_component(base ${file} NAME_WE)
   
-  # set(out "${CMAKE_CURRENT_BINARY_DIR}/${base}.exe")
-  # add_custom_command(
-  #   OUTPUT "${out}"
-  #   COMMAND "${CMAKE_CURRENT_BINARY_DIR}/../bin/grappaclang" ${file} -o "${out}"
-  #   DEPENDS compiler Grappa ${compiler_includes}
-  # )
-  # set(target_name "compiler-test-${base}")
-  # add_custom_target("${target_name}"
-  #   DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${base}.exe"
-  #   SOURCES "${file}"
-  # )
+  set(target "cl.test.${base}.${suffix}")
+  set(exe "${base}.${suffix}.exe")
   
-  set(target_name "compiler-test-${base}")
-  add_grappaclang_exe(${target_name} "${base}.exe" ${file})
-  set_property(TARGET ${target_name} PROPERTY FOLDER "Compiler")
+  add_grappaclang_exe(${target} ${exe} ${file})
   
-  # add_test(NAME "test-${base}"
-  #   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  #   COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
-  # )
+  set_property(TARGET ${target} PROPERTY FOLDER "Compiler")
+  set_property(TARGET ${target} APPEND_STRING PROPERTY COMPILE_FLAGS " ${flags}")
+  set_property(TARGET ${target} APPEND PROPERTY COMPILE_DEFINITIONS BOOST_TEST_DYN_LINK)
   
+  add_test(NAME ${target}.test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_srun" -n1 -p2 -- "${CMAKE_CURRENT_BINARY_DIR}/${exe}"
+  )
+  add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${target})
+  set_tests_properties(${target}.test PROPERTIES DEPENDS ${target}.build)
+  
+  # add to 'all' lists
+  set(compiler.all.${suffix}.compile ${compiler.all.${suffix}.compile} ${target} PARENT_SCOPE)
+  set(compiler.all.compile ${compiler.all.compile} ${target} PARENT_SCOPE)
+  set(compiler.all.check   ${compiler.all.check}   ${target}.check PARENT_SCOPE)
+endmacro()
+
+foreach(file ${tests})
+  add_grappaclang_test(${file} "" n)
+  add_grappaclang_test(${file} "-mllvm -grappa-extractor" ext)
 endforeach()
