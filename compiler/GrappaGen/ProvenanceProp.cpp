@@ -17,7 +17,6 @@ static cl::opt<bool> DisableANSI("no-color",
                               cl::desc("Disable ANSI colors."));
 
 bool ProvenanceProp::doInitialization(Module& M) {
-  outs() << "initialized ProvenanceProp\n";
   auto& C = M.getContext();
   INDETERMINATE = MDNode::get(C, MDString::get(C, "indeterminate"));
   return false;

@@ -469,7 +469,7 @@ namespace {
   // Register as default pass
   static RegisterStandardPasses GrappaGenRegistration(PassManagerBuilder::EP_ScalarOptimizerLate,
     [](const PassManagerBuilder&, PassManagerBase& PM){
-      outs() << "Registering Grappa passes.\n";
+      DEBUG(outs() << "Registering Grappa passes.\n");
       if (DoGenPass) {
         PM.add(new GrappaGen());
       }

@@ -100,7 +100,7 @@ namespace {
   // Register as default pass
   static RegisterStandardPasses PassRegistration(PassManagerBuilder::EP_EarlyAsPossible,
   [](const PassManagerBuilder&, PassManagerBase& PM) {
-    outs() << "Registered Grappa Pre-Pass!\n";
+    DEBUG(outs() << "Registered Grappa Pre-Pass!\n");
     PM.add(new PrePass());
   });
   
