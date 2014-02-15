@@ -11,7 +11,6 @@ macro(add_grappaclang_test file flags suffix)
   
   set_property(TARGET ${target} PROPERTY FOLDER "Compiler")
   set_property(TARGET ${target} APPEND_STRING PROPERTY COMPILE_FLAGS " ${flags}")
-  set_property(TARGET ${target} APPEND PROPERTY COMPILE_DEFINITIONS BOOST_TEST_DYN_LINK)
   
   add_test(NAME ${target}.test
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
