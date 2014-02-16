@@ -119,11 +119,14 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
 int main(int argc, char* argv[]) {
   Grappa::init(&argc, &argv);
   Grappa::run([]{
+      //      Metrics::start_tracing();
     double t, start_time;
     start_time = walltime();
   
-  	int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
-  	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
+    Grappa::impl::vtrace_enabled = true;
+
+    int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
+    int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
   
     LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
   
@@ -157,6 +160,7 @@ int main(int argc, char* argv[]) {
     global_free(tg.edges);
     
     LOG(INFO) << "total_runtime: " << walltime() - start_time;
-  });
+    //Metrics::stop_tracing();
+    });
   Grappa::finalize();
 }

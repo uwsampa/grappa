@@ -145,6 +145,10 @@ file.close()
 file = open(DUMP_FILE, "r")
 LOG_FILE = open(MSG_FILE, "w")
 
+# bookkeeping variables
+entries = 0
+last_msg_time = 0
+
 # begin the scan through the file
 for line in file:
 
@@ -161,6 +165,13 @@ for line in file:
         timestamp = tsplit[1]
         timestamp.strip(" \t\n")
         time = float(timestamp) / float(TICKS_PER_SECOND)
+        
+        # compute the message interarrival time
+        if (entries > 0):
+            interval = time - last_msg_time
+        else:
+            interval = 0
+        last_msg_time = time
 
         # process the rest of the fields
         fields = line[line.find(SEND_MESSAGE_STRING) + len(SEND_MESSAGE_STRING):].split(",")
@@ -186,8 +197,10 @@ for line in file:
         sender_node = PROCESS_NODE[sender_process]
         receiver_node = PROCESS_NODE[receiver_process]
 
+        entries = entries + 1
+
         # log the message events to the file
-        LOG_FILE.write(str(time) + "," + str(sender_node) + "," + str(sender_process) + "," + str(receiver_node) + "," + str(receiver_process) + "," + str(length) + "," + SEND_FLAG + "\n")
+        LOG_FILE.write(str(time) + "," + str(sender_node) + "," + str(sender_process) + "," + str(receiver_node) + "," + str(receiver_process) + "," + str(length) + "," + SEND_FLAG + "," + str(interval) + "\n")
 
     # process message receive events - TODO: not implemented
     elif (line.find(RECEIVE_MESSAGE_STRING) != -1):
@@ -195,6 +208,6 @@ for line in file:
 
 file.close()
 
-print "[Info] Message events written to: " + str(MSG_FILE)
+print "[Info] " + str(entries) + " message events written to: " + str(MSG_FILE)
 
 exit(0)

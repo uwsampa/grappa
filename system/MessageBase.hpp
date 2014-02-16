@@ -35,6 +35,7 @@
 #include "LocaleSharedMemory.hpp"
 
 #include "vt_user.h"
+#include "math.h"
 
 typedef int16_t Core;
 
@@ -138,9 +139,11 @@ namespace Grappa {
       inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
         DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
         is_delivered_ = true;
+	int tag = rand();
         if( Grappa::impl::vtrace_enabled ) {
-          VT_SEND(VT_COMM_WORLD, destination_, this->serialized_size());
-        }
+          VT_SEND(VT_COMM_WORLD, tag, this->serialized_size());
+	  VT_RECV(VT_COMM_WORLD, tag, this->serialized_size());
+	}
         //if( Grappa::impl::vtrace_enabled ) VT_RECV(VT_COMM_WORLD, rand(), this->serialized_size());
         return p + max_size;
       }
