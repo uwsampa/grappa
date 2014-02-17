@@ -253,13 +253,32 @@ namespace Grappa {
   
   } GRAPPA_BLOCK_ALIGNED;
   
-  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+  
+  namespace impl {
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(Vertex&) const) {
+      forall<C,Threshold>(g->vs, g->nv, loop_body);
+    }
+
+    /// Demonstrating another "visitor" we could provide for graphs (this is kinda
+    /// silly as it just gives you the indices of each edge).
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t src, int64_t dst) const) {
+      forall<C,Threshold>(g->vs, g->nv, [loop_body](int64_t i, V& v){
+        for (auto j : v.adj_iter()) {
+          loop_body(i, j);
+        }
+      });
+    }
+    
+  }
+  
+  template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename V = decltype(nullptr),
             typename F = decltype(nullptr) >
   void forall(GlobalAddress<Graph<V>> g, F loop_body) {
-    forall(g->vs, g->nv, loop_body);
+    impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
-  
   
 } // namespace Grappa

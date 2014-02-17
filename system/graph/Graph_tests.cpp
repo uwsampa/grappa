@@ -58,6 +58,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     forall(g, [](Vertex& v){ degree += v.nadj; });
     
+    call_on_all_cores([]{ count = 0; });
+    forall(g, [](int64_t src, int64_t dst){
+      if ( src == dst ) count++;
+    });
+    
+    LOG(INFO) << "self edges: " << reduce<int64_t,collective_add>(&count);
+    
     LOG(INFO) << degree;
     Metrics::merge_and_dump_to_file();
     
