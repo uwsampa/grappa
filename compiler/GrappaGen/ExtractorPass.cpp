@@ -757,6 +757,8 @@ namespace Grappa {
     void printHeader() {
       outs() << "# Candidate " << ID << ":\n";
       DEBUG(outs() << "  entry:\n  " << *entry << "\n");
+      auto loc = entry->getDebugLoc();
+      outs() << "  line: " << loc.getLine() << "\n";
       
       if (ty_input && ty_output) {
         outs() << "  in:  (" << format("%2d", layout.getTypeAllocSize(ty_input)) << ") "
