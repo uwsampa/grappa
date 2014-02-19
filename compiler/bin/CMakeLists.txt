@@ -2,9 +2,10 @@
 
 set(sysdir "${CMAKE_SOURCE_DIR}/system")
 
-get_property( GRAPPA_LIBRARIES TARGET Grappa         PROPERTY LOCATION )
+get_property( GRAPPA_LIBRARIES TARGET Grappa    PROPERTY LOCATION )
+get_property( gen_loc TARGET graph500-generator PROPERTY LOCATION )
 
-set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -L${THIRD_PARTY_ROOT}/lib")
+set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -L${THIRD_PARTY_ROOT}/lib ${gen_loc}")
 set(myrpath "${THIRD_PARTY_ROOT}/lib")
 
 foreach(lib ${MPI_CXX_LIBRARIES} ${Boost_LIBRARIES})
