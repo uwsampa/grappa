@@ -164,13 +164,9 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
   if (dst == origin) {
     VLOG(5) << "short-circuit";
     delegate_short_circuits++;
-    
-    fprintf(stderr, "-- (%p): %ld\n", out, ((long*)out)[0]);
 
     retcode = fn(args, out);
-    
-    fprintf(stderr, "----\n");
-    
+        
   } else if ( args_sz <= SMALL_MSG_SIZE && out_sz <= SMALL_MSG_SIZE) {
     VLOG(5) << "small_msg";
     delegate_ops_small_msg++;
