@@ -146,6 +146,13 @@ namespace Grappa {
 
     public:
       
+      ExitMap() = default;
+      
+      void operator=(const ExitMap& o) {
+        clear();
+        for (auto e : o.m) m.insert(e);
+      }
+      
       void clear() { m.clear(); }
       
       template< typename F >
@@ -251,12 +258,45 @@ namespace Grappa {
       SmallSet<BasicBlock*,8> bbs;
       SmallSetVector<BasicBlock*,8> try_again;
       
+      CandidateMap temp_owner;
+      ExitMap best_exits; // temporary exits
+      int best_score = 0;
+      int score = 0;
+      
+      ValueSet inputs, outputs;
+      int anchor_ct = 0;
+      
+      auto computeScore = [&]{
+        ValueSet inputs, outputs;
+        for (auto& e : temp_owner)
+          computeInOut(e.first, temp_owner, inputs, outputs);
+        
+        int sz = 0;
+        for (auto& s : {inputs, outputs})
+          for (auto v : s)
+            sz += layout.getTypeAllocSize(v->getType());
+        
+        errs() << "anchor_ct:" << anchor_ct << ", sz:" << sz << "\n";
+        return (anchor_ct * 100) - sz;
+      };
+      
       while (!worklist.empty()) {
         auto i = BasicBlock::iterator(worklist.pop());
         auto bb = i->getParent();
+        exits.removeSuccessor(bb);
         
         while ( i != bb->end() && validInRegion(i) ) {
-          owner[i] = this;
+          temp_owner[i] = this;
+          if (isAnchor(i)) anchor_ct++;
+          
+          score = computeScore();
+          errs() << format("(%4d) ", score) << *i << "\n";
+          if (score > best_score) {
+            best_score = score;
+            best_exits = exits;
+            best_exits.add(i);
+          }
+          
           i++;
         }
         
@@ -278,12 +318,10 @@ namespace Grappa {
               valid &= b;
             }
             
-            if (valid) {
-              worklist.push(target);
-            } else {
-              // exit at bb boundary
-              exits.add(bb->getTerminator(), *sb);
-            }
+            // exit at bb boundary
+            exits.add(bb->getTerminator(), *sb);
+            
+            if (valid) worklist.push(target);
           }
         } else {
           exits.add(i->getPrevNode());
@@ -303,6 +341,11 @@ namespace Grappa {
         }
       } // while (!worklist.empty())
       
+      score = computeScore();
+      if (score > best_score) best_exits = exits;
+      
+      exits = best_exits;
+      
       //////////////////////////////////////////////////////
       // rollback before branch if all exits from single bb
       if (exits.size() > 1) {
@@ -318,7 +361,105 @@ namespace Grappa {
           exits.add(p);
         }
       }
-
+      
+      visit([&](BasicBlock::iterator i){ owner[i] = this; });
+      computeInputsOutputs();
+    }
+    
+    
+    void expandFrontier() {
+      SmallSet<Instruction*,64> region;
+      int anchor_ct = 0;
+      int best_score = 0;
+      ExitMap emap;
+      
+      auto findExitsFromRegion = [&]{
+        emap.clear();
+        UniqueQueue<Instruction*> q;
+        q.push(entry);
+        while (!q.empty()) {
+          auto j = q.pop();
+          auto jb = j->getParent();
+          if (!region.count(j)) {
+            emap.add(j->getPrevNode());
+          } else {
+            if (isa<TerminatorInst>(j)) {
+              for_each(sb, jb, succ) {
+                auto js = (*sb)->begin();
+                if (!region.count(js)) {
+                  emap.add(j, *sb);
+                } else {
+                  q.push(js);
+                }
+              }
+            } else {
+              q.push(j->getNextNode());
+            }
+          }
+        }
+      };
+      
+      SmallSetVector<BasicBlock*,4> deferred;
+      SmallSetVector<Instruction*,4> frontier;
+      frontier.insert(entry);
+      
+      while (!frontier.empty()) {
+        auto i = frontier.pop_back_val();
+        
+        if (validInRegion(i)) {
+          region.insert(i);
+          if (isAnchor(i)) anchor_ct++;
+          
+          int score;
+          { // compute score
+            ValueSet inputs, outputs;
+            for (auto r : region) {
+              computeInOut(r, region, inputs, outputs);
+            }
+            
+            int sz = 0;
+            for (auto& s : {inputs, outputs}) {
+              for (auto v : s) {
+                sz += layout.getTypeAllocSize(v->getType());
+              }
+            }
+            
+            score = (anchor_ct * 100) - sz;
+          }
+          
+          errs() << format("(%d,%4d) ", anchor_ct, score) << *i << "\n";
+          
+          if (score > best_score) {
+            errs() << "!! best!\n";
+            best_score = score;
+            findExitsFromRegion();
+          }
+          
+          auto bb = i->getParent();
+          if (isa<TerminatorInst>(i)) {
+            for_each(sb, bb, succ) {
+              deferred.insert(*sb);
+            }
+          } else {
+            frontier.insert(i->getNextNode());
+          }
+          
+        }
+        
+        if (frontier.empty()) for (auto bb : deferred) {
+          bool valid = true;
+          for_each(pb, bb, pred) valid &= (region.count((*pb)->getTerminator()) > 0);
+          if (valid) {
+            if (!region.count(bb->begin()))
+              frontier.insert(bb->begin());
+            deferred.remove(bb);
+            break;
+          }
+        }
+      }
+      
+      exits = emap;
+      visit([&](BasicBlock::iterator i){ owner[i] = this; });
       computeInputsOutputs();
     }
     
@@ -349,27 +490,36 @@ namespace Grappa {
     
     /////////////////////////
     // find inputs/outputs
-    void computeInputsOutputs() {
-      auto& ctx = entry->getContext();
-      
+    template< typename RegionSet >
+    void computeInOut(Instruction* it, const RegionSet& rs, ValueSet& inputs, ValueSet& outputs) {
       auto definedInRegion = [&](Value* v) {
         if (auto i = dyn_cast<Instruction>(v))
-          if (owner[i] == this)
+          if (rs.count(i))
             return true;
         return false;
       };
       auto definedInCaller = [&](Value* v) {
-        if (isa<Argument>(v)) return true;
+        if (isConst(v) || isStatic(v)) return false;
+        if (isStack(v)) return true;
         if (auto i = dyn_cast<Instruction>(v))
-          if (owner[i] != this)
+          if (rs.count(i) == 0)
             return true;
         return false;
       };
       
+      for_each_op(o, *it)  if (definedInCaller(*o)) inputs.insert(*o);
+      for_each_use(u, *it) if (!definedInRegion(*u)) { outputs.insert(it); break; }
+    }
+    
+    void computeInputsOutputs() {
+      auto& ctx = entry->getContext();
       ValueSet inputs, outputs;
+      
+      SmallSet<Instruction*,64> rs;
+      for (auto p : owner) if (p.second == this) rs.insert(p.first);
+      
       visit([&](BasicBlock::iterator it){
-        for_each_op(o, *it)  if (definedInCaller(*o)) inputs.insert(*o);
-        for_each_use(u, *it) if (!definedInRegion(*u)) { outputs.insert(it); break; }
+        computeInOut(it, rs, inputs, outputs);
       });
       
       /////////////////////////////////////////////
@@ -432,6 +582,8 @@ namespace Grappa {
       });
       
       exits.each([&](Instruction* before, Instruction* after){
+        assert(isa<Instruction>(before));
+        assert(isa<Instruction>(after));
         auto bb_exit = before->getParent();
         BasicBlock* bb_after;
         if (bb_exit == after->getParent()) {
@@ -442,6 +594,7 @@ namespace Grappa {
           exits.add(bb_exit->getTerminator(), bb_after);
         } else {
           bb_after = after->getParent();
+          assert(isa<BasicBlock>(bb_after));
           bool found = false;
           for_each(sb, bb_exit, succ) {
             if (*sb == bb_after) {
@@ -450,8 +603,10 @@ namespace Grappa {
             }
           }
           if (!found) {
+            outs() << "^^^^^^^^^^^^^^^^^^^^\n";
             outs() << *bb_exit;
-            outs() << *bb_after;
+            outs() << *bb_after->getType() << "\n";
+//            outs() << *bb_after;
             old_fn->viewCFG();
           }
           assert(found && "after_exit not in an immediate successor of before_exit");
@@ -813,7 +968,7 @@ namespace Grappa {
         
         std::string font_tag;
         { std::string _s; raw_string_ostream os(_s);
-          os << "<font face='Inconsolata LGC' point-size='11'";
+          os << "<font face='InconsolataLGC' point-size='11'";
           if (candidates[&i])
             os << " color='" << getColorString(candidates[&i]->ID) << "'";
           os << ">";
@@ -890,7 +1045,7 @@ namespace Grappa {
       }
       
       o << "digraph TaskFunction {\n";
-      o << "  fontname=\"Inconsolata LGC\";\n";
+      o << "  fontname=\"InconsolataLGC\";\n";
       o << "  label=\"" << demangle(F.getName()) << "\"";
       o << "  node[shape=record];\n";
       
@@ -985,16 +1140,17 @@ namespace Grappa {
           auto r = new CandidateRegion(p, a, candidate_map, ginfo, *layout);
           r->valid_ptrs.insert(p);
           
-          r->expandRegion();
+//          r->expandRegion();
+          r->expandFrontier();
           
           r->printHeader();
           
-          r->visit([&](BasicBlock::iterator i){
-            if (candidate_map[i] != r) {
-              errs() << "!! bad visit: " << *i << "\n";
-              assert(false);
-            }
-          });
+//          r->visit([&](BasicBlock::iterator i){
+//            if (candidate_map[i] != r) {
+//              errs() << "!! bad visit: " << *i << "\n";
+//              assert(false);
+//            }
+//          });
           
           candidates[a] = r;
           cnds.push_back(r);
@@ -1014,25 +1170,25 @@ namespace Grappa {
         }
       }
       
-      if (found_functions && cnds.size() > 0) {
-        for (auto cnd : cnds) {
-          
-          auto new_fn = cnd->extractRegion();
-          
-          if (PrintDot) {
-            CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
-//            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
-          }
-        }
-      }
-      
-      if (found_functions) {
-        int nfixed = fixupFunction(fn, ginfo);
-        
-        if ((nfixed || cnds.size()) && PrintDot) {
-          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
-        }
-      }
+//      if (found_functions && cnds.size() > 0) {
+//        for (auto cnd : cnds) {
+//          
+//          auto new_fn = cnd->extractRegion();
+//          
+//          if (PrintDot) {
+//            CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+////            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
+//          }
+//        }
+//      }
+//      
+//      if (found_functions) {
+//        int nfixed = fixupFunction(fn, ginfo);
+//        
+//        if ((nfixed || cnds.size()) && PrintDot) {
+//          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+//        }
+//      }
       
       for (auto c : cnds) delete c;
     }
