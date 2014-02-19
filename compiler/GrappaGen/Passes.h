@@ -57,20 +57,26 @@ inline Constant* idx(int i, LLVMContext& ctx) { return ConstantInt::get(Type::ge
 
 inline Value* CreateAlignedStore(IRBuilder<>& b, Value* val, Value* ptr,
                           int field = -1, const Twine& name = "") {
-  auto& c = val->getContext();
-  if (field >= 0) ptr = b.CreateInBoundsGEP(ptr, {idx(0,c), idx(field,c)}, name);
-  return (ptr->getType()->getPrimitiveSizeInBits())
-          ? b.CreateAlignedStore(val, ptr, ptr->getType()->getPrimitiveSizeInBits())
-          : b.CreateStore(val, ptr);
+  unsigned sz = 0;
+  auto& c = ptr->getContext();
+  if (field >= 0) {
+    ptr = b.CreateInBoundsGEP(ptr, {idx(0,c), idx(field,c)}, name);
+    sz = cast<PointerType>(ptr->getType())->getElementType()->getPrimitiveSizeInBits() / 8;
+  }
+  return (sz) ? b.CreateAlignedStore(val, ptr, sz)
+              : b.CreateStore(val, ptr);
 }
 
 inline Value* CreateAlignedLoad(IRBuilder<>& b, Value* ptr,
                           int field = -1, const Twine& name = "") {
+  unsigned sz = 0;
   auto& c = ptr->getContext();
-  if (field >= 0) ptr = b.CreateInBoundsGEP(ptr, {idx(0,c), idx(field,c)});
-  return (ptr->getType()->getPrimitiveSizeInBits())
-          ? b.CreateAlignedLoad(ptr, ptr->getType()->getPrimitiveSizeInBits(), name)
-          : b.CreateLoad(ptr, name);
+  if (field >= 0) {
+    ptr = b.CreateInBoundsGEP(ptr, {idx(0,c), idx(field,c)}, name);
+    sz = cast<PointerType>(ptr->getType())->getElementType()->getPrimitiveSizeInBits() / 8;
+  }
+  return (sz) ? b.CreateAlignedLoad(ptr, sz, name)
+              : b.CreateLoad(ptr, name);
 }
 
 ////////////////////
