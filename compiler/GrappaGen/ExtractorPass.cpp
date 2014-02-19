@@ -529,8 +529,8 @@ namespace Grappa {
       // remap and load inputs
       for (int i=0; i < inputs.size(); i++) {
         auto v = inputs[i];
-        clone_map[v] = b.CreateLoad(b.CreateGEP(in_arg, { idx(0), idx(i) }),
-                                    "in." + v->getName());
+        clone_map[v] = b.CreateAlignedLoad(b.CreateGEP(in_arg, { idx(0), idx(i) }),
+                                    8, "in." + v->getName());
       }
       
       auto bb_in_clone = cast<BasicBlock>(bb_map[bb_in]);
@@ -553,7 +553,7 @@ namespace Grappa {
         auto v = cast<Instruction>(clone_map[outputs[i]]);
         // insert at end of (cloned) block containing the (remapped) value
         b.SetInsertPoint(v->getParent()->getTerminator());
-        b.CreateStore(v, b.CreateGEP(out_arg, { idx(0), idx(i) }, "out."+v->getName()));
+        b.CreateAlignedStore(v, b.CreateGEP(out_arg, { idx(0), idx(i) }, "out."+v->getName()), 8);
       }
       
       /////////////////////////////////////////////////////////////////
@@ -564,6 +564,10 @@ namespace Grappa {
       b.SetInsertPoint(old_fn->begin()->begin());
       auto in_alloca =  b.CreateAlloca(in_struct_ty,  0, name+".struct.in");
       auto out_alloca = b.CreateAlloca(out_struct_ty, 0, name+".struct.out");
+//      auto in_alloca =  new AllocaInst(in_struct_ty,  0, 16, name+".struct.in",
+//                                       old_fn->begin()->begin());
+//      auto out_alloca = new AllocaInst(out_struct_ty, 0, 16, name+".struct.out",
+//                                       old_fn->begin()->begin());
       
       //////////////
       // emit call
@@ -580,7 +584,7 @@ namespace Grappa {
       
       // copy inputs into struct
       for (int i = 0; i < inputs.size(); i++) {
-        b.CreateStore(inputs[i], b.CreateGEP(in_alloca, {idx(0),idx(i)}, name+".gep.in"));
+        b.CreateAlignedStore(inputs[i], b.CreateGEP(in_alloca, {idx(0),idx(i)}, name+".gep.in"), 8);
       }
 
       auto target_core = b.CreateCall(ginfo.get_core_fn, (Value*[]){
@@ -651,7 +655,8 @@ namespace Grappa {
       b.SetInsertPoint(exit_switch);
       for (int i = 0; i < outputs.size(); i++) {
         auto v = outputs[i];
-        auto ld = b.CreateLoad(b.CreateGEP(out_alloca, {idx(0), idx(i)}), "out."+v->getName());
+        auto ld = b.CreateAlignedLoad(b.CreateGEP(out_alloca, {idx(0), idx(i)}), 8,
+                                      "out."+v->getName());
         v->replaceAllUsesWith(ld);
       }
       
