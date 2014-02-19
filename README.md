@@ -65,6 +65,6 @@ We welcome contributions, both in the core software and (especially!) in applica
 
 
 [buildStatus]: https://travis-ci.org/uwsampa/grappa.png?branch=master (https://travis-ci.org/uwsampa/grappa)
-[![Analytics](https://ga-beacon.appspot.com/UA-33911150-1/uwsampa/grappa)](https://github.com/igrigorik/ga-beacon)
+[![Analytics](https://ga-beacon.appspot.com/UA-33911150-4/uwsampa/grappa)](https://github.com/igrigorik/ga-beacon)
 
 
