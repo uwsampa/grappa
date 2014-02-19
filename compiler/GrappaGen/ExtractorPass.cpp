@@ -343,6 +343,23 @@ namespace Grappa {
       }
       
       exits = emap;
+      
+      //////////////////////////////////////////////////////
+      // rollback before branch if all exits from single bb
+      if (exits.size() > 1) {
+        SmallSetVector<Instruction*,8> preds;
+        exits.each([&](Instruction* before, Instruction* after){
+          preds.insert(before);
+        });
+        if (preds.size() == 1) {
+          exits.clear();
+          owner[preds[0]] = nullptr;
+          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
+          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
+          exits.add(p);
+        }
+      }
+      
       visit([&](BasicBlock::iterator i){ owner[i] = this; });
       computeInputsOutputs();
     }
@@ -808,13 +825,13 @@ namespace Grappa {
       outs() << "  valid_ptrs:\n";
       for (auto p : valid_ptrs) outs() << "  " << *p << "\n";
       
-      DEBUG({
+//      DEBUG({
         outs() << "  exits:\n";
         exits.each([&](Instruction* s, Instruction* e){
           outs() << "  " << *s << "\n     =>" << *e << "\n";
         });
         outs() << "\n";
-      });
+//      });
       outs() << "\n";
     }
     
