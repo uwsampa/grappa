@@ -563,10 +563,6 @@ namespace Grappa {
       b.SetInsertPoint(old_fn->begin()->begin());
       auto in_alloca =  b.CreateAlloca(in_struct_ty,  0, name+".struct.in");
       auto out_alloca = b.CreateAlloca(out_struct_ty, 0, name+".struct.out");
-//      auto in_alloca =  new AllocaInst(in_struct_ty,  0, 16, name+".struct.in",
-//                                       old_fn->begin()->begin());
-//      auto out_alloca = new AllocaInst(out_struct_ty, 0, 16, name+".struct.out",
-//                                       old_fn->begin()->begin());
       
       //////////////
       // emit call
