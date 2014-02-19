@@ -53,6 +53,25 @@ inline std::string demangle(StringRef name) {
 using AnchorSet = SetVector<Instruction*>;
 using ValueSet = SetVector<Value*>;
 
+inline Constant* idx(int i, LLVMContext& ctx) { return ConstantInt::get(Type::getInt32Ty(ctx), i); }
+
+inline Value* CreateAlignedStore(IRBuilder<>& b, Value* val, Value* ptr,
+                          int field = -1, const Twine& name = "") {
+  auto& c = val->getContext();
+  if (field >= 0) ptr = b.CreateInBoundsGEP(ptr, {idx(0,c), idx(field,c)}, name);
+  return (ptr->getType()->getPrimitiveSizeInBits())
+          ? b.CreateAlignedStore(val, ptr, ptr->getType()->getPrimitiveSizeInBits())
+          : b.CreateStore(val, ptr);
+}
+
+inline Value* CreateAlignedLoad(IRBuilder<>& b, Value* ptr,
+                          int field = -1, const Twine& name = "") {
+  auto& c = ptr->getContext();
+  if (field >= 0) ptr = b.CreateInBoundsGEP(ptr, {idx(0,c), idx(field,c)});
+  return (ptr->getType()->getPrimitiveSizeInBits())
+          ? b.CreateAlignedLoad(ptr, ptr->getType()->getPrimitiveSizeInBits(), name)
+          : b.CreateLoad(ptr, name);
+}
 
 ////////////////////
 /// Address spaces
