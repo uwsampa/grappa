@@ -30,11 +30,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     on_all_cores([=]{
       
       s->x = mycore();
-      s->y = 12345;
+      s->y = 0;
       
       s->bar(0);
       
-      z = 7 * mycore();
+      z = 7;
       
     });
     
@@ -47,9 +47,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     s->bar(*z1);
     
+    // ensure only one 'y' was set to 7
+    auto total = 0;
+    for (Core c = 0; c < cores(); c++)
+      total += delegate::call(c,[=]{ return sa->y; });
+    BOOST_CHECK_EQUAL(total, 7);
+    
     call_on_all_cores([sa,z1]{
-      CHECK_EQ(sa->x, mycore());
-      if (mycore() == core(z1)) CHECK_EQ(sa->y, z);
+      BOOST_CHECK_EQUAL(sa->x, mycore());
     });
     
     ///////////////////////////
@@ -58,7 +63,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     auto va = GlobalVector<long>::create(N);
     auto v = as_ptr(va);
     
-    CHECK_EQ(v->size(), 0);
+    BOOST_CHECK_EQUAL(v->size(), 0);
     
     on_all_cores([=]{
       auto r = blockDist(0, 10);
