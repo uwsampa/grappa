@@ -144,7 +144,6 @@ list(APPEND SYSTEM_SOURCES
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
-list(APPEND GRAPPA_LIBS graph500-generator)
 include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 if( GOOGLE_PROFILER )
