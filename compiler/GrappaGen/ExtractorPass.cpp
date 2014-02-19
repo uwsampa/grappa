@@ -252,122 +252,6 @@ namespace Grappa {
     }
     
     void expandRegion() {
-      UniqueQueue<Instruction*> worklist;
-      worklist.push(entry);
-      
-      SmallSet<BasicBlock*,8> bbs;
-      SmallSetVector<BasicBlock*,8> try_again;
-      
-      CandidateMap temp_owner;
-      ExitMap best_exits; // temporary exits
-      int best_score = 0;
-      int score = 0;
-      
-      ValueSet inputs, outputs;
-      int anchor_ct = 0;
-      
-      auto computeScore = [&]{
-        ValueSet inputs, outputs;
-        for (auto& e : temp_owner)
-          computeInOut(e.first, temp_owner, inputs, outputs);
-        
-        int sz = 0;
-        for (auto& s : {inputs, outputs})
-          for (auto v : s)
-            sz += layout.getTypeAllocSize(v->getType());
-        
-        errs() << "anchor_ct:" << anchor_ct << ", sz:" << sz << "\n";
-        return (anchor_ct * 100) - sz;
-      };
-      
-      while (!worklist.empty()) {
-        auto i = BasicBlock::iterator(worklist.pop());
-        auto bb = i->getParent();
-        exits.removeSuccessor(bb);
-        
-        while ( i != bb->end() && validInRegion(i) ) {
-          temp_owner[i] = this;
-          if (isAnchor(i)) anchor_ct++;
-          
-          score = computeScore();
-          errs() << format("(%4d) ", score) << *i << "\n";
-          if (score > best_score) {
-            best_score = score;
-            best_exits = exits;
-            best_exits.add(i);
-          }
-          
-          i++;
-        }
-        
-        if (i == bb->end()) {
-          bbs.insert(bb);
-          for (auto sb = succ_begin(bb), se = succ_end(bb); sb != se; sb++) {
-            
-            // at least first instruction is valid
-            auto target = (*sb)->begin();
-            bool valid = validInRegion(target);
-            
-            // all predecessors already in region
-            if (valid) for_each(pb, *sb, pred) {
-              bool b = (bbs.count(*pb) > 0);
-              if (!b) {
-                DEBUG(outs() << "!! deferring -- invalid preds:\n" << *bb << "\n" << **pb);
-                try_again.insert(*sb);
-              }
-              valid &= b;
-            }
-            
-            // exit at bb boundary
-            exits.add(bb->getTerminator(), *sb);
-            
-            if (valid) worklist.push(target);
-          }
-        } else {
-          exits.add(i->getPrevNode());
-        }
-        
-        // check try-again list
-        for (auto bb : try_again) {
-          bool valid = true;
-          for_each(pb, bb, pred) valid &= (bbs.count(*pb) > 0);
-          if (valid) {
-            auto b = bb;
-            exits.removeSuccessor(b);
-            try_again.remove(b);
-            worklist.push(b->begin());
-            break;
-          }
-        }
-      } // while (!worklist.empty())
-      
-      score = computeScore();
-      if (score > best_score) best_exits = exits;
-      
-      exits = best_exits;
-      
-      //////////////////////////////////////////////////////
-      // rollback before branch if all exits from single bb
-      if (exits.size() > 1) {
-        SmallSetVector<Instruction*,8> preds;
-        exits.each([&](Instruction* before, Instruction* after){
-          preds.insert(before);
-        });
-        if (preds.size() == 1) {
-          exits.clear();
-          owner[preds[0]] = nullptr;
-          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
-          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
-          exits.add(p);
-        }
-      }
-      
-      visit([&](BasicBlock::iterator i){ owner[i] = this; });
-      computeInputsOutputs();
-    }
-    
-    
-    void expandFrontier() {
       SmallSet<Instruction*,64> region;
       int anchor_ct = 0;
       int best_score = 0;
@@ -1140,17 +1024,16 @@ namespace Grappa {
           auto r = new CandidateRegion(p, a, candidate_map, ginfo, *layout);
           r->valid_ptrs.insert(p);
           
-//          r->expandRegion();
-          r->expandFrontier();
+          r->expandRegion();
           
           r->printHeader();
           
-//          r->visit([&](BasicBlock::iterator i){
-//            if (candidate_map[i] != r) {
-//              errs() << "!! bad visit: " << *i << "\n";
-//              assert(false);
-//            }
-//          });
+          r->visit([&](BasicBlock::iterator i){
+            if (candidate_map[i] != r) {
+              errs() << "!! bad visit: " << *i << "\n";
+              assert(false);
+            }
+          });
           
           candidates[a] = r;
           cnds.push_back(r);
@@ -1170,25 +1053,25 @@ namespace Grappa {
         }
       }
       
-//      if (found_functions && cnds.size() > 0) {
-//        for (auto cnd : cnds) {
-//          
-//          auto new_fn = cnd->extractRegion();
-//          
-//          if (PrintDot) {
-//            CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
-////            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
-//          }
-//        }
-//      }
-//      
-//      if (found_functions) {
-//        int nfixed = fixupFunction(fn, ginfo);
-//        
-//        if ((nfixed || cnds.size()) && PrintDot) {
-//          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
-//        }
-//      }
+      if (found_functions && cnds.size() > 0) {
+        for (auto cnd : cnds) {
+          
+          auto new_fn = cnd->extractRegion();
+          
+          if (PrintDot) {
+            CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+//            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
+          }
+        }
+      }
+      
+      if (found_functions) {
+        int nfixed = fixupFunction(fn, ginfo);
+        
+        if ((nfixed || cnds.size()) && PrintDot) {
+          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+        }
+      }
       
       for (auto c : cnds) delete c;
     }
