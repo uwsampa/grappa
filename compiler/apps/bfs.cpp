@@ -136,6 +136,7 @@ int64_t verify(TupleGraph tg, SymmetricAddress<Graph<BFSVertex>> g, int64_t root
   });
   
   // everything checked out!
+  VLOG(1) << "verified!\n";
   return nedge_traversed;
 }
 
@@ -165,7 +166,10 @@ int main(int argc, char* argv[]) {
     forall(symm_addr(g), [](BFSVertex& v){ v->parent = -1; });
     
     int64_t root = choose_root(g);
+    VLOG(1) << "root => " << root;
     g->vs[root]->parent = root;
+    
+    delegate::call(gaddr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v->parent, root); });
     
     *f_tail++ = root;
     
@@ -186,16 +190,16 @@ int main(int argc, char* argv[]) {
         
         while (f_head < f_level) {
           auto i = *f_head++;  // pop off frontier
-          VLOG(1) << "  " << i;
+          VLOG(2) << "  " << i;
           
           for (auto j : vs[i].adj_iter()) {
-            VLOG(1) << "    -> " << j;
-//            spawn<&joiner>([=]{
+            VLOG(2) << "    -> " << j;
+            spawn<&joiner>([=]{
               if (vs[j]->parent == -1) {
                 vs[j]->parent = i;
                 *f_tail++ = j; // push 'j' onto frontier
               }
-//            });
+            });
           }
         }
         
@@ -203,6 +207,7 @@ int main(int argc, char* argv[]) {
         joiner.wait();
         
         next_level_total = allreduce<int64_t, collective_add>(f_tail - f_level);
+        level++;
       } while (next_level_total > 0);
       
     });
