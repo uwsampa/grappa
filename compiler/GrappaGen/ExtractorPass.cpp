@@ -983,12 +983,18 @@ namespace Grappa {
     for (auto& bb : *fn ) {
       for (auto inst = bb.begin(); inst != bb.end(); ) {
         Instruction *orig = inst++;
-        auto prov = getProvenance(orig);
-        if (isGlobalPtr(prov)) {
+//        auto ptr = getProvenance(orig);
+        Value* ptr = nullptr;
+        if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
+        if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
+        if (auto l = dyn_cast<AddrSpaceCastInst>(orig)) ptr = l->getOperand(0);
+        
+        if (!ptr) continue;
+        if (isGlobalPtr(ptr)) {
           if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
             assert(!gptr && "!! too bad -- should do put/get\n");
           }
-        } else if (isSymmetricPtr(prov)) {
+        } else if (isSymmetricPtr(ptr)) {
           if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
             ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
             fixed_up++;
