@@ -50,6 +50,22 @@ inline std::string demangle(StringRef name) {
   }
 }
 
+inline std::string mangleSimpleGlobal(StringRef n) {
+  std::string _s;
+  raw_string_ostream name(_s);
+  name << "_ZN";
+  
+  auto sr = StringRef(n);
+  while (true) {
+    auto p = sr.split("::");
+    name << p.first.size() << p.first;
+    sr = p.second;
+    if (sr.empty()) break;
+  }
+  name << "E";
+  return name.str();
+}
+
 using AnchorSet = SetVector<Instruction*>;
 using ValueSet = SetVector<Value*>;
 
@@ -333,7 +349,8 @@ namespace Grappa {
     
     GlobalPtrInfo ginfo;
     
-    std::set<Function*> task_fns;
+//    std::set<Function*> task_fns;
+    DenseMap<Function*,GlobalVariable*> async_fns;
     
     void analyzeProvenance(Function& fn, AnchorSet& anchors);
     

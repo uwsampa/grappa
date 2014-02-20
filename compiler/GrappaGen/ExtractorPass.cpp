@@ -1020,15 +1020,34 @@ namespace Grappa {
     // Find 'task' functions
     for (auto& F : M) {
       if (F.hasFnAttribute("async")) {
-        task_fns.insert(&F);
+        async_fns.insert({&F, nullptr});
       }
     }
     
     CandidateMap candidate_map;
     int ct = 0;
     
+    int visited = async_fns.size();
+    
     UniqueQueue<Function*> worklist;
-    for (auto fn : task_fns) worklist.push(fn);
+    for (auto p : async_fns) {
+      visited--;
+      auto fn = p.first;
+      worklist.push(fn);
+      
+      auto s = demangle(fn->getName());
+      auto e = s.rfind(")>::operator()() const");
+      auto b = s.rfind("&(");
+      if (e != std::string::npos) {
+        auto n = s.substr(b+2, e-b-2);
+        auto gce = M.getNamedGlobal(mangleSimpleGlobal(n));
+        if (gce) {
+          outs() << "gce => " << *gce << "\n";
+          async_fns[p.first] = gce;
+        }
+      }
+    }
+    assert(visited == 0 && "oops, DenseMap iterator was invalidated");
     
     struct DbgRemover : public InstVisitor<DbgRemover> {
       void visitIntrinsicInst(IntrinsicInst& i) {
