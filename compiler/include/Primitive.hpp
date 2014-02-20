@@ -225,6 +225,45 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
   return retcode;
 }
 
+extern "C"
+retcode_t grappa_on_async(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz, Grappa::GlobalCompletionEvent * gce) {
+  
+  gce->enroll();
+  auto g_gce = make_global(gce);
+  
+  if (dst == Grappa::mycore()) {
+    VLOG(5) << "short-circuit";
+    delegate_short_circuits++;
+    
+    fn(args, nullptr);
+    gce->complete();
+    
+  } else if ( args_sz <= SMALL_MSG_SIZE ) {
+    VLOG(5) << "small_msg";
+    delegate_ops_small_msg++;
+    
+    int8_t _args[SMALL_MSG_SIZE];
+    
+    memcpy(_args, args, args_sz);
+    
+    Grappa::send_heap_message(dst, [fn,_args,g_gce]{
+      fn((void*)_args, nullptr);
+      g_gce->send_completion(g_gce.core());
+    });
+    
+  } else {
+    delegate_ops_payload_msg++;
+    
+    Grappa::send_heap_message(dst, [fn,g_gce](void* args, size_t args_sz){
+      fn(args, nullptr);
+      g_gce->send_completion(g_gce.core());
+    }, args, args_sz);
+    
+  }
+  
+  return 0;
+}
+
 struct delegate_fetch_add_args {
   long global* addr;
   long increment;
@@ -239,8 +278,4 @@ void delegate_fetch_add(void *args_v, void *out_v) {
   long *p = Grappa::pointer(args->addr);
   out->before_val = *p;
   *p += args->increment;
-}
-
-void example() {
-  
 }

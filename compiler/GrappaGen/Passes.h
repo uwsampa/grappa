@@ -147,7 +147,8 @@ public:
 ////////////////////////////////////////////////
 /// Utilities for working with Grappa pointers
 struct GlobalPtrInfo {
-  Function *call_on_fn, *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
+  Function *call_on_fn, *call_on_async_fn,
+           *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
   
   LLVMContext *ctx;
   
@@ -166,6 +167,7 @@ struct GlobalPtrInfo {
     };
     
     call_on_fn = getFunction("grappa_on");
+    call_on_async_fn = getFunction("grappa_on_async");
     get_core_fn = getFunction("grappa_get_core");
     get_pointer_fn = getFunction("grappa_get_pointer");
     get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
