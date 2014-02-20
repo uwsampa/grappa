@@ -170,6 +170,21 @@ namespace Grappa {
       
       void clear() { m.clear(); }
       
+      bool isVoidRetExit() {
+        if (m.size() == 1) {
+          auto e = m.begin()->first;
+          if (auto i = dyn_cast<Instruction>(e)) {
+            auto next = i->getNextNode();
+            if (auto ret = dyn_cast<ReturnInst>(next)) {
+              if (!ret->getReturnValue()) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+      
       template< typename F >
       void each(F yield) const {
         SmallVector<Map::value_type,8> v;
@@ -177,7 +192,7 @@ namespace Grappa {
         
         for (auto p : v) {
           if (auto before = dyn_cast<Instruction>(p.first)) {
-            yield(before, BasicBlock::iterator(before)->getNextNode());
+            yield(before, before->getNextNode());
           } else if (auto succ = dyn_cast<BasicBlock>(p.first)) {
             auto pred = cast<Instruction>(p.second);
             yield(pred, succ->begin());
@@ -230,8 +245,7 @@ namespace Grappa {
       unsigned size() { return m.size(); }
     };
     
-    ExitMap exits;
-    
+    ExitMap exits, max_extent;
     
     WeakVH target_ptr;
     SmallSet<Value*,4> valid_ptrs;
@@ -243,6 +257,32 @@ namespace Grappa {
     
     CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
       ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
+    
+    void switchExits(ExitMap& emap) {
+      visit([&](BasicBlock::iterator i){ owner[i] = nullptr; });
+      
+      exits = emap;
+      
+      //////////////////////////////////////////////////////
+      // rollback before branch if all exits from single bb
+      if (exits.size() > 1) {
+        SmallSetVector<Instruction*,8> preds;
+        exits.each([&](Instruction* before, Instruction* after){
+          preds.insert(before);
+        });
+        if (preds.size() == 1) {
+          exits.clear();
+          owner[preds[0]] = nullptr;
+          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
+          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
+          exits.add(p);
+        }
+      }
+      
+      visit([&](BasicBlock::iterator i){ owner[i] = this; });
+
+      computeInputsOutputs();
+    }
     
     template< typename F >
     void visit(F yield) {
@@ -267,12 +307,13 @@ namespace Grappa {
     }
     
     void expandRegion() {
-      SmallSet<Instruction*,64> region;
+      using RegionSet = SmallSet<Instruction*,64>;
+      RegionSet region;
       int anchor_ct = 0;
       int best_score = 0;
       ExitMap emap;
       
-      auto findExitsFromRegion = [&]{
+      auto findExitsFromRegion = [this](ExitMap& emap, RegionSet& region){
         emap.clear();
         UniqueQueue<Instruction*> q;
         q.push(entry);
@@ -331,7 +372,7 @@ namespace Grappa {
           if (score > best_score) {
             errs() << "!! best!\n";
             best_score = score;
-            findExitsFromRegion();
+            findExitsFromRegion(emap,region);
           }
           
           auto bb = i->getParent();
@@ -355,28 +396,11 @@ namespace Grappa {
             break;
           }
         }
-      }
+      } // while (!frontier.empty())
       
-      exits = emap;
-      
-      //////////////////////////////////////////////////////
-      // rollback before branch if all exits from single bb
-      if (exits.size() > 1) {
-        SmallSetVector<Instruction*,8> preds;
-        exits.each([&](Instruction* before, Instruction* after){
-          preds.insert(before);
-        });
-        if (preds.size() == 1) {
-          exits.clear();
-          owner[preds[0]] = nullptr;
-          auto p = BasicBlock::iterator(preds[0])->getPrevNode();
-          DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
-          exits.add(p);
-        }
-      }
-      
-      visit([&](BasicBlock::iterator i){ owner[i] = this; });
-      computeInputsOutputs();
+      findExitsFromRegion(max_extent,region);
+
+      switchExits(emap);
     }
     
     bool validInRegion(Instruction* i) {
@@ -448,7 +472,7 @@ namespace Grappa {
       ty_output = StructType::get(ctx, out_types);
     }
     
-    Function* extractRegion() {
+    Function* extractRegion(GlobalVariable* gce = nullptr) {
       auto name = "d" + Twine(ID);
       DEBUG(outs() << "//////////////////\n// extracting " << name << "\n");
       DEBUG(outs() << "target_ptr =>" << *target_ptr << "\n");
@@ -459,6 +483,8 @@ namespace Grappa {
       auto ty_void_ptr = Type::getInt8PtrTy(ctx);
       auto ty_void_gptr = Type::getInt8PtrTy(ctx, GLOBAL_SPACE);
       auto i64 = [&](int64_t v) { return ConstantInt::get(Type::getInt64Ty(ctx), v); };
+      
+      if (gce) outs() << "---- extracting async (" << name << ")\n";
       
       SmallSet<BasicBlock*,8> bbs;
       
@@ -555,6 +581,8 @@ namespace Grappa {
         for_each_op(o, *it)  if (definedInCaller(*o)) inputs.insert(*o);
         for_each_use(u, *it) if (!definedInRegion(*u)) { outputs.insert(it); break; }
       });
+      
+      if (gce) assert(outputs.size() == 0);
       
       /////////////////////////////////////////////
       // create struct types for inputs & outputs
@@ -656,13 +684,23 @@ namespace Grappa {
         b.CreateBitCast(target_ptr, ty_void_gptr)
       }, name+".target_core");
       
-      auto call = b.CreateCall(ginfo.call_on_fn, {
-        target_core, new_fn,
-        b.CreateBitCast(in_alloca, ty_void_ptr),
-        i64(layout.getTypeAllocSize(in_struct_ty)),
-        b.CreateBitCast(out_alloca, ty_void_ptr),
-        i64(layout.getTypeAllocSize(out_struct_ty))
-      }, name+".call_on");
+      CallInst *call;
+      if (gce) {
+        call = b.CreateCall(ginfo.call_on_async_fn, {
+          target_core, new_fn,
+          b.CreateBitCast(in_alloca, ty_void_ptr),
+          i64(layout.getTypeAllocSize(in_struct_ty)),
+          gce
+        }, name+".call_on_async");
+      } else {
+        call = b.CreateCall(ginfo.call_on_fn, {
+          target_core, new_fn,
+          b.CreateBitCast(in_alloca, ty_void_ptr),
+          i64(layout.getTypeAllocSize(in_struct_ty)),
+          b.CreateBitCast(out_alloca, ty_void_ptr),
+          i64(layout.getTypeAllocSize(out_struct_ty))
+        }, name+".call_on");
+      }
       
       auto exit_switch = b.CreateSwitch(call, bb_call, exits.size());
       
@@ -1079,6 +1117,13 @@ namespace Grappa {
           
           r->printHeader();
           
+          if (r->max_extent.isVoidRetExit()) {
+            assert(layout->getTypeAllocSize(r->ty_output) == 0);
+            if (async_fns[fn]) {
+              outs() << "!! grappa_on_async candidate\n";
+            }
+          }
+          
           r->visit([&](BasicBlock::iterator i){
             if (candidate_map[i] != r) {
               errs() << "!! bad visit: " << *i << "\n";
@@ -1108,11 +1153,16 @@ namespace Grappa {
       if (found_functions && cnds.size() > 0) {
         for (auto cnd : cnds) {
           
-          auto new_fn = cnd->extractRegion();
+          GlobalVariable* async_gce = nullptr;
+          if (async_fns[fn] && cnd->max_extent.isVoidRetExit()) {
+            async_gce = async_fns[fn];
+            cnd->switchExits(cnd->max_extent);
+          }
+          
+          auto new_fn = cnd->extractRegion(async_gce);
           
           if (PrintDot) {
             CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
-//            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after.d"+Twine(cnd->ID));
           }
         }
       }
