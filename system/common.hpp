@@ -28,7 +28,10 @@
 
 #include <stdint.h>
 #include <iostream>
+#include <cstddef>
 #include <glog/logging.h>
+
+using std::nullptr_t;
 
 #if defined(__MTA__)
 #include <sys/mta_task.h>

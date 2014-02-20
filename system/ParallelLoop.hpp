@@ -422,7 +422,9 @@ namespace Grappa {
             index += block_elems * (cores()-1);
             n_to_boundary = block_elems;
           }
-          loop_body(index, first[i]);
+          mark_async<GCE>([=]{
+            loop_body(index, first[i]);
+          })();
         }
       };
       impl::forall<B,S,GCE,Threshold>(base, nelems, f, &decltype(f)::operator());
@@ -436,7 +438,9 @@ namespace Grappa {
     {
       auto f = [loop_body](int64_t start, int64_t niters, T * first) {
         for (int64_t i=0; i<niters; i++) {
-          loop_body(first[i]);
+          mark_async<GCE>([=]{
+            loop_body(first[i]);
+          })();
         }
       };
       impl::forall<B,S,GCE,Threshold>(base, nelems, f, &decltype(f)::operator());

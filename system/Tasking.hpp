@@ -170,9 +170,10 @@ namespace Grappa {
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
   
+  class GlobalCompletionEvent;
   namespace impl {
     /// Exists just to get the "async" annotation on the task function for LLVM passes to use.
-    template< typename F >
+    template< typename F, GlobalCompletionEvent * C = nullptr >
     struct AsyncFunctor {
       F func;
       AsyncFunctor(F func): func(func) {}
@@ -180,9 +181,15 @@ namespace Grappa {
         func();
       }
     };
+    
   }
   
-  template< TaskMode B = TaskMode::Bound, typename F = decltype(nullptr) >
+  template< GlobalCompletionEvent * C = nullptr, typename F = nullptr_t >
+  impl::AsyncFunctor<F,C> mark_async(F func) {
+    return impl::AsyncFunctor<F,C>(func);
+  }
+  
+  template< TaskMode B = TaskMode::Bound, typename F = nullptr_t >
   void spawn(F f) {
     if (B == TaskMode::Bound) {
       privateTask(impl::AsyncFunctor<F>(f));
