@@ -29,7 +29,22 @@ static cl::opt<bool> PrintDot("grappa-dot", cl::desc("Dump pass info to dot form
 
 namespace Grappa {
   
+  void setProvenance(Instruction* inst, Value* ptr) {
+    inst->setMetadata("grappa.prov", MDNode::get(inst->getContext(), ptr));
+  }
+  
+  Value* getProvenance(Instruction* inst) {
+    if (auto m = inst->getMetadata("grappa.prov")) {
+      return m->getOperand(0);
+    }
+    return nullptr;
+  }
+  
   Value* search(Value* v) {
+    if (auto inst = dyn_cast<Instruction>(v))
+      if (auto prov = getProvenance(inst))
+        return prov;
+    
     if (auto gep = dyn_cast<GetElementPtrInst>(v)) {
       if (!gep->isInBounds()) return v;
       if (gep->hasIndices()) {
@@ -53,18 +68,15 @@ namespace Grappa {
       return v;
     }
     
-    return v;
-  }
-  
-  void setProvenance(Instruction* inst, Value* ptr) {
-    inst->setMetadata("grappa.prov", MDNode::get(inst->getContext(), ptr));
-  }
-  
-  Value* getProvenance(Instruction* inst) {
-    if (auto m = inst->getMetadata("grappa.prov")) {
-      return m->getOperand(0);
+    if (auto c = dyn_cast<CallInst>(v)) {
+      if (auto prov = getProvenance(c)) {
+        if (isa<PointerType>(c->getType())) {
+          return prov;
+        }
+      }
     }
-    return nullptr;
+    
+    return v;
   }
   
 #define X(expr) if (!v) return false; else return (expr);
@@ -88,6 +100,9 @@ namespace Grappa {
   void ExtractorPass::analyzeProvenance(Function& fn, AnchorSet& anchors) {
     for (auto& bb: fn) {
       for (auto& i : bb) {
+        
+        if (getProvenance(&i)) continue;
+        
         Value *prov = nullptr;
         if (auto l = dyn_cast<LoadInst>(&i)) {
           prov = search(l->getPointerOperand());
