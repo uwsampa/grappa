@@ -876,7 +876,6 @@ namespace Grappa {
         { std::string _s; raw_string_ostream os(_s);
           os << i;
           s = DOT::EscapeString(os.str());
-          s = os.str();
         }
         
         std::string cell_open  = "<tr><td align='left'>";
