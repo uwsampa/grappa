@@ -459,7 +459,6 @@ namespace Grappa {
       auto ty_void_ptr = Type::getInt8PtrTy(ctx);
       auto ty_void_gptr = Type::getInt8PtrTy(ctx, GLOBAL_SPACE);
       auto i64 = [&](int64_t v) { return ConstantInt::get(Type::getInt64Ty(ctx), v); };
-      auto idx = [&](int i) { return ConstantInt::get(Type::getInt32Ty(ctx), i); };
       
       SmallSet<BasicBlock*,8> bbs;
       
@@ -877,6 +876,7 @@ namespace Grappa {
         { std::string _s; raw_string_ostream os(_s);
           os << i;
           s = DOT::EscapeString(os.str());
+          s = os.str();
         }
         
         std::string cell_open  = "<tr><td align='left'>";
@@ -933,6 +933,7 @@ namespace Grappa {
       std::string err;
       outs() << "dot => " << fname.str() << "\n";
       raw_fd_ostream o(fname.str().c_str(), err);
+      o.SetBuffered();
       if (err.size()) {
         errs() << "dot error: " << err;
       }
@@ -1078,8 +1079,9 @@ namespace Grappa {
         }
       }
       
-      auto taskname = "task" + Twine(ct++);
+      auto taskname = "task" + Twine(ct);
       if (cnds.size() > 0 && PrintDot) {
+        ct++;
         CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
       }
       
