@@ -28,7 +28,12 @@ namespace {
     PrePass() : FunctionPass(ID) { }
     
     virtual bool runOnFunction(Function &F) {
+      auto& M = *F.getParent();
       bool changed = false;
+      
+      SmallVector<Instruction*, 8> to_remove;
+      
+      auto md = M.getOrInsertNamedMetadata("grappa.asyncs");
       
       if (!InlineSpecialMethods) {
         for (auto inst = inst_begin(&F); inst != inst_end(&F); inst++) {
@@ -43,9 +48,23 @@ namespace {
                 }
               }
             }
+            
+            auto cf = call->getCalledFunction();
+            if (cf && cf->getName() == "grappa_noop_gce") {
+              auto gce = call->getOperand(0);
+              if (isa<GlobalVariable>(gce)) {
+                md->addOperand(MDNode::get(F.getContext(), {&F, gce}));
+              } else {
+                assert(isa<Constant>(gce));
+              }
+              
+              to_remove.push_back(call);
+            }
           }
         }
       }
+      
+      for (auto inst : to_remove) inst->eraseFromParent();
       
       return changed;
     }

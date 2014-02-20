@@ -63,8 +63,13 @@ void Grappa_end_tasks();
 
 // forward declare master thread from scheduler
 
+namespace Grappa { class GlobalCompletionEvent; }
 
-namespace Grappa {  
+extern "C" __attribute__((noinline))
+inline void grappa_noop_gce(Grappa::GlobalCompletionEvent* C) { asm (""); }
+
+
+namespace Grappa {
   
   extern Worker * master_thread;
 
@@ -170,7 +175,6 @@ namespace Grappa {
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
   
-  class GlobalCompletionEvent;
   namespace impl {
     /// Exists just to get the "async" annotation on the task function for LLVM passes to use.
     template< typename F, GlobalCompletionEvent * C = nullptr >
@@ -179,6 +183,7 @@ namespace Grappa {
       AsyncFunctor(F func): func(func) {}
       grappa_async_fn void operator()() const {
         func();
+        grappa_noop_gce(C);
       }
     };
     

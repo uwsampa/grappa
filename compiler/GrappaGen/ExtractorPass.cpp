@@ -1024,30 +1024,24 @@ namespace Grappa {
       }
     }
     
+    auto async_md = M.getNamedMetadata("grappa.asyncs");
+    if (async_md) {
+      for (int i=0; i<async_md->getNumOperands(); i++) {
+        auto md = cast<MDNode>(async_md->getOperand(i));
+        auto fn = cast<Function>(md->getOperand(0));
+        auto gce = cast<GlobalVariable>(md->getOperand(1));
+        async_fns[fn] = gce;
+      }
+    }
+    
     CandidateMap candidate_map;
     int ct = 0;
     
-    int visited = async_fns.size();
-    
     UniqueQueue<Function*> worklist;
     for (auto p : async_fns) {
-      visited--;
       auto fn = p.first;
       worklist.push(fn);
-      
-      auto s = demangle(fn->getName());
-      auto e = s.rfind(")>::operator()() const");
-      auto b = s.rfind("&(");
-      if (e != std::string::npos) {
-        auto n = s.substr(b+2, e-b-2);
-        auto gce = M.getNamedGlobal(mangleSimpleGlobal(n));
-        if (gce) {
-          outs() << "gce => " << *gce << "\n";
-          async_fns[p.first] = gce;
-        }
-      }
     }
-    assert(visited == 0 && "oops, DenseMap iterator was invalidated");
     
     struct DbgRemover : public InstVisitor<DbgRemover> {
       void visitIntrinsicInst(IntrinsicInst& i) {
