@@ -12,17 +12,13 @@ macro(add_grappaclang_test file flags suffix)
   set_property(TARGET ${target} PROPERTY FOLDER "Compiler")
   set_property(TARGET ${target} APPEND_STRING PROPERTY COMPILE_FLAGS " ${flags}")
   
+  add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${target})
   add_test(NAME ${target}.test
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_srun" -n1 -p2 "--no-freeze-on-error" "--no-backtrace" -- "${CMAKE_CURRENT_BINARY_DIR}/${exe}"
   )
-  add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${target})
   set_tests_properties(${target}.test PROPERTIES DEPENDS ${target}.build)
   
-  # add to 'all' lists
-  set(compiler.all.${suffix}.compile ${compiler.all.${suffix}.compile} ${target} PARENT_SCOPE)
-  set(compiler.all.compile ${compiler.all.compile} ${target} PARENT_SCOPE)
-  set(compiler.all.check   ${compiler.all.check}   ${target}.check PARENT_SCOPE)
 endmacro()
 
 foreach(file ${tests})
