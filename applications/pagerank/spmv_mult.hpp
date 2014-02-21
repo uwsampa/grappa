@@ -36,7 +36,7 @@ struct WeightedAdjVertex : public Vertex {
   double * weights;
   
   WeightedAdjVertex(): Vertex(), weights(nullptr) {}
-};
+} GRAPPA_BLOCK_ALIGNED;
 
 void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y );
 
