@@ -22,6 +22,8 @@ macro(add_grappaclang_test file flags suffix)
 endmacro()
 
 foreach(file ${tests})
+  add_grappaclang_test(${file} "-O1" o1)
+  add_grappaclang_test(${file} "-O3" o3)
   add_grappaclang_test(${file} "-mllvm -grappa-extractor" ext)
   add_grappaclang_test(${file} "-mllvm -grappa-extractor -O1" ext.o1)
   add_grappaclang_test(${file} "-mllvm -grappa-extractor -O3" ext.o3)
