@@ -166,6 +166,10 @@ namespace Grappa {
       
       ExitMap() = default;
       
+      ExitMap(ExitMap const& o) {
+        for (auto e : o.m) m.insert(e);
+      }
+      
       void operator=(const ExitMap& o) {
         clear();
         for (auto e : o.m) m.insert(e);
@@ -1019,12 +1023,11 @@ namespace Grappa {
   
   int fixupFunction(Function* fn, GlobalPtrInfo& ginfo) {
     int fixed_up = 0;
-    SmallDenseMap<Value*,Value*> lptrs;
+    GlobalPtrInfo::LocalPtrMap lptrs;
     
     for (auto& bb : *fn ) {
       for (auto inst = bb.begin(); inst != bb.end(); ) {
         Instruction *orig = inst++;
-//        auto ptr = getProvenance(orig);
         Value* ptr = nullptr;
         if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
         if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
@@ -1032,8 +1035,13 @@ namespace Grappa {
         
         if (!ptr) continue;
         if (isGlobalPtr(ptr)) {
-          if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-            assert(!gptr && "!! too bad -- should do put/get\n");
+          if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
+            
+            assert(false && "unimplemented: need to propagate 'global' ptrs in called functions");
+            
+          } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+            ginfo.replace_global_access(gptr, orig, lptrs);
+            fixed_up++;
           }
         } else if (isSymmetricPtr(ptr)) {
           if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
@@ -1065,6 +1073,8 @@ namespace Grappa {
       }
     }
     
+    /////////////////////////////////////////////////
+    // find async's with GlobalCompletionEvent info
     auto async_md = M.getNamedMetadata("grappa.asyncs");
     if (async_md) {
       for (int i=0; i<async_md->getNumOperands(); i++) {
@@ -1093,92 +1103,103 @@ namespace Grappa {
     } dbg_remover;
     
     while (!worklist.empty()) {
-      auto fn = worklist.pop();
-      
-      dbg_remover.visit(fn);
-            
-      AnchorSet anchors;
-      analyzeProvenance(*fn, anchors);
-      
-      std::map<Value*,CandidateRegion*> candidates;
-      std::vector<CandidateRegion*> cnds;
-      
-      for (auto a : anchors) {
-        auto p = getProvenance(a);
-        if (candidate_map[a]) {
-          DEBUG({
-            outs() << "anchor already in another delegate:\n";
-            outs() << "  anchor =>" << *a << "\n";
-            outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
-          });
-        } else if (isGlobalPtr(p)) {
 
-          auto r = new CandidateRegion(p, a, candidate_map, ginfo, *layout);
-          r->valid_ptrs.insert(p);
-          
-          r->expandRegion();
-          
-          r->printHeader();
-          
-          if (r->max_extent.isVoidRetExit()) {
-            assert(layout->getTypeAllocSize(r->ty_output) == 0);
-            if (async_fns[fn]) {
-              outs() << "!! grappa_on_async candidate\n";
-            }
-          }
-          
-          r->visit([&](BasicBlock::iterator i){
-            if (candidate_map[i] != r) {
-              errs() << "!! bad visit: " << *i << "\n";
-              assert(false);
-            }
-          });
-          
-          candidates[a] = r;
-          cnds.push_back(r);
-        }
-      }
-      
+      auto fn = worklist.pop();
       auto taskname = "task" + Twine(ct);
-      if (cnds.size() > 0 && PrintDot) {
-        ct++;
-        CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
-      }
+
+      bool changed = false;
       
+      // Recursively process called functions
       for_each(it, *fn, inst) {
         auto inst = &*it;
-        if (isa<CallInst>(inst) || isa<InvokeInst>(inst)) {
+        if (isa<IntrinsicInst>(inst)) continue;
+        else if (isa<CallInst>(inst) || isa<InvokeInst>(inst)) {
           CallSite cs(inst);
           if (cs.getCalledFunction()) worklist.push(cs.getCalledFunction());
         }
       }
       
-      if (found_functions && cnds.size() > 0) {
-        for (auto cnd : cnds) {
-          
-          GlobalVariable* async_gce = nullptr;
-          if (async_fns[fn] && cnd->max_extent.isVoidRetExit()) {
-            async_gce = async_fns[fn];
-            cnd->switchExits(cnd->max_extent);
-          }
-          
-          auto new_fn = cnd->extractRegion(async_gce);
-          
-          if (PrintDot) {
-            CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd->ID));
+      AnchorSet anchors;
+      analyzeProvenance(*fn, anchors);
+      
+      if ( DoExtractor ) {
+        // Get rid of debug info that causes problems with extractor
+        dbg_remover.visit(fn);
+        
+        std::vector<CandidateRegion> cnds;
+        
+        /////////////////////
+        /// Compute regions
+        for (auto a : anchors) {
+          auto p = getProvenance(a);
+          if (candidate_map[a]) {
+            DEBUG({
+              outs() << "anchor already in another delegate:\n";
+              outs() << "  anchor =>" << *a << "\n";
+              outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
+            });
+          } else if (isGlobalPtr(p)) {
+
+            cnds.emplace_back(p, a, candidate_map, ginfo, *layout);
+            auto& r = cnds.back();
+            
+            r.valid_ptrs.insert(p);
+            
+            r.expandRegion();
+            
+            r.printHeader();
+            
+            if (r.max_extent.isVoidRetExit()) {
+              assert(layout->getTypeAllocSize(r.ty_output) == 0);
+              if (async_fns[fn]) {
+                outs() << "!! grappa_on_async candidate\n";
+              }
+            }
+            
+            r.visit([&](BasicBlock::iterator i){
+              if (candidate_map[i] != &r) {
+                errs() << "!! bad visit: " << *i << "\n";
+                assert(false);
+              }
+            });
+            
           }
         }
-      }
+        
+        if (cnds.size() > 0) {
+          changed = true;
+          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
+        }
+        
+        if (found_functions && cnds.size() > 0) {
+          for (auto& cnd : cnds) {
+            
+            GlobalVariable* async_gce = nullptr;
+            if (async_fns[fn] && cnd.max_extent.isVoidRetExit()) {
+              async_gce = async_fns[fn];
+              cnd.switchExits(cnd.max_extent);
+            }
+            
+            auto new_fn = cnd.extractRegion(async_gce);
+            
+            if (PrintDot) {
+              CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd.ID));
+            }
+          }
+        }
+      } // if ( DoExtractor )
       
       if (found_functions) {
+        // insert put/get & get local ptrs for symmetric addrs
         int nfixed = fixupFunction(fn, ginfo);
         
-        if ((nfixed || cnds.size()) && PrintDot) {
-          CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+        if (nfixed) {
+          changed = true;
+          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
         }
       }
       
-      for (auto c : cnds) delete c;
+      if (changed) ct++;
     }
     
     ////////////////////////////////////////////////
