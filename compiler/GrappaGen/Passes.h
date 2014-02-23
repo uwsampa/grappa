@@ -147,7 +147,11 @@ public:
 ////////////////////////////////////////////////
 /// Utilities for working with Grappa pointers
 struct GlobalPtrInfo {
+  
+  using LocalPtrMap = SmallDenseMap<Value*,Value*>;
+  
   Function *call_on_fn, *call_on_async_fn,
+           *global_get_fn, *global_put_fn,
            *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
   
   LLVMContext *ctx;
@@ -171,6 +175,8 @@ struct GlobalPtrInfo {
     get_core_fn = getFunction("grappa_get_core");
     get_pointer_fn = getFunction("grappa_get_pointer");
     get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
+    global_get_fn = getFunction("grappa_get");
+    global_put_fn = getFunction("grappa_put");
     
     return !disabled;
   }
@@ -226,9 +232,48 @@ struct GlobalPtrInfo {
     return v;
   }
   
+  Value* replace_global_access(Value *gptr, Instruction *orig, LocalPtrMap& lptrs) {
+    
+    Type *ty = cast<PointerType>(gptr->getType())->getElementType();
+    Twine name = gptr->getName().size() ? gptr->getName()+".g" : "g";
+    
+    auto sz = ConstantExpr::getSizeOf(ty);
+    
+    auto alloca_loc = orig->getParent()->getParent()->getEntryBlock().begin();
+    auto tmp = new AllocaInst(ty, name+".tmp", alloca_loc);
+    
+    IRBuilder<> b(orig);
+    
+    auto v_tmp = b.CreateBitCast(tmp, void_ptr_ty, name+".tmp.void");
+    auto v_gptr = b.CreateBitCast(gptr, void_gptr_ty, name+".void");
+    
+    Value *v = nullptr;
+    if (auto l = dyn_cast<LoadInst>(orig)) {
+      
+      // remote get into temp
+      v = b.CreateCall(global_get_fn, {v_tmp, v_gptr, sz});
+      // load value out of temp
+      v = b.CreateLoad(tmp, l->isVolatile(), name+".val");
+      
+    } else if (auto s = dyn_cast<StoreInst>(orig)) {
+      
+      // store into temporary alloca
+      v = b.CreateStore(s->getValueOperand(), tmp, s->isVolatile());
+      // do remote put out of alloca
+      v = b.CreateCall(global_put_fn, {v_gptr, v_tmp, sz});
+      
+    } else if (isa<AddrSpaceCastInst>(orig)) {
+      assert(false && "unimplemented");
+    }
+    
+    orig->replaceAllUsesWith(v);
+    orig->eraseFromParent();
+    
+    return v;
+  }
+  
   template< int SPACE >
-  Value* replace_with_local(Value *xptr, Instruction *orig,
-                                   SmallDenseMap<Value*,Value*>& lptrs) {
+  Value* replace_with_local(Value *xptr, Instruction *orig, LocalPtrMap& lptrs) {
     Function* get_xptr_fn = nullptr;
     Type*     void_xptr_ty = nullptr;
     StringRef suffix;
