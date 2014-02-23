@@ -57,12 +57,6 @@ using namespace llvm;
 static cl::opt<bool> DoGenPass("grappa-gen",
                                  cl::desc("Run the old GrappaGen pass."));
 
-static cl::opt<bool> DoExtractor("grappa-extractor",
-                        cl::desc("Run pass to automatically extract delegates."));
-
-static cl::opt<bool> DoPutGet("grappa-putget",
-                        cl::desc("Replaces global load/store with put/get."));
-
 namespace {
   
   
@@ -473,12 +467,7 @@ namespace {
       if (DoGenPass) {
         PM.add(new GrappaGen());
       }
-      if (DoExtractor) {
-        PM.add(new Grappa::ExtractorPass());
-      }
-      if (DoPutGet) {
-        outs() << "PutGetPass not implemented yet.\n";
-      }
+      PM.add(new Grappa::ExtractorPass());
     });
   
 }

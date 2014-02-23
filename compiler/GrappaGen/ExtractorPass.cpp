@@ -27,6 +27,9 @@ StringRef getColorString(unsigned ColorNumber) {
 
 static cl::opt<bool> PrintDot("grappa-dot", cl::desc("Dump pass info to dot format."));
 
+static cl::opt<bool> DoExtractor("grappa-extractor",
+                                 cl::desc("Run pass to automatically extract delegates."));
+
 namespace Grappa {
   
   void setProvenance(Instruction* inst, Value* ptr) {
