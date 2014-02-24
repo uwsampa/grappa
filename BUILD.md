@@ -1,9 +1,11 @@
-# Building
+Building
+===============================================================================
 Note: currently Grappa does not support any 'install' step. To use, build using the instructions below. New applications can be added to the applications folder, using the existing applications' `CMakeLists.txt` files as an example, and built using Grappa's CMake project.
 
 This document describes how to use CMake to perform out-of-source builds. This means that for each configuration, a new "build/*" directory will be created to hold all of the build scripts, temporaries, and built libraries and executables.
 
-## Quick start
+Quick start
+-------------------------------------------------------------------------------
 Example usage:
 
     ./configure --gen=Make --mode=Release
@@ -16,23 +18,46 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
     make graph_new.exe
     # generates <project_root>/build/Make+Release/applications/graph500/grappa/graph_new.exe
     # to run, use the 'srun' script which has been copied to build/Make+Release/bin:
-    bin/grappa_srun.rb --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
+    bin/grappa_srun --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
 
 This is the simplest build configuration. You are likely to want to specify more things, such as a specific compiler, a directory for already-installed dependencies so you don't have to rebuild them for each new configuration, and more. So read on.
 
-## Requirements
-- CMake version >= 2.8.6
-  - on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
-  - on Pal: `module load cmake`
-- GCC version >= 4.7.
-  - on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
-  - on Pal: `module load gcc-4.7.2`
-- MPI (tested with OpenMPI & Mvapich2)
-  - on Sampa: should be autodetected
-  - on Pal: `module load mvapich2/1.9b`
+Requirements
+-------------------------------------------------------------------------------
+You must have a Linux system with the following installed to be able to build Grappa:
 
-## Configure
+* Build system
+  * Ruby >= 1.9.3
+  * CMake >= 2.8.6
+    * on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
+    * on PNNL PAL cluster: `module load cmake`
+* Compiler
+  * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
+  * Or: Clang >= 3.4
+    * on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
+    * on PNNL's PAL cluster: `module load gcc-4.7.2`
+* External:
+  * MPI (tested with OpenMPI >= 1.5.4 and Mvapich2 >= 1.7, but we're not picky)
+    * on the Sampa cluster: should be autodetected
+    * on PNNL's PAL cluster: `module load mvapich2/1.9b`
 
+The following dependencies are dealt with automatically. You may want to override the default behavior for your specific system as described in the next section, especially in the case of Boost (if you already have a copy in a non-standard place).
+
+* Slightly modified versions distributed with Grappa:
+  * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
+  * glog
+* Downloaded and built automatically:
+  * gflags
+  * gperftools (only needed with `GOOGLE_PROFILER ON` or `TRACING` defined)
+  * VampirTrace (only needed with `TRACING` defined)
+  * Boost (unless you have >= 1.51 already)
+
+To use our test scripts you must have:
+
+* Slurm job manager (in theory just need to be able to launch MPI jobs, but we provide scripts that work with Slurm)
+
+Configure
+-------------------------------------------------------------------------------
 The `configure` script creates a new "build/*" subdirectory and runs CMake to generate build files.
 
     --gen=[Make]|Ninja|Xcode[,*] Build tool to generate scripts for.
@@ -55,7 +80,7 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
 To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
 ### Generators
-**Make:** uses generated Unix Makefiles to build. This is currently the best option, as it is the best-tested. Of note, the Make generator seems to be the only one that supports saving the "tools" builds when running "clean" (which can then be cleaned with the `clean-tools` target).'
+**Make:** uses generated Unix Makefiles to build. This is currently the best option, as it is the best-tested. Of note, the Make generator seems to be the only one that supports saving the "third-party" builds when running "clean" (which can then be cleaned with the `clean-third-party` target).'
 
 **Ninja:** supposedly does faster dependencies, especially for incremental builds, but `clean` target cleans dependent projects, so not currently recommended.
 
@@ -66,10 +91,10 @@ To build, after calling `configure`, cd into the generated directory, and use th
 ### Build Modes
 **Release:** builds with `-O3 -g`, so still has debug symbols.
 
-**Debug:** builds with `-DDEBUG -O1`
+**Debug:** builds with `-DDEBUG -O1`. `-O0` is not currently supported, since inlining is required for our threading library.
 
 ## Third-party dependencies
-CMake will download and build `gflags`, `boost`, and `gperfools`. It will build and install `GASNet` and `google-glog` from the `tools/` directory.
+CMake will download and build `gflags`, `boost`, and `gperfools`. It will build and install `GASNet` and `google-glog` from the `third-party/` directory.
 
 The external dependencies can be shared between Grappa configurations. If you specify a directory to `--third-party`, CMake will build and install the dependencies there, and then any other configurations will reuse them. Sometimes this won't work; for instance, if using two different compilers, you may have difficulty sharing a third-party directory. If this happens, just make a new third-party directory and rebuild them using the new configuration, or don't specify it and have this configuration build them just for itself.
 
@@ -84,7 +109,7 @@ A couple notes about adding new targets for CMake to build. First: each director
 
 There are a couple custom macros defined for creating Grappa executables:
 
-- `add_grappa_exe(target_name.exe [list of sources])`: creates an executable that links with `libGrappa`, depends on all the "tools" and has the correct properties set. Convention is that these use the '.exe' extension.
+- `add_grappa_exe(target_name.exe [list of sources])`: creates an executable that links with `libGrappa`, depends on all the "third-party" and has the correct properties set. Our convention is that these use the '.exe' extension, even though we're generally running on Linux.
 - `add_grappa_application(target_name [list of sources])`: same as `add_grappa_exe` but sets a property so it is tagged as an 'Application' in Xcode/VS.
 - `add_grappa_test(target_name.test [list of sources])`: builds/links as a Boost Unit Test. Convention is to use '.test' for the extension. This will also create a second target: `check-#{target_name}` (without '.test'), which will build and run the test. This target also adds itself to the list of all test, which can be run with the `check-all` target.
 
@@ -118,7 +143,7 @@ To make it easy to prototype ideas, there's a directory in root: `scratch`. Any 
     make rebuild_cache
     # then...
     make scratch-test.exe
-    bin/grappa_srun.rb --nnode=2 --ppn=1 -- scratch/scratch-test.exe
+    bin/grappa_srun --nnode=2 --ppn=1 -- scratch/scratch-test.exe
 
 ### Demos
 Similar to the scratch directory, all sub-directories in the `applications/demos` directory will be searched for `.cpp` files, and added as targets (`demo-#{base_name}.exe`). (note: search is not recursive, just one level of subdirectory).
@@ -141,11 +166,10 @@ Before building, you must set up a Slurm allocation and launch distcc daemons. B
 
 It is possible to control the number of nodes and the Slurm partition to be used by setting environment variables:
 
+| Variable         | Use                                |
 |------------------|------------------------------------|
 | DISTCC_NNODE     | number of 'distccd' nodes to setup |
-|------------------|------------------------------------|
 | SALLOC_PARTITION | Slurm partition to use             |
-|------------------|------------------------------------|
 
 Or just invoke salloc directly; e.g.:
 
@@ -160,17 +184,22 @@ Another alternative is to launch a shell to hold onto an allocation. This may be
     # whenever finished with builds, relinquish allocation:
     exit
 
+Building documentation
+-------------------------------------------------------------------------------
+The Grappa system directory is documented with Doxygen comments. To generate the documentation, you must verify that you have Doxygen installed, then build the `docs` target. For example:
 
-# Testing
-We use Boost::Test to test 
-The full list of unit tests is found in `system/CMakeLists.txt`. Here, a macro `add_check` is used to define a test and tell whether it is currently expected to pass or fail.
+```bash
+# from build/Make+Release
+make docs
+```
 
-Each test defined in this way creates two targets: `*.test` which builds the test, and `check-*`, which runs the test. In addition, there are aggregate targets `check-all-{pass,fail}` which build and run all the passing or failing tests respectively, and `check-all-{pass,fail}-compile-only` which, as the name implies, only compiles them.
+This will generate doxygen HTML and PDF documentation in: `build/doxygen`. So you can open in your browser: `<grappa_dir>/build/doxygen/html/index.html`.
 
-Non-exhaustive list of test targets:
-- `New_loop_tests.test`: build loop tests
-- `check-New_loop_tests`: build and run loop tests
-- `check-all-pass`: build and run all passing tests
-- `check-all-pass-compile-only`: just build all the tests expected to pass
+Testing
+-------------------------------------------------------------------------------
+See `doc/testing.md`.
 
-Someday we'll get this up and running with some CI server, but until then, we'll just try and run it whenever we make significant changes.
+Running jobs
+-------------------------------------------------------------------------------
+See `doc/running.md`.
+

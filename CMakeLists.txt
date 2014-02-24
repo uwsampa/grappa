@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
+option(GASNET_USE_UDP "Force Gasnet to use UDP (typically set by configure script)" OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -151,7 +152,7 @@ endif()
 ######################################
 # Gasnet
 ######################################
-if(DEFINED APPLE)
+if(DEFINED APPLE OR GASNET_USE_UDP)
   set(GASNET_CONDUIT "udp")
 else()
   set(GASNET_CONDUIT "ibv") # values: ibv,mpi
@@ -229,11 +230,11 @@ macro(add_grappa_test name nnode ppn)
   
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
     DEPENDS Grappa ${name}
   )
   add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
   )
   
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
@@ -262,9 +263,9 @@ include_directories(system/tasks)
 
 ####################################
 # subdirectories
+add_subdirectory(third-party)
+add_subdirectory(system)
 add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
-add_subdirectory(system)
-add_subdirectory(third-party)
-add_subdirectory(tutorial)
+add_subdirectory(doc)

@@ -13,7 +13,7 @@ Igor do
   isolate(['ContextSwitchRate_bench.exe'],
     File.dirname(__FILE__))
  
-  command "%{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} --cpu_bind=verbose,map_cpu:1,3,5,7,9,11,2,4,6,8,10,12 \
+  command "%{tdir}/grappa_srun --nnode=%{nnode} --ppn=%{ppn} --cpu_bind=verbose,map_cpu:1,3,5,7,9,11,2,4,6,8,10,12 \
 -- %{tdir}/ContextSwitchRate_bench.exe \
 GARGS=' \
 --num_starting_workers=%{num_workers} \

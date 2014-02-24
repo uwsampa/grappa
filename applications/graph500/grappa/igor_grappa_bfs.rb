@@ -21,7 +21,7 @@ Igor do
   
   params.merge!(GFLAGS)
   
-  @c = ->{ %Q[ %{tdir}/grappa_srun.rb
+  @c = ->{ %Q[ %{tdir}/grappa_srun
     -- %{tdir}/graph.exe
     #{GFLAGS.expand}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs}

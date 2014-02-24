@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 ####################################################
 # launch distcc on slurm allocation
+# assumes that distcc is already running on those nodes
 # usage: salloc -N4 distcc.sh make -j
 ####################################################
-# srun killall -q distccd
-srun bash -c 'if (( `ps aux | grep distccd | wc -l` == 0 )); then distccd --daemon --allow 0.0.0.0/0; fi'
 nodelist=`scontrol show hostname $SLURM_JOB_NODELIST | xargs`
 # hosts="--randomize"
 # for n in $nodelist; do

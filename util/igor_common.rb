@@ -31,7 +31,7 @@ module Igor
     when /pal/
       puts `squeue -ppal -o '%.7i %.4P %.17j %.8u %.2t %.10M %.6D %R'`
     else
-      puts `squeue`
+      puts `squeue -o '%.7i %.9P %.17j %.8u %.2t %.10M %.6D %R'`
     end
   end
 end
@@ -56,9 +56,9 @@ module Isolatable
     FileUtils.mkdir_p(@ldir)
     
     exes = [exes] unless exes.is_a? Array
-    exes << 'mpirun' << "#{File.dirname(__FILE__)}/../bin/grappa_srun.rb" \
-                     << "#{File.dirname(__FILE__)}/../bin/grappa_srun_prolog.rb" \
-                     << "#{File.dirname(__FILE__)}/../bin/grappa_srun_epilog.sh"
+    exes << 'mpirun' << "#{File.dirname(__FILE__)}/../bin/grappa_srun" \
+                     << "#{File.dirname(__FILE__)}/../bin/srun_prolog.rb" \
+                     << "#{File.dirname(__FILE__)}/../bin/srun_epilog.sh"
     
     exes.each do |exe|
       if not File.exists? exe
@@ -187,6 +187,9 @@ Igor do
 
       # get rid of pesky 'nan's if they show up
       m.gsub!(/: -?nan/, ': 0')
+
+      # get rid of trailing ",", which JSON hates
+      m.gsub!(/,\s*}/, '}')
 
 
       blob = JSON.parse(m)
