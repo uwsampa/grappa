@@ -266,12 +266,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     finish([xa]{
       for (int i=0; i < 10; i++) {
-        delegate::call<async>(xa, [](int& x){ BOOST_CHECK_EQUAL(x, 2); x++; });
+        delegate::call<async>(xa, [](int& x){
+          BOOST_CHECK(x >= 2 && x < 12);
+          x++;
+        });
       }
     });
     
     Grappa::Metrics::stop_tracing();
-    Grappa::Metrics::merge_and_print();
+    Grappa::Metrics::merge_and_dump_to_file();
   });
   Grappa::finalize();
 }

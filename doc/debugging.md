@@ -22,7 +22,7 @@ Grappa supports sampled tracing via VampirTrace. These traces can be visualized 
 Before configuring, ensure you have VampirTrace built somewhere. If VampirTrace is not built anywhere, there is a script to download and build it in `tools/`. Make sure to specify where to install it with the `--prefix` flag:
 
 ```bash
-> ./tools/vampirtrace.rb --prefix=/sampa/share/grappa-third-party
+> ./third-party/vampirtrace.rb --prefix=/sampa/share/grappa-third-party
 ```
 
 To use tracing, a separate Grappa build configuration must be made using either the '--tracing' or '--vampir' flags. If Vampir was installed in your `third-party` directory, just use '--tracing'; otherwise, use '--vampir' to specify the path to a separate VampirTrace install. For example:

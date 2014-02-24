@@ -39,6 +39,12 @@ if(NOT Boost_FOUND)
         ./b2 install --link=static --variant=release --threading=single --runtime-link=static
       INSTALL_COMMAND ""
     )
+    set(GRAPPA_LIBS
+      ${GRAPPA_LIBS}
+      boost_system
+      boost_filesystem
+      boost_unit_test_framework
+    PARENT_SCOPE)
     list(APPEND tool_list third-party-boost)
   else()
     message("     boost:  ${THIRD_PARTY_BOOST}")

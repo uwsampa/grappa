@@ -19,15 +19,15 @@ Igor do
     scale: 16,
     edgefactor: 16,
     nbfs: 8,
-    shared_pool_max: 64,
+    # shared_pool_max: 64,
     cas_flatten: 0,
-    shared_pool_size: 2**20,
+    # shared_pool_size: 2**20,
   })
   GFLAGS.delete :flat_combining
   
   params.merge!(GFLAGS)
   
-  @c = ->{ %Q[ %{tdir}/grappa_srun
+  @c = ->{ %Q[ %{tdir}/grappa_srun --no-freeze-on-error
     -- %{tdir}/graph_new.exe
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
