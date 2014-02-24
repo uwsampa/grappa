@@ -67,12 +67,15 @@ public:
   void finish();
 
   // make sure an address is in the locale shared memory
-  inline void validate_address( void * addr ) {
+  inline bool is_valid_address( void * addr ) {
     //#ifndef NDEBUG
     char * char_base = reinterpret_cast< char* >( base_address );
     char * char_addr = reinterpret_cast< char* >( addr );
-    CHECK( (char_base <= addr) && (addr < (char_base + region_size) ) )
-      << "Address " << addr << "  out of locale shared range!";
+    return (char_base <= addr) && (addr < (char_base + region_size) );
+  }
+  
+  inline void validate_address( void * addr ) {
+    CHECK( is_valid_address(addr) ) << "Address " << addr << "  out of locale shared range!";
   }
     //#endif
 
