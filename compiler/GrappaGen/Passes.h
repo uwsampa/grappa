@@ -152,6 +152,7 @@ struct GlobalPtrInfo {
   
   Function *call_on_fn, *call_on_async_fn,
            *global_get_fn, *global_put_fn,
+           *global_get_i64, *global_put_i64,
            *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
   
   LLVMContext *ctx;
@@ -177,6 +178,8 @@ struct GlobalPtrInfo {
     get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
     global_get_fn = getFunction("grappa_get");
     global_put_fn = getFunction("grappa_put");
+    global_get_i64 = getFunction("grappa_get_i64");
+    global_put_i64 = getFunction("grappa_put_i64");
     
     return !disabled;
   }
@@ -232,38 +235,68 @@ struct GlobalPtrInfo {
     return v;
   }
   
-  Value* replace_global_access(Value *gptr, Instruction *orig, LocalPtrMap& lptrs) {
-    
+  Value* replace_global_access(Value *gptr, Instruction *orig, LocalPtrMap& lptrs,
+                               DataLayout& layout) {
+    auto& C = orig->getContext();
     Type *ty = cast<PointerType>(gptr->getType())->getElementType();
     Twine name = gptr->getName().size() ? gptr->getName()+".g" : "g";
     
     auto sz = ConstantExpr::getSizeOf(ty);
     
-    auto alloca_loc = orig->getParent()->getParent()->getEntryBlock().begin();
-    auto tmp = new AllocaInst(ty, name+".tmp", alloca_loc);
-    
     IRBuilder<> b(orig);
+    Value * v = nullptr;
     
-    auto v_tmp = b.CreateBitCast(tmp, void_ptr_ty, name+".tmp.void");
-    auto v_gptr = b.CreateBitCast(gptr, void_gptr_ty, name+".void");
-    
-    Value *v = nullptr;
-    if (auto l = dyn_cast<LoadInst>(orig)) {
+    if (layout.getTypeAllocSize(ty) == 8) {
+      outs() << "specializing i64 -- line " << orig->getDebugLoc().getLine() << "\n";
+      auto i64 = Type::getInt64Ty(C);
+      auto i64_gptr = Type::getInt64PtrTy(C, GLOBAL_SPACE);
       
-      // remote get into temp
-      v = b.CreateCall(global_get_fn, {v_tmp, v_gptr, sz});
-      // load value out of temp
-      v = b.CreateLoad(tmp, l->isVolatile(), name+".val");
+      v = gptr;
       
-    } else if (auto s = dyn_cast<StoreInst>(orig)) {
+      if (isa<LoadInst>(orig)) {
+        
+        if (ty != i64) v = b.CreateBitCast(v, i64_gptr, name+".ptr.bc");
+        v = b.CreateCall(global_get_i64, { v }, name+".val");
+        if (ty != i64) v = b.CreateBitCast(v, ty, name+".val.bc");
+        
+      } else if (auto s = dyn_cast<StoreInst>(orig)) {
+        
+        auto val = s->getValueOperand();
+        if (ty != i64) {
+          v = b.CreateBitCast(v, i64_gptr, name+".ptr.bc");
+          val = b.CreateBitCast(val, i64, name+".val.bc");
+        }
+        v = b.CreateCall(global_put_i64, { v, val });
+        
+      } else {
+        assert(false && "unimplemented case");
+      }
       
-      // store into temporary alloca
-      v = b.CreateStore(s->getValueOperand(), tmp, s->isVolatile());
-      // do remote put out of alloca
-      v = b.CreateCall(global_put_fn, {v_gptr, v_tmp, sz});
+    } else {
       
-    } else if (isa<AddrSpaceCastInst>(orig)) {
-      assert(false && "unimplemented");
+      auto alloca_loc = orig->getParent()->getParent()->getEntryBlock().begin();
+      auto tmp = new AllocaInst(ty, name+".tmp", alloca_loc);
+      
+      auto v_tmp = b.CreateBitCast(tmp, void_ptr_ty, name+".tmp.void");
+      auto v_gptr = b.CreateBitCast(gptr, void_gptr_ty, name+".void");
+      
+      if (auto l = dyn_cast<LoadInst>(orig)) {
+        
+        // remote get into temp
+        v = b.CreateCall(global_get_fn, {v_tmp, v_gptr, sz});
+        // load value out of temp
+        v = b.CreateLoad(tmp, l->isVolatile(), name+".val");
+        
+      } else if (auto s = dyn_cast<StoreInst>(orig)) {
+        
+        // store into temporary alloca
+        v = b.CreateStore(s->getValueOperand(), tmp, s->isVolatile());
+        // do remote put out of alloca
+        v = b.CreateCall(global_put_fn, {v_gptr, v_tmp, sz});
+        
+      } else if (isa<AddrSpaceCastInst>(orig)) {
+        assert(false && "unimplemented");
+      }
     }
     
     orig->replaceAllUsesWith(v);
@@ -395,11 +428,12 @@ namespace Grappa {
     static char ID;
     
     GlobalPtrInfo ginfo;
+    DataLayout* layout;
     
-//    std::set<Function*> task_fns;
     DenseMap<Function*,GlobalVariable*> async_fns;
     
     void analyzeProvenance(Function& fn, AnchorSet& anchors);
+    int fixupFunction(Function* fn);
     
     ExtractorPass() : ModulePass(ID) { }
     

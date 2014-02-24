@@ -81,6 +81,17 @@ long grappa_read_long(long global* a) {
 }
 
 extern "C"
+int64_t grappa_get_i64(int64_t global* a) {
+  return Grappa::delegate::read(gaddr(a));
+}
+
+extern "C"
+void grappa_put_i64(int64_t global* a, int64_t v) {
+  Grappa::delegate::write(gaddr(a), v);
+}
+
+
+extern "C"
 long grappa_fetchadd_i64(long global* a, long inc) {
   return Grappa::delegate::fetch_and_add(gaddr(a), inc);
 }

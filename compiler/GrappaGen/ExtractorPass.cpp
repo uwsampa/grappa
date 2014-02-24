@@ -1027,7 +1027,7 @@ namespace Grappa {
     
   };
   
-  int fixupFunction(Function* fn, GlobalPtrInfo& ginfo) {
+  int ExtractorPass::fixupFunction(Function* fn) {
     int fixed_up = 0;
     GlobalPtrInfo::LocalPtrMap lptrs;
     
@@ -1041,12 +1041,12 @@ namespace Grappa {
         
         if (!ptr) continue;
         if (isGlobalPtr(ptr)) {
-          if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
+          if (isa<AddrSpaceCastInst>(orig)) {
             
             assert(false && "unimplemented: need to propagate 'global' ptrs in called functions");
             
           } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-            ginfo.replace_global_access(gptr, orig, lptrs);
+            ginfo.replace_global_access(gptr, orig, lptrs, *layout);
             fixed_up++;
           }
         } else if (isSymmetricPtr(ptr)) {
@@ -1064,7 +1064,7 @@ namespace Grappa {
   
   bool ExtractorPass::runOnModule(Module& M) {
     
-    auto layout = new DataLayout(&M);
+    layout = new DataLayout(&M);
     
 //    if (! ginfo.init(M) ) return false;
     bool found_functions = ginfo.init(M);
@@ -1197,7 +1197,7 @@ namespace Grappa {
       
       if (found_functions) {
         // insert put/get & get local ptrs for symmetric addrs
-        int nfixed = fixupFunction(fn, ginfo);
+        int nfixed = fixupFunction(fn);
         
         if (nfixed) {
           changed = true;
@@ -1211,7 +1211,7 @@ namespace Grappa {
     ////////////////////////////////////////////////
     // fixup any remaining global/symmetric things
     if (found_functions) for (auto& F : M) {
-      fixupFunction(&F, ginfo);
+      fixupFunction(&F);
     }
     
     outs().flush();
