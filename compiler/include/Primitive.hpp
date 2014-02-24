@@ -108,17 +108,36 @@ void grappa_get(void *addr, void global* src, size_t sz) {
     
     auto g_result = make_global(&result);
     
+    
     Grappa::send_heap_message(dest, [ga,sz,g_result]{
       
-      Grappa::send_heap_message(g_result.core(), [g_result](void * payload, size_t psz){
+      if (Grappa::impl::locale_shared_memory.is_valid_address(ga.pointer())) {
         
-        auto r = g_result.pointer();
-        auto dest_addr = r->readXX();
-        memcpy(dest_addr, payload, psz);
-        r->writeEF(dest_addr);
+        Grappa::send_heap_message(g_result.core(), [g_result](void * payload, size_t psz){
+          
+          auto r = g_result.pointer();
+          auto dest_addr = r->readXX();
+          memcpy(dest_addr, payload, psz);
+          r->writeEF(dest_addr);
+          
+        }, ga.pointer(), sz);
         
-      }, ga.pointer(), sz);
-      
+      } else {
+        
+        auto out_buf = Grappa::locale_alloc<int8_t>(sz); // <-- this is slow
+        memcpy(out_buf, ga.pointer(), sz);
+        
+        auto msg = Grappa::heap_message(g_result.core(), [g_result](void* p, size_t psz){
+          
+          auto addr = g_result->readXX();
+          memcpy(addr, p, psz);
+          g_result->writeEF(nullptr);
+          
+        }, out_buf, sz);
+        msg->delete_payload_after_send();
+        msg->enqueue();
+        
+      }
     });
     
     result.readFF();
