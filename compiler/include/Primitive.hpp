@@ -147,26 +147,36 @@ void grappa_get(void *addr, void global* src, size_t sz) {
 /// most basic way to write data at remote address (compiler generates these from global* accesses)
 extern "C"
 void grappa_put(void global* dest, void* src, size_t sz) {
+  auto ga = gaddr(dest);
   auto origin = Grappa::mycore();
   
-  if (Grappa::core(dest) == origin) {
+  if (ga.core() == origin) {
     
-    memcpy(Grappa::pointer(dest), src, sz);
+    memcpy(ga.pointer(), src, sz);
     
   } else {
     
     Grappa::FullEmpty<bool> result;
     auto g_result = make_global(&result);
     
-    Grappa::send_heap_message(Grappa::core(dest), [dest,sz,g_result](void * payload, size_t psz){
+    int8_t* tmp = nullptr;
+    
+    if (!Grappa::impl::locale_shared_memory.is_valid_address(src)) {
+      tmp = Grappa::locale_alloc<int8_t>(sz);
+      memcpy(tmp, src, sz);
+      src = tmp;
+    }
+    
+    Grappa::send_heap_message(ga.core(), [ga,g_result](void * p, size_t psz){
       
-      memcpy(Grappa::pointer(dest), payload, sz);
+      memcpy(ga.pointer(), p, psz);
       
       Grappa::send_heap_message(g_result.core(), [g_result]{ g_result->writeEF(true); });
       
     }, src, sz);
     
     result.readFF();
+    if (tmp) Grappa::locale_free(tmp);
   }
 }
 

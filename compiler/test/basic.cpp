@@ -31,6 +31,8 @@ retcode_t do_work(void *i, void *o) {
   return 0;
 }
 
+double var;
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   init( GRAPPA_TEST_ARGS );
   run([]{
@@ -61,6 +63,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     long global* array = global_alloc<long>(10);
     
     on_all_cores([=]{
+      var = 0;
+      
       fprintf(stderr, "xa = %d : %p (%p)\n", core(xa), pointer(xa), reinterpret_cast<void*>(xa));
       fprintf(stderr, "ya = %d : %p (%p)\n", core(ya), pointer(ya), reinterpret_cast<void*>(ya));
       
@@ -104,6 +108,16 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         assert(total == 45);
         fprintf(stderr, "total: %ld\n", total);
       }
+      
+      
+      Core c = (mycore() + 1) % cores();
+      auto gvar = as_ptr(make_global(&var, c));
+      
+      *gvar = 7.0;
+      barrier();
+      auto val = *gvar;
+      fprintf(stderr, "val = %g\n", val);
+      assert(val == 7.0);
       
     });
     Metrics::merge_and_dump_to_file();
