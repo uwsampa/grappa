@@ -166,11 +166,10 @@ Before building, you must set up a Slurm allocation and launch distcc daemons. B
 
 It is possible to control the number of nodes and the Slurm partition to be used by setting environment variables:
 
+| Variable         | Use                                |
 |------------------|------------------------------------|
 | DISTCC_NNODE     | number of 'distccd' nodes to setup |
-|------------------|------------------------------------|
 | SALLOC_PARTITION | Slurm partition to use             |
-|------------------|------------------------------------|
 
 Or just invoke salloc directly; e.g.:
 
