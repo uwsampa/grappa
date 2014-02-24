@@ -13,9 +13,8 @@ set(configured_scripts
 
 foreach(file ${symlinked_scripts})
   get_filename_component(name ${file} NAME)
-  file(RELATIVE_PATH relative_file ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${file})
   execute_process(COMMAND
-    ln -sf ${relative_file} ${CMAKE_CURRENT_BINARY_DIR}/${name}
+    ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/${file} ${CMAKE_CURRENT_BINARY_DIR}/${name}
   )
 endforeach()
 
