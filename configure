@@ -36,10 +36,10 @@ OptionParser.new{|p|
 # automatically determine cxx from --cc
 if opt.used_cc_flag
   case opt.cc
-  when /bin\/gcc/
-    opt.cxx = opt.cc.gsub(/bin\/gcc/,'bin/g++')
-  when /bin\/clang/
-    opt.cxx = opt.cc.gsub(/bin\/clang/,'bin/clang++')
+  when /\/gcc$/
+    opt.cxx = opt.cc.gsub(/\/gcc$/,'/g++')
+  when /\/clang$/
+    opt.cxx = opt.cc.gsub(/\/clang$/,'/clang++')
   end
 end
 
