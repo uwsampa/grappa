@@ -7,6 +7,7 @@ using namespace Grappa;
 
 DEFINE_int64( sizeA, 1 << 28, "Size of array that GUPS increments" );
 DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
+DEFINE_bool( metrics, false, "Dump metrics");
 
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
@@ -37,6 +38,9 @@ int main(int argc, char* argv[]) {
 
     global_free(gaddr(B));
     global_free(gaddr(A));
+    
+    if (FLAGS_metrics) Metrics::merge_and_print();
+    
   });
   finalize();
 }
