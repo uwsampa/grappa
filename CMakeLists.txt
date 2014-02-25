@@ -203,6 +203,11 @@ endif()
 # MPI (mostly for booting, but we also use MPI communication in some places now)
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
+# Add MPI libs dirs to RPATH
+foreach(lib ${MPI_CXX_LIBRARIES})
+  get_filename_component(libdir "${lib}" PATH)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${libdir}")
+endforeach()
 
 macro(add_grappa_exe target exe )
   add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
