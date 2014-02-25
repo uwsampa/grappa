@@ -22,7 +22,7 @@ Igor do
   
   params.merge!(GFLAGS)
   
-  @c = -> cl { %Q[ %{tdir}/grappa_srun
+  @c = -> cl { %Q[ %{tdir}/grappa_srun --no-freeze-on-error
     -- %{tdir}/%{exe} --metrics
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
