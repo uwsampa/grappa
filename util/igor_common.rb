@@ -69,7 +69,7 @@ module Isolatable
         end
       end
       FileUtils.cp(exe, @ldir)
-      libs = `bash -c "LD_LIBRARY_PATH=#{$GRAPPA_LIBPATH} ldd #{exe}"`
+      libs = `bash -c "LD_LIBRARY_PATH=#{$GRAPPA_LIBPATH}:$LD_LIBRARY_PATH ldd #{exe}"`
                 .split(/\n/)
                 .map{|s| s[/.*> (.*) \(.*/,1] }
                 .select{|s| s != nil and s != "" and
