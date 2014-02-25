@@ -28,6 +28,7 @@ using namespace Grappa;
 // define command-line flags (third-party 'gflags' library)
 DEFINE_int64( sizeA, 1 << 30, "Size of array that GUPS increments" );
 DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
+DEFINE_bool( metrics, false, "Dump metrics");
 
 // define custom statistics which are logged by the runtime
 // (here we're not using these features, just printing them ourselves)
@@ -61,6 +62,8 @@ int main(int argc, char * argv[]) {
     
     global_free(B);
     global_free(A);
+        
+    if (FLAGS_metrics) Metrics::merge_and_print();
     
   });
   finalize();
