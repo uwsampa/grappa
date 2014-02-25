@@ -190,7 +190,6 @@ namespace Grappa {
     
     /// called on failures to backtrace and pause for debugger
     void failure_function(int ignore = 0) {
-      fprintf(stderr, "!! failure function\n");
       google::FlushLogFiles(google::GLOG_INFO);
       // google::DumpStackTrace();
       if (freeze_on_error) gasnett_freezeForDebuggerErr();
