@@ -216,13 +216,13 @@ Igor do
 
     # parse out traditional fields (name: number)
     cmdout.gsub!(/^\s*(?<key>[\w_]+):\s+(?<value>#{REG_NUM})\s*$/){ m = $~
-      h[m[:key].downcase.to_sym] = m[:value].to_f
+      h[m[:key].to_sym] = m[:value].to_f
       ''
     }
     
     # parse out string fields: name: 'value'
     cmdout.gsub!(/^\s*(?<key>[\w_]+):\s+'(?<value>.*)'\s*$/){ m = $~
-      h[m[:key].downcase.to_sym] = m[:value]
+      h[m[:key].to_sym] = m[:value]
       ''
     }
   
