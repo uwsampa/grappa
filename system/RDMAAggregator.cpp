@@ -33,7 +33,7 @@
 namespace Grappa {
   namespace impl {
     // defined in Grappa.cpp
-    extern void failure_function();
+    extern void failure_function(int ignore = 0);
   }
 }
 
