@@ -2,7 +2,7 @@
 require 'igor'
 
 # inherit parser, sbatch_flags
-require_relative '../../util/igor_common.rb'
+require_relative_to_symlink '../../util/igor_common.rb'
 
 Igor do
   include Isolatable
@@ -10,10 +10,11 @@ Igor do
   database '~/exp/oopsla14.sqlite', :gups
   
   # isolate everything needed for the executable so we can sbcast them for local execution
-  isolate(%w[ gups.putget.exe gups.ext.exe ],
+  isolate(%w[ gups.putget.exe gups.ext.exe ../../applications/demos/gups3.exe ],
     File.dirname(__FILE__))
   
   GFLAGS.merge!({
+    v: 0,
     sizeA: 2**28.to_i,
     sizeB: 2**20.to_i,
   })
@@ -22,7 +23,7 @@ Igor do
   params.merge!(GFLAGS)
   
   @c = -> cl { %Q[ %{tdir}/grappa_srun
-    -- %{tdir}/%{exe}
+    -- %{tdir}/%{exe} --metrics
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
   command @c['gups.ext.exe']
