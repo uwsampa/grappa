@@ -97,14 +97,15 @@ module Isolatable
       @params[:tdir] = tdir
       ignore :tdir, :command
       c = %Q[
-        if [[ ! -d "#{tdir}" ]]; then 
-          srun mkdir -p #{tdir};
-          ls #{tdir};
-          echo $(hostname);
-          for l in $(ls #{@ldir}); do
-            echo $l; sbcast #{@ldir}/$l #{tdir}/${l};
-          done;
-        fi;
+        srun bash -c '
+          if [[ ! -d "#{tdir}" ]]; then
+            mkdir -p #{tdir};
+            ls #{tdir};
+            echo $(hostname);
+          fi';
+        for l in $(ls #{@ldir}); do
+          echo $l; sbcast -f #{@ldir}/$l #{tdir}/${l};
+        done;
         LD_LIBRARY_PATH=#{tdir} IGOR_OVERRIDE_LIBRARY_PATH=1 #{c}
       ].tr("\n "," ")
     end
