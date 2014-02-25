@@ -2,7 +2,7 @@
 require 'igor'
 
 # inherit parser, sbatch_flags
-require_relative '../util/igor_common.rb'
+require_relative_to_symlink '../util/igor_common.rb'
 
 Igor do
   include Isolatable

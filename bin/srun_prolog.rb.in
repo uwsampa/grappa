@@ -4,6 +4,11 @@ if ARGV.size > 1 && ARGV[0] == "--"
   interactive = true
 end
 
+unless ENV["IGOR_OVERRIDE_LIBRARY_PATH"]
+  # prepend VampirTrace & third-party dirs to LD_LIBRARY_PATH
+  ENV["LD_LIBRARY_PATH"] = "@GRAPPA_LD_DIRS@:#{ENV["LD_LIBRARY_PATH"]}"
+end
+
 ## set up Google logging defaults
 ENV["GLOG_logtostderr"] = "1"
 ENV["GLOG_v"] = "0"
