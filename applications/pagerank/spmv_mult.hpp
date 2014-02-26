@@ -35,8 +35,7 @@ struct vector {
 struct PagerankVertex : public Vertex {
   struct Data {
     double * weights;
-    double x;
-    double y;
+    double v[2];
   };
   
   PagerankVertex(): Vertex() { vertex_data = new Data(); }
