@@ -235,6 +235,20 @@ struct GlobalPtrInfo {
     return v;
   }
   
+  Value* SmartCast(IRBuilder<>& b, Value* v, Type* ty, const Twine& name = "") {
+    auto vty = v->getType();
+    if (vty->isIntegerTy() && ty->isPointerTy()) {
+      return b.CreateIntToPtr(v, ty, name);
+    } else if (vty->isPointerTy() && ty->isIntegerTy()) {
+      return b.CreatePtrToInt(v, ty, name);
+    } else if (vty->isPointerTy() && ty->isPointerTy()) {
+      return b.CreateBitCast(v, ty, name);
+    } else {
+      assert(false && "oops");
+    }
+    return nullptr;
+  }
+  
   Value* replace_global_access(Value *gptr, Instruction *orig, LocalPtrMap& lptrs,
                                DataLayout& layout) {
     auto& C = orig->getContext();
@@ -255,16 +269,16 @@ struct GlobalPtrInfo {
       
       if (isa<LoadInst>(orig)) {
         
-        if (ty != i64) v = b.CreateBitCast(v, i64_gptr, name+".ptr.bc");
+        if (ty != i64) v = SmartCast(b, v, i64_gptr, name+".ptr.bc");
         v = b.CreateCall(global_get_i64, { v }, name+".val");
-        if (ty != i64) v = b.CreateBitCast(v, ty, name+".val.bc");
+        if (ty != i64) v = SmartCast(b, v, ty, name+".val.bc");
         
       } else if (auto s = dyn_cast<StoreInst>(orig)) {
         
         auto val = s->getValueOperand();
         if (ty != i64) {
-          v = b.CreateBitCast(v, i64_gptr, name+".ptr.bc");
-          val = b.CreateBitCast(val, i64, name+".val.bc");
+          v = SmartCast(b, v, i64_gptr, name+".ptr.bc");
+          val = SmartCast(b, val, i64, name+".val.bc");
         }
         v = b.CreateCall(global_put_i64, { v, val });
         
