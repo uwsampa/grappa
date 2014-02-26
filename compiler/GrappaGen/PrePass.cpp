@@ -36,9 +36,6 @@ namespace {
       
       auto md = M.getOrInsertNamedMetadata("grappa.asyncs");
       
-      SmallVector<AddrSpaceCastInst*,32> casts;
-      SmallVector<CallInst*,32> calls;
-      
       for (auto inst = inst_begin(&F); inst != inst_end(&F); inst++) {
         if (auto call = dyn_cast<CallInst>(&*inst)) {
           if (call->getNumArgOperands() > 0) {
@@ -50,8 +47,6 @@ namespace {
                 if (!InlineSpecialMethods)
                   call->setIsNoInline();
                 changed = true;
-//              } else if (space == GLOBAL_SPACE) {
-//                casts.push_back(c);
               }
             }
           }
@@ -68,87 +63,6 @@ namespace {
             to_remove.push_back(call);
           }
         }
-      }
-      
-      ValueToValueMapTy vmap;
-
-      for (auto c : casts) {
-        outs() << "~~~~~~~~~~~\n" << *c << "\n";
-        auto ptr = c->getOperand(0);
-        auto src_space = c->getSrcTy()->getPointerAddressSpace();
-        auto src_elt_ty = c->getSrcTy()->getPointerElementType();
-        auto dst_elt_ty = c->getType()->getPointerElementType();
-        if (src_elt_ty != dst_elt_ty) {
-          ptr = new BitCastInst(c->getOperand(0),
-                                PointerType::get(dst_elt_ty, src_space),
-                                c->getName()+".precast", c);
-          c->setOperand(0, ptr);
-          outs() << "****" << *ptr << "\n****" << *c << "\n";
-        }
-        
-        SmallVector<User*, 32> us(c->use_begin(), c->use_end());
-        for (auto u : us) {
-          outs() << "--" << *u << "\n";
-          if (auto call = dyn_cast<CallInst>(u)) {
-            auto called_fn = call->getCalledFunction();
-            if (!called_fn) continue;
-            vmap[c] = ptr;
-//            RemapInstruction(call, vmap, RF_IgnoreMissingEntries); //, &tmap);
-//            call->replaceUsesOfWith(c, ptr);
-            outs() << "++" << *call << "\n";
-            calls.push_back(call);
-          }
-        }
-        
-//        int uses = 0;
-//        for_each_use(u, *c) {
-//          uses++;
-//          errs() << "!!" << **u << "\n";
-//        }
-//        assert(uses == 0);
-//        c->eraseFromParent();
-      }
-      
-      for (auto call : calls) {
-        InlineFunctionInfo info(nullptr, layout);
-        auto inlined = InlineFunction(call, info);
-        outs() << "------------------------\n" << *call->getCalledFunction() << "\n";
-        assert(inlined);
-      }
-      
-      for (auto c : casts) {
-        remap(c, vmap);
-        c->eraseFromParent();
-      }
-      
-//      for (auto& BB : F) {
-////        SmallVector<BitCastInst*,8> bcs;
-//        for (auto& I : BB) {
-//          remap(&I, vmap);
-////          if (auto bc = dyn_cast<BitCastInst>(&I)) {
-////            if (bc->getType()->getPointerAddressSpace() !=
-////                bc->getSrcTy()->getPointerAddressSpace()) {
-////              bcs.push_back(bc);
-////            }
-////          }
-//        }
-////        for (auto bc : bcs) {
-////          errs() << "fixing =>" << *bc << "\n";
-////          RemapInstruction(bc, vmap, RF_IgnoreMissingEntries); //, &tmap);
-//////
-//////          auto new_bc = new BitCastInst(bc->getOperand(0),
-//////                              PointerType::get(
-//////                                bc->getType()->getPointerElementType(),
-//////                                bc->getSrcTy()->getPointerAddressSpace()
-//////                              )
-//////                            );
-//////          bc->replaceAllUsesWith(new_bc);
-//////          bc->eraseFromParent();
-////        }
-//      }
-      
-      if (casts.size()) {
-        outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^" << F << "\n";
       }
       
       for (auto inst : to_remove) inst->eraseFromParent();

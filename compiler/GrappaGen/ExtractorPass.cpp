@@ -1077,47 +1077,6 @@ namespace Grappa {
     return nullptr;
   }
   
-  int ExtractorPass::fixupFunction(Function* fn) {
-    int fixed_up = 0;
-    GlobalPtrInfo::LocalPtrMap lptrs;
-    
-    SmallVector<CallInst*,32> calls;
-    
-    for (auto& bb : *fn ) {
-      for (auto inst = bb.begin(); inst != bb.end(); ) {
-        Instruction *orig = inst++;
-        Value* ptr = nullptr;
-        if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
-        if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
-        if (auto l = dyn_cast<AddrSpaceCastInst>(orig)) ptr = l->getOperand(0);
-        
-        if (!ptr) continue;
-        if (isGlobalPtr(ptr)) {
-          if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
-            errs() << "!! cast: " << *c << "\n";
-            
-          } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-            ginfo.replace_global_access(gptr, orig, lptrs, *layout);
-            fixed_up++;
-          }
-        } else if (isSymmetricPtr(ptr)) {
-          if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
-            ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
-            fixed_up++;
-          }
-        }
-      }
-    }
-    
-    for (auto call : calls) {
-      fixed_up++;
-    }
-    
-    return fixed_up;
-  }
-  
-  long CandidateRegion::id_counter = 0;
-  
   void remap(Instruction* inst, ValueToValueMapTy& vmap) {
     Instruction* to_delete = nullptr;
     
@@ -1163,6 +1122,127 @@ namespace Grappa {
     
     if (to_delete) to_delete->eraseFromParent();
   }
+  
+  int ExtractorPass::fixupFunction(Function* fn) {
+    int fixed_up = 0;
+    GlobalPtrInfo::LocalPtrMap lptrs;
+    
+    SmallVector<AddrSpaceCastInst*,32> casts;
+    SmallVector<CallInst*,32> calls;
+    
+    for (auto& bb : *fn ) {
+      for (auto inst = bb.begin(); inst != bb.end(); ) {
+        Instruction *orig = inst++;
+        Value* ptr = nullptr;
+        if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
+        if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
+        if (auto l = dyn_cast<AddrSpaceCastInst>(orig)) ptr = l->getOperand(0);
+        
+        if (!ptr) continue;
+        if (isGlobalPtr(ptr)) {
+          if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
+            errs() << "cast =>" << *c << "\n";
+            casts.push_back(c);
+            
+          } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+            ginfo.replace_global_access(gptr, orig, lptrs, *layout);
+            fixed_up++;
+          }
+        } else if (isSymmetricPtr(ptr)) {
+          if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+            ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+            fixed_up++;
+          }
+        }
+      }
+    }
+    
+    ValueToValueMapTy vmap;
+    
+    for (auto c : casts) {
+      outs() << "~~~~~~~~~~~\n" << *c << "\n";
+      auto ptr = c->getOperand(0);
+      auto src_space = c->getSrcTy()->getPointerAddressSpace();
+      auto src_elt_ty = c->getSrcTy()->getPointerElementType();
+      auto dst_elt_ty = c->getType()->getPointerElementType();
+      if (src_elt_ty != dst_elt_ty) {
+        ptr = new BitCastInst(c->getOperand(0),
+                              PointerType::get(dst_elt_ty, src_space),
+                              c->getName()+".precast", c);
+        c->setOperand(0, ptr);
+        outs() << "****" << *ptr << "\n****" << *c << "\n";
+      }
+      
+      SmallVector<User*, 32> us(c->use_begin(), c->use_end());
+      for (auto u : us) {
+        outs() << "--" << *u << "\n";
+        if (auto call = dyn_cast<CallInst>(u)) {
+          auto called_fn = call->getCalledFunction();
+          if (!called_fn) continue;
+          vmap[c] = ptr;
+          //            RemapInstruction(call, vmap, RF_IgnoreMissingEntries); //, &tmap);
+          //            call->replaceUsesOfWith(c, ptr);
+          outs() << "++" << *call << "\n";
+          calls.push_back(call);
+        }
+      }
+      
+      //        int uses = 0;
+      //        for_each_use(u, *c) {
+      //          uses++;
+      //          errs() << "!!" << **u << "\n";
+      //        }
+      //        assert(uses == 0);
+      //        c->eraseFromParent();
+    }
+    
+    for (auto call : calls) {
+      InlineFunctionInfo info(nullptr, layout);
+      auto inlined = InlineFunction(call, info);
+      outs() << "------------------------\n" << *call->getCalledFunction() << "\n";
+      assert(inlined);
+    }
+    
+    for (auto c : casts) {
+      remap(c, vmap);
+      c->eraseFromParent();
+    }
+    
+    //      for (auto& BB : F) {
+    ////        SmallVector<BitCastInst*,8> bcs;
+    //        for (auto& I : BB) {
+    //          remap(&I, vmap);
+    ////          if (auto bc = dyn_cast<BitCastInst>(&I)) {
+    ////            if (bc->getType()->getPointerAddressSpace() !=
+    ////                bc->getSrcTy()->getPointerAddressSpace()) {
+    ////              bcs.push_back(bc);
+    ////            }
+    ////          }
+    //        }
+    ////        for (auto bc : bcs) {
+    ////          errs() << "fixing =>" << *bc << "\n";
+    ////          RemapInstruction(bc, vmap, RF_IgnoreMissingEntries); //, &tmap);
+    //////
+    //////          auto new_bc = new BitCastInst(bc->getOperand(0),
+    //////                              PointerType::get(
+    //////                                bc->getType()->getPointerElementType(),
+    //////                                bc->getSrcTy()->getPointerAddressSpace()
+    //////                              )
+    //////                            );
+    //////          bc->replaceAllUsesWith(new_bc);
+    //////          bc->eraseFromParent();
+    ////        }
+    //      }
+    
+    if (casts.size()) {
+      outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^" << *fn << "\n";
+    }
+    
+    return fixed_up;
+  }
+  
+  long CandidateRegion::id_counter = 0;
+  
   
   bool ExtractorPass::runOnModule(Module& M) {
     
