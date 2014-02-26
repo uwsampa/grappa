@@ -1116,7 +1116,7 @@ namespace Grappa {
       remap(iu, vmap);
     }
     
-//    if (to_delete) to_delete->eraseFromParent();
+    if (to_delete) to_delete->eraseFromParent();
   }
   
   int ExtractorPass::fixupFunction(Function* fn) {
@@ -1157,7 +1157,7 @@ namespace Grappa {
     
     for (auto c : casts) {
       outs() << "~~~~~~~~~~~\n" << *c << "\n";
-      auto ptr = c->getOperand(0);
+      Value *ptr = c->getOperand(0);
       auto src_space = c->getSrcTy()->getPointerAddressSpace();
       auto src_elt_ty = c->getSrcTy()->getPointerElementType();
       auto dst_elt_ty = c->getType()->getPointerElementType();
@@ -1193,7 +1193,7 @@ namespace Grappa {
     
     for (auto c : casts) {
       remap(c, vmap);
-      c->eraseFromParent();
+//      c->eraseFromParent();
     }
     
     if (casts.size()) {

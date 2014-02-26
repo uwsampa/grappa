@@ -42,7 +42,7 @@ namespace {
             auto arg = call->getArgOperand(0);
             if (auto c = dyn_cast<AddrSpaceCastInst>(arg)) {
               auto space = c->getSrcTy()->getPointerAddressSpace();
-              if (space == SYMMETRIC_SPACE) { //  || space == GLOBAL_SPACE) {
+              if (space == SYMMETRIC_SPACE || space == GLOBAL_SPACE) {
                 DEBUG(outs() << "!! found method call on symmetric*\n");
                 if (!InlineSpecialMethods)
                   call->setIsNoInline();
