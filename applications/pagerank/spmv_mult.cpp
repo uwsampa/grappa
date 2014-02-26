@@ -13,11 +13,15 @@ void spmv_mult( GlobalAddress<Graph<PagerankVertex>> _g, vindex vx, vindex vy ) 
   forall<&mmjoiner>(g->vs, g->nv, [vx,vy](int64_t i, PagerankVertex& v){
     for (auto j : v.adj_iter()) {
       auto vjw = v->weights[j];
-      struct { int64_t i:60; vindex x:2, y:2; } p = {i, vx, vy};
-      delegate::call<async,&mmjoiner>(g->vs+j, [vjw,p](PagerankVertex& vj){
+      struct { int64_t i:44; vindex x:2, y:2; Core origin:16; } p
+           = {         i,          vx,  vy,        mycore() };
+      
+      mmjoiner.enroll(1);
+      delegate::call<async,nullptr>(g->vs+j, [vjw,p](PagerankVertex& vj){
         auto yaccum = vjw * vj->v[p.x];
-        delegate::call<async,&mmjoiner>(g->vs+p.i,[yaccum,p](PagerankVertex& vi){
+        delegate::call<async,nullptr>(g->vs+p.i,[yaccum,p](PagerankVertex& vi){
           vi->v[p.y] += yaccum;
+          mmjoiner.send_completion(p.origin);
         });
       });
     }
