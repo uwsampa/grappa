@@ -9,6 +9,7 @@
 
 using namespace Grappa;
 
+DEFINE_bool(metrics, false, "Dump metrics to stdout.");
 
 // input size
 DEFINE_uint64( nnz_factor, 16, "Approximate number of non-zeros per matrix row" );
@@ -166,7 +167,7 @@ pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, doub
     istart = walltime();
 
     LOG(INFO) << "starting iter " << iter << ", delta = " << delta;
-
+    
     // update last_v
     int temp = LAST_V;
     LAST_V = V;
@@ -177,7 +178,7 @@ pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, doub
       v->v[V] = 0.0f;
     });
     
-    VLOG(0) << "after initialize";
+    VLOG(2) << "after initialize";
     
     t = walltime();
     
@@ -185,7 +186,7 @@ pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, doub
       spmv_mult(g, LAST_V, V);
 
     multiply_time += (walltime() - t);
-    VLOG(0) << "after spmv_mult";
+    VLOG(2) << "after spmv_mult";
     
     t = walltime();
     
@@ -294,7 +295,9 @@ int main(int argc, char* argv[]) {
     actual_nnz        = actual_nnz_SO;
     pagerank_time     = pagerank_time_SO;
 
-    Metrics::merge_and_print();
+    Metrics::merge_and_dump_to_file();
+    
+    if (FLAGS_metrics) Metrics::merge_and_print();
     
     // vector rank = result.ranks;
     // vindex which = result.which;
