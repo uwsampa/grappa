@@ -29,23 +29,29 @@ namespace {
     
     virtual bool runOnFunction(Function &F) {
       auto& M = *F.getParent();
+      auto layout = new DataLayout(&M);
       bool changed = false;
       
       SmallVector<Instruction*, 8> to_remove;
       
       auto md = M.getOrInsertNamedMetadata("grappa.asyncs");
       
+      SmallVector<AddrSpaceCastInst*,32> casts;
+      SmallVector<CallInst*,32> calls;
+      
       if (!InlineSpecialMethods) {
         for (auto inst = inst_begin(&F); inst != inst_end(&F); inst++) {
           if (auto call = dyn_cast<CallInst>(&*inst)) {
             if (call->getNumArgOperands() > 0) {
               auto arg = call->getArgOperand(0);
-              if (auto cast = dyn_cast<AddrSpaceCastInst>(arg)) {
-                auto space = cast->getSrcTy()->getPointerAddressSpace();
-                if (space == SYMMETRIC_SPACE || space == GLOBAL_SPACE) {
+              if (auto c = dyn_cast<AddrSpaceCastInst>(arg)) {
+                auto space = c->getSrcTy()->getPointerAddressSpace();
+                if (space == SYMMETRIC_SPACE) { //  || space == GLOBAL_SPACE) {
                   DEBUG(outs() << "!! found method call on symmetric*\n");
                   call->setIsNoInline();
                   changed = true;
+                } else if (space == GLOBAL_SPACE) {
+                  casts.push_back(c);
                 }
               }
             }
@@ -63,6 +69,47 @@ namespace {
             }
           }
         }
+      }
+      
+      for (auto c : casts) {
+        errs() << "~~~~~~~~~~~\n" << *c << "\n";
+        auto ptr = c->getOperand(0);
+        auto src_space = c->getSrcTy()->getPointerAddressSpace();
+        auto src_elt_ty = c->getSrcTy()->getPointerElementType();
+        auto dst_elt_ty = c->getType()->getPointerElementType();
+        if (src_elt_ty != dst_elt_ty) {
+          ptr = new BitCastInst(c->getOperand(0),
+                                PointerType::get(dst_elt_ty, src_space),
+                                c->getName()+".precast", c);
+          c->setOperand(0, ptr);
+          errs() << "****" << *ptr << "\n****" << *c << "\n";
+        }
+        
+        SmallVector<User*, 32> us(c->use_begin(), c->use_end());
+        for (auto u : us) {
+          errs() << "--" << *u << "\n";
+          if (auto call = dyn_cast<CallInst>(u)) {
+            auto called_fn = call->getCalledFunction();
+            if (!called_fn) continue;
+            call->replaceUsesOfWith(c, ptr);
+            errs() << "++" << *call << "\n";
+            calls.push_back(call);
+          }
+        }
+        
+        int uses = 0;
+        for_each_use(u, *c) {
+          uses++;
+          errs() << "!!" << **u << "\n";
+        }
+        assert(uses == 0);
+        c->eraseFromParent();
+      }
+      
+      for (auto call : calls) {
+        InlineFunctionInfo info(nullptr, layout);
+        auto inlined = InlineFunction(call, info);
+        assert(inlined);
       }
       
       for (auto inst : to_remove) inst->eraseFromParent();

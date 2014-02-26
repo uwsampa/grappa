@@ -1027,12 +1027,13 @@ namespace Grappa {
     
   };
   
-  Function* rewriteAsGlobalFunction(CallInst* call, Function *old_fn) {
+  Function* rewriteAsGlobalFunction(Value *addrcast, Value* ptr,
+                                    CallInst* call, Function* old_fn) {
     int arg_idx = -1;
     for (int i=0; i < call->getNumArgOperands(); i++)
-      if (call->getArgOperand(i) == c)
+      if (call->getArgOperand(i) == addrcast)
         arg_idx = i;
-    if (arg_idx == -1) continue;
+    if (arg_idx == -1) return nullptr;
     
     errs() << "arg => " << arg_idx << "\n";
     errs() << "call => " << *call << "\n";
@@ -1041,40 +1042,46 @@ namespace Grappa {
       auto fn_ty = old_fn->getFunctionType();
       errs() << "old_fn => " << *old_fn->getType() << "\n";
       
-      SmallVector<Type*,8> arg_tys;
-      int i=0;
-      for (auto arg_it = old_fn->arg_begin();
-           arg_it != old_fn->arg_end();
-           arg_it++, i++) {
-        if (i == arg_idx) arg_tys.push_back(ptr->getType());
-        else arg_tys.push_back(arg_it->getType());
-      }
-      auto new_fn_ty = FunctionType::get(fn_ty->getReturnType(),
-                                         arg_tys, fn_ty->isVarArg());
-      
-      errs() << "new_fn_ty => " << *new_fn_ty << "\n";
-      
-      auto new_fn = Function::Create(new_fn_ty, old_fn->getLinkage());
-      
-      ValueToValueMapTy vmap;
-      
-      for (auto& old_bb : *old_fn) {
-        auto bb = CloneBasicBlock(&old_bb, vmap, old_bb.getName()+".g", new_fn);
-      }
-      
-      auto arg_it = old_fn->arg_begin();
-      for (int i=0; i < arg_idx; i++) arg_it++;
-      Argument * arg = arg_it;
-      vmap[arg] =
-      ClonedCodeInfo info;
-      auto new_fn = CloneAndPruneFunctionInto(new_fn, , <#ValueToValueMapTy &VMap#>, <#bool ModuleLevelChanges#>, <#SmallVectorImpl<llvm::ReturnInst *> &Returns#>);
+//      SmallVector<Type*,8> arg_tys;
+//      int i=0;
+//      for (auto arg_it = old_fn->arg_begin();
+//           arg_it != old_fn->arg_end();
+//           arg_it++, i++) {
+//        if (i == arg_idx) arg_tys.push_back(ptr->getType());
+//        else arg_tys.push_back(arg_it->getType());
+//      }
+//      auto new_fn_ty = FunctionType::get(fn_ty->getReturnType(),
+//                                         arg_tys, fn_ty->isVarArg());
+//      
+//      errs() << "new_fn_ty => " << *new_fn_ty << "\n";
+//      
+//      auto new_fn = Function::Create(new_fn_ty, old_fn->getLinkage());
+//      
+//      ValueToValueMapTy vmap;
+//      
+//      
+//      for (auto& old_bb : *old_fn) {
+//        auto bb = CloneBasicBlock(&old_bb, vmap, old_bb.getName()+".g", new_fn);
+//      }
+//      
+//      auto arg_it = old_fn->arg_begin();
+//      for (int i=0; i < arg_idx; i++) arg_it++;
+//      Argument * arg = arg_it;
+//      vmap[arg] =
+//      ClonedCodeInfo info;
+//      
+//      SmallVector<ReturnInst*,8> returns;
+//      auto new_fn = CloneAndPruneFunctionInto(fn, old_fn, vmap, true, returns);
       
     }
+    return nullptr;
   }
   
   int ExtractorPass::fixupFunction(Function* fn) {
     int fixed_up = 0;
     GlobalPtrInfo::LocalPtrMap lptrs;
+    
+    SmallVector<CallInst*,32> calls;
     
     for (auto& bb : *fn ) {
       for (auto inst = bb.begin(); inst != bb.end(); ) {
@@ -1088,13 +1095,7 @@ namespace Grappa {
         if (isGlobalPtr(ptr)) {
           if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
             errs() << "!! cast: " << *c << "\n";
-            for_each_use(u, *c) {
-              errs() << "--" << **u << "\n";
-              if (auto call = dyn_cast<CallInst>(*u)) {
-                if (!call->getCalledFunction()) continue;
-                auto new_fn = rewriteAsGlobalFunction(call, call->getCalledFunction());
-              }
-            }
+            
           } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
             ginfo.replace_global_access(gptr, orig, lptrs, *layout);
             fixed_up++;
@@ -1107,6 +1108,11 @@ namespace Grappa {
         }
       }
     }
+    
+    for (auto call : calls) {
+      fixed_up++;
+    }
+    
     return fixed_up;
   }
   
