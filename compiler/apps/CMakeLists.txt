@@ -19,3 +19,12 @@ foreach(file ${miniapp_srcs})
   add_grappaclang_app(${file} "-mllvm -grappa-extractor -O3" ext)
   add_grappaclang_app(${file} "-O3" putget)
 endforeach()
+
+file(GLOB hand_opt_app_srcs "hand/*.cpp")
+
+foreach(file ${hand_opt_app_srcs})
+  get_filename_component(base ${file} NAME_WE)
+  set(target cl.app.${base}.hand)
+  add_grappa_exe(${target} ${base}.hand.exe "${file}")
+  set_property(TARGET ${target} PROPERTY FOLDER "Compiler")
+endforeach()

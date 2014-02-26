@@ -10,13 +10,13 @@ Igor do
   database '~/exp/oopsla14.sqlite', :gups
   
   # isolate everything needed for the executable so we can sbcast them for local execution
-  isolate(%w[ gups.putget.exe gups.ext.exe ../../applications/demos/gups3.exe ],
+  isolate(%w[ gups.putget.exe gups.ext.exe gups.hand.exe ],
     File.dirname(__FILE__))
   
   GFLAGS.merge!({
     v: 0,
-    sizeA: 2**28.to_i,
-    sizeB: 2**20.to_i,
+    log_array_size: 28,
+    log_iterations: 20,
   })
   GFLAGS.delete :flat_combining
   
@@ -31,7 +31,7 @@ Igor do
   sbatch_flags << "--time=10:00"
   
   params {
-    exe 'gups.putget.exe', 'gups.ext.exe'
+    exe 'gups.putget.exe', 'gups.ext.exe', 'gups.hand.exe'
   }
   
   expect :gups_runtime
