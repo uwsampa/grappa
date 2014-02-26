@@ -1158,7 +1158,7 @@ namespace Grappa {
     
     struct DbgRemover : public InstVisitor<DbgRemover> {
       void visitIntrinsicInst(IntrinsicInst& i) {
-        if (i.getCalledFunction()->getName() == "llvm.dbg.value") {
+        if (i.getCalledFunction()->getName().startswith("llvm.dbg")) {
           i.eraseFromParent();
         }
       }
@@ -1183,10 +1183,11 @@ namespace Grappa {
       
       AnchorSet anchors;
       analyzeProvenance(*fn, anchors);
-      
+
+      dbg_remover.visit(fn);
+
       if ( DoExtractor ) {
         // Get rid of debug info that causes problems with extractor
-        dbg_remover.visit(fn);
         
         std::vector<CandidateRegion> cnds;
         
