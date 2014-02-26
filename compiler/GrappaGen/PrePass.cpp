@@ -25,7 +25,13 @@ namespace {
   void remap(Instruction* inst, ValueToValueMapTy& vmap) {
     Instruction* to_delete = nullptr;
     
-    RemapInstruction(inst, vmap, RF_IgnoreMissingEntries);
+//    RemapInstruction(inst, vmap, RF_IgnoreMissingEntries);
+    for (int i=0; i<inst->getNumOperands(); i++) {
+      Value *o = inst->getOperand(i);
+      if (vmap.count(o)) {
+        inst->setOperand(i, vmap[o]);
+      }
+    }
     
     if (auto bc = dyn_cast<BitCastInst>(inst)) {
       if (bc->getType()->getPointerAddressSpace() !=
