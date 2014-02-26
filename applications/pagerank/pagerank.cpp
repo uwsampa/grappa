@@ -32,8 +32,6 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuples_to_csr_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, actual_nnz, 0);
 
 
-weighted_csr_graph mhat;
-
 /// calculate the damped matrix dM
 void calculate_dM( GlobalAddress<Graph<PagerankVertex>> g, double d ) {
   // TODO
@@ -45,7 +43,7 @@ void calculate_dM( GlobalAddress<Graph<PagerankVertex>> g, double d ) {
   //  else set m[,j] to m[,j]/sum
   
   forall( g->vs, g->nv, [g,d](PagerankVertex& v) {
-    for (auto& w : util::iterate(v.weights, v.nadj)) w *= d;
+    for (auto& w : util::iterate(v->weights, v.nadj)) w *= d;
   });
 }
 
@@ -125,7 +123,7 @@ pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, doub
   vindex V = 0;
   vindex LAST_V = 1;
 
-  double time;
+  double t;
 
   // setup
   double init_start = walltime();
@@ -175,48 +173,47 @@ pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, doub
     V = temp;
     
     // initialize target to zero
-    forall(g, [V](PagerankVertex& ele) {
-      g->v[V] = 0.0f;
+    forall(g, [V](PagerankVertex& v) {
+      v->v[V] = 0.0f;
     });
     
     VLOG(0) << "after initialize";
     
-    TIME(time,
+    t = walltime();
+    
       // multiply: v = dM*last_v
       spmv_mult(g, LAST_V, V);
-    );
-    multiply_time += time;
+
+    multiply_time += (walltime() - t);
     VLOG(0) << "after spmv_mult";
     
-    TIME(time,
+    t = walltime();
+    
       // v += (1-d)/N * vec(1)
-      forall(g, [j](PagerankVertex& v) {
-        v->v[j] += damp_vector_val;
+      forall(g, [V](PagerankVertex& v) {
+        v->v[V] += damp_vector_val;
       });
-    );
-    vector_add_time += time;
-
+    
+    vector_add_time += (walltime()-t);
+    
     //if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
    
-    TIME(time,
+    t = walltime();
       // normalize: v = v/2norm(v)
       normalize( g, V ); 
       
       iter++;
-      delta = two_norm_diff( v, V, LAST_V );
-    );
-    norm_and_diff_time += time;
-
+      delta = two_norm_diff( g, V, LAST_V );
+    
+    norm_and_diff_time += (walltime()-t);
+    
     iend = walltime();
     iterations_time += (iend-istart);
     LOG(INFO) << "-->done (time " << iend-istart <<")";
   }
   
   LOG(INFO) << "ended with delta = " << delta;
-  
-  // free the extra vector
-  global_free( v.a );
-  
+    
   // return pagerank
   pagerank_result res;
   res.which = V;
@@ -235,7 +232,6 @@ int main(int argc, char* argv[]) {
            pagerank_time_SO;
     uint64_t actual_nnz_SO;
 
-    tuple_graph tg;
     uint64_t N = (1L<<FLAGS_scale);
 
     uint64_t desired_nnz = FLAGS_nnz_factor * N;
@@ -248,6 +244,7 @@ int main(int argc, char* argv[]) {
     //userseed = 10;
 
     double t;
+    long userseed = 0xDECAFBAD; // from (prng.c: default seed)
     auto tg = TupleGraph::Kronecker(FLAGS_scale, desired_nnz, userseed, userseed);
     t = walltime() - t;
     LOG(INFO) << "make_graph: " << t;
@@ -267,11 +264,10 @@ int main(int argc, char* argv[]) {
     // add weights to the csr graph
     forall(g->vs, g->nv, [](PagerankVertex& v){
       v->weights = locale_alloc<double>(v.nadj);
-      v->x = 0;
-      v->y = 0;
+      v->v[0] = v->v[1] = 0;
       
       // TODO random
-      for (long i=0; i<v.nadj; i++) v.weights[i] = 0.2f;
+      for (long i=0; i<v.nadj; i++) v->weights[i] = 0.2f;
     });
 
     // print the matrix if it is small 
@@ -284,11 +280,11 @@ int main(int argc, char* argv[]) {
     Metrics::start_tracing();
   
     pagerank_result result;
-    TIME(t,
+    t = walltime();
+    
       result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
-    );
-
-    pagerank_time_SO = t;
+    
+    pagerank_time_SO = (walltime()-t);
     
     Metrics::stop_tracing();
     
