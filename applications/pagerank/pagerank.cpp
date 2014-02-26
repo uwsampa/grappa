@@ -138,6 +138,10 @@ pagerank_result pagerank( GlobalAddress<Graph<PagerankVertex>> g, double d, doub
   LOG(INFO) << "Allocate rank vectors";
   // current pagerank vector: initialize to random values on [0,1]
   // (now encoded in Grap<PagerankVertex>)
+  call_on_all_cores([]{ srand(0); });
+  forall(g, [V](PagerankVertex& v){
+    v->v[V] = ((double)rand()/RAND_MAX); //[0,1]
+  });
   
   //if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
   normalize( g, V );
@@ -254,6 +258,7 @@ int main(int argc, char* argv[]) {
     auto g = Graph<PagerankVertex>::create(tg);
     
     tuples_to_csr_time_SO = walltime() - t;
+
     LOG(INFO) << "tuple->csr: " << tuples_to_csr_time_SO;
     actual_nnz_SO = g->nadj;
     //print_graph( &unweighted_g ); 
@@ -282,6 +287,7 @@ int main(int argc, char* argv[]) {
     TIME(t,
       result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
     );
+
     pagerank_time_SO = t;
     
     Metrics::stop_tracing();
@@ -291,6 +297,7 @@ int main(int argc, char* argv[]) {
     tuples_to_csr_time = tuples_to_csr_time_SO;
     actual_nnz        = actual_nnz_SO;
     pagerank_time     = pagerank_time_SO;
+
     Metrics::merge_and_print();
     
     // vector rank = result.ranks;
