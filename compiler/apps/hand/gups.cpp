@@ -58,7 +58,11 @@ int main(int argc, char * argv[]) {
     double start = walltime();
 
     forall(B, sizeB, [=](int64_t& b){
+#ifdef BLOCKING
+      delegate::increment(A+b, 1);
+#else
       delegate::increment<async>( A + b, 1);
+#endif
     });
 
     gups_runtime = walltime() - start;
