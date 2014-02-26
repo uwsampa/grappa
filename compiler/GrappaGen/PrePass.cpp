@@ -22,52 +22,6 @@ static cl::opt<bool> InlineSpecialMethods("grappa-inline-methods",
 
 namespace {
   
-  void remap(Instruction* inst, ValueToValueMapTy& vmap) {
-    Instruction* to_delete = nullptr;
-    
-//    RemapInstruction(inst, vmap, RF_IgnoreMissingEntries);
-    for (int i=0; i<inst->getNumOperands(); i++) {
-      Value *o = inst->getOperand(i);
-      if (vmap.count(o)) {
-        inst->setOperand(i, vmap[o]);
-      }
-    }
-    
-    if (auto bc = dyn_cast<BitCastInst>(inst)) {
-      if (bc->getType()->getPointerAddressSpace() !=
-          bc->getSrcTy()->getPointerAddressSpace()) {
-        auto new_bc = new BitCastInst(bc->getOperand(0),
-                            PointerType::get(
-                              bc->getType()->getPointerElementType(),
-                              bc->getSrcTy()->getPointerAddressSpace()
-                            ),
-                          inst->getName()+".fix",
-                          inst);
-        vmap[bc] = new_bc;
-        to_delete = bc;
-      }
-    } else if (auto gep = dyn_cast<GetElementPtrInst>(inst)) {
-      if (gep->getPointerAddressSpace() != gep->getType()->getPointerAddressSpace()) {
-        SmallVector<Value*,4> idxs;
-        for (auto i=1; i<gep->getNumOperands(); i++) idxs.push_back(gep->getOperand(i));
-        auto new_gep = GetElementPtrInst::Create(gep->getPointerOperand(), idxs,
-                                             gep->getName()+"fix", gep);
-        if (gep->isInBounds()) new_gep->setIsInBounds();
-        vmap[gep] = new_gep;
-        to_delete = gep;
-      }
-    }
-    
-    SmallVector<User*, 32> uses(inst->use_begin(), inst->use_end());
-    for (auto u : uses) {
-      if (auto iu = dyn_cast<Instruction>(u)) {
-        remap(iu, vmap);
-      }
-    }
-    
-    if (to_delete) to_delete->eraseFromParent();
-  }
-  
   struct PrePass : public FunctionPass {
     static char ID;
     
@@ -96,8 +50,8 @@ namespace {
                 if (!InlineSpecialMethods)
                   call->setIsNoInline();
                 changed = true;
-              } else if (space == GLOBAL_SPACE) {
-                casts.push_back(c);
+//              } else if (space == GLOBAL_SPACE) {
+//                casts.push_back(c);
               }
             }
           }
@@ -117,15 +71,6 @@ namespace {
       }
       
       ValueToValueMapTy vmap;
-      struct MyTypeMapper : public ValueMapTypeRemapper {
-        Type* remapType(Type *srcTy) override {
-          if (auto ptrTy = dyn_cast<PointerType>(srcTy)) {
-            return PointerType::get(ptrTy->getElementType(), GLOBAL_SPACE);
-          } else {
-            return srcTy;
-          }
-        }
-      } tmap;
 
       for (auto c : casts) {
         outs() << "~~~~~~~~~~~\n" << *c << "\n";
