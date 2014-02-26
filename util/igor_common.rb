@@ -133,22 +133,24 @@ Igor do
   
   GFLAGS = Params.new {
     global_memory_use_hugepages 0
-           num_starting_workers 64
-                 loop_threshold 64
-     aggregator_autoflush_ticks 1e5.to_i
+           num_starting_workers 512
+                 loop_threshold 16
+     aggregator_autoflush_ticks 50000
            aggregator_max_flush 0
             periodic_poll_ticks 20000
-                     chunk_size 100
+                     chunk_size 10
                    load_balance 'steal'
-                  flush_on_idle 0
+                  flush_on_idle 1
+             rdma_flush_on_idle 1
                    poll_on_idle 1
           rdma_workers_per_core 2**4
                     target_size 2**12
           rdma_buffers_per_core 16
                  rdma_threshold 64
-               shared_pool_size 2**16
-                shared_pool_max 2**14
-                     stack_size 2**19
+               shared_pool_size 2**18
+                shared_pool_max -1
+    shared_pool_memory_fraction 0.5
+                     stack_size 2**18
              locale_shared_size SHMMAX
            global_heap_fraction 0.5
             flatten_completions 1
