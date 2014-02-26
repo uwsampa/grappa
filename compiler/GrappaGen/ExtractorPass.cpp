@@ -1092,12 +1092,9 @@ namespace Grappa {
       if (bc->getType()->getPointerAddressSpace() !=
           bc->getSrcTy()->getPointerAddressSpace()) {
         auto new_bc = new BitCastInst(bc->getOperand(0),
-                                      PointerType::get(
-                                                       bc->getType()->getPointerElementType(),
-                                                       bc->getSrcTy()->getPointerAddressSpace()
-                                                       ),
-                                      inst->getName()+".fix",
-                                      inst);
+                                      PointerType::get(bc->getType()->getPointerElementType(),
+                                                       bc->getSrcTy()->getPointerAddressSpace()),
+                                      inst->getName()+".fix", inst);
         vmap[bc] = new_bc;
         to_delete = bc;
       }
@@ -1115,12 +1112,11 @@ namespace Grappa {
     
     SmallVector<User*, 32> uses(inst->use_begin(), inst->use_end());
     for (auto u : uses) {
-      if (auto iu = dyn_cast<Instruction>(u)) {
-        remap(iu, vmap);
-      }
+      auto iu = cast<Instruction>(u);
+      remap(iu, vmap);
     }
     
-    if (to_delete) to_delete->eraseFromParent();
+//    if (to_delete) to_delete->eraseFromParent();
   }
   
   int ExtractorPass::fixupFunction(Function* fn) {
@@ -1172,6 +1168,8 @@ namespace Grappa {
         c->setOperand(0, ptr);
         outs() << "****" << *ptr << "\n****" << *c << "\n";
       }
+
+      vmap[c] = ptr;
       
       SmallVector<User*, 32> us(c->use_begin(), c->use_end());
       for (auto u : us) {
@@ -1179,21 +1177,11 @@ namespace Grappa {
         if (auto call = dyn_cast<CallInst>(u)) {
           auto called_fn = call->getCalledFunction();
           if (!called_fn) continue;
-          vmap[c] = ptr;
-          //            RemapInstruction(call, vmap, RF_IgnoreMissingEntries); //, &tmap);
-          //            call->replaceUsesOfWith(c, ptr);
           outs() << "++" << *call << "\n";
           calls.push_back(call);
         }
       }
       
-      //        int uses = 0;
-      //        for_each_use(u, *c) {
-      //          uses++;
-      //          errs() << "!!" << **u << "\n";
-      //        }
-      //        assert(uses == 0);
-      //        c->eraseFromParent();
     }
     
     for (auto call : calls) {
@@ -1207,32 +1195,6 @@ namespace Grappa {
       remap(c, vmap);
       c->eraseFromParent();
     }
-    
-    //      for (auto& BB : F) {
-    ////        SmallVector<BitCastInst*,8> bcs;
-    //        for (auto& I : BB) {
-    //          remap(&I, vmap);
-    ////          if (auto bc = dyn_cast<BitCastInst>(&I)) {
-    ////            if (bc->getType()->getPointerAddressSpace() !=
-    ////                bc->getSrcTy()->getPointerAddressSpace()) {
-    ////              bcs.push_back(bc);
-    ////            }
-    ////          }
-    //        }
-    ////        for (auto bc : bcs) {
-    ////          errs() << "fixing =>" << *bc << "\n";
-    ////          RemapInstruction(bc, vmap, RF_IgnoreMissingEntries); //, &tmap);
-    //////
-    //////          auto new_bc = new BitCastInst(bc->getOperand(0),
-    //////                              PointerType::get(
-    //////                                bc->getType()->getPointerElementType(),
-    //////                                bc->getSrcTy()->getPointerAddressSpace()
-    //////                              )
-    //////                            );
-    //////          bc->replaceAllUsesWith(new_bc);
-    //////          bc->eraseFromParent();
-    ////        }
-    //      }
     
     if (casts.size()) {
       outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^" << *fn << "\n";
