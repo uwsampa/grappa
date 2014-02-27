@@ -108,6 +108,11 @@ inline PointerType* getAddrspaceType(Type *orig, int addrspace = 0) {
   return nullptr;
 }
 
+inline PointerType* getAddrspaceType(Value *orig, int addrspace = 0) {
+  return getAddrspaceType(orig->getType(), addrspace);
+}
+
+
 template< int AddrSpace >
 inline PointerType* dyn_cast_addr(Type* ty) {
   PointerType *pt = dyn_cast<PointerType>(ty);
