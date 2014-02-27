@@ -100,7 +100,6 @@ inline Value* CreateAlignedLoad(IRBuilder<>& b, Value* ptr,
 static const int GLOBAL_SPACE = 100;
 static const int SYMMETRIC_SPACE = 200;
 
-
 inline PointerType* getAddrspaceType(Type *orig, int addrspace = 0) {
   if (auto p = dyn_cast<PointerType>(orig)) {
     return PointerType::get(p->getElementType(), addrspace);
@@ -156,6 +155,7 @@ struct GlobalPtrInfo {
   using LocalPtrMap = SmallDenseMap<Value*,Value*>;
   
   Function *call_on_fn, *call_on_async_fn,
+           *make_gptr_fn,
            *global_get_fn, *global_put_fn,
            *global_get_i64, *global_put_i64,
            *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
@@ -185,6 +185,8 @@ struct GlobalPtrInfo {
     global_put_fn = getFunction("grappa_put");
     global_get_i64 = getFunction("grappa_get_i64");
     global_put_i64 = getFunction("grappa_put_i64");
+    
+    make_gptr_fn = getFunction("grappa_make_gptr");
     
     return !disabled;
   }

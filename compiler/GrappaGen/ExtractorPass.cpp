@@ -1201,6 +1201,9 @@ namespace Grappa {
       assert(inlined);
     }
     
+    AnchorSet anchors;
+    analyzeProvenance(*fn, anchors);
+    
 //    for (auto c : casts) {
 //      remap(c, vmap);
 ////      c->eraseFromParent();
@@ -1238,6 +1241,25 @@ namespace Grappa {
             ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
             fixed_up++;
           }
+        }
+        
+        auto ctx = &orig->getContext();
+        
+        auto prov = getProvenance(orig);
+        if (isGlobalPtr(prov) && !isGlobalPtr(ptr)) {
+          IRBuilder<> b(orig);
+          auto v_prov = b.CreateBitCast(prov, void_gptr_ty);
+          auto core = b.CreateCall(ginfo.get_core_fn, { v_prov }, "core");
+          auto v_ptr = b.CreateBitCast(ptr, void_ptr_ty);
+          auto v_gptr = b.CreateCall(ginfo.make_gptr_fn, { v_ptr, core }, "cgptr");
+          auto gptr = b.CreateBitCast(v_gptr, getAddrspaceType(ptr, GLOBAL_SPACE));
+          if (auto l = dyn_cast<LoadInst>(orig))
+            l->setOperand(l->getPointerOperandIndex(), gptr);
+          else if (auto s = dyn_cast<StoreInst>(orig))
+            s->setOperand(s->getPointerOperandIndex(), gptr);
+          else
+            assert2(false, "unsupported instruction", *orig, *core);
+          ginfo.replace_global_access(gptr, orig, lptrs, *layout);
         }
       }
     }

@@ -74,6 +74,10 @@ void* grappa_get_pointer_symmetric(void symmetric* g) {
   return SymmetricAddress<int8_t>(reinterpret_cast<int8_t symmetric*>(g)).pointer();
 }
 
+extern "C"
+void global* grappa_make_gptr(void * p, Core c) {
+  return make_global(p, c);
+}
 
 extern "C"
 long grappa_read_long(long global* a) {
