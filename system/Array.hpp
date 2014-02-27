@@ -118,10 +118,16 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
 
 /// Helper so we don't have to change the code if we change a Global pointer to a normal pointer (in theory).
 template< typename T >
-void memcpy(T* dst, T* src, size_t nelem) {
+inline void memcpy(T* dst, T* src, size_t nelem) {
   ::memcpy(dst, src, nelem*sizeof(T));
 }
 
+template<>
+inline void memcpy<void>(void* dst, void* src, size_t nelem) {
+  ::memcpy(dst, src, nelem);
+}
+
+  
 
 /// Asynchronous version of memcpy, spawns only on cores with array elements. Synchronizes
 /// with given GlobalCompletionEvent, so memcpy's are known to be complete after GCE->wait().
