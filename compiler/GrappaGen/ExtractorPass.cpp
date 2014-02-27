@@ -1077,15 +1077,27 @@ namespace Grappa {
     return nullptr;
   }
   
-  void remap(Instruction* inst, ValueToValueMapTy& vmap) {
-    Instruction* to_delete = nullptr;
+  void remap(Instruction* inst, ValueToValueMapTy& vmap,
+             SmallVectorImpl<Instruction*>& to_delete) {
+    
+    auto map_value = [&vmap](Value *v) {
+      auto v_it = vmap.find(v);
+      if (v_it != vmap.end() && v_it->second) {
+        return static_cast<Value*>(v_it->second);
+      } else {
+        return v;
+      }
+    };
     
     //    RemapInstruction(inst, vmap, RF_IgnoreMissingEntries);
-    for (int i=0; i<inst->getNumOperands(); i++) {
-      Value *o = inst->getOperand(i);
-      if (vmap.count(o)) {
-        inst->setOperand(i, vmap[o]);
-      }
+//    for (int i=0; i<inst->getNumOperands(); i++) {
+//      Value *o = inst->getOperand(i);
+//      if (vmap.count(o)) {
+//        inst->setOperand(i, vmap[o]);
+//      }
+//    }
+    for_each_op(op, *inst) {
+      *op = map_value(*op);
     }
     
     if (auto bc = dyn_cast<BitCastInst>(inst)) {
@@ -1096,27 +1108,28 @@ namespace Grappa {
                                                        bc->getSrcTy()->getPointerAddressSpace()),
                                       inst->getName()+".fix", inst);
         vmap[bc] = new_bc;
-        to_delete = bc;
+        to_delete.push_back(bc);
       }
     } else if (auto gep = dyn_cast<GetElementPtrInst>(inst)) {
       if (gep->getPointerAddressSpace() != gep->getType()->getPointerAddressSpace()) {
         SmallVector<Value*,4> idxs;
-        for (auto i=1; i<gep->getNumOperands(); i++) idxs.push_back(gep->getOperand(i));
-        auto new_gep = GetElementPtrInst::Create(gep->getPointerOperand(), idxs,
+        for (auto i=1; i<gep->getNumOperands(); i++)
+          idxs.push_back(map_value(gep->getOperand(i)));
+        auto new_gep = GetElementPtrInst::Create(map_value(gep->getPointerOperand()), idxs,
                                                  gep->getName()+"fix", gep);
         if (gep->isInBounds()) new_gep->setIsInBounds();
         vmap[gep] = new_gep;
-        to_delete = gep;
+        to_delete.push_back(gep);
       }
     }
     
-    SmallVector<User*, 32> uses(inst->use_begin(), inst->use_end());
-    for (auto u : uses) {
-      auto iu = cast<Instruction>(u);
-      remap(iu, vmap);
-    }
-    
-    if (to_delete) to_delete->eraseFromParent();
+//    SmallVector<User*, 32> uses(inst->use_begin(), inst->use_end());
+//    for (auto u : uses) {
+//      auto iu = cast<Instruction>(u);
+//      remap(iu, vmap);
+//    }
+//    
+//    if (to_delete) to_delete->eraseFromParent();
   }
   
   int ExtractorPass::fixupFunction(Function* fn) {
@@ -1191,10 +1204,19 @@ namespace Grappa {
       assert(inlined);
     }
     
-    for (auto c : casts) {
-      remap(c, vmap);
-//      c->eraseFromParent();
+//    for (auto c : casts) {
+//      remap(c, vmap);
+////      c->eraseFromParent();
+//    }
+    
+    SmallVector<Instruction*, 64> to_delete;
+    for (auto& bb : *fn) {
+      for (auto it = bb.begin(); it != bb.end();) {
+        Instruction *inst = it++;
+        remap(inst, vmap, to_delete);
+      }
     }
+    for (auto inst : to_delete) inst->eraseFromParent();
     
     if (casts.size()) {
       outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^" << *fn << "\n";
