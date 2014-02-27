@@ -31,6 +31,27 @@ retcode_t do_work(void *i, void *o) {
   return 0;
 }
 
+struct Foo {
+  long x, y;
+  
+  void bar() {
+    y = x+1;
+  }
+};
+
+Foo foo;
+
+void test_foo() {
+  on_all_cores([]{ foo = { 7, 0 }; });
+  
+  auto a = as_ptr(make_global(&foo, 1));
+  a->bar();
+  
+  assert(a->x == 7);
+  assert(a->y == 8);
+  printf("%ld : %ld\n", a->x, a->y);
+}
+
 double var;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -55,6 +76,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     assert(alpha == 8);
     
     fprintf(stderr, "-----------------\n");
+    
+    test_foo();
     
     long x = 1, y1 = 7;
     long global* xa = make_global(&x);
