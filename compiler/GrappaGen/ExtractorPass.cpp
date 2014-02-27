@@ -1139,30 +1139,10 @@ namespace Grappa {
     SmallVector<AddrSpaceCastInst*,32> casts;
     SmallVector<CallInst*,32> calls;
     
-    for (auto& bb : *fn ) {
-      for (auto inst = bb.begin(); inst != bb.end(); ) {
-        Instruction *orig = inst++;
-        Value* ptr = nullptr;
-        if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
-        if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
-        if (auto l = dyn_cast<AddrSpaceCastInst>(orig)) ptr = l->getOperand(0);
-        
-        if (!ptr) continue;
-        if (isGlobalPtr(ptr)) {
-          if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
-            errs() << "cast =>" << *c << "\n";
-            casts.push_back(c);
-            
-          } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-            ginfo.replace_global_access(gptr, orig, lptrs, *layout);
-            fixed_up++;
-          }
-        } else if (isSymmetricPtr(ptr)) {
-          if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
-            ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
-            fixed_up++;
-          }
-        }
+    for (auto it = inst_begin(fn); it != inst_end(fn); it++) {
+      Instruction *inst = &*it;
+      if (isa<AddrSpaceCastInst>(inst) && isGlobalPtr(inst->getOperand(0))) {
+        casts.push_back(cast<AddrSpaceCastInst>(inst));
       }
     }
     
@@ -1217,8 +1197,35 @@ namespace Grappa {
       }
     }
     for (auto inst : to_delete) inst->eraseFromParent();
+    for (auto c : casts) c->eraseFromParent();
+    fixed_up += casts.size();
     
-    if (casts.size()) {
+    for (auto& bb : *fn ) {
+      for (auto inst = bb.begin(); inst != bb.end(); ) {
+        Instruction *orig = inst++;
+        Value* ptr = nullptr;
+        if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
+        if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
+        if (auto l = dyn_cast<AddrSpaceCastInst>(orig)) ptr = l->getOperand(0);
+        
+        if (!ptr) continue;
+        if (isGlobalPtr(ptr)) {
+          if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
+            errs() << "!!" << *c << "\n";
+          } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+            ginfo.replace_global_access(gptr, orig, lptrs, *layout);
+            fixed_up++;
+          }
+        } else if (isSymmetricPtr(ptr)) {
+          if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+            ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+            fixed_up++;
+          }
+        }
+      }
+    }
+    
+    if (fixed_up) {
       outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^" << *fn << "\n";
     }
     
