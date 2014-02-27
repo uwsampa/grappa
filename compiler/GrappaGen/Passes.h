@@ -236,18 +236,8 @@ struct GlobalPtrInfo {
   }
   
   Value* SmartCast(IRBuilder<>& b, Value* v, Type* ty, const Twine& name = "") {
-    auto vty = v->getType();
-    
-    if (CastInst::isCastable(vty, ty)) {
+    if (CastInst::isCastable(v->getType(), ty)) {
       return b.CreateCast(CastInst::getCastOpcode(v, true, ty, true), v, ty, name);
-//    }
-//    
-//    if (vty->isIntegerTy() && ty->isPointerTy()) {
-//      return b.CreateIntToPtr(v, ty, name);
-//    } else if (vty->isPointerTy() && ty->isIntegerTy()) {
-//      return b.CreatePtrToInt(v, ty, name);
-//    } else if (vty->isPointerTy() && ty->isPointerTy()) {
-//      return b.CreateBitCast(v, ty, name);
     } else {
       assert2(false, "smart cast not smart enough", *v, *ty);
     }
