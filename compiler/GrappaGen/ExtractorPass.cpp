@@ -1139,10 +1139,27 @@ namespace Grappa {
     SmallVector<AddrSpaceCastInst*,32> casts;
     SmallVector<CallInst*,32> calls;
     
-    for (auto it = inst_begin(fn); it != inst_end(fn); it++) {
-      Instruction *inst = &*it;
-      if (isa<AddrSpaceCastInst>(inst) && isGlobalPtr(inst->getOperand(0))) {
-        casts.push_back(cast<AddrSpaceCastInst>(inst));
+    for (auto& bb : *fn) {
+      for (auto it = bb.begin(); it != bb.end(); ) {
+        Instruction *inst = it++;
+        
+        if (isa<AddrSpaceCastInst>(inst) && isGlobalPtr(inst->getOperand(0))) {
+          casts.push_back(cast<AddrSpaceCastInst>(inst));
+        } else {
+          for_each_op(op, *inst) {
+            if (auto c = dyn_cast<ConstantExpr>(*op)) {
+              if (c->isCast() && strcmp(c->getOpcodeName(), "addrspacecast") == 0) {
+                errs() << "!! " << c->getOpcodeName() << "\n--" << *c << "\n";
+                errs() << "----" << *c->getOperand(0) << "\n";
+                
+                auto ac = new AddrSpaceCastInst(c->getOperand(0), c->getType(),
+                                                "cast.unpacked", inst);
+                *op = ac;
+                casts.push_back(ac);
+              }
+            }
+          }
+        }
       }
     }
     
@@ -1161,7 +1178,7 @@ namespace Grappa {
         c->setOperand(0, ptr);
         outs() << "****" << *ptr << "\n****" << *c << "\n";
       }
-
+      
       vmap[c] = ptr;
       
       SmallVector<User*, 32> us(c->use_begin(), c->use_end());
