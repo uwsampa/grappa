@@ -429,7 +429,7 @@ namespace Grappa {
     void increment(GlobalAddress<T> target, U inc) {
       static_assert(std::is_convertible<T,U>(), "type of inc must match GlobalAddress type");
       delegate_async_increments++;
-      delegate::call<SyncMode::Async,C>(target.core(), [target,inc]{
+      delegate::call<S,C>(target.core(), [target,inc]{
         (*target.pointer()) += inc;
       });
     }
