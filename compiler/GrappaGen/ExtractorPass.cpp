@@ -687,20 +687,20 @@ namespace Grappa {
         CreateAlignedStore(b, inputs[i], in_alloca, i, name+".gep.in");
       }
 
-      auto target_core = b.CreateCall(ginfo.get_core_fn, (Value*[]){
+      auto target_core = b.CreateCall(ginfo.fn("get_core"), (Value*[]){
         b.CreateBitCast(target_ptr, ty_void_gptr)
       }, name+".target_core");
       
       CallInst *call;
       if (gce) {
-        call = b.CreateCall(ginfo.call_on_async_fn, {
+        call = b.CreateCall(ginfo.fn("on_async"), {
           target_core, new_fn,
           b.CreateBitCast(in_alloca, ty_void_ptr),
           i64(layout.getTypeAllocSize(in_struct_ty)),
           gce
         }, name+".call_on_async");
       } else {
-        call = b.CreateCall(ginfo.call_on_fn, {
+        call = b.CreateCall(ginfo.fn("on"), {
           target_core, new_fn,
           b.CreateBitCast(in_alloca, ty_void_ptr),
           i64(layout.getTypeAllocSize(in_struct_ty)),
@@ -1249,9 +1249,9 @@ namespace Grappa {
         if (isGlobalPtr(prov) && !isGlobalPtr(ptr)) {
           IRBuilder<> b(orig);
           auto v_prov = b.CreateBitCast(prov, void_gptr_ty);
-          auto core = b.CreateCall(ginfo.get_core_fn, { v_prov }, "core");
+          auto core = b.CreateCall(ginfo.fn("get_core"), { v_prov }, "core");
           auto v_ptr = b.CreateBitCast(ptr, void_ptr_ty);
-          auto v_gptr = b.CreateCall(ginfo.make_gptr_fn, { v_ptr, core }, "cgptr");
+          auto v_gptr = b.CreateCall(ginfo.fn("make_gptr"), { v_ptr, core }, "cgptr");
           auto gptr = b.CreateBitCast(v_gptr, getAddrspaceType(ptr, GLOBAL_SPACE));
           if (auto l = dyn_cast<LoadInst>(orig))
             l->setOperand(l->getPointerOperandIndex(), gptr);

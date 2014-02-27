@@ -192,7 +192,7 @@ Function* DelegateExtractor::extractFunction() {
     if (auto in_gptr_ty = dyn_cast_addr<GLOBAL_SPACE>(in_val->getType())) {
       auto ptr_ty = in_gptr_ty->getElementType()->getPointerTo();
       auto bc = new BitCastInst(in_val, void_gptr_ty, "getptr.bc", entrybb);
-      auto vptr = CallInst::Create(ginfo.get_pointer_fn, (Value*[]){ bc }, "getptr", entrybb);
+      auto vptr = CallInst::Create(ginfo.fn("get_pointer"), (Value*[]){ bc }, "getptr", entrybb);
       auto ptr = new BitCastInst(vptr, ptr_ty, "localptr", entrybb);
       final_in = ptr;
     }
@@ -269,20 +269,20 @@ Function* DelegateExtractor::extractFunction() {
   }
   //////////////////////////////
   
-  assert(gptr && ginfo.get_core_fn);
+  assert(gptr && ginfo.fn("get_core"));
   
-  auto target_core = CallInst::Create(ginfo.get_core_fn, (Value*[]){
+  auto target_core = CallInst::Create(ginfo.fn("get_core"), (Value*[]){
     new BitCastInst(gptr, void_gptr_ty, "", call_pt)
   }, "", call_pt);
   
-  assert(ginfo.call_on_fn);
+  assert(ginfo.fn("on"));
   assert(target_core);
   assert(new_fn);
   assert(in_struct_alloca);
   assert(out_struct_alloca);
   assert(call_pt);
   
-  auto calli = CallInst::Create(ginfo.call_on_fn, (Value*[]){
+  auto calli = CallInst::Create(ginfo.fn("on"), (Value*[]){
     target_core,
     new_fn,
     new BitCastInst(in_struct_alloca, void_ptr_ty, "", call_pt),

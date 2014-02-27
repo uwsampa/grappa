@@ -8,6 +8,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/SetVector.h>
+#include <llvm/ADT/StringMap.h>
 #include <set>
 #include <queue>
 #include <unordered_map>
@@ -177,11 +178,19 @@ struct GlobalPtrInfo {
   
   using LocalPtrMap = SmallDenseMap<Value*,Value*>;
   
-  Function *call_on_fn, *call_on_async_fn,
-           *make_gptr_fn,
-           *global_get_fn, *global_put_fn,
-           *global_get_i64, *global_put_i64,
-           *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
+  StringMap<Function*> fn_map;
+  Function*& fn(StringRef name) {
+    assertN(fn_map.count(name), "missing function", name);
+    return fn_map[name];
+  }
+  
+//  Function *call_on_fn, *call_on_async_fn,
+//           *make_gptr_fn,
+//           *global_get_fn, *global_put_fn,
+//           *global_get_i64, *global_put_i64,
+//           *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
+//#define call_on_fn fn["call_on"]
+  
   
   LLVMContext *ctx;
   
@@ -199,17 +208,20 @@ struct GlobalPtrInfo {
       return fn;
     };
     
-    call_on_fn = getFunction("grappa_on");
-    call_on_async_fn = getFunction("grappa_on_async");
-    get_core_fn = getFunction("grappa_get_core");
-    get_pointer_fn = getFunction("grappa_get_pointer");
-    get_pointer_symm_fn = getFunction("grappa_get_pointer_symmetric");
-    global_get_fn = getFunction("grappa_get");
-    global_put_fn = getFunction("grappa_put");
-    global_get_i64 = getFunction("grappa_get_i64");
-    global_put_i64 = getFunction("grappa_put_i64");
-    
-    make_gptr_fn = getFunction("grappa_make_gptr");
+    fn("on") = getFunction("grappa_on");
+    fn("on_async") = getFunction("grappa_on_async");
+    fn("get_core") = getFunction("grappa_get_core");
+    fn("get_pointer") = getFunction("grappa_get_pointer");
+    fn("get_pointer_symmetric") = getFunction("grappa_get_pointer_symmetric");
+    fn("get") = getFunction("grappa_get");
+    fn("put") = getFunction("grappa_put");
+    fn("get_i64") = getFunction("grappa_get_i64");
+    fn("put_i64") = getFunction("grappa_put_i64");
+    fn("get_on") = getFunction("grappa_get_on");
+    fn("put_on") = getFunction("grappa_put_on");
+    fn("get_i64_on") = getFunction("grappa_get_i64_on");
+    fn("put_i64_on") = getFunction("grappa_put_i64_on");
+    fn("make_gptr") = getFunction("grappa_make_gptr");
     
     return !disabled;
   }
@@ -229,7 +241,7 @@ struct GlobalPtrInfo {
     Value *v;
 
     v = b.CreateBitCast(sptr, void_sptr_ty,                name+".void");
-    v = b.CreateCall(get_pointer_symm_fn, (Value*[]){ v }, name+".lvoid");
+    v = b.CreateCall(fn("get_pointer_symmetric"), (Value*[]){ v }, name+".lvoid");
     v = b.CreateBitCast(v, lptrTy,                         name+".local");
     
     return v;
@@ -248,7 +260,7 @@ struct GlobalPtrInfo {
 
     Value *v = gptr;
     v = b.CreateBitCast(v, void_gptr_ty, name+".void");
-    v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
+    v = b.CreateCall(fn("get_pointer"), (Value*[]){ v }, name+".lvoid");
     v = b.CreateBitCast(v, ty, name+".lptr");
     
     if (auto ld = dyn_cast<LoadInst>(orig)) {
@@ -295,7 +307,7 @@ struct GlobalPtrInfo {
       if (isa<LoadInst>(orig)) {
         
         if (ty != i64) v = SmartCast(b, v, i64_gptr, name+".ptr.bc");
-        v = b.CreateCall(global_get_i64, { v }, name+".val");
+        v = b.CreateCall(fn("get_i64"), { v }, name+".val");
         if (ty != i64) v = SmartCast(b, v, ty, name+".val.bc");
         
       } else if (auto s = dyn_cast<StoreInst>(orig)) {
@@ -305,7 +317,7 @@ struct GlobalPtrInfo {
           v = SmartCast(b, v, i64_gptr, name+".ptr.bc");
           val = SmartCast(b, val, i64, name+".val.bc");
         }
-        v = b.CreateCall(global_put_i64, { v, val });
+        v = b.CreateCall(fn("put_i64"), { v, val });
         
       } else {
         assert(false && "unimplemented case");
@@ -322,7 +334,7 @@ struct GlobalPtrInfo {
       if (auto l = dyn_cast<LoadInst>(orig)) {
         
         // remote get into temp
-        v = b.CreateCall(global_get_fn, {v_tmp, v_gptr, sz});
+        v = b.CreateCall(fn("get"), {v_tmp, v_gptr, sz});
         // load value out of temp
         v = b.CreateLoad(tmp, l->isVolatile(), name+".val");
         
@@ -331,7 +343,7 @@ struct GlobalPtrInfo {
         // store into temporary alloca
         v = b.CreateStore(s->getValueOperand(), tmp, s->isVolatile());
         // do remote put out of alloca
-        v = b.CreateCall(global_put_fn, {v_gptr, v_tmp, sz});
+        v = b.CreateCall(fn("put"), {v_gptr, v_tmp, sz});
         
       } else if (isa<AddrSpaceCastInst>(orig)) {
         assert(false && "unimplemented");
@@ -350,11 +362,11 @@ struct GlobalPtrInfo {
     Type*     void_xptr_ty = nullptr;
     StringRef suffix;
     if (SPACE == GLOBAL_SPACE) {
-      get_xptr_fn = get_pointer_fn;
+      get_xptr_fn = fn("get_pointer");
       void_xptr_ty = void_gptr_ty;
       suffix = "g";
     } else if (SPACE == SYMMETRIC_SPACE) {
-      get_xptr_fn = get_pointer_symm_fn;
+      get_xptr_fn = fn("get_pointer_symm");
       void_xptr_ty = void_sptr_ty;
       suffix = "s";
     }
@@ -423,7 +435,7 @@ struct GlobalPtrInfo {
     
     Value *v = gptr;
     v = b.CreateBitCast(v, void_gptr_ty, name+".void");
-    v = b.CreateCall(get_pointer_fn, (Value*[]){ v }, name+".lvoid");
+    v = b.CreateCall(fn("get_pointer"), (Value*[]){ v }, name+".lvoid");
     v = b.CreateBitCast(v, ty, name+".lptr");
     
     return cast<Instruction>(v);
