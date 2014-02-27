@@ -37,6 +37,29 @@ for (auto var = (arg).use_begin(), var##_end = (arg).use_end(); var != var##_end
 #define assert2(cond, msg, p1, p2) \
   do { if (!(cond)) { errs() << "!! " << msg << "\n" << p1 << "\n" << p2 << "\n\n"; assert(false && msg); } } while (0)
 
+template< typename T >
+void print_rest(T first) {
+  llvm::errs() << "  " << first << "\n";
+}
+
+template< typename T, typename... Ts>
+void print_rest(T first, Ts... rest) {
+  llvm::errs() << "  " << first << "\n";
+  print_rest(rest...);
+}
+
+template<typename... Ts> void assert_var(bool cnd, llvm::StringRef file, unsigned line,
+                                         Ts... rest) {
+  if (!cnd) {
+    llvm::errs() << "assert failed at " << file << ":" << line << "\n";
+    print_rest(rest...);
+    assert(false);
+  }
+}
+
+#define assertN(cnd, ...) assert_var((cnd), __FILE__, __LINE__, __VA_ARGS__)
+
+
 using namespace llvm;
 
 inline std::string demangle(StringRef name) {
