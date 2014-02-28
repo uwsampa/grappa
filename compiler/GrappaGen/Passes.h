@@ -13,7 +13,7 @@
 #include <queue>
 #include <unordered_map>
 #include <cxxabi.h>
-
+#include <llvm/Analysis/AliasAnalysis.h>
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
@@ -512,6 +512,7 @@ namespace Grappa {
     
     virtual void getAnalysisUsage(AnalysisUsage& AU) const {
       AU.addRequired<ProvenanceProp>();
+      AU.addRequired<AliasAnalysis>();
     }
   };
   

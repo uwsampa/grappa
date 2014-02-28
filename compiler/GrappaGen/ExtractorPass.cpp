@@ -10,6 +10,7 @@
 #include <llvm/InstVisitor.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Format.h>
+#include <llvm/Analysis/AliasSetTracker.h>
 
 #include "Passes.h"
 #include "DelegateExtractor.hpp"
@@ -313,8 +314,61 @@ namespace Grappa {
       }
     }
     
-    void expandRegion() {
-      using RegionSet = SmallSet<Instruction*,64>;
+    using RegionSet = SmallSet<Instruction*,64>;
+    using InstructionSet = SmallPtrSet<Instruction*,16>;
+    
+    bool hoistable(Instruction *i, RegionSet& region, AliasSetTracker& aliases,
+                   InstructionSet& unhoistable, InstructionSet& tomove) {
+      if (unhoistable.count(i)) return false;
+      if (i->mayHaveSideEffects()) return false;
+      
+      auto& analysis = aliases.getAliasAnalysis();
+      Value *ptr = nullptr;
+      
+      if (auto l = dyn_cast<LoadInst>(i))       ptr = l->getPointerOperand();
+      else if (auto s = dyn_cast<StoreInst>(i)) ptr = s->getPointerOperand();
+      
+      if (ptr) {
+        size_t sz = layout.getTypeAllocSize(ptr->getType());
+        size_t st_sz = aliases.getAliasAnalysis().getTypeStoreSize(ptr->getType());
+        
+        auto md = i->getMetadata(LLVMContext::MD_tbaa);
+        
+        auto& alias_set = aliases.getAliasSetForPointer(ptr,
+                           analysis.getTypeStoreSize(ptr->getType()),
+                           i->getMetadata(LLVMContext::MD_tbaa));
+        
+        // only potentially a problem if something in the set modifies it
+        if (alias_set.isMod()) {
+          // (I think we know it's false right away because we only added
+          //  instructions in the region)
+          unhoistable.insert(i);
+          return false;
+        }
+        
+      }
+      
+      // alias set doesn't contain
+      // we can safely hoist this if each of its dependent instruction is hoistable
+      // are any of its dependent values unhoistable?
+      for_each_op(op, *i) {
+        if (auto iop = dyn_cast<Instruction>(*op)) {
+          if (region.count(iop)) {
+            if (!hoistable(iop, region, aliases, unhoistable, tomove)) {
+              unhoistable.insert(iop);
+              return false;
+            } else {
+              tomove.insert(iop);
+            }
+          }
+        }
+      }
+      
+      tomove.insert(i);
+      return true;
+    }
+    
+    void expandRegion(AliasSetTracker& aliases) {
       RegionSet region;
       int anchor_ct = 0;
       int best_score = 0;
@@ -350,18 +404,33 @@ namespace Grappa {
       SmallSetVector<Instruction*,4> frontier;
       frontier.insert(entry);
       
+      InstructionSet unhoistable;
+      InstructionSet tomove;
+      
       while (!frontier.empty()) {
         auto i = frontier.pop_back_val();
+        bool valid = validInRegion(i);
         
-        if (validInRegion(i)) {
+        bool hoisting = false;
+        if (!valid && i->mayReadOrWriteMemory()
+            && hoistable(i, region, aliases, unhoistable, tomove)) {
+          outs() << "hoist =>" << *i;
+          hoisting = true;
+        }
+        
+        if (valid || hoisting) {
+          aliases.add(i);
           region.insert(i);
-          if (isAnchor(i)) anchor_ct++;
+          
+          if (!hoisting) {
+            if (isAnchor(i)) anchor_ct++;
+          }
           
           int score;
           { // compute score
             ValueSet inputs, outputs;
             for (auto r : region) {
-              computeInOut(r, region, inputs, outputs);
+              if (!tomove.count(r)) computeInOut(r, region, inputs, outputs);
             }
             
             int sz = 0;
@@ -374,13 +443,15 @@ namespace Grappa {
             score = (anchor_ct * 100) - sz;
           }
           
-          errs() << format("(%d,%4d) ", anchor_ct, score) << *i << "\n";
+          if (!hoisting) outs() << format("(%d,%4d) ", anchor_ct, score) << *i;
           
           if (score > best_score) {
-            errs() << "!! best!\n";
+            outs() << "  !! best!";
             best_score = score;
             findExitsFromRegion(emap,region);
           }
+            
+          outs() << "\n";
           
           auto bb = i->getParent();
           if (isa<TerminatorInst>(i)) {
@@ -411,18 +482,33 @@ namespace Grappa {
     }
     
     bool validInRegion(Instruction* i) {
+      auto validPtr = [&](Value *p){
+        return valid_ptrs.count(p) || isSymmetricPtr(p) || isStatic(p) || isConst(p);
+      };
+      
       if (i->mayReadOrWriteMemory()) {
         if (auto p = getProvenance(i)) {
-          if (valid_ptrs.count(p) || isSymmetricPtr(p) || isStatic(p) || isConst(p)) {
+          if (validPtr(p))
             return true;
-          }
         } else if (isa<CallInst>(i)) { // || isa<InvokeInst>(i)) {
           // do nothing for now
           auto cs = CallSite(i);
           if (auto fn = cs.getCalledFunction()) {
-            if (fn->hasFnAttribute("unbound") || fn->doesNotAccessMemory()) {
+            if (fn->hasFnAttribute("unbound") || fn->doesNotAccessMemory())
               return true;
-            }
+            
+            // TODO: is it okay to allow these? should we mark things we want to allow?
+            // if (cs->mayThrow()) return false;
+            
+            // call inherits 'provenance' from pointer args, then
+            for (auto o = cs.arg_begin(); o != cs.arg_end(); o++)
+              if (isa<PointerType>((*o)->getType())) {
+                DEBUG(outs() << "!! " << *(*o)->getType() << "\n  " << **o << "\n");
+                if (!validPtr(*o))
+                  return false;
+              }
+            
+            return true;
           }
         } else {
           errs() << "!! no provenance:" << *i;
@@ -869,7 +955,7 @@ namespace Grappa {
     }
     
     void printHeader() {
-      outs() << "# Candidate " << ID << ":\n";
+      outs() << "\n##############\n# Candidate " << ID << ":\n";
       DEBUG(outs() << "  entry:\n  " << *entry << "\n");
       auto loc = entry->getDebugLoc();
       outs() << "  line: " << loc.getLine() << "\n";
@@ -889,7 +975,7 @@ namespace Grappa {
         exits.each([&](Instruction* s, Instruction* e){
           outs() << "  " << *s << "\n     =>" << *e << "\n";
         });
-        outs() << "\n";
+//        outs() << "\n";
 //      });
       outs() << "\n";
     }
@@ -1027,56 +1113,6 @@ namespace Grappa {
     
   };
   
-  Function* rewriteAsGlobalFunction(Value *addrcast, Value* ptr,
-                                    CallInst* call, Function* old_fn) {
-    int arg_idx = -1;
-    for (int i=0; i < call->getNumArgOperands(); i++)
-      if (call->getArgOperand(i) == addrcast)
-        arg_idx = i;
-    if (arg_idx == -1) return nullptr;
-    
-    errs() << "arg => " << arg_idx << "\n";
-    errs() << "call => " << *call << "\n";
-    
-    if (auto old_fn = call->getCalledFunction()) {
-      auto fn_ty = old_fn->getFunctionType();
-      errs() << "old_fn => " << *old_fn->getType() << "\n";
-      
-//      SmallVector<Type*,8> arg_tys;
-//      int i=0;
-//      for (auto arg_it = old_fn->arg_begin();
-//           arg_it != old_fn->arg_end();
-//           arg_it++, i++) {
-//        if (i == arg_idx) arg_tys.push_back(ptr->getType());
-//        else arg_tys.push_back(arg_it->getType());
-//      }
-//      auto new_fn_ty = FunctionType::get(fn_ty->getReturnType(),
-//                                         arg_tys, fn_ty->isVarArg());
-//      
-//      errs() << "new_fn_ty => " << *new_fn_ty << "\n";
-//      
-//      auto new_fn = Function::Create(new_fn_ty, old_fn->getLinkage());
-//      
-//      ValueToValueMapTy vmap;
-//      
-//      
-//      for (auto& old_bb : *old_fn) {
-//        auto bb = CloneBasicBlock(&old_bb, vmap, old_bb.getName()+".g", new_fn);
-//      }
-//      
-//      auto arg_it = old_fn->arg_begin();
-//      for (int i=0; i < arg_idx; i++) arg_it++;
-//      Argument * arg = arg_it;
-//      vmap[arg] =
-//      ClonedCodeInfo info;
-//      
-//      SmallVector<ReturnInst*,8> returns;
-//      auto new_fn = CloneAndPruneFunctionInto(fn, old_fn, vmap, true, returns);
-      
-    }
-    return nullptr;
-  }
-  
   void remap(Instruction* inst, ValueToValueMapTy& vmap,
              SmallVectorImpl<Instruction*>& to_delete) {
     
@@ -1089,13 +1125,12 @@ namespace Grappa {
       }
     };
     
-    //    RemapInstruction(inst, vmap, RF_IgnoreMissingEntries);
-//    for (int i=0; i<inst->getNumOperands(); i++) {
-//      Value *o = inst->getOperand(i);
-//      if (vmap.count(o)) {
-//        inst->setOperand(i, vmap[o]);
-//      }
-//    }
+    //////////////////////////////////////////////////
+    // RemapInstruction() breaks 'CompileUnit' info,
+    // causing DwardDebug pass to crash...
+    // RemapInstruction(inst, vmap, RF_IgnoreMissingEntries);
+    
+    // poor-man's RemapInstruction (just do operands)
     for_each_op(op, *inst) {
       *op = map_value(*op);
     }
@@ -1123,13 +1158,6 @@ namespace Grappa {
       }
     }
     
-//    SmallVector<User*, 32> uses(inst->use_begin(), inst->use_end());
-//    for (auto u : uses) {
-//      auto iu = cast<Instruction>(u);
-//      remap(iu, vmap);
-//    }
-//    
-//    if (to_delete) to_delete->eraseFromParent();
   }
   
   int ExtractorPass::fixupFunction(Function* fn) {
@@ -1318,7 +1346,7 @@ namespace Grappa {
 
       auto fn = worklist.pop();
       auto taskname = "task" + Twine(ct);
-
+      
       bool changed = false;
       
       // Recursively process called functions
@@ -1358,12 +1386,14 @@ namespace Grappa {
             
             r.valid_ptrs.insert(p);
             
-            r.expandRegion();
+            AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
+            r.expandRegion(aliases);
             
             r.printHeader();
             
             if (r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
+              outs() << "!! voidRetExit\n";
               if (async_fns[fn]) {
                 outs() << "!! grappa_on_async candidate\n";
               }
@@ -1408,7 +1438,7 @@ namespace Grappa {
         
         if (nfixed) {
           changed = true;
-          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+//          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
         }
       }
       
