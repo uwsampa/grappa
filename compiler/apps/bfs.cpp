@@ -191,8 +191,6 @@ int main(int argc, char* argv[]) {
     
     delegate::call(gaddr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v.parent, root); });
     
-    VLOG(1) << "woohoo";
-    
     *f_tail++ = root;
     
     double t = walltime();

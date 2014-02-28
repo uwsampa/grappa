@@ -1147,11 +1147,9 @@ namespace Grappa {
           casts.push_back(cast<AddrSpaceCastInst>(inst));
         } else {
           for_each_op(op, *inst) {
+            // find addrspacecasts hiding in constexprs & unpack them
             if (auto c = dyn_cast<ConstantExpr>(*op)) {
               if (c->isCast() && strcmp(c->getOpcodeName(), "addrspacecast") == 0) {
-                errs() << "!! " << c->getOpcodeName() << "\n--" << *c << "\n";
-                errs() << "----" << *c->getOperand(0) << "\n";
-                
                 auto ac = new AddrSpaceCastInst(c->getOperand(0), c->getType(),
                                                 "cast.unpacked", inst);
                 *op = ac;
@@ -1168,6 +1166,9 @@ namespace Grappa {
     for (auto c : casts) {
       outs() << "~~~~~~~~~~~\n" << *c << "\n";
       Value *ptr = c->getOperand(0);
+      
+      ///////////////////////////////////////////////////
+      // factor out bitcast if element type changes, too
       auto src_space = c->getSrcTy()->getPointerAddressSpace();
       auto src_elt_ty = c->getSrcTy()->getPointerElementType();
       auto dst_elt_ty = c->getType()->getPointerElementType();
@@ -1179,21 +1180,24 @@ namespace Grappa {
         outs() << "****" << *ptr << "\n****" << *c << "\n";
       }
       
+      // will remap addrspacecast -> original global ptr
       vmap[c] = ptr;
       
-      SmallVector<User*, 32> us(c->use_begin(), c->use_end());
-      for (auto u : us) {
-        outs() << "--" << *u << "\n";
-        if (auto call = dyn_cast<CallInst>(u)) {
+      // find any calls using the cast value (so we can inline them below)
+      for_each_use(u, *c) {
+        DEBUG(outs() << "--" << **u << "\n");
+        if (auto call = dyn_cast<CallInst>(*u)) {
           auto called_fn = call->getCalledFunction();
           if (!called_fn) continue;
-          outs() << "++" << *call << "\n";
+          DEBUG(outs() << "++" << *call << "\n");
           calls.push_back(call);
         }
       }
       
     }
     
+    
+    // inline calls so we can remap them to be 'global*' accesses
     for (auto call : calls) {
       InlineFunctionInfo info(nullptr, layout);
       auto inlined = InlineFunction(call, info);
@@ -1201,14 +1205,11 @@ namespace Grappa {
       assert(inlined);
     }
     
+    // recompute provenance with new inlined instructions
     AnchorSet anchors;
     analyzeProvenance(*fn, anchors);
     
-//    for (auto c : casts) {
-//      remap(c, vmap);
-////      c->eraseFromParent();
-//    }
-    
+    // remap instructions/types to be global
     SmallVector<Instruction*, 64> to_delete;
     for (auto& bb : *fn) {
       for (auto it = bb.begin(); it != bb.end();) {
@@ -1220,6 +1221,8 @@ namespace Grappa {
     for (auto c : casts) c->eraseFromParent();
     fixed_up += casts.size();
     
+    //////////////////////////////////////////////////////
+    // find all global/symmetric accesses and fix them up
     for (auto& bb : *fn ) {
       for (auto inst = bb.begin(); inst != bb.end(); ) {
         Instruction *orig = inst++;
@@ -1231,7 +1234,7 @@ namespace Grappa {
         if (!ptr) continue;
         if (isGlobalPtr(ptr)) {
           if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
-            errs() << "!!" << *c << "\n";
+            assertN(false, "addrspacecast slipped in", *c);
           } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
             ginfo.replace_global_access(gptr, nullptr, orig, lptrs, *layout);
             fixed_up++;
@@ -1245,6 +1248,10 @@ namespace Grappa {
         
         auto ctx = &orig->getContext();
         
+        //////////////////////////////////////////////////////
+        // put/get any local ptrs with global provenance
+        // (use provenance ptr's 'core', but pass raw pointer
+        // -- can't compute global pointer over here)
         auto prov = getProvenance(orig);
         if (isGlobalPtr(prov) && !isGlobalPtr(ptr)) {
           IRBuilder<> b(orig);
@@ -1253,10 +1260,6 @@ namespace Grappa {
           ginfo.replace_global_access(ptr, core, orig, lptrs, *layout);
         }
       }
-    }
-    
-    if (fixed_up) {
-      outs() << "^^^^^^^^^^^^^^^^^^^^^^^^^" << *fn << "\n";
     }
     
     return fixed_up;
