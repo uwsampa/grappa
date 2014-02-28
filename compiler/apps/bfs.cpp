@@ -230,6 +230,7 @@ int main(int argc, char* argv[]) {
         joiner.complete();
         joiner.wait();
         
+        VLOG(1) << "(" << mycore() << ":" << f_tail-f_level << ")";
         next_level_total = allreduce<int64_t, collective_add>(f_tail - f_level);
         level++;
       } while (next_level_total > 0);
