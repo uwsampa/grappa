@@ -208,20 +208,20 @@ struct GlobalPtrInfo {
       return fn;
     };
     
-    fn("on") = getFunction("grappa_on");
-    fn("on_async") = getFunction("grappa_on_async");
-    fn("get_core") = getFunction("grappa_get_core");
-    fn("get_pointer") = getFunction("grappa_get_pointer");
-    fn("get_pointer_symmetric") = getFunction("grappa_get_pointer_symmetric");
-    fn("get") = getFunction("grappa_get");
-    fn("put") = getFunction("grappa_put");
-    fn("get_i64") = getFunction("grappa_get_i64");
-    fn("put_i64") = getFunction("grappa_put_i64");
-    fn("get_on") = getFunction("grappa_get_on");
-    fn("put_on") = getFunction("grappa_put_on");
-    fn("get_i64_on") = getFunction("grappa_get_i64_on");
-    fn("put_i64_on") = getFunction("grappa_put_i64_on");
-    fn("make_gptr") = getFunction("grappa_make_gptr");
+    fn_map["on"] = getFunction("grappa_on");
+    fn_map["on_async"] = getFunction("grappa_on_async");
+    fn_map["get_core"] = getFunction("grappa_get_core");
+    fn_map["get_pointer"] = getFunction("grappa_get_pointer");
+    fn_map["get_pointer_symmetric"] = getFunction("grappa_get_pointer_symmetric");
+    fn_map["get"] = getFunction("grappa_get");
+    fn_map["put"] = getFunction("grappa_put");
+    fn_map["get_i64"] = getFunction("grappa_get_i64");
+    fn_map["put_i64"] = getFunction("grappa_put_i64");
+    fn_map["get_on"] = getFunction("grappa_get_on");
+    fn_map["put_on"] = getFunction("grappa_put_on");
+    fn_map["get_i64_on"] = getFunction("grappa_get_i64_on");
+    fn_map["put_i64_on"] = getFunction("grappa_put_i64_on");
+    fn_map["make_gptr"] = getFunction("grappa_make_gptr");
     
     return !disabled;
   }
@@ -366,7 +366,7 @@ struct GlobalPtrInfo {
       void_xptr_ty = void_gptr_ty;
       suffix = "g";
     } else if (SPACE == SYMMETRIC_SPACE) {
-      get_xptr_fn = fn("get_pointer_symm");
+      get_xptr_fn = fn("get_pointer_symmetric");
       void_xptr_ty = void_sptr_ty;
       suffix = "s";
     }
