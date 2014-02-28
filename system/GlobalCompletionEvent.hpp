@@ -318,14 +318,22 @@ namespace Grappa {
   /// In this version, GCE is a template parameter to avoid taking up space in the task's args.
   template< TaskMode B,
             GlobalCompletionEvent * C,
-            typename TF = decltype(nullptr) >
-  void spawn(TF tf) {
+            typename F = decltype(nullptr) >
+  void spawn(F f) {
     if (C) C->enroll();
     Core origin = mycore();
-    spawn<B>([tf,origin] {
-      tf();
+    
+    auto ff = [f,origin] {
+      f();
       if (C) C->send_completion(origin);
-    });
+    };
+    
+    if (B == TaskMode::Bound) {
+      privateTask(mark_async<C>(ff));
+    } else if (B == TaskMode::Unbound) {
+      publicTask(mark_async<C>(ff));
+    }
+    
   }
   
   ///@}
