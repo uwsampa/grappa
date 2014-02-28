@@ -1393,8 +1393,8 @@ namespace Grappa {
             
             if (r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
-              outs() << "!! voidRetExit\n";
               if (async_fns[fn]) {
+                r.switchExits(r.max_extent);
                 outs() << "!! grappa_on_async candidate\n";
               }
             }
@@ -1420,7 +1420,6 @@ namespace Grappa {
             GlobalVariable* async_gce = nullptr;
             if (async_fns[fn] && cnd.max_extent.isVoidRetExit()) {
               async_gce = async_fns[fn];
-              cnd.switchExits(cnd.max_extent);
             }
             
             auto new_fn = cnd.extractRegion(async_gce);
