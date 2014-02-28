@@ -1233,7 +1233,7 @@ namespace Grappa {
           if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
             errs() << "!!" << *c << "\n";
           } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-            ginfo.replace_global_access(gptr, orig, lptrs, *layout);
+            ginfo.replace_global_access(gptr, nullptr, orig, lptrs, *layout);
             fixed_up++;
           }
         } else if (isSymmetricPtr(ptr)) {
@@ -1250,16 +1250,7 @@ namespace Grappa {
           IRBuilder<> b(orig);
           auto v_prov = b.CreateBitCast(prov, void_gptr_ty);
           auto core = b.CreateCall(ginfo.fn("get_core"), { v_prov }, "core");
-          auto v_ptr = b.CreateBitCast(ptr, void_ptr_ty);
-          auto v_gptr = b.CreateCall(ginfo.fn("make_gptr"), { v_ptr, core }, "cgptr");
-          auto gptr = b.CreateBitCast(v_gptr, getAddrspaceType(ptr, GLOBAL_SPACE));
-          if (auto l = dyn_cast<LoadInst>(orig))
-            l->setOperand(l->getPointerOperandIndex(), gptr);
-          else if (auto s = dyn_cast<StoreInst>(orig))
-            s->setOperand(s->getPointerOperandIndex(), gptr);
-          else
-            assert2(false, "unsupported instruction", *orig, *core);
-          ginfo.replace_global_access(gptr, orig, lptrs, *layout);
+          ginfo.replace_global_access(ptr, core, orig, lptrs, *layout);
         }
       }
     }

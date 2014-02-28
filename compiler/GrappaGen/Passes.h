@@ -286,11 +286,11 @@ struct GlobalPtrInfo {
     return nullptr;
   }
   
-  Value* replace_global_access(Value *gptr, Instruction *orig, LocalPtrMap& lptrs,
+  Value* replace_global_access(Value *ptr, Value* core, Instruction *orig, LocalPtrMap& lptrs,
                                DataLayout& layout) {
     auto& C = orig->getContext();
-    Type *ty = cast<PointerType>(gptr->getType())->getElementType();
-    Twine name = gptr->getName().size() ? gptr->getName()+".g" : "g";
+    Type *ty = cast<PointerType>(ptr->getType())->getElementType();
+    Twine name = ptr->getName().size() ? ptr->getName()+".g" : "g";
     
     auto sz = ConstantExpr::getSizeOf(ty);
     
@@ -300,24 +300,32 @@ struct GlobalPtrInfo {
     if (layout.getTypeAllocSize(ty) == 8) {
       outs() << "specializing i64 -- line " << orig->getDebugLoc().getLine() << "\n";
       auto i64 = Type::getInt64Ty(C);
-      auto i64_gptr = Type::getInt64PtrTy(C, GLOBAL_SPACE);
+      auto i64_ptr_ty = Type::getInt64PtrTy(C, ptr->getType()->getPointerAddressSpace());
       
-      v = gptr;
+      v = ptr;
       
       if (isa<LoadInst>(orig)) {
         
-        if (ty != i64) v = SmartCast(b, v, i64_gptr, name+".ptr.bc");
-        v = b.CreateCall(fn("get_i64"), { v }, name+".val");
+        if (ty != i64) v = SmartCast(b, v, i64_ptr_ty, name+".ptr.bc");
+        if (core) {
+          v = b.CreateCall(fn("get_i64_on"), { core, v }, name+".val");
+        } else {
+          v = b.CreateCall(fn("get_i64"), { v }, name+".val");
+        }
         if (ty != i64) v = SmartCast(b, v, ty, name+".val.bc");
         
       } else if (auto s = dyn_cast<StoreInst>(orig)) {
         
         auto val = s->getValueOperand();
         if (ty != i64) {
-          v = SmartCast(b, v, i64_gptr, name+".ptr.bc");
+          v = SmartCast(b, v, i64_ptr_ty, name+".ptr.bc");
           val = SmartCast(b, val, i64, name+".val.bc");
         }
-        v = b.CreateCall(fn("put_i64"), { v, val });
+        if (core) {
+          v = b.CreateCall(fn("put_i64_on"), { core, v, val });
+        } else {
+          v = b.CreateCall(fn("put_i64"), { v, val });
+        }
         
       } else {
         assert(false && "unimplemented case");
@@ -329,12 +337,18 @@ struct GlobalPtrInfo {
       auto tmp = new AllocaInst(ty, name+".tmp", alloca_loc);
       
       auto v_tmp = b.CreateBitCast(tmp, void_ptr_ty, name+".tmp.void");
-      auto v_gptr = b.CreateBitCast(gptr, void_gptr_ty, name+".void");
+      
+      auto dst_ptr_ty = Type::getInt8PtrTy(C, ptr->getType()->getPointerAddressSpace());
+      auto v_ptr = b.CreateBitCast(ptr, dst_ptr_ty, name+".void");
       
       if (auto l = dyn_cast<LoadInst>(orig)) {
         
         // remote get into temp
-        v = b.CreateCall(fn("get"), {v_tmp, v_gptr, sz});
+        if (core) {
+          v = b.CreateCall(fn("get_on"), {core, v_tmp, v_ptr, sz });
+        } else {
+          v = b.CreateCall(fn("get"), {v_tmp, v_ptr, sz});
+        }
         // load value out of temp
         v = b.CreateLoad(tmp, l->isVolatile(), name+".val");
         
@@ -343,7 +357,11 @@ struct GlobalPtrInfo {
         // store into temporary alloca
         v = b.CreateStore(s->getValueOperand(), tmp, s->isVolatile());
         // do remote put out of alloca
-        v = b.CreateCall(fn("put"), {v_gptr, v_tmp, sz});
+        if (core) {
+          v = b.CreateCall(fn("put_on"), {core, v_ptr, v_tmp, sz});
+        } else {
+          v = b.CreateCall(fn("put"), {v_ptr, v_tmp, sz});
+        }
         
       } else if (isa<AddrSpaceCastInst>(orig)) {
         assert(false && "unimplemented");
