@@ -185,8 +185,7 @@ int main(int argc, char* argv[]) {
     // intialize parent to -1
     forall(symm_addr(g), [](BFSVertex& v){ v.init(); });
     
-//    int64_t root = choose_root(g);
-    int64_t root = 123;
+    int64_t root = choose_root(g);
     VLOG(1) << "root => " << root;
     g->vs[root].parent = root;
     
