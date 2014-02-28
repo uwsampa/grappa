@@ -39,18 +39,18 @@ for (auto var = (arg).use_begin(), var##_end = (arg).use_end(); var != var##_end
   do { if (!(cond)) { errs() << "!! " << msg << "\n" << p1 << "\n" << p2 << "\n\n"; assert(false && msg); } } while (0)
 
 template< typename T >
-void print_rest(T first) {
+void print_rest(const T& first) {
   llvm::errs() << "  " << first << "\n";
 }
 
 template< typename T, typename... Ts>
-void print_rest(T first, Ts... rest) {
+void print_rest(const T& first, const Ts&... rest) {
   llvm::errs() << "  " << first << "\n";
   print_rest(rest...);
 }
 
 template<typename... Ts> void assert_var(bool cnd, llvm::StringRef file, unsigned line,
-                                         Ts... rest) {
+                                         const Ts&... rest) {
   if (!cnd) {
     llvm::errs() << "assert failed at " << file << ":" << line << "\n";
     print_rest(rest...);
