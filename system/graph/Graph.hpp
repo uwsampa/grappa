@@ -281,4 +281,43 @@ namespace Grappa {
     impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
   
+  
+  ///////////////////////////////////////////////////
+  // proposed forall overloads for Graph iteration
+  ///////////////////////////////////////////////////
+  // forall(g, [](int64_t i, Vertex& v){
+  //   
+  // });
+  // 
+  // forall(adj(src_v), [](GlobalAddress<Vertex> vj){
+  //   
+  // });
+  // forall(adj(src_v), [](int64_t j, GlobalAddress<Vertex> vj){
+  //   
+  // });
+  //
+  // // run *at* the end vertex
+  // forall(src_v.adj(), [](Vertex& ev){
+  //   // delegate
+  // });
+  //
+  // forall(g, [](GlobalAddress<Vertex> s, GlobalAddress<Vertex> e){
+  //   // runs wherever
+  // });
+  //
+  // forall(g, [](Vertex& s, GlobalAddress<Vertex> e){
+  //   // runs on first Vertex
+  // });
+  //
+  // forall(g, [](GlobalAddress<Vertex> s, Vertex& e){
+  //   // runs on other Vertex
+  //   // (how to do this w/o making a spawn per vertex?)
+  // });
+  //
+  // forall(g, [](const Vertex& s, Vertex& e){
+  //   // runs where 'e' is, caches source vertices somehow?
+  //   // how the hell to run this efficiently????
+  // });
+  //
+  
 } // namespace Grappa
