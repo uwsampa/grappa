@@ -30,6 +30,9 @@
 #include <iostream>
 #include <glog/logging.h>
 
+#include <cstddef>
+using std::nullptr_t;
+
 #if defined(__MTA__)
 #include <sys/mta_task.h>
 #include <machine/runtime.h>
