@@ -11,7 +11,8 @@ void spmv_mult( GlobalAddress<Graph<PagerankVertex>> _g, vindex vx, vindex vy ) 
   CHECK( vx < (1<<3) && vy < (1<<3) );
   // forall rows
   forall<&mmjoiner>(g->vs, g->nv, [vx,vy](int64_t i, PagerankVertex& v){
-    for (auto j : v.adj_iter()) {
+    //for (auto j : v.adj_iter()) {
+    for (long j=0; j<v.nadj; j++) {
       auto vjw = v->weights[j];
       struct { int64_t i:44; vindex x:2, y:2; Core origin:16; } p
            = {         i,          vx,  vy,        mycore() };
