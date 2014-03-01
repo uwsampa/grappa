@@ -31,6 +31,8 @@ static cl::opt<bool> PrintDot("grappa-dot", cl::desc("Dump pass info to dot form
 static cl::opt<bool> DoExtractor("grappa-extractor",
                                  cl::desc("Run pass to automatically extract delegates."));
 
+using InstructionSet = SmallPtrSet<Instruction*,16>;
+
 namespace Grappa {
   
   void setProvenance(Instruction* inst, Value* ptr) {
@@ -263,6 +265,8 @@ namespace Grappa {
     GlobalPtrInfo& ginfo;
     DataLayout& layout;
     
+    InstructionSet hoists;
+    
     CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
       ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
     
@@ -315,7 +319,6 @@ namespace Grappa {
     }
     
     using RegionSet = SmallSet<Instruction*,64>;
-    using InstructionSet = SmallPtrSet<Instruction*,16>;
     
     bool hoistable(Instruction *i, RegionSet& region, AliasSetTracker& aliases,
                    InstructionSet& unhoistable, InstructionSet& tomove) {
@@ -404,8 +407,7 @@ namespace Grappa {
       SmallSetVector<Instruction*,4> frontier;
       frontier.insert(entry);
       
-      InstructionSet unhoistable;
-      InstructionSet tomove;
+      InstructionSet unhoistable, tomove;
       
       while (!frontier.empty()) {
         auto i = frontier.pop_back_val();
@@ -415,6 +417,7 @@ namespace Grappa {
         if (!valid && i->mayReadOrWriteMemory()
             && hoistable(i, region, aliases, unhoistable, tomove)) {
           outs() << "hoist =>" << *i;
+          hoists.insert(i);
           hoisting = true;
         }
         
@@ -565,6 +568,18 @@ namespace Grappa {
       ty_output = StructType::get(ctx, out_types);
     }
     
+    void doHoist(Instruction *i, Instruction *before, RegionSet& region) {
+      i->removeFromParent();
+      i->insertBefore(before);
+      for_each_op(o, *i) {
+        if (auto oi = dyn_cast<Instruction>(*o)) {
+          if (region.count(oi)) {
+            doHoist(oi, i, region);
+          }
+        }
+      }
+    }
+    
     Function* extractRegion(GlobalVariable* gce = nullptr) {
       auto name = "d" + Twine(ID);
       DEBUG(outs() << "//////////////////\n// extracting " << name << "\n");
@@ -578,6 +593,17 @@ namespace Grappa {
       auto i64 = [&](int64_t v) { return ConstantInt::get(Type::getInt64Ty(ctx), v); };
       
       if (gce) outs() << "---- extracting async (" << name << ")\n";
+      
+      // get set of instructions in region (makes hoist easier)
+      RegionSet region;
+      visit([&](BasicBlock::iterator it){ region.insert(it); });
+      
+      // move hoists before entry
+      for (auto i : region) {
+        if (hoists.count(i)) {
+          doHoist(i, entry, region);
+        }
+      }
       
       SmallSet<BasicBlock*,8> bbs;
       
@@ -686,9 +712,9 @@ namespace Grappa {
       auto in_struct_ty = StructType::get(ctx, in_types);
       auto out_struct_ty = StructType::get(ctx, out_types);
       
-      assert2(in_struct_ty == ty_input, "different input types", *ty_input, *in_struct_ty);
-      if (out_struct_ty != ty_output) for (auto v : outputs) outs() << "-- " << *v << "\n";
-      assert2(out_struct_ty == ty_output, "different output types", *ty_output, *out_struct_ty);
+//      assert2(in_struct_ty == ty_input, "different input types", *ty_input, *in_struct_ty);
+//      if (out_struct_ty != ty_output) for (auto v : outputs) outs() << "-- " << *v << "\n";
+//      assert2(out_struct_ty == ty_output, "different output types", *ty_output, *out_struct_ty);
       
       /////////////////////////
       // create function shell
@@ -1345,6 +1371,7 @@ namespace Grappa {
     while (!worklist.empty()) {
 
       auto fn = worklist.pop();
+      
       auto taskname = "task" + Twine(ct);
       
       bool changed = false;
@@ -1435,9 +1462,9 @@ namespace Grappa {
         // insert put/get & get local ptrs for symmetric addrs
         int nfixed = fixupFunction(fn);
         
-        if (nfixed) {
+        if (nfixed || changed) {
           changed = true;
-//          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
         }
       }
       
