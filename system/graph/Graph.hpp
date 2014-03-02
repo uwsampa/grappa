@@ -19,27 +19,20 @@
 #endif
 
 namespace Grappa {
-
+  
   struct Vertex {
+    
     int64_t * local_adj; // adjacencies that are local
     int64_t nadj;        // number of adjacencies
     int64_t local_sz;    // size of local allocation (regardless of how full it is)
     // int64_t parent;
     void * vertex_data;
-  
-    Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}    
+    
+    Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}
     ~Vertex() {}
-  
-    template< typename F >
-    void forall_adj(F body) {
-      for (int64_t i=0; i<nadj; i++) {
-        body(local_adj[i]);
-      }
-    }
-  
-    auto adj_iter() -> decltype(util::iterate(local_adj)) { return util::iterate(local_adj, nadj); }
+    
   };
-
+  
   // vertex with parent
   struct VertexP : public Vertex {
     VertexP(): Vertex() { parent(-1); }
@@ -253,6 +246,55 @@ namespace Grappa {
   
   } GRAPPA_BLOCK_ALIGNED;
   
+  ////////////////////////////////////////////////////
+  // Vertex iterators
+  
+  template< typename V >
+  struct AdjIterator {
+    GlobalAddress<Graph<V>> g;
+    V& v;
+    AdjIterator(GlobalAddress<Graph<V>> g, V& v): g(g), v(v) {}
+  };
+  
+  template< typename V >
+  AdjIterator<V> adj(GlobalAddress<Graph<V>> g, V& v) {
+    return AdjIterator<V>(g,v);
+  }
+  
+  namespace impl {
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
+      Grappa::forall_here<S,C,Threshold>(0, a.v.nadj, [body,&a](int64_t i){
+        body(i, a.g->vs + a.v.local_adj[i]);
+      });
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(GlobalAddress<V>) const) {
+      auto f = [body](int64_t i, GlobalAddress<V> v){ body(v); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t) const) {
+      auto f = [body](int64_t i, GlobalAddress<V> v){ body(i); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+  }
+  
+#define OVERLOAD(...) \
+  template< __VA_ARGS__, typename V = nullptr_t, typename F = nullptr_t > \
+  void forall(AdjIterator<V> a, F body) { \
+    impl::forall<S,C,Threshold>(a, body, &F::operator()); \
+  }
+  OVERLOAD( SyncMode S = SyncMode::Blocking,
+            GlobalCompletionEvent * C = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG );
+  OVERLOAD( GlobalCompletionEvent * C,
+            SyncMode S = SyncMode::Blocking,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG );
+#undef OVERLOAD
+  
+  ////////////////////////////////////////////////////
+  // Graph iterators
   
   namespace impl {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
@@ -260,14 +302,30 @@ namespace Grappa {
       forall<C,Threshold>(g->vs, g->nv, loop_body);
     }
 
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t,Vertex&) const) {
+      forall<C,Threshold>(g->vs, g->nv, loop_body);
+    }
+
     /// Demonstrating another "visitor" we could provide for graphs (this is kinda
     /// silly as it just gives you the indices of each edge).
     template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t src, int64_t dst) const) {
-      forall<C,Threshold>(g->vs, g->nv, [loop_body](int64_t i, V& v){
-        for (auto j : v.adj_iter()) {
+      forall<C,Threshold>(g, [g,loop_body](int64_t i, V& v){
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,i](int64_t j){
           loop_body(i, j);
-        }
+        });
+      });
+    }
+    
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(GlobalAddress<Graph<V>> g, F loop_body,
+                void (F::*mf)(GlobalAddress<V> src, GlobalAddress<V> dst) const) {
+      forall<C,Threshold>(g, [g,loop_body](int64_t i, V& v){
+        auto vi = make_linear(&v);
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,vi](GlobalAddress<V> vj){
+          loop_body(vi, vj);
+        });
       });
     }
     
@@ -280,7 +338,7 @@ namespace Grappa {
   void forall(GlobalAddress<Graph<V>> g, F loop_body) {
     impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
-  
+    
   
   ///////////////////////////////////////////////////
   // proposed forall overloads for Graph iteration
