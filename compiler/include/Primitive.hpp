@@ -28,15 +28,6 @@ inline SymmetricAddress<T> symm_addr(T symmetric* ptr) {
   return SymmetricAddress<T>(ptr);
 }
 
-template< typename T >
-inline GlobalAddress<T> gaddr(T symmetric* ptr) {
-  return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(ptr));
-}
-
-//template <>
-//inline GlobalAddress<char> gaddr(void global* ptr) {
-//  return GlobalAddress<char>::Raw(reinterpret_cast<intptr_t>(ptr));
-//}
 
 namespace Grappa {
 

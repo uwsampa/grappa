@@ -18,6 +18,7 @@ struct BFSData {
 
 using BFSVertex = Vertex<BFSData>;
 
+DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
@@ -224,6 +225,7 @@ int main(int argc, char* argv[]) {
     
     LOG(INFO) << "\n" << bfs_nedge << "\n" << bfs_time << "\n" << bfs_mteps;
     
+    if (FLAGS_metrics) Metrics::merge_and_print();    
     Metrics::merge_and_dump_to_file();
     
   });

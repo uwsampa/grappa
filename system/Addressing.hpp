@@ -391,10 +391,19 @@ public:
   operator T grappa_global* ( ) {
     return reinterpret_cast< T grappa_global* >( storage_ );
   }
-
+  
 #endif
   
 };
+
+#ifdef __GRAPPA_CLANG__
+
+template< typename T >
+GlobalAddress<T> as_addr(T grappa_global* p) {
+  return GlobalAddress<T>::Raw(reinterpret_cast<intptr_t>(p));
+}
+
+#endif
 
 
 /// return an address that's i T's more than t.
