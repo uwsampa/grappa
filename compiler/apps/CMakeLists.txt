@@ -30,3 +30,5 @@ endforeach()
 
 add_hand_app("hand/gups.cpp" "" hand)
 add_hand_app("hand/gups.cpp" "-DBLOCKING" blocking.hand)
+
+add_hand_app("hand/bfs.cpp" "" hand)
