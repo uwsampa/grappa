@@ -128,14 +128,13 @@ namespace Grappa {
       global_free(self);
     }
   
-    template< int LEVEL = 0 >
-    static void dump(SymmetricAddress<Graph> g) {
-      for (int64_t i=0; i<g->nv; i++) {
-        delegate::call(g->vs+i, [i](V * v){
+    void dump() {
+      for (int64_t i=0; i<nv; i++) {
+        delegate::call(vs+i, [i](V * v){
           std::stringstream ss;
           ss << "<" << i << ">";
           for (int64_t i=0; i<v->nadj; i++) ss << " " << v->local_adj[i];
-          VLOG(LEVEL) << ss.str();
+          fprintf(stderr, "%s\n", ss.str().c_str());
         });
       }
     }
