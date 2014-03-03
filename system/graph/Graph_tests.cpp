@@ -30,6 +30,8 @@ BOOST_AUTO_TEST_SUITE( Graph_tests );
 using namespace Grappa;
 using Grappa::wait;
 
+GlobalCompletionEvent c;
+
 int64_t count;
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<int64_t>, degree, 0);
@@ -37,7 +39,7 @@ GRAPPA_DEFINE_METRIC(SummarizingMetric<int64_t>, degree, 0);
 BOOST_AUTO_TEST_CASE( test1 ) {
   init( GRAPPA_TEST_ARGS );
   run([]{
-    
+    int64_t total;
     int scale = 10;
     int64_t nv = 1L << scale;
     size_t ne = nv * 8;
@@ -56,7 +58,44 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     BOOST_CHECK( g->nv <= nv );
     
-    forall(g, [](Vertex& v){ degree += v.nadj; });
+    forall(g, [](Vertex<>& v){ degree += v.nadj; });
+    
+    ////////////////////////////////////////////
+    // make sure adj() iterator gets every edge
+    call_on_all_cores([]{ count = 0; });    
+    forall(g, [g](Vertex<>& v){
+      forall<async>(adj(g,v), [](GlobalAddress<Vertex<>> v){
+        count++;
+      });
+    });
+    total = reduce<int64_t,collective_add>(&count);
+    CHECK_EQ(total, g->nadj);
+    
+    struct Data { int64_t parent; double w; };
+    auto g2 = g->transform<Data>([](Vertex<>& v, Data& d){
+      d.parent = -1;
+      d.w = 1.0 / v.nadj;
+    });
+    
+    ///////////////////////////////////
+    // check again with custom joiner
+    call_on_all_cores([]{ count = 0; });    
+    forall<&c>(g2, [g2](Vertex<Data>& v){
+      auto n = v.nadj;
+      forall<async,&c>(adj(g2,v), [n](int64_t i, GlobalAddress<Vertex<Data>> v){
+        CHECK(i < n && i >= 0);
+        count++;
+      });
+    });
+    total = reduce<int64_t,collective_add>(&count);
+    CHECK_EQ(total, g->nadj);
+    
+    call_on_all_cores([]{ count = 0; });
+    forall(g, [](int64_t src, int64_t dst){
+      if ( src == dst ) count++;
+    });
+    
+    LOG(INFO) << "self edges: " << reduce<int64_t,collective_add>(&count);
     
     LOG(INFO) << degree;
     Metrics::merge_and_dump_to_file();

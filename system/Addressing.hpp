@@ -506,6 +506,8 @@ protected:
   
 public:
   
+  SymmetricAddress(intptr_t raw): storage_(raw) {}
+  
   SymmetricAddress(T *localized_ptr): storage_(reinterpret_cast<intptr_t>(localized_ptr) - global_base()) {}
   
   inline T* pointer() const {
@@ -520,6 +522,10 @@ public:
   
   T& operator*() const { return *pointer(); }
   
+  template< typename U >
+  explicit operator SymmetricAddress< U >( ) {
+    return SymmetricAddress<U>(storage_);
+  }
   
 #ifdef __GRAPPA_CLANG__
   

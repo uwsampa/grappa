@@ -19,38 +19,77 @@
 #endif
 
 namespace Grappa {
-
-  struct Vertex {
+  
+  struct VertexBase {
     int64_t * local_adj; // adjacencies that are local
     int64_t nadj;        // number of adjacencies
     int64_t local_sz;    // size of local allocation (regardless of how full it is)
-    // int64_t parent;
-    void * vertex_data;
+      
+    VertexBase(): local_adj(nullptr), nadj(0), local_sz(0) {}
+    
+    VertexBase(const VertexBase& v):
+      local_adj(v.local_adj),
+      nadj(v.nadj),
+      local_sz(v.local_sz)
+    { }
+  };
   
-    Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}    
+  ///////////////////////////////////////////////////////////////
+  /// Vertex with customizable inline 'data' field. Will attempt 
+  /// to pack the provided type into the block-aligned Vertex 
+  /// class, but if it is too large, will heap-allocate (from 
+  /// locale-shared heap). Defines a '->' operator to access data 
+  /// fields.
+  ///
+  /// Example subclasses:
+  /// @code
+  /// ////////////////////////
+  /// // Vertex with parent
+  ///
+  /// // Preferred:
+  /// struct Parent { int64_t parent; };
+  /// 
+  /// Vertex<Parent> p;
+  /// p->parent = -1;
+  ///
+  /// struct VertexP : public Vertex<int64_t> {
+  ///   VertexP(): Vertex() { parent(-1); }
+  ///   int64_t parent() { return data; }
+  ///   void parent(int64_t parent) { data = parent; }
+  /// };
+  /// @endcode
+  template< typename T = int64_t, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(int64_t)*2-sizeof(int64_t*)) >
+  struct Vertex : public VertexBase {
+    T data;
+    
+    Vertex(): VertexBase(), data() {}
+    Vertex(const VertexBase& v): VertexBase(v), data() {}
     ~Vertex() {}
+    
+    T* operator->() { return &data; }
+    
+  } GRAPPA_BLOCK_ALIGNED;
   
-    template< typename F >
-    void forall_adj(F body) {
-      for (int64_t i=0; i<nadj; i++) {
-        body(local_adj[i]);
-      }
-    }
+  template< typename T >
+  struct Vertex<T,false> : public VertexBase {
+    T& data;
+    
+    Vertex(): VertexBase(), data(*locale_alloc<T>()) {}
+    Vertex(const VertexBase& v): VertexBase(v), data(*locale_alloc<T>()) {}
+    
+    ~Vertex() { locale_free(&data); }
+    
+    T* operator->() { return &data; }
+    
+  } GRAPPA_BLOCK_ALIGNED;
   
-    auto adj_iter() -> decltype(util::iterate(local_adj)) { return util::iterate(local_adj, nadj); }
-  };
-
-  // vertex with parent
-  struct VertexP : public Vertex {
-    VertexP(): Vertex() { parent(-1); }
-    int64_t parent() { return (int64_t)vertex_data; }
-    void parent(int64_t parent) { vertex_data = (void*)parent; }
-  };
-
-  template< class V = Vertex >
+  
+  template< class V = Vertex<> >
   struct Graph {
     static_assert(block_size % sizeof(V) == 0, "V size not evenly divisible into blocks!");
-  
+    
+    // using Vertex = V;
+    
     // // Helpers (for if we go with custom cyclic distribution)
     // inline Core    vertex_owner (int64_t v) { return v % cores(); }
     // inline int64_t vertex_offset(int64_t v) { return v / cores(); }
@@ -101,14 +140,32 @@ namespace Grappa {
       }
     }
   
-    /// Cast graph to new type, and allow user to re-initialize each V by providing a 
-    /// functor (the body of a forall() over the vertices)
-    template< typename VNew, typename VOld, typename InitFunc = decltype(nullptr) >
-    static SymmetricAddress<Graph<VNew>> transform_vertices(SymmetricAddress<Graph<VOld>> o, InitFunc init) {
-      static_assert(sizeof(VNew) == sizeof(V), "transformed vertex size must be the unchanged.");
-      auto g = static_cast<SymmetricAddress<Graph<VNew>>>(o);
-      forall(g->vs, g->nv, init);
-      return g;
+    /// Change the data associated with each vertex, keeping the same connectivity 
+    /// structure and allowing the user to intialize the new data type using the old vertex.
+    ///
+    /// @param F f: void (Vertex<OldData>& v, NewData& d) {}
+    ///
+    /// Example:
+    /// @code
+    /// struct A { double weight; }
+    /// GlobalAddress<Graph<Vertex<A>>> g = ...
+    /// struct B { double value; }
+    /// auto gnew = g->transform<B>([](Vertex<A>& v, B& b){
+    ///   b.value = v->weight / v.nadj;
+    /// });
+    /// @endcode
+    template< typename NewData, typename F = decltype(nullptr) >
+    SymmetricAddress<Graph<Vertex<NewData>>> transform(F f) {
+      static_assert(sizeof(V) == sizeof(Vertex<NewData>), "transformed vertex size must be the unchanged.");
+      forall(vs, nv, [f](V& v){
+        NewData d;
+        f(v, d);
+        v.~V();
+        V b = v;
+        auto nv = new (&v) Vertex<NewData>(b);
+        nv->data = d;
+      });
+      return static_cast<SymmetricAddress<Graph<Vertex<NewData>>>>(self);
     }
   
     // Constructor
@@ -255,13 +312,138 @@ namespace Grappa {
   
   } GRAPPA_BLOCK_ALIGNED;
   
-  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+  ////////////////////////////////////////////////////
+  // Vertex iterators
+  
+  template< typename V >
+  struct AdjIterator {
+    SymmetricAddress<Graph<V>> g;
+    V& v;
+    AdjIterator(SymmetricAddress<Graph<V>> g, V& v): g(g), v(v) {}
+  };
+  
+  template< typename V >
+  AdjIterator<V> adj(SymmetricAddress<Graph<V>> g, V& v) {
+    return AdjIterator<V>(g,v);
+  }
+  
+  namespace impl {
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
+      Grappa::forall_here<S,C,Threshold>(0, a.v.nadj, [body,&a](int64_t i){
+        body(i, a.g->vs + a.v.local_adj[i]);
+      });
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(GlobalAddress<V>) const) {
+      auto f = [body](int64_t i, GlobalAddress<V> v){ body(v); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t) const) {
+      auto f = [body](int64_t i, GlobalAddress<V> v){ body(i); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+  }
+  
+#define OVERLOAD(...) \
+  template< __VA_ARGS__, typename V = nullptr_t, typename F = nullptr_t > \
+  void forall(AdjIterator<V> a, F body) { \
+    impl::forall<S,C,Threshold>(a, body, &F::operator()); \
+  }
+  OVERLOAD( SyncMode S = SyncMode::Blocking,
+            GlobalCompletionEvent * C = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG );
+  OVERLOAD( GlobalCompletionEvent * C,
+            SyncMode S = SyncMode::Blocking,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG );
+#undef OVERLOAD
+  
+  ////////////////////////////////////////////////////
+  // Graph iterators
+  
+  namespace impl {
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(SymmetricAddress<Graph<V>> g, F loop_body, void (F::*mf)(V&) const) {
+      forall<C,Threshold>(g->vs, g->nv, loop_body);
+    }
+
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(SymmetricAddress<Graph<V>> g, F loop_body,
+                void (F::*mf)(int64_t,V&) const) {
+      forall<C,Threshold>(g->vs, g->nv, loop_body);
+    }
+
+    /// Demonstrating another "visitor" we could provide for graphs (this is kinda
+    /// silly as it just gives you the indices of each edge).
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(SymmetricAddress<Graph<V>> g, F loop_body,
+                void (F::*mf)(int64_t src, int64_t dst) const) {
+      forall<C,Threshold>(g, [g,loop_body](int64_t i, V& v){
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,i](int64_t j){
+          loop_body(i, j);
+        });
+      });
+    }
+    
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(SymmetricAddress<Graph<V>> g, F loop_body,
+                void (F::*mf)(GlobalAddress<V> src, GlobalAddress<V> dst) const) {
+      forall<C,Threshold>(g, [g,loop_body](int64_t i, V& v){
+        auto vi = make_linear(&v);
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,vi](GlobalAddress<V> vj){
+          loop_body(vi, vj);
+        });
+      });
+    }
+    
+  }
+  
+  template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename V = decltype(nullptr),
             typename F = decltype(nullptr) >
   void forall(SymmetricAddress<Graph<V>> g, F loop_body) {
-    forall(g->vs, g->nv, loop_body);
+    impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
+    
   
+  ///////////////////////////////////////////////////
+  // proposed forall overloads for Graph iteration
+  ///////////////////////////////////////////////////
+  // forall(g, [](int64_t i, Vertex& v){
+  //   
+  // });
+  // 
+  // forall(adj(src_v), [](GlobalAddress<Vertex> vj){
+  //   
+  // });
+  // forall(adj(src_v), [](int64_t j, GlobalAddress<Vertex> vj){
+  //   
+  // });
+  //
+  // // run *at* the end vertex
+  // forall(src_v.adj(), [](Vertex& ev){
+  //   // delegate
+  // });
+  //
+  // forall(g, [](GlobalAddress<Vertex> s, GlobalAddress<Vertex> e){
+  //   // runs wherever
+  // });
+  //
+  // forall(g, [](Vertex& s, GlobalAddress<Vertex> e){
+  //   // runs on first Vertex
+  // });
+  //
+  // forall(g, [](GlobalAddress<Vertex> s, Vertex& e){
+  //   // runs on other Vertex
+  //   // (how to do this w/o making a spawn per vertex?)
+  // });
+  //
+  // forall(g, [](const Vertex& s, Vertex& e){
+  //   // runs where 'e' is, caches source vertices somehow?
+  //   // how the hell to run this efficiently????
+  // });
+  //
   
 } // namespace Grappa

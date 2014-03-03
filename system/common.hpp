@@ -28,9 +28,9 @@
 
 #include <stdint.h>
 #include <iostream>
-#include <cstddef>
 #include <glog/logging.h>
 
+#include <cstddef>
 using std::nullptr_t;
 
 #if defined(__MTA__)
