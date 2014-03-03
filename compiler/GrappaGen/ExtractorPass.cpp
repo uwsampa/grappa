@@ -181,18 +181,14 @@ namespace Grappa {
       void clear() { m.clear(); }
       
       bool isVoidRetExit() {
-        if (m.size() == 1) {
-          auto e = m.begin()->first;
-          if (auto i = dyn_cast<Instruction>(e)) {
-            auto next = i->getNextNode();
-            if (auto ret = dyn_cast<ReturnInst>(next)) {
-              if (!ret->getReturnValue()) {
-                return true;
-              }
-            }
-          }
-        }
-        return false;
+        bool all_void = true;
+        
+        each([&](Instruction* s, Instruction* e){
+          auto ret = dyn_cast<ReturnInst>(e);
+          if (ret == nullptr || ret->getReturnValue()) { all_void = false; }
+        });
+        
+        return all_void;
       }
       
       template< typename F >
