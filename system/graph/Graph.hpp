@@ -71,7 +71,7 @@ namespace Grappa {
   } GRAPPA_BLOCK_ALIGNED;
   
   template< typename T >
-  struct Vertex<T,false> : public VertexBase {
+  struct Vertex<T, /*HeapData = */ true> : public VertexBase {
     T& data;
     
     Vertex(): VertexBase(), data(*locale_alloc<T>()) {}

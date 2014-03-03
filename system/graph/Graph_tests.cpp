@@ -79,7 +79,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     ///////////////////////////////////
     // check again with custom joiner
-    call_on_all_cores([]{ count = 0; });    
+    call_on_all_cores([]{ count = 0; });
     forall<&c>(g2, [g2](Vertex<Data>& v){
       auto n = v.nadj;
       forall<async,&c>(adj(g2,v), [n](int64_t i, GlobalAddress<Vertex<Data>> v){
@@ -96,6 +96,17 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     });
     
     LOG(INFO) << "self edges: " << reduce<int64_t,collective_add>(&count);
+    
+    struct BigData { double v[1024]; };
+    auto g3 = g2->transform<BigData>([](Vertex<Data>& v, BigData& d){
+      for (int i=0; i<1024; i++) { d.v[i] = 0.2; }
+    });
+    
+    forall(g3, [](Vertex<BigData>& v){
+      double total = 0.0;
+      for (int i=0; i<1024; i++) { total += v->v[i]; }
+      count += (total > 0);
+    });
     
     LOG(INFO) << degree;
     Metrics::merge_and_dump_to_file();
