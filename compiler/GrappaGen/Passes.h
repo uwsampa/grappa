@@ -179,6 +179,9 @@ struct GlobalPtrInfo {
   using LocalPtrMap = SmallDenseMap<Value*,Value*>;
   
   StringMap<Function*> fn_map;
+  LLVMContext *ctx;
+  Module *mod;
+  
   Function*& fn(StringRef name) {
     assertN(fn_map.count(name), "missing function", name);
     return fn_map[name];
@@ -191,10 +194,9 @@ struct GlobalPtrInfo {
 //           *get_core_fn, *get_pointer_fn, *get_pointer_symm_fn;
 //#define call_on_fn fn["call_on"]
   
-  
-  LLVMContext *ctx;
-  
+    
   bool init(Module& M) {
+    mod = &M;
     ctx = &M.getContext();
     
     bool disabled = false;
@@ -210,6 +212,11 @@ struct GlobalPtrInfo {
     
     fn_map["on"] = getFunction("grappa_on");
     fn_map["on_async"] = getFunction("grappa_on_async");
+    fn_map["on_async_16"] = getFunction("grappa_on_async_16");
+    fn_map["on_async_32"] = getFunction("grappa_on_async_32");
+    fn_map["on_async_64"] = getFunction("grappa_on_async_64");
+    fn_map["on_async_128"] = getFunction("grappa_on_async_128");
+    
     fn_map["get_core"] = getFunction("grappa_get_core");
     fn_map["get_pointer"] = getFunction("grappa_get_pointer");
     fn_map["get_pointer_symmetric"] = getFunction("grappa_get_pointer_symmetric");

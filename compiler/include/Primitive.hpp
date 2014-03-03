@@ -309,6 +309,27 @@ retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args
   return retcode;
 }
 
+#define GRAPPA_ON_ASYNC_SIZE(SIZE) \
+extern "C" \
+retcode_t grappa_on_async_##SIZE(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz, Grappa::GlobalCompletionEvent * gce) { \
+  gce->enroll(); \
+  auto g_gce = make_global(gce); \
+  delegate_ops_small_msg++; \
+  int8_t _args[SIZE]; \
+  memcpy(_args, args, args_sz); \
+  Grappa::send_heap_message(dst, [fn,_args,g_gce]{ \
+    fn((void*)_args, nullptr); \
+    g_gce->send_completion(g_gce.core()); \
+  }); \
+  return 0; \
+}
+
+GRAPPA_ON_ASYNC_SIZE(16);
+GRAPPA_ON_ASYNC_SIZE(32);
+GRAPPA_ON_ASYNC_SIZE(48);
+GRAPPA_ON_ASYNC_SIZE(64);
+GRAPPA_ON_ASYNC_SIZE(128);
+
 extern "C"
 retcode_t grappa_on_async(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz, Grappa::GlobalCompletionEvent * gce) {
   
@@ -322,18 +343,23 @@ retcode_t grappa_on_async(Core dst, retcode_t (*fn)(void* args, void* out), void
     fn(args, nullptr);
     gce->complete();
     
-  } else if ( args_sz <= SMALL_MSG_SIZE ) {
-    VLOG(5) << "small_msg";
-    delegate_ops_small_msg++;
-    
-    int8_t _args[SMALL_MSG_SIZE];
-    
-    memcpy(_args, args, args_sz);
-    
-    Grappa::send_heap_message(dst, [fn,_args,g_gce]{
-      fn((void*)_args, nullptr);
-      g_gce->send_completion(g_gce.core());
+#define SMALL_MSG_CASE(SIZE) \
+  } else if ( args_sz <= SIZE ) { \
+    VLOG(5) << "small_msg"; \
+    delegate_ops_small_msg++; \
+    int8_t _args[SIZE]; \
+    memcpy(_args, args, args_sz); \
+    Grappa::send_heap_message(dst, [fn,_args,g_gce]{ \
+      fn((void*)_args, nullptr); \
+      g_gce->send_completion(g_gce.core()); \
     });
+    
+  SMALL_MSG_CASE(16)
+  SMALL_MSG_CASE(32)
+  SMALL_MSG_CASE(48)
+  SMALL_MSG_CASE(64)
+
+#undef SMALL_MSG_CASE
     
   } else {
     delegate_ops_payload_msg++;

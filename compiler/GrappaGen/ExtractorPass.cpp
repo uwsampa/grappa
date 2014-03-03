@@ -805,12 +805,17 @@ namespace Grappa {
       
       CallInst *call;
       if (gce) {
-        call = b.CreateCall(ginfo.fn("on_async"), {
-          target_core, new_fn,
-          b.CreateBitCast(in_alloca, ty_void_ptr),
-          i64(layout.getTypeAllocSize(in_struct_ty)),
-          gce
-        }, name+".call_on_async");
+        size_t sz = layout.getTypeAllocSize(in_struct_ty);
+        Function *on_async_fn = ginfo.fn("on_async");
+        if      (sz <= 16)  { on_async_fn = ginfo.fn("on_async_16"); errs() << "---- on_async_16\n"; }
+        else if (sz <= 32)  { on_async_fn = ginfo.fn("on_async_32"); errs() << "---- on_async_32\n"; }
+        else if (sz <= 64)  { on_async_fn = ginfo.fn("on_async_64"); errs() << "---- on_async_64\n"; }
+        else if (sz <= 128) { on_async_fn = ginfo.fn("on_async_128"); errs() << "---- on_async_128\n"; }
+        else { errs() << "---- on_async (generic)\n"; }
+        
+        auto in_void = b.CreateBitCast(in_alloca, ty_void_ptr);
+        call = b.CreateCall(on_async_fn, { target_core, new_fn, in_void, i64(sz), gce },
+                            name+".call_on_async");
       } else {
         call = b.CreateCall(ginfo.fn("on"), {
           target_core, new_fn,
@@ -1060,7 +1065,9 @@ namespace Grappa {
           "@grappa_get_pointer",
           "@grappa_get_pointer_symmetric",
           "@grappa_get",
-          "@grappa_put"
+          "@grappa_put",
+          "@grappa_on",
+          "@grappa_on_async"
         }) {
           auto fns = (fn+"(").str();
           auto fnc = ("<font color='green'>"+fn+"</font>").str();
