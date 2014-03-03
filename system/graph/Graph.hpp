@@ -345,7 +345,7 @@ namespace Grappa {
       auto vs = a.g->vs;
       Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,adj,vs](int64_t i){
         mark_async<C>([=]{
-          body(i, vs + adj[i]);
+          body(adj[i], vs + adj[i]);
         })();
       });
     }
