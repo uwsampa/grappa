@@ -332,7 +332,9 @@ namespace Grappa {
 #ifdef __GRAPPA_CLANG__
   template< typename V >
   AdjIterator<V> adj(Graph<V> grappa_symmetric* g, V grappa_global* v) {
-    return AdjIterator<V>(SymmetricAddress<Graph<V>>(g), make_global(v->local_adj), v->nadj);
+    return AdjIterator<V>(SymmetricAddress<Graph<V>>(g),
+                          make_global(v->local_adj, as_addr(v).core()),
+                          v->nadj);
   }
 #endif
   
