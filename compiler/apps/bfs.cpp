@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
         while (f_head < f_level) {
           auto vi = *f_head++;  // pop off frontier
           VLOG(2) << "  " << vi;
-          forall(adj(g,vs+vi), [vs,vi](int64_t j){
+          forall<async,&joiner>(adj(g,vs+vi), [vs,vi](int64_t j){
             if (vs[j]->parent == -1) {
               vs[j]->parent = vi;
               *f_tail++ = j; // push 'j' onto frontier
