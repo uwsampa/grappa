@@ -318,20 +318,35 @@ namespace Grappa {
   template< typename V >
   struct AdjIterator {
     SymmetricAddress<Graph<V>> g;
-    V& v;
-    AdjIterator(SymmetricAddress<Graph<V>> g, V& v): g(g), v(v) {}
+    GlobalAddress<int64_t> adj;
+    int64_t nadj;
+    
+    AdjIterator(SymmetricAddress<Graph<V>> g, GlobalAddress<int64_t> adj, int64_t nadj):
+      g(g), adj(adj), nadj(nadj) {}
   };
   
   template< typename V >
   AdjIterator<V> adj(SymmetricAddress<Graph<V>> g, V& v) {
-    return AdjIterator<V>(g,v);
+    return AdjIterator<V>(g, make_global(v.local_adj), v.nadj);
   }
+  
+#ifdef __GRAPPA_CLANG__
+  template< typename V >
+  AdjIterator<V> adj(Graph<V> grappa_symmetric* g, V grappa_global* v) {
+    return AdjIterator<V>(SymmetricAddress<Graph<V>>(g), make_global(v->local_adj), v->nadj);
+  }
+#endif
   
   namespace impl {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
-      Grappa::forall_here<S,C,Threshold>(0, a.v.nadj, [body,&a](int64_t i){
-        body(i, a.g->vs + a.v.local_adj[i]);
+      CHECK(a.adj.core() == mycore());
+      auto adj = a.adj.pointer();
+      auto vs = a.g->vs;
+      Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,adj,vs](int64_t i){
+        mark_async<C>([=]{
+          body(i, vs + adj[i]);
+        })();
       });
     }
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
