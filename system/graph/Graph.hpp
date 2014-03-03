@@ -329,7 +329,8 @@ namespace Grappa {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
       Grappa::forall_here<S,C,Threshold>(0, a.v.nadj, [body,&a](int64_t i){
-        body(i, a.g->vs + a.v.local_adj[i]);
+        auto j = a.v.local_adj[i];
+        body(j, a.g->vs+j);
       });
     }
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
