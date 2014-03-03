@@ -5,6 +5,21 @@
 
 using namespace Grappa;
 
+struct BFSData {
+  int64_t parent;
+  int64_t level;
+  bool seen;
+  
+  void init() {
+    parent = -1;
+    level = 0;
+    seen = false;
+  }
+};
+
+using BFSVertex = Vertex<BFSData>;
+
+
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 
@@ -16,61 +31,30 @@ int64_t *frontier_base, *f_head, *f_tail, *f_level;
 
 GlobalCompletionEvent joiner;
 
-struct BFSVertex {
-  int64_t * local_adj;
-  int64_t nadj;        // number of adjacencies
-  int64_t local_sz;    // size of local allocation (regardless of how full it is)
-  
-  BFSVertex(): nadj(0), local_sz(0) {}
-  ~BFSVertex() {}
-  
-  template< typename F >
-  void forall_adj(F body) {
-    for (int64_t i=0; i<nadj; i++) {
-      body(local_adj[i]);
-    }
-  }
-  
-  auto adj_iter() -> decltype(util::iterate(local_adj)) { return util::iterate(local_adj, nadj); }
-
-  //////////////////
-  // BFS-specific
-  int64_t global* adj; // adjacencies that are local
-  int64_t parent;
-  int64_t level;
-  bool seen;
-
-  void init() {
-    adj = make_global(local_adj);
-    parent = -1;
-    level = 0;
-  }
-  
-} GRAPPA_BLOCK_ALIGNED;
-
 int64_t nedge_traversed;
+
 
 int64_t verify(TupleGraph tg, SymmetricAddress<Graph<BFSVertex>> g, int64_t root) {
   
   auto get_level = [g](int64_t j){
-    return delegate::call(g->vs+j, [](BFSVertex& v){ return v.level; });
+    return delegate::call(g->vs+j, [](BFSVertex& v){ return v->level; });
   };
   auto get_parent = [g](int64_t j){
-    return delegate::call(g->vs+j, [](BFSVertex& v){ return v.parent; });
+    return delegate::call(g->vs+j, [](BFSVertex& v){ return v->parent; });
   };
   
   // check root
   delegate::call(g->vs+root, [=](BFSVertex& v){
-    CHECK_EQ(v.parent, root);
+    CHECK_EQ(v->parent, root);
   });
   
   // compute levels
-  delegate::call(g->vs+root, [](BFSVertex& v){ v.level = 0; });
+  delegate::call(g->vs+root, [](BFSVertex& v){ v->level = 0; });
   
   forall(g->vs, g->nv, [=](int64_t i, BFSVertex& v){
-    if (v.level >= 0) return;
+    if (v->level >= 0) return;
     
-    if (v.parent >= 0 && i != root) {
+    if (v->parent >= 0 && i != root) {
       int64_t parent = i;
       int64_t nhop = 0;
       int64_t next_parent;
@@ -91,8 +75,8 @@ int64_t verify(TupleGraph tg, SymmetricAddress<Graph<BFSVertex>> g, int64_t root
       while (get_level(parent) < 0) {
         CHECK_GT(nhop, 0);
         parent = delegate::call(g->vs+parent, [=](BFSVertex& v){
-          v.level = nhop;
-          return v.parent;
+          v->level = nhop;
+          return v->parent;
         });
         nhop--;
       }
@@ -130,7 +114,7 @@ int64_t verify(TupleGraph tg, SymmetricAddress<Graph<BFSVertex>> g, int64_t root
     nedge_traversed++;
     
     auto mark_seen = [g](int64_t i){
-      delegate::call(g->vs+i, [](BFSVertex& v){ v.seen = true; });
+      delegate::call(g->vs+i, [](BFSVertex& v){ v->seen = true; });
     };
     
     // Mark seen tree edges.
@@ -150,8 +134,8 @@ int64_t verify(TupleGraph tg, SymmetricAddress<Graph<BFSVertex>> g, int64_t root
   // check that every BFS edge was seen & that there's only one root
   forall(g->vs, g->nv, [=](int64_t i, BFSVertex& v){
     if (i != root) {
-      CHECK(!(v.parent >= 0 && !v.seen)) << "Error!";
-      CHECK_NE(v.parent, i);
+      CHECK(!(v->parent >= 0 && !v->seen)) << "Error!";
+      CHECK_NE(v->parent, i);
     }
   });
   
@@ -183,13 +167,13 @@ int main(int argc, char* argv[]) {
     });
     
     // intialize parent to -1
-    forall(symm_addr(g), [](BFSVertex& v){ v.init(); });
+    forall(symm_addr(g), [](BFSVertex& v){ v->init(); });
     
     int64_t root = choose_root(g);
     VLOG(1) << "root => " << root;
-    g->vs[root].parent = root;
+    g->vs[root]->parent = root;
     
-    delegate::call(gaddr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v.parent, root); });
+    delegate::call(gaddr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v->parent, root); });
     
     *f_tail++ = root;
     
@@ -211,20 +195,12 @@ int main(int argc, char* argv[]) {
         while (f_head < f_level) {
           auto vi = *f_head++;  // pop off frontier
           VLOG(2) << "  " << vi;
-          
-          auto adj = vs[vi].adj;
-          auto nadj = vs[vi].nadj;
-          for (auto j = 0; j < nadj; j++) {
-            auto vj = adj[j];
-
-            VLOG(2) << "    -> " << vj;
-            spawn<&joiner>([=]{
-              if (vs[vj].parent == -1) {
-                vs[vj].parent = vi;
-                *f_tail++ = vj; // push 'j' onto frontier
-              }
-            });
-          }
+          forall(adj(g,vs+vi), [vs,vi](int64_t j){
+            if (vs[j]->parent == -1) {
+              vs[j]->parent = vi;
+              *f_tail++ = j; // push 'j' onto frontier
+            }
+          });
         }
         
         joiner.complete();
