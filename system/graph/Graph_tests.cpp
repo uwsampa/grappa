@@ -58,25 +58,31 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     BOOST_CHECK( g->nv <= nv );
     
-    forall(g, [](Vertex& v){ degree += v.nadj; });
+    forall(g, [](Vertex<>& v){ degree += v.nadj; });
     
     ////////////////////////////////////////////
     // make sure adj() iterator gets every edge
     call_on_all_cores([]{ count = 0; });    
-    forall(g, [g](Vertex& v){
-      forall<async>(adj(g,v), [](GlobalAddress<Vertex> v){
+    forall(g, [g](Vertex<>& v){
+      forall<async>(adj(g,v), [](GlobalAddress<Vertex<>> v){
         count++;
       });
     });
     total = reduce<int64_t,collective_add>(&count);
     CHECK_EQ(total, g->nadj);
     
+    struct Data { int64_t parent; double w; };
+    auto g2 = g->transform<Data>([](Vertex<>& v, Data& d){
+      d.parent = -1;
+      d.w = 1.0 / v.nadj;
+    });
+    
     ///////////////////////////////////
     // check again with custom joiner
     call_on_all_cores([]{ count = 0; });    
-    forall<&c>(g, [g](Vertex& v){
+    forall<&c>(g2, [g2](Vertex<Data>& v){
       auto n = v.nadj;
-      forall<async,&c>(adj(g,v), [n](int64_t i, GlobalAddress<Vertex> v){
+      forall<async,&c>(adj(g2,v), [n](int64_t i, GlobalAddress<Vertex<Data>> v){
         CHECK(i < n && i >= 0);
         count++;
       });

@@ -20,30 +20,76 @@
 
 namespace Grappa {
   
-  struct Vertex {
-    
+  struct VertexBase {
     int64_t * local_adj; // adjacencies that are local
     int64_t nadj;        // number of adjacencies
     int64_t local_sz;    // size of local allocation (regardless of how full it is)
-    // int64_t parent;
-    void * vertex_data;
+      
+    VertexBase(): local_adj(nullptr), nadj(0), local_sz(0) {}
     
-    Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}
+    VertexBase(const VertexBase& v):
+      local_adj(v.local_adj),
+      nadj(v.nadj),
+      local_sz(v.local_sz)
+    { }
+  };
+  
+  ///////////////////////////////////////////////////////////////
+  /// Vertex with customizable inline 'data' field. Will attempt 
+  /// to pack the provided type into the block-aligned Vertex 
+  /// class, but if it is too large, will heap-allocate (from 
+  /// locale-shared heap). Defines a '->' operator to access data 
+  /// fields.
+  ///
+  /// Example subclasses:
+  /// @code
+  /// ////////////////////////
+  /// // Vertex with parent
+  ///
+  /// // Preferred:
+  /// struct Parent { int64_t parent; };
+  /// 
+  /// Vertex<Parent> p;
+  /// p->parent = -1;
+  ///
+  /// struct VertexP : public Vertex<int64_t> {
+  ///   VertexP(): Vertex() { parent(-1); }
+  ///   int64_t parent() { return data; }
+  ///   void parent(int64_t parent) { data = parent; }
+  /// };
+  /// @endcode
+  template< typename T = int64_t, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(int64_t)*2-sizeof(int64_t*)) >
+  struct Vertex : public VertexBase {
+    T data;
+    
+    Vertex(): VertexBase(), data() {}
+    Vertex(const VertexBase& v): VertexBase(v), data() {}
     ~Vertex() {}
     
-  };
+    T* operator->() { return &data; }
+    
+  } GRAPPA_BLOCK_ALIGNED;
   
-  // vertex with parent
-  struct VertexP : public Vertex {
-    VertexP(): Vertex() { parent(-1); }
-    int64_t parent() { return (int64_t)vertex_data; }
-    void parent(int64_t parent) { vertex_data = (void*)parent; }
-  };
-
-  template< class V = Vertex >
+  template< typename T >
+  struct Vertex<T,false> : public VertexBase {
+    T& data;
+    
+    Vertex(): VertexBase(), data(*locale_alloc<T>()) {}
+    Vertex(const VertexBase& v): VertexBase(v), data(*locale_alloc<T>()) {}
+    
+    ~Vertex() { locale_free(&data); }
+    
+    T* operator->() { return &data; }
+    
+  } GRAPPA_BLOCK_ALIGNED;
+  
+  
+  template< class V = Vertex<> >
   struct Graph {
     static_assert(block_size % sizeof(V) == 0, "V size not evenly divisible into blocks!");
-  
+    
+    // using Vertex = V;
+    
     // // Helpers (for if we go with custom cyclic distribution)
     // inline Core    vertex_owner (int64_t v) { return v % cores(); }
     // inline int64_t vertex_offset(int64_t v) { return v / cores(); }
@@ -92,14 +138,32 @@ namespace Grappa {
       }
     }
   
-    /// Cast graph to new type, and allow user to re-initialize each V by providing a 
-    /// functor (the body of a forall() over the vertices)
-    template< typename VNew, typename VOld, typename InitFunc = decltype(nullptr) >
-    static GlobalAddress<Graph<VNew>> transform_vertices(GlobalAddress<Graph<VOld>> o, InitFunc init) {
-      static_assert(sizeof(VNew) == sizeof(V), "transformed vertex size must be the unchanged.");
-      auto g = static_cast<GlobalAddress<Graph<VNew>>>(o);
-      forall(g->vs, g->nv, init);
-      return g;
+    /// Change the data associated with each vertex, keeping the same connectivity 
+    /// structure and allowing the user to intialize the new data type using the old vertex.
+    ///
+    /// @param F f: void (Vertex<OldData>& v, NewData& d) {}
+    ///
+    /// Example:
+    /// @code
+    /// struct A { double weight; }
+    /// GlobalAddress<Graph<Vertex<A>>> g = ...
+    /// struct B { double value; }
+    /// auto gnew = g->transform<B>([](Vertex<A>& v, B& b){
+    ///   b.value = v->weight / v.nadj;
+    /// });
+    /// @endcode
+    template< typename NewData, typename F = decltype(nullptr) >
+    GlobalAddress<Graph<Vertex<NewData>>> transform(F f) {
+      static_assert(sizeof(V) == sizeof(Vertex<NewData>), "transformed vertex size must be the unchanged.");
+      forall(vs, nv, [f](V& v){
+        NewData d;
+        f(v, d);
+        v.~V();
+        V b = v;
+        auto nv = new (&v) Vertex<NewData>(b);
+        nv->data = d;
+      });
+      return static_cast<GlobalAddress<Graph<Vertex<NewData>>>>(self);
     }
   
     // Constructor
@@ -298,12 +362,12 @@ namespace Grappa {
   
   namespace impl {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(Vertex&) const) {
+    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(V&) const) {
       forall<C,Threshold>(g->vs, g->nv, loop_body);
     }
 
     template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t,Vertex&) const) {
+    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t,V&) const) {
       forall<C,Threshold>(g->vs, g->nv, loop_body);
     }
 
