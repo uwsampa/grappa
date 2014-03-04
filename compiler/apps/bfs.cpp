@@ -19,6 +19,7 @@ struct BFSData {
 
 using BFSVertex = Vertex<BFSData>;
 
+DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
@@ -167,13 +168,17 @@ int main(int argc, char* argv[]) {
     });
     
     // intialize parent to -1
-    forall(symm_addr(g), [](BFSVertex& v){ v->init(); });
+    forall(as_addr(g), [](BFSVertex& v){ v->init(); });
     
     int64_t root = choose_root(g);
     VLOG(1) << "root => " << root;
     g->vs[root]->parent = root;
     
-    delegate::call(gaddr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v->parent, root); });
+    delegate::call(as_addr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v->parent, root); });
+    
+    if (g->nv <= 128) {
+      g->dump();
+    }
     
     *f_tail++ = root;
     
@@ -195,7 +200,7 @@ int main(int argc, char* argv[]) {
         while (f_head < f_level) {
           auto vi = *f_head++;  // pop off frontier
           VLOG(2) << "  " << vi;
-          forall<async,&joiner>(adj(g,vs+vi), [vs,vi](int64_t j){
+          forall<async,&joiner>(adj(g,vs+vi), [=](int64_t j){
             if (vs[j]->parent == -1) {
               vs[j]->parent = vi;
               *f_tail++ = j; // push 'j' onto frontier
@@ -221,8 +226,8 @@ int main(int argc, char* argv[]) {
     
     LOG(INFO) << "\n" << bfs_nedge << "\n" << bfs_time << "\n" << bfs_mteps;
     
+    if (FLAGS_metrics) Metrics::merge_and_print();    
     Metrics::merge_and_dump_to_file();
-    
   });
   finalize();
 }
