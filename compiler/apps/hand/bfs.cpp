@@ -27,7 +27,24 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_mteps, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_nedge, 0);
 
-int64_t *frontier_base, *f_head, *f_tail, *f_level;
+//int64_t *frontier_base, *f_head, *f_tail, *f_level;
+
+struct Frontier {
+  int64_t *base, *head, *tail, *level;
+  
+  void init(size_t sz) {
+    base = head = tail = level = locale_alloc<int64_t>(sz);
+  }
+  
+  void push(int64_t v) { *tail++ = v; }
+  int64_t pop() { return *head++; }
+  
+  int64_t next_size() { return tail - level; }
+  void next_level() { level = tail; }
+  bool level_empty() { return head >= level; }
+};
+
+Frontier frontier;
 
 GlobalCompletionEvent joiner;
 
@@ -163,7 +180,7 @@ int main(int argc, char* argv[]) {
     
     // initialize frontier on each core
     call_on_all_cores([g]{
-      frontier_base = f_head = f_tail = f_level = locale_alloc<int64_t>(g->nv / cores() * 2);
+      frontier.init(g->nv / cores() * 2);
     });
     
     // intialize parent to -1
@@ -173,7 +190,7 @@ int main(int argc, char* argv[]) {
     VLOG(1) << "root => " << root;
     delegate::call(g->vs+root, [=](BFSVertex& v){
       v->parent = root;
-      *f_tail++ = root;
+      frontier.push(root);
     });
     
     double t = walltime();
@@ -187,31 +204,41 @@ int main(int argc, char* argv[]) {
       
       do {
         if (mycore() == 0) VLOG(1) << "level " << level;
-        f_level = f_tail;
+        frontier.next_level();
         joiner.enroll();
         barrier();
         
-        while (f_head < f_level) {
-          auto i = *f_head++;  // pop off frontier
+        while ( !frontier.level_empty() ) {
+          auto i = frontier.pop();
           VLOG(2) << "  " << i;
-          auto vi = vs+i;
-          CHECK_EQ(vi.core(), mycore());
-          auto& v = *vi.pointer();
-          forall<async,&joiner>(adj(g,v), [i,vs](int64_t j, GlobalAddress<BFSVertex> vj){
+          
+#ifdef BFS_REMOTE_ADJ
+          forall<async,&joiner>(adj(g,vs+i), [i,vs](int64_t j, GlobalAddress<BFSVertex> vj){
+            bool b = delegate::call(vj, [i,j](BFSVertex& v){
+              if (v->parent == -1) {
+                v->parent = i;
+                return true;
+              }
+              return false;
+            });
+            if (b) frontier.push(j);
+          });
+#else
+          forall<async,&joiner>(adj(g,vs+i), [i,vs](int64_t j, GlobalAddress<BFSVertex> vj){
             delegate::call<async,&joiner>(vj, [i,j](BFSVertex& v){
               if (v->parent == -1) {
                 v->parent = i;
-                *f_tail++ = j; // push 'j' onto frontier
+                frontier.push(j);
               }
             });
           });
+#endif
         }
         
         joiner.complete();
         joiner.wait();
         
-        VLOG(1) << "(" << mycore() << ":" << f_tail-f_level << ")";
-        next_level_total = allreduce<int64_t, collective_add>(f_tail - f_level);
+        next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
         level++;
       } while (next_level_total > 0);
       
