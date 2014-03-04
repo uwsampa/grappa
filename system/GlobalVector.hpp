@@ -51,7 +51,7 @@ GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, global_vector_master_combined);
 namespace Grappa {
 /// @addtogroup Containers
 /// @{
-
+  
 const Core MASTER = 0;
 
 class SuspendedDelegateQueue {
@@ -461,37 +461,28 @@ public:
   }
   
   GlobalAddress<T> storage() const { return this->base; }
-
-  template< GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename F = decltype(nullptr) >
-  void forall_elements(F func) {
+  
+  template< GlobalCompletionEvent * C = &impl::local_gce,
+            int64_t Th = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename F = nullptr_t >
+  friend void forall(SymmetricAddress<GlobalVector> self, F func) {
     struct Range {size_t start, end, size; };
-    auto self = this->self;
     auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
     if (a.size == self->capacity) {
-      forall<SyncMode::Async,GCE,Threshold>(self->base, self->capacity, func);
+      Grappa::forall<SyncMode::Async,C,Th>(self->base, self->capacity, func);
     } else if (a.start < a.end) {
       Range r = {a.start, a.end};
-      forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+      Grappa::forall<SyncMode::Async,C,Th>(self->base+r.start, r.end-r.start, func);
     } else if (a.start > a.end) {
       for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
-        forall<SyncMode::Async,GCE,Threshold>(self->base+r.start, r.end-r.start, func);
+        Grappa::forall<SyncMode::Async,C,Th>(self->base+r.start, r.end-r.start, func);
       }
     }
-    GCE->wait();
+    C->wait();
   }
 
 // make sure it's aligned to linear address block_size so we can mirror-allocate it
 } GRAPPA_BLOCK_ALIGNED;
-
-template< GlobalCompletionEvent * GCE = &impl::local_gce,
-          int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-          typename T = decltype(nullptr),
-          typename F = decltype(nullptr) >
-void forall(SymmetricAddress<GlobalVector<T>> self, F func) {
-  self->forall_elements(func);
-}
 
 /// @}
 } // namespace Grappa
