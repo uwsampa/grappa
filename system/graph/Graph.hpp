@@ -328,13 +328,19 @@ namespace Grappa {
   AdjIterator<V> adj(SymmetricAddress<Graph<V>> g, V& v) {
     return AdjIterator<V>(g, make_global(v.local_adj), v.nadj);
   }
+
+  template< typename V >
+  AdjIterator<V> adj(SymmetricAddress<Graph<V>> g, GlobalAddress<V> v) {
+    auto p = delegate::call(v, [](V& v){
+      return std::make_pair(make_global(v.local_adj), v.nadj);
+    });
+    return AdjIterator<V>(g, p.first, p.second);
+  }
   
 #ifdef __GRAPPA_CLANG__
   template< typename V >
   AdjIterator<V> adj(Graph<V> grappa_symmetric* g, V grappa_global* v) {
-    return AdjIterator<V>(SymmetricAddress<Graph<V>>(g),
-                          make_global(v->local_adj, as_addr(v).core()),
-                          v->nadj);
+    return adj(as_addr(g), as_addr(v));
   }
 #endif
   
@@ -342,13 +348,17 @@ namespace Grappa {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
       
-      auto loop = [a,body]{
+      if (C) C->enroll(a.nadj);
+      auto origin = mycore();
+      
+      auto loop = [a,origin,body]{
         auto adj = a.adj.pointer();
         auto vs = a.g->vs;
-        Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,adj,vs](int64_t i){
+        Grappa::forall_here<S,nullptr,Threshold>(0, a.nadj, [body,origin,adj,vs](int64_t i){
           mark_async<C>([=]{
             body(adj[i], vs + adj[i]);
           })();
+          C->send_completion(origin);
         });
       };
       
@@ -356,7 +366,7 @@ namespace Grappa {
         loop();
       } else {
         if (S == SyncMode::Async) {
-          spawnRemote<C>(a.adj.core(), [loop]{ loop(); });
+          spawnRemote<nullptr>(a.adj.core(), [loop]{ loop(); });
         } else {
           CompletionEvent ce(1);
           auto ce_a = make_global(&ce);
