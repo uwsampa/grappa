@@ -182,7 +182,8 @@ int main(int argc, char* argv[]) {
     
     // initialize frontier on each core
     call_on_all_cores([g]{
-      frontier.init(g->nv / cores() * 2);
+//      frontier.init(g->nv / cores() * 2);
+      frontier.init(g->nv);
     });
     
     // intialize parent to -1
