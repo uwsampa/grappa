@@ -546,7 +546,22 @@ public:
   
 #endif
 
+  template< typename U > friend
+  std::ostream& operator<<(std::ostream& o, const SymmetricAddress<U>& a);
+  
+  /// Output global address in human-readable form
+  std::ostream& dump(std::ostream& o) const {
+    return o << "<SymmetricAddress " << (void*)storage_
+      << ": pointer " << static_cast<void*>(pointer())
+      << ">";
+  }
+  
 };
+
+template< typename T >
+std::ostream& operator<<(std::ostream& o, const SymmetricAddress<T>& a) {
+  return a.dump(o);
+}
 
 #ifdef __GRAPPA_CLANG__
 
