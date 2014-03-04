@@ -31,13 +31,15 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_nedge, 0);
 
 struct Frontier {
   int64_t *base, *head, *tail, *level;
+  int64_t sz;
   
   void init(size_t sz) {
+    this->sz = sz;
     base = head = tail = level = locale_alloc<int64_t>(sz);
   }
   
-  void push(int64_t v) { *tail++ = v; }
-  int64_t pop() { return *head++; }
+  void push(int64_t v) { *tail++ = v; CHECK_LT(tail, base+sz); }
+  int64_t pop() { return *head++;     CHECK_LE(head, level); }
   
   int64_t next_size() { return tail - level; }
   void next_level() { level = tail; }
