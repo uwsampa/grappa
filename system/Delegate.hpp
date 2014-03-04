@@ -60,18 +60,19 @@ namespace Grappa {
         delegate_ops++;
         delegate_async_ops++;
         Core origin = Grappa::mycore();
-      
+        
+        auto f = mark_async<C>([=]{ func(); });
+        
         if (dest == origin) {
           // short-circuit if local
           delegate_targets++;
           delegate_short_circuits++;
-          func();
+          f();
         } else {
           if (C) C->enroll();
-        
-          send_heap_message(dest, [origin, func] {
+          send_heap_message(dest, [origin,f] {
             delegate_targets++;
-            func();
+            f();
             if (C) C->send_completion(origin);
           });
         }
