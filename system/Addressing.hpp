@@ -548,6 +548,15 @@ public:
 
 };
 
+#ifdef __GRAPPA_CLANG__
+
+template< typename T >
+SymmetricAddress<T> as_addr(T grappa_symmetric* p) {
+  return SymmetricAddress<T>(reinterpret_cast<intptr_t>(p));
+}
+
+#endif
+
 /// @}
 
 #endif
