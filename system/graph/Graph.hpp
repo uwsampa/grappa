@@ -341,14 +341,32 @@ namespace Grappa {
   namespace impl {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
-      CHECK(a.adj.core() == mycore());
-      auto adj = a.adj.pointer();
-      auto vs = a.g->vs;
-      Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,adj,vs](int64_t i){
-        mark_async<C>([=]{
-          body(adj[i], vs + adj[i]);
-        })();
-      });
+      
+      auto loop = [a,body]{
+        auto adj = a.adj.pointer();
+        auto vs = a.g->vs;
+        Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,adj,vs](int64_t i){
+          mark_async<C>([=]{
+            body(adj[i], vs + adj[i]);
+          })();
+        });
+      };
+      
+      if (a.adj.core() == mycore()) {
+        loop();
+      } else {
+        if (S == SyncMode::Async) {
+          spawnRemote<C>(a.adj.core(), [loop]{ loop(); });
+        } else {
+          CompletionEvent ce(1);
+          auto ce_a = make_global(&ce);
+          spawnRemote<nullptr>(a.adj.core(), [loop,ce_a]{
+            loop();
+            complete(ce_a);
+          });
+          ce.wait();
+        }
+      }
     }
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(GlobalAddress<V>) const) {
