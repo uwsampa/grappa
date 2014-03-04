@@ -305,14 +305,14 @@ struct GlobalPtrInfo {
     Value * v = nullptr;
     
     if (layout.getTypeAllocSize(ty) == 8) {
-      outs() << "specializing i64 -- line " << orig->getDebugLoc().getLine() << "\n";
       auto i64 = Type::getInt64Ty(C);
       auto i64_ptr_ty = Type::getInt64PtrTy(C, ptr->getType()->getPointerAddressSpace());
       
       v = ptr;
       
-      if (isa<LoadInst>(orig)) {
-        
+      if (auto l = dyn_cast<LoadInst>(orig)) {
+        outs() << "get(" << *l->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
+
         if (ty != i64) v = SmartCast(b, v, i64_ptr_ty, name+".ptr.bc");
         if (core) {
           v = b.CreateCall(fn("get_i64_on"), { core, v }, name+".val");
@@ -322,7 +322,7 @@ struct GlobalPtrInfo {
         if (ty != i64) v = SmartCast(b, v, ty, name+".val.bc");
         
       } else if (auto s = dyn_cast<StoreInst>(orig)) {
-        
+        outs() << "put(" << *s->getValueOperand()->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
         auto val = s->getValueOperand();
         if (ty != i64) {
           v = SmartCast(b, v, i64_ptr_ty, name+".ptr.bc");
@@ -339,7 +339,7 @@ struct GlobalPtrInfo {
       }
       
     } else {
-      
+
       auto alloca_loc = orig->getParent()->getParent()->getEntryBlock().begin();
       auto tmp = new AllocaInst(ty, name+".tmp", alloca_loc);
       
@@ -349,7 +349,8 @@ struct GlobalPtrInfo {
       auto v_ptr = b.CreateBitCast(ptr, dst_ptr_ty, name+".void");
       
       if (auto l = dyn_cast<LoadInst>(orig)) {
-        
+        outs() << "get(" << *l->getType() << ") -- line " << orig->getDebugLoc().getLine() << "\n";
+
         // remote get into temp
         if (core) {
           v = b.CreateCall(fn("get_on"), {core, v_tmp, v_ptr, sz });
@@ -360,7 +361,8 @@ struct GlobalPtrInfo {
         v = b.CreateLoad(tmp, l->isVolatile(), name+".val");
         
       } else if (auto s = dyn_cast<StoreInst>(orig)) {
-        
+        outs() << "put(" << *s->getValueOperand()->getType() << ") -- line " << orig->getDebugLoc().getLine() << "\n";
+
         // store into temporary alloca
         v = b.CreateStore(s->getValueOperand(), tmp, s->isVolatile());
         // do remote put out of alloca
@@ -391,6 +393,10 @@ struct GlobalPtrInfo {
       void_xptr_ty = void_gptr_ty;
       suffix = "g";
     } else if (SPACE == SYMMETRIC_SPACE) {
+      outs() << "get_pointer(" << *xptr->getType()->getPointerElementType() << ") -- line " << orig->getDebugLoc().getLine() << "\n";
+      if (orig->getDebugLoc().getLine() == 0) {
+        outs() << "----" << *orig << "\n";
+      }
       get_xptr_fn = fn("get_pointer_symmetric");
       void_xptr_ty = void_sptr_ty;
       suffix = "s";
