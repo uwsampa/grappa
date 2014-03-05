@@ -43,7 +43,9 @@ module Isolatable
     base.extend(self) # add all of this module's definitions to base module
   end
   
-  def isolate(exes, shared_dir=nil)
+  def isolate(exes_in, shared_dir=nil)
+    exes = exes_in.clone
+    
     puts "########## Isolating ##########"
     @isolate_called = true
 
