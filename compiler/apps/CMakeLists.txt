@@ -33,7 +33,8 @@ endforeach()
 add_app(default "bfs.cpp" "" hand)
 
 add_app(default "gups.cpp" "" hand)
-add_app(default "gups.cpp" "-DBLOCKING" blocking.hand)
+add_app(default "gups.cpp" "-DBLOCKING=1" blocking.hand)
+add_app(grappaclang "gups.cpp" "-DVOID_INTERFACE=1" void)
 
 list(REMOVE_DUPLICATES apps)
 foreach(app ${apps})
