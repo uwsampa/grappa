@@ -1456,9 +1456,8 @@ namespace Grappa {
             
             auto new_fn = cnd.extractRegion(async_gce);
             
-            if (PrintDot) {
+            if (PrintDot && fn->getName().startswith("async"))
               CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd.ID));
-            }
           }
         }
       } // if ( DoExtractor )
@@ -1469,19 +1468,23 @@ namespace Grappa {
         
         if (nfixed || changed) {
           changed = true;
-          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+          if (PrintDot)
+            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
         }
       }
       
       if (changed) ct++;
     }
     
+    
+    outs() << "%%%%%%%%%%%%%%%%%%%%%%%%%%\n";
+    
     ////////////////////////////////////////////////
     // fixup any remaining global/symmetric things
     if (found_functions) for (auto& F : M) {
       fixupFunction(&F);
     }
-    
+  
     outs().flush();
     return true;
   }
