@@ -450,7 +450,16 @@ namespace Grappa {
   void forall(SymmetricAddress<Graph<V>> g, F loop_body) {
     impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
-    
+  
+#ifdef __GRAPPA_CLANG__
+  template< GlobalCompletionEvent * C = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename V = decltype(nullptr),
+            typename F = decltype(nullptr) >
+  void forall(Graph<V> grappa_symmetric* g, F loop_body) {
+    forall(as_addr(g), loop_body);
+  }
+#endif
   
   ///////////////////////////////////////////////////
   // proposed forall overloads for Graph iteration
