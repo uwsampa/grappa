@@ -27,6 +27,7 @@ StringRef getColorString(unsigned ColorNumber) {
 }
 
 static cl::opt<bool> PrintDot("grappa-dot", cl::desc("Dump pass info to dot format."));
+static cl::opt<int> OnlyLine("only-line", cl::desc("Print dot just for a specific line."));
 
 static cl::opt<bool> DoExtractor("grappa-extractor",
                                  cl::desc("Run pass to automatically extract delegates."));
@@ -368,6 +369,9 @@ namespace Grappa {
     }
     
     void expandRegion(AliasSetTracker& aliases) {
+      
+      outs() << "--------------- <line " << entry->getDebugLoc().getLine() << ">\n";
+      
       RegionSet region;
       int anchor_ct = 0;
       int best_score = 0;
@@ -408,6 +412,10 @@ namespace Grappa {
       while (!frontier.empty()) {
         auto i = frontier.pop_back_val();
         bool valid = validInRegion(i);
+        
+        if (!valid) {
+          DEBUG(outs() << "invalid =>" << *i << "\n");
+        }
         
         bool hoisting = false;
         if (!valid && i->mayReadOrWriteMemory()
@@ -1395,7 +1403,9 @@ namespace Grappa {
       analyzeProvenance(*fn, anchors);
 
       dbg_remover.visit(fn);
-
+      
+      SmallSetVector<int,8> lines;
+      
       if ( DoExtractor ) {
         // Get rid of debug info that causes problems with extractor
         
@@ -1415,6 +1425,8 @@ namespace Grappa {
 
             cnds.emplace_back(p, a, candidate_map, ginfo, *layout);
             auto& r = cnds.back();
+            
+            lines.insert(r.entry->getDebugLoc().getLine());
             
             r.valid_ptrs.insert(p);
             
@@ -1443,7 +1455,8 @@ namespace Grappa {
         
         if (cnds.size() > 0) {
           changed = true;
-          if (PrintDot) CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
+          if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
+            CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
         }
         
         if (found_functions && cnds.size() > 0) {
@@ -1456,7 +1469,8 @@ namespace Grappa {
             
             auto new_fn = cnd.extractRegion(async_gce);
             
-            if (PrintDot && fn->getName().startswith("async"))
+//            if (PrintDot && fn->getName().startswith("async"))
+            if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
               CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd.ID));
           }
         }
@@ -1468,7 +1482,7 @@ namespace Grappa {
         
         if (nfixed || changed) {
           changed = true;
-          if (PrintDot)
+          if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
             CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
         }
       }
