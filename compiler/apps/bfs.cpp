@@ -26,10 +26,13 @@ DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
+DEFINE_int32(nbfs, 1, "Number of BFS traversals to do.");
 
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_mteps, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_time, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_nedge, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_mteps, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, bfs_nedge, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, graph_create_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 
 //int64_t *frontier_base, *f_head, *f_tail, *f_level;
 
@@ -42,7 +45,11 @@ struct Frontier {
     base = head = tail = level = locale_alloc<int64_t>(sz);
   }
   
-  void push(int64_t v) { *tail++ = v; CHECK_LT(tail, base+sz); }
+  void clear() {
+    head = tail = level = (base);
+  }
+  
+  void push(int64_t v) { *tail++ = v; assert(tail < base+sz); }
   int64_t pop() { return *head++;     CHECK_LE(head, level); }
   
   int64_t next_size() { return tail - level; }
@@ -191,6 +198,10 @@ int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
     int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
+    bool verified = false;
+    double t;
+    
+    t = walltime();
     
     auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
     
@@ -200,105 +211,120 @@ int main(int argc, char* argv[]) {
     auto g = Graph<BFSVertex>::create( tg );
 #endif
     
+    graph_create_time = (walltime()-t);
+    LOG(INFO) << graph_create_time;
+    
     // initialize frontier on each core
     call_on_all_cores([g]{
       //      frontier.init(g->nv / cores() * 2);
-      frontier.init(g->nv);
+      frontier.init(g->nv / cores() * 8);
     });
     
-    // intialize parent to -1
-    forall(g, [](BFSVertex& v){ v->init(); });
+    for (int root_idx = 0; root_idx < FLAGS_nbfs; root_idx++) {
     
-    int64_t root = choose_root(g);
-    VLOG(1) << "root => " << root;
-#ifdef __GRAPPA_CLANG__
-    g->vs[root]->parent = root;
-#else      
-    delegate::call(g->vs+root, [=](BFSVertex& v){
-      v->parent = root;
-    });
-#endif
-    
-    frontier.push(root);
-    
-    double t = walltime();
-    
-    on_all_cores([=]{
-      int64_t level = 0;
+      // intialize parent to -1
+      forall(g, [](BFSVertex& v){ v->init(); });
+      call_on_all_cores([]{ frontier.clear(); });
       
-#ifdef __GRAPPA_CLANG__
-      auto vs = as_ptr(g->vertices());
+      int64_t root = choose_root(g);
+      VLOG(1) << "root => " << root;
+  #ifdef __GRAPPA_CLANG__
+      g->vs[root]->parent = root;
+  #else      
+      delegate::call(g->vs+root, [=](BFSVertex& v){
+        v->parent = root;
+      });
+  #endif
       
-      int64_t next_level_total = 1;
+      frontier.push(root);
       
-      while (next_level_total > 0) {
-        if (mycore() == 0) VLOG(1) << "level " << level;
-        frontier.next_level();
-        joiner.enroll();
-        barrier();
+      t = walltime();
+      
+      on_all_cores([=]{
+        int64_t level = 0;
         
-        while ( !frontier.level_empty() ) {
-          auto vi = frontier.pop();
+  #ifdef __GRAPPA_CLANG__
+        auto vs = as_ptr(g->vertices());
+        
+        int64_t next_level_total = 1;
+        
+        while (next_level_total > 0) {
+          if (mycore() == 0) VLOG(1) << "level " << level;
+          frontier.next_level();
+          joiner.enroll();
+          barrier();
           
-          forall<async,&joiner>(adj(g,vs+vi), [=](int64_t j){
-            if (vs[j]->parent == -1) {
-              vs[j]->parent = vi;
-              frontier.push(j);
-            }
-          });
-        }
-        
-        joiner.complete();
-        joiner.wait();
-        
-        next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
-        level++;
-      }
-#else
-      
-      auto vs = g->vertices();
-      
-      int64_t next_level_total;
-      
-      do {
-        if (mycore() == 0) VLOG(1) << "level " << level;
-        frontier.next_level();
-        joiner.enroll();
-        barrier();
-        
-        while ( !frontier.level_empty() ) {
-          auto i = frontier.pop();
-          VLOG(2) << "  " << i;
-          
-          forall<async,&joiner>(adj(g,vs+i), [i,vs](int64_t j, GlobalAddress<BFSVertex> vj){
-            delegate::call<async,&joiner>(vj, [i,j](BFSVertex& v){
-              if (v->parent == -1) {
-                v->parent = i;
+          while ( !frontier.level_empty() ) {
+            auto vi = frontier.pop();
+            
+            forall<async,&joiner>(adj(g,vs+vi), [=](int64_t j){
+              if (vs[j]->parent == -1) {
+                vs[j]->parent = vi;
                 frontier.push(j);
               }
             });
-          });
+          }
+          
+          joiner.complete();
+          joiner.wait();
+          
+          next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
+          level++;
         }
+  #else
         
-        joiner.complete();
-        joiner.wait();
+        auto vs = g->vertices();
         
-        next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
-        level++;
-      } while (next_level_total > 0);
-#endif
+        int64_t next_level_total;
+        
+        do {
+          if (mycore() == 0) VLOG(1) << "level " << level;
+          frontier.next_level();
+          joiner.enroll();
+          barrier();
+          
+          while ( !frontier.level_empty() ) {
+            auto i = frontier.pop();
+            VLOG(2) << "  " << i;
+            
+            forall<async,&joiner>(adj(g,vs+i), [i,vs](int64_t j, GlobalAddress<BFSVertex> vj){
+              delegate::call<async,&joiner>(vj, [i,j](BFSVertex& v){
+                if (v->parent == -1) {
+                  v->parent = i;
+                  frontier.push(j);
+                }
+              });
+            });
+          }
+          
+          joiner.complete();
+          joiner.wait();
+          
+          next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
+          level++;
+        } while (next_level_total > 0);
+  #endif
 
-    });
-    
-    bfs_time = walltime() - t;
-    
-#ifdef __GRAPPA_CLANG__
-    bfs_nedge = verify(tg, as_addr(g), root);
-#else
-    bfs_nedge = verify(tg, g, root);
-#endif
-    
-    bfs_mteps = bfs_nedge / bfs_time / 1.0e6;
+      });
+      
+      double this_bfs_time = walltime() - t;
+      LOG(INFO) << "(root=" << root << ", time=" << this_bfs_time << ")";
+      bfs_time += this_bfs_time;
+      
+      if (!verified) {
+        t = walltime();
+    #ifdef __GRAPPA_CLANG__
+        bfs_nedge = verify(tg, as_addr(g), root);
+    #else
+        bfs_nedge = verify(tg, g, root);
+    #endif
+        verify_time = (walltime()-t);
+        LOG(INFO) << verify_time;
+        verified = true;
+      }
+      
+      bfs_mteps += bfs_nedge / this_bfs_time / 1.0e6;
+    }
     
     LOG(INFO) << "\n" << bfs_nedge << "\n" << bfs_time << "\n" << bfs_mteps;
     
