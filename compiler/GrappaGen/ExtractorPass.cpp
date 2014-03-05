@@ -1375,8 +1375,10 @@ namespace Grappa {
     
     struct DbgRemover : public InstVisitor<DbgRemover> {
       void visitIntrinsicInst(IntrinsicInst& i) {
-        if (i.getCalledFunction()->getName().startswith("llvm.dbg")) {
-          i.eraseFromParent();
+        for (auto prefix : {"llvm.dbg.", "llvm.lifetime."}) {
+          if (i.getCalledFunction()->getName().startswith(prefix)) {
+            i.eraseFromParent();
+          }
         }
       }
     } dbg_remover;
