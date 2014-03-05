@@ -24,30 +24,40 @@ int main(int argc, char* argv[]) {
   run([]{
     LOG(INFO) << "running";
     
-    int64_t global* A = global_alloc<int64_t>(sizeA);
-    Grappa::memset( gaddr(A), 0, sizeA );
+    auto A = global_alloc<int64_t>(sizeA);
+    Grappa::memset(A, 0, sizeA );
 
-    int64_t global* B = global_alloc<int64_t>(sizeB);
+    auto B = global_alloc<int64_t>(sizeB);
     
-    forall( gaddr(B), sizeB, [](int64_t& b) {
+    forall(B, sizeB, [](int64_t& b) {
       b = random() % sizeA;
     });
     
     LOG(INFO) << "starting timed portion";
     double start = walltime();
     
-    forall(gaddr(B), sizeB, [=](int64_t& b){
-      // A[B[i]]++;
-      A[b]++;
+#ifdef __GRAPPA_CLANG__
+    int64_t a = as_ptr(A);
+    forall(B, sizeB, [=](int64_t& b){
+      a[b]++;
     });
+#else
+    forall(B, sizeB, [=](int64_t& b){
+#ifdef BLOCKING
+      delegate::increment(A+b, 1);
+#else
+      delegate::increment<async>( A + b, 1);
+#endif
+    });
+#endif
     
     gups_runtime = walltime() - start;
     gups_throughput = sizeB / gups_runtime;
 
     LOG(INFO) << gups_throughput.value() << " UPS in " << gups_runtime.value() << " seconds";
 
-    global_free(gaddr(B));
-    global_free(gaddr(A));
+    global_free(B));
+    global_free(A);
     
     if (FLAGS_metrics) Metrics::merge_and_print();
       
