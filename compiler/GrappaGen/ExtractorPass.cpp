@@ -1300,6 +1300,8 @@ namespace Grappa {
           if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
             ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
             fixed_up++;
+          } else {
+            assertN(false, "huh?", *orig, *ptr);
           }
         }
         
