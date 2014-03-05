@@ -27,6 +27,7 @@ endmacro()
 
 foreach(file ${miniapp_srcs})
   add_app(grappaclang ${file} "-mllvm -grappa-extractor -O3" ext)
+  add_app(grappaclang ${file} "-mllvm -grappa-extractor -mllvm -disable-async -O3" ext.noasync)
   add_app(grappaclang ${file} "-O3" putget)
 endforeach()
 

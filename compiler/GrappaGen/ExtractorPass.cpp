@@ -31,6 +31,8 @@ static cl::opt<int> OnlyLine("only-line", cl::desc("Print dot just for a specifi
 
 static cl::opt<bool> DoExtractor("grappa-extractor",
                                  cl::desc("Run pass to automatically extract delegates."));
+static cl::opt<bool> DisableAsync("disable-async",
+                                 cl::desc("Disable detection/creationg of async delegates."));
 
 using InstructionSet = SmallPtrSet<Instruction*,16>;
 
@@ -1437,7 +1439,7 @@ namespace Grappa {
             
             r.printHeader();
             
-            if (r.max_extent.isVoidRetExit()) {
+            if (!DisableAsync && r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
               if (async_fns[fn]) {
                 r.switchExits(r.max_extent);
@@ -1465,7 +1467,7 @@ namespace Grappa {
           for (auto& cnd : cnds) {
             
             GlobalVariable* async_gce = nullptr;
-            if (async_fns[fn] && cnd.max_extent.isVoidRetExit()) {
+            if (!DisableAsync && async_fns[fn] && cnd.max_extent.isVoidRetExit()) {
               async_gce = async_fns[fn];
             }
             

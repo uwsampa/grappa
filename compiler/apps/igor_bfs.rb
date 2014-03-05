@@ -9,9 +9,14 @@ Igor do
   
   database '~/exp/oopsla14.sqlite', :bfs
   
-  # isolate everything needed for the executable so we can sbcast them for local execution
-  isolate(%w[ bfs.putget.exe bfs.ext.exe bfs.hand.exe ],
-    File.dirname(__FILE__))
+  exes = %w{
+    bfs.putget.exe
+    bfs.ext.exe
+    bfs.ext.noasync.exe
+    bfs.hand.exe
+  }
+  
+  isolate exes
   
   GFLAGS.merge!({
     v: 0,
@@ -30,9 +35,7 @@ Igor do
   
   sbatch_flags << "--time=10:00"
   
-  params {
-    exe 'bfs.putget.exe', 'bfs.ext.exe', 'bfs.hand.exe'
-  }
+  params { exe *exes }
   
   expect :bfs_mteps
   

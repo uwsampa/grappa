@@ -11,6 +11,7 @@ Igor do
 
   exes = %w[ gups.putget.exe
            gups.ext.exe
+           gups.ext.noasync.exe
            gups.void.exe
            gups.hand.exe
            gups.blocking.hand.exe
