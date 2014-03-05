@@ -1,7 +1,10 @@
 #include <Grappa.hpp>
 #include <GlobalVector.hpp>
 #include <graph/Graph.hpp>
+
+#ifdef __GRAPPA_CLANG__
 #include <Primitive.hpp>
+#endif
 
 using namespace Grappa;
 
@@ -28,7 +31,26 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_mteps, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bfs_nedge, 0);
 
-int64_t *frontier_base, *f_head, *f_tail, *f_level;
+//int64_t *frontier_base, *f_head, *f_tail, *f_level;
+
+struct Frontier {
+  int64_t *base, *head, *tail, *level;
+  int64_t sz;
+  
+  void init(size_t sz) {
+    this->sz = sz;
+    base = head = tail = level = locale_alloc<int64_t>(sz);
+  }
+  
+  void push(int64_t v) { *tail++ = v; CHECK_LT(tail, base+sz); }
+  int64_t pop() { return *head++;     CHECK_LE(head, level); }
+  
+  int64_t next_size() { return tail - level; }
+  void next_level() { level = tail; }
+  bool level_empty() { return head >= level; }
+};
+
+Frontier frontier;
 
 GlobalCompletionEvent joiner;
 
@@ -145,14 +167,25 @@ int64_t verify(TupleGraph tg, SymmetricAddress<Graph<BFSVertex>> g, int64_t root
   return nedge_traversed;
 }
 
-template< typename T >
-int64_t choose_root(Graph<T> symmetric* g) {
-  int64_t root;
-  do {
-    root = random() % g->nv;
-  } while (g->vs[root].nadj == 0);
-  return root;
-}
+#ifdef __GRAPPA_CLANG__
+  template< typename T >
+  int64_t choose_root(Graph<T> symmetric* g) {
+    int64_t root;
+    do {
+      root = random() % g->nv;
+    } while (g->vs[root].nadj == 0);
+    return root;
+  }
+#else
+  template< typename T >
+  int64_t choose_root(SymmetricAddress<Graph<T>> g) {
+    int64_t root;
+    do {
+      root = random() % g->nv;
+    } while (delegate::call(g->vs+root,[](BFSVertex& v){ return v.nadj; }) == 0);
+    return root;
+  }
+#endif
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
@@ -160,50 +193,57 @@ int main(int argc, char* argv[]) {
     int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
     
     auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
+    
+#ifdef __GRAPPA_CLANG__
     auto g = as_ptr( Graph<BFSVertex>::create( tg ) );
+#else
+    auto g = Graph<BFSVertex>::create( tg );
+#endif
     
     // initialize frontier on each core
     call_on_all_cores([g]{
-      frontier_base = f_head = f_tail = f_level = locale_alloc<int64_t>(g->nv / cores() * 2);
+      //      frontier.init(g->nv / cores() * 2);
+      frontier.init(g->nv);
     });
     
     // intialize parent to -1
-    forall(as_addr(g), [](BFSVertex& v){ v->init(); });
+    forall(g, [](BFSVertex& v){ v->init(); });
     
     int64_t root = choose_root(g);
     VLOG(1) << "root => " << root;
+#ifdef __GRAPPA_CLANG__
     g->vs[root]->parent = root;
+#else      
+    delegate::call(g->vs+root, [=](BFSVertex& v){
+      v->parent = root;
+    });
+#endif
     
-    delegate::call(as_addr(g->vs+root),[=](BFSVertex& v){ CHECK_EQ(v->parent, root); });
-    
-    if (g->nv <= 128) {
-      g->dump();
-    }
-    
-    *f_tail++ = root;
+    frontier.push(root);
     
     double t = walltime();
     
     on_all_cores([=]{
       int64_t level = 0;
       
+#ifdef __GRAPPA_CLANG__
       auto vs = as_ptr(g->vertices());
       
-      int64_t next_level_total;
+      int64_t next_level_total = 1;
       
-      do {
+      while (next_level_total > 0) {
         if (mycore() == 0) VLOG(1) << "level " << level;
-        f_level = f_tail;
+        frontier.next_level();
         joiner.enroll();
         barrier();
         
-        while (f_head < f_level) {
-          auto vi = *f_head++;  // pop off frontier
-          VLOG(2) << "  " << vi;
+        while ( !frontier.level_empty() ) {
+          auto vi = frontier.pop();
+          
           forall<async,&joiner>(adj(g,vs+vi), [=](int64_t j){
             if (vs[j]->parent == -1) {
               vs[j]->parent = vi;
-              *f_tail++ = j; // push 'j' onto frontier
+              frontier.push(j);
             }
           });
         }
@@ -211,23 +251,60 @@ int main(int argc, char* argv[]) {
         joiner.complete();
         joiner.wait();
         
-        VLOG(1) << "(" << mycore() << ":" << f_tail-f_level << ")";
-        next_level_total = allreduce<int64_t, collective_add>(f_tail - f_level);
+        next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
+        level++;
+      }
+#else
+      
+      auto vs = g->vertices();
+      
+      int64_t next_level_total;
+      
+      do {
+        if (mycore() == 0) VLOG(1) << "level " << level;
+        frontier.next_level();
+        joiner.enroll();
+        barrier();
+        
+        while ( !frontier.level_empty() ) {
+          auto i = frontier.pop();
+          VLOG(2) << "  " << i;
+          
+          forall<async,&joiner>(adj(g,vs+i), [i,vs](int64_t j, GlobalAddress<BFSVertex> vj){
+            delegate::call<async,&joiner>(vj, [i,j](BFSVertex& v){
+              if (v->parent == -1) {
+                v->parent = i;
+                frontier.push(j);
+              }
+            });
+          });
+        }
+        
+        joiner.complete();
+        joiner.wait();
+        
+        next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
         level++;
       } while (next_level_total > 0);
-      
+#endif
+
     });
     
     bfs_time = walltime() - t;
     
+#ifdef __GRAPPA_CLANG__
+    bfs_nedge = verify(tg, as_addr(g), root);
+#else
     bfs_nedge = verify(tg, g, root);
+#endif
     
     bfs_mteps = bfs_nedge / bfs_time / 1.0e6;
     
     LOG(INFO) << "\n" << bfs_nedge << "\n" << bfs_time << "\n" << bfs_mteps;
     
-    if (FLAGS_metrics) Metrics::merge_and_print();    
+    if (FLAGS_metrics) Metrics::merge_and_print();
     Metrics::merge_and_dump_to_file();
+    
   });
   finalize();
 }

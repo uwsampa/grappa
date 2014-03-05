@@ -28,7 +28,7 @@ foreach(file ${miniapp_srcs})
   add_grappaclang_app(${file} "-O3" putget)
 endforeach()
 
+add_hand_app("bfs.cpp" "" hand)
+
 add_hand_app("hand/gups.cpp" "" hand)
 add_hand_app("hand/gups.cpp" "-DBLOCKING" blocking.hand)
-
-add_hand_app("hand/bfs.cpp" "" hand)
