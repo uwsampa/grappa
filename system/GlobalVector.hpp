@@ -460,12 +460,20 @@ public:
   
   GlobalAddress<T> storage() const { return this->base; }
 
+  struct Range {size_t start, end, size; };
+  Range getMasterRange() {
+    auto self = this->self;
+    return delegate::call(MASTER, [self]{
+      auto& m = self->master;
+      return Range{m.head, m.tail, m.size};
+    });
+  }
+
   template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = nullptr_t >
   friend void forall(GlobalAddress<GlobalVector> self, F func) {
-    struct Range {size_t start, end, size; };
-    auto a = delegate::call(MASTER, [self]{ auto& m = self->master; return Range{m.head, m.tail, m.size}; });
+    auto a = self->getMasterRange();
     if (a.size == self->capacity) {
       Grappa::forall<SyncMode::Async,C,Threshold>(self->base, self->capacity, func);
     } else if (a.start < a.end) {
