@@ -24,6 +24,7 @@
 #include <boost/test/unit_test.hpp>
 #include <Grappa.hpp>
 #include <graph/Graph.hpp>
+#include <GlobalVector.hpp>
 
 BOOST_AUTO_TEST_SUITE( Graph_tests );
 
@@ -34,6 +35,8 @@ GlobalCompletionEvent c;
 
 int64_t count;
 
+DEFINE_int32(scale, 10, "Log2 number of vertices.");
+
 GRAPPA_DEFINE_METRIC(SummarizingMetric<int64_t>, degree, 0);
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -41,8 +44,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   run([]{
     int64_t total;
     int scale = 10;
-    int64_t nv = 1L << scale;
-    size_t ne = nv * 8;
+    int64_t nv = 1L << FLAGS_scale;
+    size_t ne = nv * 16;
     
     auto tg = TupleGraph::Kronecker(scale, ne, 11111, 22222);
     
@@ -81,19 +84,47 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     // check again with custom joiner
     call_on_all_cores([]{ count = 0; });
     forall<&c>(g2, [g2](Vertex<Data>& v){
-      auto n = v.nadj;
+      auto n = g2->nv;
       forall<async,&c>(adj(g2,v), [n](int64_t i, GlobalAddress<Vertex<Data>> v){
-        CHECK(i < n && i >= 0);
+        CHECK(i < n && i >= 0) << "=> " << i << ", " << n;
         count++;
       });
     });
     total = reduce<int64_t,collective_add>(&count);
     CHECK_EQ(total, g->nadj);
     
+    //////////////////////////////////////////////////////
+    // check again, running forall(adj) on different core
+    call_on_all_cores([]{ count = 0; });
+    auto q = GlobalVector<int64_t>::create(g->nv);
+    
+    forall<&c>(g2, [g2,q](int64_t vi, Vertex<Data>& v){
+      q->push(vi);
+    });
+    
+    CHECK_EQ(q->size(), g->nv);
+    
+    int64_t _c = 0;
+    auto counter = make_global(&_c);
+    forall<&c>(q, [g2,counter](int64_t& v){
+      auto n = g2->nv;
+      forall<async,&c>(adj(g2,g2->vs+v), [counter,n](int64_t vj, GlobalAddress<Vertex<Data>> v){
+        CHECK(vj < n && vj >= 0) << "=> " << vj << ", " << n;
+        count++;
+        delegate::fetch_and_add(counter, 1);
+      });
+    });
+    total = reduce<int64_t,collective_add>(&count);
+    CHECK_EQ(total, g->nadj);
+    CHECK_EQ(_c, g->nadj);
+
+    
     call_on_all_cores([]{ count = 0; });
     forall(g, [](int64_t src, int64_t dst){
-      if ( src == dst ) count++;
+      count++;
     });
+    total = reduce<int64_t,collective_add>(&count);
+    CHECK_EQ(total, g->nadj);
     
     LOG(INFO) << "self edges: " << reduce<int64_t,collective_add>(&count);
     

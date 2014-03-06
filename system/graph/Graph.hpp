@@ -316,22 +316,55 @@ namespace Grappa {
   template< typename V >
   struct AdjIterator {
     GlobalAddress<Graph<V>> g;
-    V& v;
-    AdjIterator(GlobalAddress<Graph<V>> g, V& v): g(g), v(v) {}
+    GlobalAddress<int64_t> adj;
+    int64_t nadj;
+    AdjIterator(GlobalAddress<Graph<V>> g, GlobalAddress<int64_t> adj, int64_t nadj):
+      g(g), adj(adj), nadj(nadj) {}
   };
   
   template< typename V >
   AdjIterator<V> adj(GlobalAddress<Graph<V>> g, V& v) {
-    return AdjIterator<V>(g,v);
+    return AdjIterator<V>(g, make_global(v.local_adj), v.nadj);
+  }
+  
+  template< typename V >
+  AdjIterator<V> adj(GlobalAddress<Graph<V>> g, GlobalAddress<V> v) {
+    auto p = delegate::call(v, [](V& v){
+      return std::make_pair(make_global(v.local_adj), v.nadj);
+    });
+    return AdjIterator<V>(g, p.first, p.second);
   }
   
   namespace impl {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
-      Grappa::forall_here<S,C,Threshold>(0, a.v.nadj, [body,&a](int64_t i){
-        auto j = a.v.local_adj[i];
-        body(j, a.g->vs+j);
-      });
+      if (C) C->enroll();
+      auto origin = mycore();
+      
+      auto loop = [a,origin,body]{
+        auto adj = a.adj.pointer();
+        auto vs = a.g->vs;
+        Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,origin,adj,vs](int64_t i){
+          body(adj[i], vs + adj[i]);
+        });
+        if (C) C->send_completion(origin);
+      };
+      
+      if (a.adj.core() == mycore()) {
+        loop();
+      } else {
+        if (S == SyncMode::Async) {
+          spawnRemote<nullptr>(a.adj.core(), [loop]{ loop(); });
+        } else {
+          CompletionEvent ce(1);
+          auto ce_a = make_global(&ce);
+          spawnRemote<nullptr>(a.adj.core(), [loop,ce_a]{
+            loop();
+            complete(ce_a);
+          });
+          ce.wait();
+        }
+      }
     }
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(GlobalAddress<V>) const) {
