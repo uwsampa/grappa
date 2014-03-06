@@ -347,19 +347,18 @@ namespace Grappa {
   namespace impl {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
-      
-      if (C) C->enroll(a.nadj);
+      if (C) C->enroll();
       auto origin = mycore();
       
       auto loop = [a,origin,body]{
         auto adj = a.adj.pointer();
         auto vs = a.g->vs;
-        Grappa::forall_here<S,nullptr,Threshold>(0, a.nadj, [body,origin,adj,vs](int64_t i){
+        Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,origin,adj,vs](int64_t i){
           mark_async<C>([=]{
             body(adj[i], vs + adj[i]);
           })();
-          C->send_completion(origin);
         });
+        if (C) C->send_completion(origin);
       };
       
       if (a.adj.core() == mycore()) {
