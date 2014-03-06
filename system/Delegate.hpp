@@ -440,14 +440,14 @@ namespace Grappa {
   void spawnRemote(Core dest, F f) {
     if (C) C->enroll();
     Core origin = mycore();
-    delegate::call<SyncMode::Async,C>(dest, [origin,f] {
+    delegate::call<SyncMode::Async,nullptr>(dest, [origin,f] {
       spawn<B>([origin,f] {
         f();
         if (C) C->send_completion(origin);
       });
     });
   }
-
+  
   // overload to specify just the GCE
   template< GlobalCompletionEvent * C,
             TaskMode B = TaskMode::Bound,

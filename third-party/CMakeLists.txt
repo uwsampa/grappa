@@ -9,6 +9,8 @@ set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
 message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party dependencies (if needed).")
 
+add_subdirectory(graph500-generator)
+
 if(NOT Boost_FOUND)
 
   # check if we have built boost in third-party dir
@@ -161,4 +163,3 @@ add_custom_target(clean-third-party
   rm -rf ${THIRD_PARTY_ROOT}
 )
 set_property(TARGET clean-third-party PROPERTY FOLDER "Third Party")
-
