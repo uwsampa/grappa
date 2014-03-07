@@ -14,6 +14,8 @@ namespace Grappa {
     static TupleGraph Kronecker(int scale, int64_t desired_nedge, 
                                          uint64_t seed1, uint64_t seed2);
     
+     void destroy() { global_free(edges); }
+    
   protected:
     TupleGraph(int64_t nedge): edges(global_alloc<Edge>(nedge)), nedge(nedge) {}
     

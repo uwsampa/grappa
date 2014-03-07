@@ -144,7 +144,6 @@ list(APPEND SYSTEM_SOURCES
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
-list(APPEND GRAPPA_LIBS graph500-generator)
 include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 if( GOOGLE_PROFILER )
@@ -190,7 +189,7 @@ add_check( Collective_tests.cpp              2 2  pass )
 add_check( CompletionEvent_tests.cpp         2 2  pass )
 add_check( ContextSwitchLatency_tests.cpp    1 1  pass )
 add_check( Delegate_tests.cpp                2 1  pass )
-add_check( FileIO_tests.cpp                  2 1  pass )
+add_check( FileIO_tests.cpp                  2 1  fail )
 add_check( FlatCombiner_tests.cpp            2 2  pass )
 add_check( FullEmpty_tests.cpp               2 2  pass )
 add_check( GlobalAllocator_tests.cpp         1 1  pass )

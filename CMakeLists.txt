@@ -207,9 +207,12 @@ include_directories(${MPI_INCLUDE_PATH})
 macro(add_grappa_exe target exe )
   add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
-  target_link_libraries(${target} Grappa)
-  target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
-  target_link_libraries(${target} ${Boost_LIBRARIES})  
+  target_link_libraries(${target} 
+    Grappa
+    graph500-generator
+    ${MPI_CXX_LIBRARIES}
+    ${Boost_LIBRARIES}
+  )
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
