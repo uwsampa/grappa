@@ -154,9 +154,8 @@ void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent>
   enroll(ce, rv.nadj);
   
   forall<async,nullptr>(adj(g,rv), [=](int64_t j, GlobalAddress<CCVertex> vj){
-    delegate::call<async,nullptr>(vj, [=](CCVertex& v){
-      auto vjj = make_linear(&v) - g->vs;
-      CHECK_EQ(j,vjj); // TODO: remove redundant movement
+    delegate::call<async,nullptr>(vj, [mycolor,ce](CCVertex& v){
+      auto j = make_linear(&v) - g->vs;
       
       if (v->color < 0) { // unclaimed
         v->color = mycolor;
