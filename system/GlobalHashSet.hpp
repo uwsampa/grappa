@@ -132,7 +132,7 @@ protected:
   };
 
   // private members
-  GlobalAddress<GlobalHashSet> self;
+  SymmetricAddress<GlobalHashSet> self;
   GlobalAddress< Cell > base;
   size_t capacity;
   
@@ -146,14 +146,13 @@ protected:
   }
 
   // for creating local GlobalHashSet
-  GlobalHashSet( GlobalAddress<GlobalHashSet> self, GlobalAddress<Cell> base, size_t capacity )
+  GlobalHashSet( SymmetricAddress<GlobalHashSet> self, GlobalAddress<Cell> base, size_t capacity )
     : self(self), base(base), capacity(capacity)
     , proxy(locale_new<Proxy>(this))
   { }
   
 public:
-  
-  static GlobalAddress<GlobalHashSet> create(size_t total_capacity) {
+  static SymmetricAddress<GlobalHashSet> create(size_t total_capacity) {  
     auto base = global_alloc<Cell>(total_capacity);
     auto self = symmetric_global_alloc<GlobalHashSet>();
     call_on_all_cores([self,base,total_capacity]{
