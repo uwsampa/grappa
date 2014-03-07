@@ -82,12 +82,12 @@ inline double walltime(void) {
 
 } // namespace Grappa
 
-#define GRAPPA_TIME(var, block) \
-   	do { \
-		double _tmptime = Grappa::walltime(); \
-		block \
-		var = Grappa::walltime()-_tmptime; \
-	} while(0)
+ #define GRAPPA_TIME(var, block) \
+      do { \
+     double _tmptime = Grappa::walltime(); \
+     block \
+     var = Grappa::walltime()-_tmptime; \
+   } while(0)
 
 #define GRAPPA_TIMER(var) \
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; \
@@ -98,6 +98,9 @@ inline double walltime(void) {
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
          LOG(INFO) << name << ": " << (Grappa::walltime()-_tmpstart), _tmptime = 1)
 
+#define GRAPPA_TIME_REGION(var) \
+    for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
+         var = (Grappa::walltime()-_tmpstart), _tmptime = 1)
 
 /// Compute ratio of doubles, returning 0 when divisor is 0
 template< typename T, typename U >
