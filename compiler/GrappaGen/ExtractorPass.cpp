@@ -1199,7 +1199,7 @@ namespace Grappa {
     
   }
   
-  int ExtractorPass::fixupFunction(Function* fn) {
+  int ExtractorPass::fixupFunction(Function* fn, std::set<int>* lines) {
     int fixed_up = 0;
     GlobalPtrInfo::LocalPtrMap lptrs;
     
@@ -1303,11 +1303,13 @@ namespace Grappa {
           if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
             assertN(false, "addrspacecast slipped in", *c);
           } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+            if (lines) lines->insert(orig->getDebugLoc().getLine());
             ginfo.replace_global_access(gptr, nullptr, orig, lptrs, *layout);
             fixed_up++;
           }
         } else if (isSymmetricPtr(ptr)) {
           if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+            if (lines) lines->insert(orig->getDebugLoc().getLine());
             ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
             fixed_up++;
           } else {
@@ -1326,8 +1328,10 @@ namespace Grappa {
           IRBuilder<> b(orig);
           auto v_prov = b.CreateBitCast(prov, void_gptr_ty);
           auto core = b.CreateCall(ginfo.fn("get_core"), { v_prov }, "core");
+          if (lines) lines->insert(orig->getDebugLoc().getLine());
           ginfo.replace_global_access(ptr, core, orig, lptrs, *layout);
         }
+        
       }
     }
     
@@ -1408,7 +1412,7 @@ namespace Grappa {
 
       dbg_remover.visit(fn);
       
-      SmallSetVector<int,8> lines;
+      std::set<int> lines;
       
       if ( DoExtractor ) {
         // Get rid of debug info that causes problems with extractor
@@ -1482,7 +1486,7 @@ namespace Grappa {
       
       if (found_functions) {
         // insert put/get & get local ptrs for symmetric addrs
-        int nfixed = fixupFunction(fn);
+        int nfixed = fixupFunction(fn, &lines);
         
         if (nfixed || changed) {
           changed = true;

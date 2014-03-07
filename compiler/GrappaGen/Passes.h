@@ -515,7 +515,7 @@ namespace Grappa {
     DenseMap<Function*,GlobalVariable*> async_fns;
     
     void analyzeProvenance(Function& fn, AnchorSet& anchors);
-    int fixupFunction(Function* fn);
+    int fixupFunction(Function* fn, std::set<int>* lines = nullptr);
     
     ExtractorPass() : ModulePass(ID) { }
     
