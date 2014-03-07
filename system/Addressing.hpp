@@ -514,6 +514,8 @@ protected:
   }
   
 public:
+
+  SymmetricAddress(): storage_(0) {}
   
   SymmetricAddress(intptr_t raw): storage_(raw) {}
   
