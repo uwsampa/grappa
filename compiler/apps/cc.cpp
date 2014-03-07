@@ -1,6 +1,3 @@
-#undef __GRAPPA_CLANG__
-#warning disabled grappaclang
-
 #include <Grappa.hpp>
 #include <GlobalHashSet.hpp>
 #include <graph/Graph.hpp>
@@ -45,6 +42,14 @@ struct CCData {
 
 using CCVertex = Vertex<CCData>;
 
+color_t color(GlobalAddress<CCVertex> v) {
+  return delegate::call(v, [](CCVertex& v){ return v->color; });
+}
+void color(GlobalAddress<CCVertex> v, color_t c) {
+  return delegate::call(v, [c](CCVertex& v){ v->color = c; });
+}
+
+
 DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
@@ -54,16 +59,81 @@ DEFINE_int64(concurrent_roots, 1, "number of concurrent `explores`");
 DEFINE_bool(insert_async, false, "do inserts asynchronously");
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, ncomponents, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, pram_passes, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, set_size, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, set_insert_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, pram_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, propagate_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, components_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, graph_create_time, 0);
 
 SymmetricAddress<GlobalHashSet<Edge>> comp_set;
 SymmetricAddress<Graph<CCVertex>> g;
 
-const short MAX_CONCURRENT_ROOTS = 1024;
-GlobalCompletionEvent c[MAX_CONCURRENT_ROOTS];
+GlobalCompletionEvent c;
+bool changed;
 
-const Core ORIGIN = 0;
+int64_t nc;
+
+using delegate::call;
+
+void pram_cc() {
+  int npass = 0;
+  do {
+    DVLOG(2) << "npass " << npass;
+    call_on_all_cores([]{ changed = false; });
+    
+    // Hook
+    DVLOG(2) << "hook";
+    comp_set->forall_keys([](Edge& e){
+      long i = e.start, j = e.end;
+      CHECK_LT(i, g->nv);
+      CHECK_LT(j, g->nv);
+      long ci = color(g->vs+e.start),
+               cj = color(g->vs+e.end);
+      CHECK_LT(ci, g->nv);
+      CHECK_LT(cj, g->nv);
+      bool lchanged = false;
+      
+      if ( ci < cj ) {
+        lchanged |= call(g->vs+cj, [ci,cj](CCVertex& v){
+          if (v->color == cj) { v->color = ci; return true; }
+          else { return false; }
+        });
+      }
+      if (!lchanged && cj < ci) {
+        lchanged |= call(g->vs+ci, [ci,cj](CCVertex& v){
+          if (v->color == ci) { v->color = cj; return true; }
+          else { return false; }
+        });
+      }
+      
+      if (lchanged) { changed = true; }
+    });
+    
+    // Compress
+    DVLOG(2) << "compress";
+    comp_set->forall_keys([](Edge& e){
+      auto compress = [](long i) {
+        long ci, cci, nc;
+        ci = nc = color(g->vs+i);
+        CHECK_LT(ci, g->nv);
+        CHECK_LT(nc, g->nv);
+        while ( nc != (cci=color(g->vs+nc)) ) { nc = color(g->vs+cci); CHECK_LT(nc, g->nv); }
+        if (nc != ci) {
+          changed = true;
+          color(g->vs+i, nc);
+        }
+      };
+      
+      compress(e.start);
+      compress(e.end);
+    });
+    npass++;
+  } while (reduce<bool,collective_or>(&changed) == true);
+  
+  pram_passes = npass;
+}
 
 void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent> ce) {
   auto root_addr = g->vs+root_index;
@@ -105,11 +175,31 @@ void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent>
   complete(ce);
 }
 
+void search(int64_t v, color_t mycolor) {
+  CHECK_EQ((g->vs+v).core(), mycore());
+  auto& rv = *(g->vs+v).pointer();
+  
+  c.enroll(rv.nadj);
+  forall<async,nullptr>(adj(g,rv), [=](int64_t j, GlobalAddress<CCVertex> vj){
+    Core origin = mycore();
+    call<async,nullptr>(vj, [=](CCVertex& v){      
+      if (!v->visited) {
+        v->visited = true;
+        v->color = mycolor;
+        spawn([=]{
+          search(j, mycolor);
+          c.send_completion(origin);
+        });
+      } else {
+        c.send_completion(origin);
+      }
+    });
+  });
+}
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
-    CHECK_LE(FLAGS_concurrent_roots, MAX_CONCURRENT_ROOTS);
     int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
     bool verified = false;
     double t;
@@ -126,35 +216,89 @@ int main(int argc, char* argv[]) {
     
     graph_create_time = (walltime()-t);
     LOG(INFO) << graph_create_time;
-    
+        
     // initialize
-    forall(_g, [](int64_t i, CCVertex& v){ v->init(-i-1); });
     auto _set = GlobalHashSet<Edge>::create(FLAGS_hash_size);
+    
+    t = walltime();
+    
+    forall(_g, [](int64_t i, CCVertex& v){ v->init(-i-1); });
     call_on_all_cores([=]{ comp_set = _set; g = _g; });
     
-    // create component edge set (do a bunch of traversals)
-    CountingSemaphore _sem(FLAGS_concurrent_roots);
-    auto sem = make_global(&_sem);
     
-    for (size_t i = 0; i < g->nv; i++) {
-      sem->decrement(); // (after filling, blocks until an exploration finishes)
-      delegate::call<async,nullptr>(g->vs+i, [=](CCVertex& v){
-        auto mycolor = v->color;
-        spawn([=]{
-          CompletionEvent ce(1);
-          explore(i, mycolor, make_global(&ce));
-          ce.wait();
-          send_heap_message(sem.core(), [sem]{ sem->increment(); });
+    GRAPPA_TIME_REGION(set_insert_time) {
+      // create component edge set (do a bunch of traversals)
+      CountingSemaphore _sem(FLAGS_concurrent_roots);
+      auto sem = make_global(&_sem);
+    
+      for (size_t i = 0; i < g->nv; i++) {
+        sem->decrement(); // (after filling, blocks until an exploration finishes)
+        delegate::call<async,nullptr>(g->vs+i, [=](CCVertex& v){
+          auto mycolor = v->color;
+          spawn([=]{
+            CompletionEvent ce(1);
+            explore(i, mycolor, make_global(&ce));
+            ce.wait();
+            send_heap_message(sem.core(), [sem]{ sem->increment(); });
+          });
         });
-      });
+      }
+      comp_set->sync_all_cores();
     }
-    comp_set->sync_all_cores();
     
-    VLOG(0) << "components set: {";
-    comp_set->forall_keys([](Edge& e){ VLOG(0) << "  " << e; });
-    VLOG(0) << "}";
+    set_size = comp_set->size();
+    
+    if (VLOG_IS_ON(1)) {
+      VLOG(0) << "components set: {";
+      comp_set->forall_keys([](Edge& e){ VLOG(0) << "  " << e; });
+      VLOG(0) << "}";
+    }
+    
+    GRAPPA_TIME_REGION(pram_time) {
+      pram_cc();
+    }
+    
+    ///////////////////////////////////////////////////////////////
+    // Propagate colors out to the rest of the vertices
+    GRAPPA_TIME_REGION(propagate_time) {
+      // reset 'visited' flag
+      forall(g, [](CCVertex& v){ v->visited = false; });
+    
+      comp_set->forall_keys<&c>([](Edge& e){
+        auto mycolor = color(g->vs+e.start);
+        for (auto ev : {e.start, e.end}) {
+          c.enroll();
+          Core origin = mycore();
+          call<async,nullptr>(g->vs+ev, [=](CCVertex& v){
+            if (!v->visited) {
+              v->visited = true;
+              spawn([ev,mycolor,origin]{
+                search(ev, mycolor);
+                c.send_completion(origin);
+              });
+            } else {
+              c.send_completion(origin);
+            }
+          });
+        }
+      });
+    
+    } // cc_propagate_time
+    
+    forall(g, [](int64_t i, CCVertex& v){ if (v->color == i) nc++; });
+    
+    ncomponents = reduce<long,collective_add>(&nc);
+    components_time = (walltime()-t);
     
     if (FLAGS_metrics) Metrics::merge_and_print();
+    else {
+      LOG(INFO) << "\n" << set_insert_time
+                << "\n" << pram_time
+                << "\n" << propagate_time
+                << "\n" << ncomponents
+                << "\n" << set_size
+                << "\n" << components_time;
+    }
     Metrics::merge_and_dump_to_file();
     
   });
