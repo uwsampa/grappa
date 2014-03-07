@@ -42,13 +42,17 @@ struct CCData {
 
 using CCVertex = Vertex<CCData>;
 
+#ifdef __GRAPPA_CLANG__
+color_t color(CCVertex global* v) { return (*v)->color; }
+void color(CCVertex global* v, color_t c) { (*v)->color = c; }
+#else
 color_t color(GlobalAddress<CCVertex> v) {
   return delegate::call(v, [](CCVertex& v){ return v->color; });
 }
 void color(GlobalAddress<CCVertex> v, color_t c) {
   return delegate::call(v, [c](CCVertex& v){ v->color = c; });
 }
-
+#endif
 
 DEFINE_bool( metrics, false, "Dump metrics");
 
@@ -67,8 +71,13 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, propagate_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, components_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, graph_create_time, 0);
 
+#ifdef __GRAPPA_CLANG__
+GlobalHashSet<Edge> symmetric* comp_set;
+Graph<CCVertex> symmetric* g;
+#else
 SymmetricAddress<GlobalHashSet<Edge>> comp_set;
 SymmetricAddress<Graph<CCVertex>> g;
+#endif
 
 GlobalCompletionEvent c;
 bool changed;
@@ -135,6 +144,45 @@ void pram_cc() {
   pram_passes = npass;
 }
 
+#ifdef __GRAPPA_CLANG__
+void explore(int64_t r, color_t mycolor, CompletionEvent global* ce) {
+  auto vs = as_ptr(g->vertices());
+  auto& v =vs[r];
+  
+  if (mycolor < 0) {
+    if (v->color < 0) {
+      v->color = r;
+      mycolor = r;
+    } else {
+      ce->complete();
+      return;
+    }
+  }
+  
+  // now visit adjacencies
+  ce->enroll(v.nadj);
+  
+  forall<async,nullptr>(adj(g,vs+r), [=](int64_t j){
+    auto& vj = vs[j];
+    if (vj->color < 0) {
+      vj->color = mycolor;
+      // mark 'spawn' as 'anywhere'
+      spawn([=]{
+        explore(j, mycolor, ce);
+      });
+    } else if (vj->color != mycolor) {
+      Edge edge = (vj->color > mycolor) ? Edge{ mycolor, vj->color }
+                                        : Edge{ vj->color, mycolor };
+      comp_set->insert_async(edge, [=]{ ce->complete(); });
+      // TODO: mark as 'anywhere', don't inline those, just assume they're okay
+    } else {
+      ce->complete();
+    }
+  });
+  
+  ce->complete();
+}
+#else
 void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent> ce) {
   auto root_addr = g->vs+root_index;
   CHECK_EQ(root_addr.core(), mycore());
@@ -173,13 +221,23 @@ void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent>
   
   complete(ce);
 }
+#endif
 
 void search(int64_t v, color_t mycolor) {
+#ifdef __GRAPPA_CLANG__
+  CCVertex global* vs = g->vertices();
+  auto& rv = vs[v];
+#else
   CHECK_EQ((g->vs+v).core(), mycore());
   auto& rv = *(g->vs+v).pointer();
+#endif
   
   c.enroll(rv.nadj);
-  forall<async,nullptr>(adj(g,rv), [=](int64_t j, GlobalAddress<CCVertex> vj){
+#ifdef __GRAPPA_CLANG__
+  forall<async,nullptr>(adj(as_addr(g),as_addr(vs+v)), [=](int64_t j, GlobalAddress<CCVertex> vj){
+#else
+  forall<async,nullptr>(adj(g,v), [=](int64_t j, GlobalAddress<CCVertex> vj){
+#endif
     Core origin = mycore();
     call<async,nullptr>(vj, [=](CCVertex& v){      
       if (!v->visited) {
@@ -200,18 +258,13 @@ int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
     int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
-    bool verified = false;
     double t;
     
     t = walltime();
     
     auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
     
-#ifdef __GRAPPA_CLANG__
-    auto _g = as_ptr( Graph<CCVertex>::create( tg ) );
-#else
     auto _g = Graph<CCVertex>::create( tg );
-#endif
     
     graph_create_time = (walltime()-t);
     LOG(INFO) << graph_create_time;
@@ -222,14 +275,22 @@ int main(int argc, char* argv[]) {
     t = walltime();
     
     forall(_g, [](int64_t i, CCVertex& v){ v->init(-i-1); });
-    call_on_all_cores([=]{ comp_set = _set; g = _g; });
+    call_on_all_cores([=]{
+#ifdef __GRAPPA_CLANG__
+      comp_set = as_ptr(_set);
+      g = as_ptr(_g);
+#else
+      comp_set = _set;
+      g = _g;
+#endif
+    });
     
     
     GRAPPA_TIME_REGION(set_insert_time) {
       // create component edge set (do a bunch of traversals)
       CountingSemaphore _sem(FLAGS_concurrent_roots);
       auto sem = make_global(&_sem);
-    
+      
       for (size_t i = 0; i < g->nv; i++) {
         sem->decrement(); // (after filling, blocks until an exploration finishes)
         delegate::call<async,nullptr>(g->vs+i, [=](CCVertex& v){
@@ -286,7 +347,7 @@ int main(int argc, char* argv[]) {
     
     forall(g, [](int64_t i, CCVertex& v){ if (v->color == i) nc++; });
     
-    ncomponents = reduce<long,collective_add>(&nc);
+    ncomponents = reduce<int64_t,collective_add>(&nc);
     components_time = (walltime()-t);
     
     if (FLAGS_metrics) Metrics::merge_and_print();
