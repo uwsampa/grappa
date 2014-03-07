@@ -138,6 +138,17 @@ namespace Grappa {
               typename F = decltype(nullptr) >
     inline auto call(GlobalAddress<T> t, F func) ->
       AUTO_INVOKE((impl::call<S,C>(t,func,&F::operator())));
+
+#ifdef __GRAPPA_CLANG__
+    
+    template< SyncMode S = SyncMode::Blocking,
+              GlobalCompletionEvent * C = &impl::local_gce,
+              typename T = decltype(nullptr),
+              typename F = decltype(nullptr) >
+    inline auto call(T grappa_global* t, F func) ->
+    AUTO_INVOKE((impl::call<S,C>(as_addr(t),func,&F::operator())));
+
+#endif
     
 #undef AUTO_INVOKE
     
