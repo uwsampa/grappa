@@ -626,7 +626,8 @@ namespace Grappa {
 
       auto old_fn = bb_in->getParent();
       
-      if (BasicBlock::iterator(entry) != bb_in->begin()) {
+      if (BasicBlock::iterator(entry) != bb_in->begin()
+          || bb_in == &old_fn->getEntryBlock()) {
         auto bb_new = bb_in->splitBasicBlock(entry, name+".eblk");
         bb_in = bb_new;
       }
