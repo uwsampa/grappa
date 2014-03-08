@@ -27,8 +27,10 @@ class MatchesDHT {
   private:
     struct Entry {
       K key;
-      BufferVector<V> * vs;
-      Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
+      std::vector<V> * vs;
+      //BufferVector<V> * vs;
+      Entry( K key ) : key(key), vs(new std::vector<V>( 16 )) {}
+      //Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
       Entry ( ) {}
     };
 
@@ -115,8 +117,8 @@ class MatchesDHT {
         typename std::list<MDHT_TYPE(Entry)>::iterator it;
         for (it = entries->begin(); it!=entries->end(); ++it) {
           Entry e = *it;
-          e.vs->setReadMode();
-          sum_size+=e.vs->getLength();
+          //e.vs->setReadMode();
+          sum_size+=e.vs->size();
         }
         //max_cell_length.add(sum_size);
       });
@@ -135,8 +137,8 @@ class MatchesDHT {
 
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
-          lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
-          lr.num = e.vs->getLength();
+         // lr.matches = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer());
+          lr.num = e.vs->size();
         }
 
         return lr;
@@ -159,9 +161,10 @@ class MatchesDHT {
       spawnRemote<GCE>( target.core(), [key, target, f, this]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
-          V * results = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer()).pointer(); // global address to local array
-          forall_here<async,GCE>(0, e.vs->getLength(), [f,results](int64_t start, int64_t iters) {
+          auto resultsptr = e.vs;
+          forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
+              auto results = *resultsptr;
               // call the continuation with the lookup result
               f(results[i]); 
             }
@@ -179,9 +182,8 @@ class MatchesDHT {
       Grappa::delegate::call<async>( target.core(), [key, target, f]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
-          V * results = static_cast<GlobalAddress<V>>(e.vs->getReadBuffer()).pointer(); // global address to local array
-          uint64_t len = e.vs->getLength();
-          f(results, len); 
+          uint64_t len = e.vs->size();
+          f(e.vs, len); 
         }
       });
     }
@@ -249,7 +251,8 @@ class MatchesDHT {
           Entry e = *i;
           if ( e.key == key ) {
             // key found so add to matches
-            e.vs->insert( val );
+            e.vs->push_back( val );
+            hash_tables_size+=1;
             return 0;
           }
         }
@@ -257,7 +260,7 @@ class MatchesDHT {
         // this is the first time the key has been seen
         // so add it to the list
         Entry newe( key );
-        newe.vs->insert( val );
+        newe.vs->push_back( val );
         entries->push_back( newe );
 
         return 0; 
