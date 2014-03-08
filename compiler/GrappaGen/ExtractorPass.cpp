@@ -331,11 +331,6 @@ namespace Grappa {
       else if (auto s = dyn_cast<StoreInst>(i)) ptr = s->getPointerOperand();
       
       if (ptr) {
-        size_t sz = layout.getTypeAllocSize(ptr->getType());
-        size_t st_sz = aliases.getAliasAnalysis().getTypeStoreSize(ptr->getType());
-        
-        auto md = i->getMetadata(LLVMContext::MD_tbaa);
-        
         auto& alias_set = aliases.getAliasSetForPointer(ptr,
                            analysis.getTypeStoreSize(ptr->getType()),
                            i->getMetadata(LLVMContext::MD_tbaa));
@@ -936,27 +931,25 @@ namespace Grappa {
         }
       }
       
-      for (auto bb : bbs) {
-        for (auto& i : *bb) {
-          for_each_use(u, i) {
-            if (auto ui = dyn_cast<Instruction>(*u)) {
-              if (!bbs.count(ui->getParent())) {
-                errs() << "ui =>" << *ui << "\n";
-                errs() << *ui->getParent() << "\n";
-              }
-            }
-          }
-        }
-      }
+      // for (auto bb : bbs) {
+      //   for (auto& i : *bb) {
+      //     for_each_use(u, i) {
+      //       if (auto ui = dyn_cast<Instruction>(*u)) {
+      //         if (!bbs.count(ui->getParent())) {
+      //           errs() << "ui =>" << *ui << "\n";
+      //           errs() << *ui->getParent() << "\n";
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
       
       for (auto bb : bbs) {
         for (auto u = bb->use_begin(), ue = bb->use_end(); u != ue; u++) {
           if (auto uu = dyn_cast<Instruction>(*u)) {
             if (bbs.count(uu->getParent()) == 0) {
               auto uubb = uu->getParent();
-              errs() << "use escaped => " << *uubb << *bb;
-              assert(uubb->getParent() == old_fn);
-              assert(false);
+              assertN(false, "!! use escaped", *uu, "in => "+uubb->getName(), bb->getName());
             }
           } else {
             errs() << "!! " << **u << "\n";
@@ -967,9 +960,8 @@ namespace Grappa {
             if (auto uu = dyn_cast<Instruction>(*u)) {
               if (bbs.count(uu->getParent()) == 0) {
                 auto uubb = uu->getParent();
-                errs() << "use escaped => " << *uubb << *bb;
                 assert(uubb->getParent() == old_fn);
-                assert(false);
+                assertN(false, "!! use escaped", i, "---- use:", *uu, "----", *uubb);
               }
             } else {
               errs() << "!! " << **u << "\n";
