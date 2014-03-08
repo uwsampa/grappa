@@ -250,6 +250,7 @@ class MatchesDHT {
           if ( e.key == key ) {
             // key found so add to matches
             e.vs->insert( val );
+            hash_tables_size+=1;
             return 0;
           }
         }
@@ -259,6 +260,7 @@ class MatchesDHT {
         Entry newe( key );
         newe.vs->insert( val );
         entries->push_back( newe );
+        hash_tables_size+=1;
 
         return 0; 
       });
