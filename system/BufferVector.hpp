@@ -74,6 +74,7 @@ class BufferVector {
       if ( nextIndex == size ) {
         // expand the size of the buffer
         size_t newsize = size * 2;
+        VLOG(3) << "New size of cell size: " << newsize << " bytes: " << newsize*sizeof(T);
         T * newbuf = static_cast<T*>(Grappa::impl::locale_shared_memory.allocate( newsize*sizeof(T) ));      // new T[newsize]
         memcpy( newbuf, buf, size*sizeof(T) );
         Grappa::impl::locale_shared_memory.deallocate( buf );   // delete buf

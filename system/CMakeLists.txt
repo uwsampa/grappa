@@ -55,6 +55,7 @@ set(SYSTEM_SOURCES
   Array.hpp
   AsyncDelegate.hpp
   Barrier.hpp
+  BufferVector.hpp
   boost_helpers.hpp
   Cache.hpp
   CallbackMetric.hpp
