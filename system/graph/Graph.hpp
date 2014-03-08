@@ -20,6 +20,13 @@
 
 namespace Grappa {
   
+  class VertexID {
+    int64_t idx;
+  public:
+    VertexID(int64_t idx): idx(idx) {}
+    operator int64_t () { return idx; }
+  };
+  
   struct VertexBase {
     int64_t * local_adj; // adjacencies that are local
     int64_t nadj;        // number of adjacencies
@@ -354,7 +361,9 @@ namespace Grappa {
   
   namespace impl {
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
+    void forall(AdjIterator<V> a, F body,
+                void (F::*mf)(int64_t,VertexID,GlobalAddress<V>) const)
+    {
       if (C) C->enroll();
       auto origin = mycore();
       
@@ -363,7 +372,7 @@ namespace Grappa {
         auto vs = a.g->vs;
         Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,origin,adj,vs](int64_t i){
           mark_async<C>([=]{
-            body(adj[i], vs + adj[i]);
+            body(i, adj[i], vs + adj[i]);
           })();
         });
         if (C) C->send_completion(origin);
@@ -387,12 +396,32 @@ namespace Grappa {
     }
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(GlobalAddress<V>) const) {
-      auto f = [body](int64_t i, GlobalAddress<V> v){ body(v); };
+      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(v); };
       impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
     }
     template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
     void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t) const) {
-      auto f = [body](int64_t i, GlobalAddress<V> v){ body(i); };
+      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(i); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(VertexID) const) {
+      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(j); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,VertexID) const) {
+      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(i,j); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(VertexID,GlobalAddress<V>) const) {
+      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(j,v); };
+      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
+    }
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
+    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
+      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(i,v); };
       impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
     }
   }

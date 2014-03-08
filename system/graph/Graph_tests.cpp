@@ -84,14 +84,28 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     // check again with custom joiner
     call_on_all_cores([]{ count = 0; });
     forall<&c>(g2, [g2](Vertex<Data>& v){
-      auto n = g2->nv;
-      forall<async,&c>(adj(g2,v), [n](int64_t i, GlobalAddress<Vertex<Data>> v){
-        CHECK(i < n && i >= 0) << "=> " << i << ", " << n;
+      auto nadj = v.nadj;
+      auto nv = g2->nv;
+      
+      forall<async,&c>(adj(g2,v), [nv](VertexID j, GlobalAddress<Vertex<Data>> v){
+        CHECK(j < nv && j >= 0) << "=> " << j << ", " << nv;
         count++;
       });
+      
+      forall<async,&c>(adj(g2,v), [nadj](int64_t i, GlobalAddress<Vertex<Data>> v){
+        CHECK(i < nadj && i >= 0) << "=> " << i << ", " << nadj;
+        count++;
+      });
+      
+      forall<async,&c>(adj(g2,v), [nadj,nv](int64_t i, VertexID j){
+        CHECK(j < nv && j >= 0) << "=> " << j << ", " << nv;
+        CHECK(i < nadj && i >= 0) << "=> " << i << ", " << nadj;
+        count++;
+      });
+      
     });
     total = reduce<int64_t,collective_add>(&count);
-    CHECK_EQ(total, g->nadj);
+    CHECK_EQ(total, g->nadj * 3);
     
     //////////////////////////////////////////////////////
     // check again, running forall(adj) on different core
@@ -108,7 +122,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     auto counter = make_global(&_c);
     forall<&c>(q, [g2,counter](int64_t& v){
       auto n = g2->nv;
-      forall<async,&c>(adj(g2,g2->vs+v), [counter,n](int64_t vj, GlobalAddress<Vertex<Data>> v){
+      forall<async,&c>(adj(g2,g2->vs+v), [counter,n](VertexID vj, GlobalAddress<Vertex<Data>> v){
         CHECK(vj < n && vj >= 0) << "=> " << vj << ", " << n;
         count++;
         delegate::fetch_and_add(counter, 1);
