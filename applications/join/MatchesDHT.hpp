@@ -8,14 +8,15 @@
 #include <Metrics.hpp>
 
 #include <list>
+#include <cmath>
 
 // for all hash tables
 //GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
-
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_tables_size, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps, 0);
 
 // for naming the types scoped in MatchesDHT
 #define MDHT_TYPE(type) typename MatchesDHT<K,V,HF>::type
-
 
 // Hash table for joins
 // * allows multiple copies of a Key
@@ -47,13 +48,13 @@ class MatchesDHT {
     size_t capacity;
 
     uint64_t computeIndex( K key ) {
-      return HF(key) % capacity;
+      return HF(key) & (capacity - 1);
     }
 
     // for creating local MatchesDHT
-    MatchesDHT( GlobalAddress<Cell> base, size_t capacity ) {
+    MatchesDHT( GlobalAddress<Cell> base, uint32_t capacity_pow2 ) {
       this->base = base;
-      this->capacity = capacity;
+      this->capacity = capacity_pow2;
     }
 
     static bool lookup_local( K key, Cell * target, Entry * result ) {
@@ -64,14 +65,17 @@ class MatchesDHT {
         if ( entries == NULL ) return false;
 
         typename std::list<MDHT_TYPE(Entry)>::iterator i;
+        uint64_t steps = 1;
         for (i = entries->begin(); i!=entries->end(); ++i) {
           const Entry e = *i;
           if ( e.key == key ) {  // typename K must implement operator==
             *result = e;
+            hash_tables_lookup_steps += steps;
             return true;
           }
+          ++steps;
         }
-
+        hash_tables_lookup_steps += steps;
         return false;
     }
     
@@ -80,13 +84,16 @@ class MatchesDHT {
     MatchesDHT( ) {}
 
     static void init_global_DHT( MatchesDHT<K,V,HF> * globally_valid_local_pointer, size_t capacity ) {
-      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity );
 
-      Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity] {
-        *globally_valid_local_pointer = MatchesDHT<K,V,HF>( base, capacity );
+      uint32_t capacity_exp = log2(capacity);
+      size_t capacity_powerof2 = pow(2, capacity_exp);
+      GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity_powerof2 );
+
+      Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
+        *globally_valid_local_pointer = MatchesDHT<K,V,HF>( base, capacity_powerof2 );
       });
 
-      Grappa::forall( base, capacity, []( int64_t i, Cell& c ) {
+      Grappa::forall( base, capacity_powerof2, []( int64_t i, Cell& c ) {
         Cell empty;
         c = empty;
       });
