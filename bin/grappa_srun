@@ -39,7 +39,7 @@ srun_flags = %w[ --cpu_bind=rank --label --kill-on-bad-exit ] \
           << "--task-epilog=#{DIR}/srun_epilog.sh"
 
 # "source" prolog
-require_relative "srun_prolog.rb"
+require "#{DIR}/srun_prolog.rb"
 
 setarch = ""
 

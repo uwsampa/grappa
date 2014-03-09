@@ -185,13 +185,17 @@ static void stats_dump_sighandler( int signum ) {
 // function to call when google logging library detect a failure
 namespace Grappa {
   namespace impl {
+    
+    bool freeze_on_error = false;
+    
     /// called on failures to backtrace and pause for debugger
-    void failure_function() {
+    void failure_function(int ignore = 0) {
       google::FlushLogFiles(google::GLOG_INFO);
-      google::DumpStackTrace();
-      gasnett_freezeForDebuggerErr();
+      // google::DumpStackTrace();
+      if (freeze_on_error) gasnett_freezeForDebuggerErr();
       gasnet_exit(1);
     }
+    
   }
 }
 
@@ -207,7 +211,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // }
 
   // make sure gasnet is ready to backtrace
-  gasnett_backtrace_init( (*argv_p)[0] );
+  // gasnett_backtrace_init( (*argv_p)[0] );
 
   // help generate unique profile filename
   Grappa::impl::set_exe_name( (*argv_p)[0] );
@@ -217,8 +221,11 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
-  google::InstallFailureFunction( &Grappa::impl::failure_function );
-  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
+  
+  char * env_freeze = getenv("GASNET_FREEZE_ON_ERROR");
+  if (env_freeze && strncmp(env_freeze,"1",1) == 0) freeze_on_error = true;
+  
+  google::OverrideDefaultSignalHandler( &Grappa::impl::failure_function );
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
@@ -248,7 +255,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   sigemptyset( &sigabrt_sa.sa_mask );
   sigabrt_sa.sa_flags = 0;
   sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
-  CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+  // CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
   // Asynchronous IO
   // initialize completed stack
@@ -385,6 +392,8 @@ void Grappa_activate()
 {
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
+  google::InstallFailureSignalHandler();
+  
   locale_shared_memory.activate();
   global_task_manager.activate();
   Grappa::comm_barrier();

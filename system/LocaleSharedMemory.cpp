@@ -38,7 +38,7 @@ namespace Grappa {
 namespace impl {
 
 /// called on failures to backtrace and pause for debugger
-extern void failure_function();
+extern void failure_function(int ignore = 0);
 
 /// how much memory do we expect to allocate?
 extern int64_t global_memory_size_bytes;
