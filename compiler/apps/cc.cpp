@@ -309,7 +309,7 @@ int main(int argc, char* argv[]) {
       }
       comp_set->sync_all_cores();
     }
-    
+    LOG(INFO) << set_insert_time;
     set_size = comp_set->size();
     
     if (VLOG_IS_ON(1)) {
@@ -321,6 +321,7 @@ int main(int argc, char* argv[]) {
     GRAPPA_TIME_REGION(pram_time) {
       pram_cc();
     }
+    LOG(INFO) << pram_time;
     
     ///////////////////////////////////////////////////////////////
     // Propagate colors out to the rest of the vertices
@@ -348,6 +349,7 @@ int main(int argc, char* argv[]) {
       });
     
     } // cc_propagate_time
+    LOG(INFO) << propagate_time;
     
     forall(g, [](int64_t i, CCVertex& v){ if (v->color == i) nc++; });
     
