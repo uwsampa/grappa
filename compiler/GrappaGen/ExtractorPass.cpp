@@ -1195,13 +1195,20 @@ namespace Grappa {
   }
   
   Function* ExtractorPass::globalizeFunction(Function* old_fn, AddrSpaceCastInst* cast,
-                                             CallInst* call) {
+                                             CallInst* call, std::set<int>* lines) {
+    auto mod = old_fn->getParent();
     auto ptr = cast->getOperand(0);
     auto xptr_ty = ptr->getType();
     auto lptr_ty = cast->getType();
     
+    outs() << "!! globalizing <" << call->getDebugLoc().getLine() << ">" << *call << "\n";
+    if (lines) lines->insert(call->getDebugLoc().getLine());
+    
     auto name = old_fn->getName() + (xptr_ty->getPointerAddressSpace() == GLOBAL_SPACE
                                      ? ".global" : ".symmetric");
+    if (auto new_fn = mod->getFunction(name.str())) {
+      return new_fn;
+    }
     
     int arg_idx = -1;
     for (int i=0; i < call->getNumArgOperands(); i++)
@@ -1282,6 +1289,11 @@ namespace Grappa {
     
     for (auto inst : to_delete) inst->eraseFromParent();
     
+    fixupFunction(new_fn);
+    
+    CandidateMap cm;
+    if (PrintDot) CandidateRegion::dumpToDot(*new_fn, cm, name);
+    
     return new_fn;
   }
   
@@ -1344,11 +1356,9 @@ namespace Grappa {
           if (!called_fn) continue;
           DEBUG(outs() << "++" << *call << "\n");
           
-          auto new_fn = globalizeFunction(called_fn, c, call);
+          auto new_fn = globalizeFunction(called_fn, c, call, lines);
 
           assertN(new_fn, "unable to globalize!", *call, *new_fn);
-          
-          fixupFunction(new_fn);
           
           ///////////////////////////////////////////
           // update old call to use the new function

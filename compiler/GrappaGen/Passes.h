@@ -516,7 +516,8 @@ namespace Grappa {
     
     void analyzeProvenance(Function& fn, AnchorSet& anchors);
     int fixupFunction(Function* fn, std::set<int>* lines = nullptr);
-    Function* globalizeFunction(Function* old_fn, AddrSpaceCastInst* cast, CallInst* call);
+    Function* globalizeFunction(Function* old_fn, AddrSpaceCastInst* cast, CallInst* call,
+                                std::set<int>* lines = nullptr);
     
     ExtractorPass() : ModulePass(ID) { }
     
