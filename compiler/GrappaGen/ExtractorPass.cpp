@@ -1291,7 +1291,6 @@ namespace Grappa {
     GlobalPtrInfo::LocalPtrMap lptrs;
     
     SmallVector<AddrSpaceCastInst*,32> casts;
-    SmallVector<CallInst*,32> calls;
     
     for (auto& bb : *fn) {
       for (auto it = bb.begin(); it != bb.end(); ) {
@@ -1346,22 +1345,21 @@ namespace Grappa {
           DEBUG(outs() << "++" << *call << "\n");
           
           auto new_fn = globalizeFunction(called_fn, c, call);
-          if (new_fn) outs() << "globalizeFunction => " << new_fn->getName() << "\n";
-          else        outs() << "unable to globalize:\n" << *call << "\n";
+
+          assertN(new_fn, "unable to globalize!", *call, *new_fn);
           
-          calls.push_back(call);
+          fixupFunction(new_fn);
+          
+          ///////////////////////////////////////////
+          // update old call to use the new function
+          call->setCalledFunction(new_fn);
+          for_each_op(op, *call)
+            if (*op == c)
+              *op = ptr;
+          
         }
       }
       
-    }
-    
-    
-    // inline calls so we can remap them to be 'global*' accesses
-    for (auto call : calls) {
-      InlineFunctionInfo info(nullptr, layout);
-      auto inlined = InlineFunction(call, info);
-      // outs() << "------------------------\n" << *call->getCalledFunction() << "\n";
-      assert(inlined);
     }
     
     // recompute provenance with new inlined instructions
