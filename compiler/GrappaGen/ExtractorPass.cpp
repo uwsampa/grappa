@@ -1194,6 +1194,86 @@ namespace Grappa {
     
   }
   
+  Function* ExtractorPass::globalizeFunction(Function* old_fn, AddrSpaceCastInst* cast,
+                                             CallInst* call) {
+    auto ptr = cast->getOperand(0);
+    
+    int arg_idx = -1;
+    for (int i=0; i < call->getNumArgOperands(); i++)
+      if (call->getArgOperand(i) == cast)
+        arg_idx = i;
+    if (arg_idx == -1) return nullptr;
+
+    errs() << "arg => " << arg_idx << "\n";
+    errs() << "call => " << *call << "\n";
+
+    if (!call->getCalledFunction()) return nullptr;
+    
+    auto fn_ty = old_fn->getFunctionType();
+    errs() << "old_fn => " << *old_fn->getType() << "\n";
+
+    SmallVector<Type*,8> arg_tys;
+    int i=0;
+    for (auto arg_it = old_fn->arg_begin();
+         arg_it != old_fn->arg_end();
+         arg_it++, i++) {
+      if (i == arg_idx) arg_tys.push_back(ptr->getType());
+      else arg_tys.push_back(arg_it->getType());
+    }
+    auto new_fn_ty = FunctionType::get(fn_ty->getReturnType(),
+                                       arg_tys, fn_ty->isVarArg());
+
+    errs() << "new_fn_ty => " << *new_fn_ty << "\n";
+
+    auto new_fn = Function::Create(new_fn_ty, old_fn->getLinkage());
+    
+    IRBuilder<> b(BasicBlock::Create(old_fn->getContext(), "entry", new_fn));
+    
+    Argument* ptr_arg;
+    {
+      auto a = new_fn->arg_begin();
+      for (int i=0; i<arg_idx; i++) a++;
+      ptr_arg = a;
+    }
+    auto recast = b.CreateAddrSpaceCast(ptr_arg, cast->getType(), "recast");
+    
+    SmallVector<Value*,8> args;
+    i = 0;
+    for (auto a = new_fn->arg_begin(); a != new_fn->arg_end(); a++, i++) {
+      if (i == arg_idx) {
+        args.push_back(recast);
+      } else {
+        args.push_back(a);
+      }
+    }
+    
+    auto new_call = b.CreateCall(old_fn, args);
+    
+    InlineFunctionInfo info(nullptr, layout);
+    auto inlined = InlineFunction(new_call, info);
+    if (!inlined) return nullptr;
+    
+    AnchorSet anchors;
+    analyzeProvenance(*new_fn, anchors);
+    
+    
+    ValueToValueMapTy vmap;
+    vmap[recast] = ptr_arg;
+    
+    // remap instructions/types to be global
+    SmallVector<Instruction*, 64> to_delete;
+    for (auto& bb : *new_fn) {
+      for (auto it = bb.begin(); it != bb.end();) {
+        Instruction *inst = it++;
+        remap(inst, vmap, to_delete);
+      }
+    }
+    
+    for (auto inst : to_delete) inst->eraseFromParent();
+    
+    return new_fn;
+  }
+  
   int ExtractorPass::fixupFunction(Function* fn, std::set<int>* lines) {
     int fixed_up = 0;
     GlobalPtrInfo::LocalPtrMap lptrs;
@@ -1252,6 +1332,9 @@ namespace Grappa {
           auto called_fn = call->getCalledFunction();
           if (!called_fn) continue;
           DEBUG(outs() << "++" << *call << "\n");
+          
+//          auto new_fn = globalizeFunction(called_fn, c, call);
+          
           calls.push_back(call);
         }
       }
