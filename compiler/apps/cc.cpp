@@ -42,16 +42,16 @@ struct CCData {
 
 using CCVertex = Vertex<CCData>;
 
-#ifdef __GRAPPA_CLANG__
-color_t color(CCVertex global* v) { return (*v)->color; }
-void color(CCVertex global* v, color_t c) { (*v)->color = c; }
-#else
 color_t color(GlobalAddress<CCVertex> v) {
   return delegate::call(v, [](CCVertex& v){ return v->color; });
 }
 void color(GlobalAddress<CCVertex> v, color_t c) {
   return delegate::call(v, [c](CCVertex& v){ v->color = c; });
 }
+
+#ifdef __GRAPPA_CLANG__
+color_t color(CCVertex global* v) { return color(as_addr(v)); }
+void color(CCVertex global* v, color_t c) { color(as_addr(v), c); }
 #endif
 
 DEFINE_bool( metrics, false, "Dump metrics");
@@ -95,23 +95,25 @@ void pram_cc() {
     // Hook
     DVLOG(2) << "hook";
     comp_set->forall_keys([](Edge& e){
+      auto ga = as_addr(g);
+      
       long i = e.start, j = e.end;
-      CHECK_LT(i, g->nv);
-      CHECK_LT(j, g->nv);
-      long ci = color(g->vs+e.start),
-               cj = color(g->vs+e.end);
-      CHECK_LT(ci, g->nv);
-      CHECK_LT(cj, g->nv);
+      CHECK_LT(i, ga->nv);
+      CHECK_LT(j, ga->nv);
+      long ci = color(ga->vs+e.start),
+               cj = color(ga->vs+e.end);
+      CHECK_LT(ci, ga->nv);
+      CHECK_LT(cj, ga->nv);
       bool lchanged = false;
       
       if ( ci < cj ) {
-        lchanged |= call(g->vs+cj, [ci,cj](CCVertex& v){
+        lchanged |= call(ga->vs+cj, [ci,cj](CCVertex& v){
           if (v->color == cj) { v->color = ci; return true; }
           else { return false; }
         });
       }
       if (!lchanged && cj < ci) {
-        lchanged |= call(g->vs+ci, [ci,cj](CCVertex& v){
+        lchanged |= call(ga->vs+ci, [ci,cj](CCVertex& v){
           if (v->color == ci) { v->color = cj; return true; }
           else { return false; }
         });
@@ -123,15 +125,17 @@ void pram_cc() {
     // Compress
     DVLOG(2) << "compress";
     comp_set->forall_keys([](Edge& e){
-      auto compress = [](long i) {
+      auto ga = as_addr(g);
+
+      auto compress = [ga](long i) {
         long ci, cci, nc;
-        ci = nc = color(g->vs+i);
-        CHECK_LT(ci, g->nv);
-        CHECK_LT(nc, g->nv);
-        while ( nc != (cci=color(g->vs+nc)) ) { nc = color(g->vs+cci); CHECK_LT(nc, g->nv); }
+        ci = nc = color(ga->vs+i);
+        CHECK_LT(ci, ga->nv);
+        CHECK_LT(nc, ga->nv);
+        while ( nc != (cci=color(ga->vs+nc)) ) { nc = color(ga->vs+cci); CHECK_LT(nc, ga->nv); }
         if (nc != ci) {
           changed = true;
-          color(g->vs+i, nc);
+          color(ga->vs+i, nc);
         }
       };
       
