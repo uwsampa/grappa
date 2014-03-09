@@ -158,13 +158,13 @@ void explore(int64_t r, color_t mycolor, CompletionEvent global* ce) {
       v->color = r;
       mycolor = r;
     } else {
-      ce->complete();
+      complete(ce);
       return;
     }
   }
   
   // now visit adjacencies
-  ce->enroll(v.nadj);
+  enroll(ce, v.nadj);
   
   forall<async,nullptr>(adj(g,vs+r), [=](int64_t j){
     auto& vj = vs[j];
@@ -180,11 +180,12 @@ void explore(int64_t r, color_t mycolor, CompletionEvent global* ce) {
       comp_set->insert_async(edge, [=]{ ce->complete(); });
       // TODO: mark as 'anywhere', don't inline those, just assume they're okay
     } else {
-      ce->complete();
+      complete(ce);
     }
   });
   
-  ce->complete();
+  complete(ce);
+
 }
 #else
 void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent> ce) {
