@@ -486,11 +486,12 @@ namespace Grappa {
     }
     
     bool validInRegion(Instruction* i) {
+#define returnInvalid { errs() << "invalid @ " << __LINE__ << *i << "\n"; return false; }
       auto validPtr = [&](Value *p){
         return valid_ptrs.count(p) || isSymmetricPtr(p) || isStatic(p) || isConst(p);
       };
       
-      if (i->mayReadOrWriteMemory()) {
+      if (i->mayReadOrWriteMemory() || isa<AddrSpaceCastInst>(i)) {
         if (auto p = getProvenance(i)) {
           if (validPtr(p))
             return true;
@@ -509,7 +510,7 @@ namespace Grappa {
               if (isa<PointerType>((*o)->getType())) {
                 DEBUG(outs() << "!! " << *(*o)->getType() << "\n  " << **o << "\n");
                 if (!validPtr(*o))
-                  return false;
+                  returnInvalid;
               }
             
             return true;
@@ -517,12 +518,13 @@ namespace Grappa {
         } else {
           errs() << "!! no provenance:" << *i;
         }
-        return false;
+        returnInvalid;
       } else if (isa<ReturnInst>(i) || isa<InvokeInst>(i)){
-        return false;
+        returnInvalid;
       } else {
         return true;
       }
+#undef returnInvalid
     }
     
     /////////////////////////
@@ -1261,7 +1263,7 @@ namespace Grappa {
     for (auto call : calls) {
       InlineFunctionInfo info(nullptr, layout);
       auto inlined = InlineFunction(call, info);
-      outs() << "------------------------\n" << *call->getCalledFunction() << "\n";
+      // outs() << "------------------------\n" << *call->getCalledFunction() << "\n";
       assert(inlined);
     }
     
@@ -1497,7 +1499,8 @@ namespace Grappa {
     ////////////////////////////////////////////////
     // fixup any remaining global/symmetric things
     if (found_functions) for (auto& F : M) {
-      fixupFunction(&F);
+      auto ct = fixupFunction(&F);
+      if (ct) outs() << "^^^^^^^^^^^\n" << F.getName() << "\n-----------\n";
     }
   
     outs().flush();
