@@ -499,7 +499,7 @@ namespace Grappa {
           // do nothing for now
           auto cs = CallSite(i);
           if (auto fn = cs.getCalledFunction()) {
-            if (fn->hasFnAttribute("unbound") || fn->doesNotAccessMemory())
+            if (fn->hasFnAttribute("anywhere") || fn->doesNotAccessMemory())
               return true;
             
             // TODO: is it okay to allow these? should we mark things we want to allow?

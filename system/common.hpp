@@ -48,6 +48,9 @@ using std::nullptr_t;
 /// Use to deprecate old APIs
 #define GRAPPA_DEPRECATED __attribute__((deprecated))
 
+#define grappa_anywhere __attribute__((annotate("anywhere"),noinline))
+
+
 namespace Grappa {
   
   /// Specify whether tasks are bound to the core they're spawned on, or if they can be load-balanced (via work-stealing).

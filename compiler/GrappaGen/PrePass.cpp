@@ -52,7 +52,9 @@ namespace {
           }
           
           auto cf = call->getCalledFunction();
-          if (cf && cf->getName() == "grappa_noop_gce") {
+          if (!cf) continue;
+          
+          if (cf->getName() == "grappa_noop_gce") {
             auto gce = call->getOperand(0);
             if (isa<GlobalVariable>(gce)) {
               md->addOperand(MDNode::get(F.getContext(), {&F, gce}));
@@ -63,6 +65,7 @@ namespace {
             
             to_remove.push_back(call);
           }
+          
         }
       }
       
@@ -77,11 +80,11 @@ namespace {
       
       for (auto name : (StringRef[]){ "printf", "fprintf" })
         if (auto fn = M.getFunction(name))
-          fn->addFnAttr("unbound");
+          fn->addFnAttr("anywhere");
       
 //      for (auto& F : M.getFunctionList()) {
 //        if (F.getName().find("google10LogMessage") != std::string::npos) {
-//          F.addFnAttr("unbound");
+//          F.addFnAttr("anywhere");
 //        }
 //      }
       

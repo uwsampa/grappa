@@ -9,6 +9,7 @@
 #define global grappa_global
 #define symmetric grappa_symmetric
 #define async_fn grappa_async_fn
+#define anywhere grappa_anywhere
 
 #define callable_anywhere __attribute__((annotate("unbound")))
 

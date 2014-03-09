@@ -194,8 +194,9 @@ namespace Grappa {
     return impl::AsyncFunctor<F,C>(func);
   }
   
+  
   template< TaskMode B = TaskMode::Bound, typename F = nullptr_t >
-  void spawn(F f) {
+  grappa_anywhere void spawn(F f) {
     if (B == TaskMode::Bound) {
       privateTask(impl::AsyncFunctor<F>(f));
     } else if (B == TaskMode::Unbound) {

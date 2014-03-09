@@ -148,6 +148,18 @@ namespace Grappa {
     });
   }
   
+#ifdef __GRAPPA_CLANG__
+  
+  grappa_anywhere inline void complete(CompletionEvent grappa_global* ce, int64_t decr = 1) {
+    complete(as_addr(ce), decr);
+  }
+  
+  grappa_anywhere inline void enroll(CompletionEvent grappa_global* ce, int64_t incr = 1) {
+    enroll(as_addr(ce), incr);
+  }
+
+#endif
+  
   /// @}
   
   namespace impl {
