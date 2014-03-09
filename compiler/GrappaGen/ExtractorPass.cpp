@@ -1197,6 +1197,11 @@ namespace Grappa {
   Function* ExtractorPass::globalizeFunction(Function* old_fn, AddrSpaceCastInst* cast,
                                              CallInst* call) {
     auto ptr = cast->getOperand(0);
+    auto xptr_ty = ptr->getType();
+    auto lptr_ty = cast->getType();
+    
+    auto name = old_fn->getName() + (xptr_ty->getPointerAddressSpace() == GLOBAL_SPACE
+                                     ? ".global" : ".symmetric");
     
     int arg_idx = -1;
     for (int i=0; i < call->getNumArgOperands(); i++)
@@ -1225,7 +1230,8 @@ namespace Grappa {
 
     errs() << "new_fn_ty => " << *new_fn_ty << "\n";
 
-    auto new_fn = Function::Create(new_fn_ty, old_fn->getLinkage());
+    auto new_fn = Function::Create(new_fn_ty, old_fn->getLinkage(),
+                                   name, old_fn->getParent());
     
     IRBuilder<> b(BasicBlock::Create(old_fn->getContext(), "entry", new_fn));
     
@@ -1248,6 +1254,11 @@ namespace Grappa {
     }
     
     auto new_call = b.CreateCall(old_fn, args);
+    
+    if (new_call->getType()->isVoidTy())
+      b.CreateRetVoid();
+    else
+      b.CreateRet(new_call);
     
     InlineFunctionInfo info(nullptr, layout);
     auto inlined = InlineFunction(new_call, info);
@@ -1273,6 +1284,7 @@ namespace Grappa {
     
     return new_fn;
   }
+  
   
   int ExtractorPass::fixupFunction(Function* fn, std::set<int>* lines) {
     int fixed_up = 0;
@@ -1333,7 +1345,9 @@ namespace Grappa {
           if (!called_fn) continue;
           DEBUG(outs() << "++" << *call << "\n");
           
-//          auto new_fn = globalizeFunction(called_fn, c, call);
+          auto new_fn = globalizeFunction(called_fn, c, call);
+          if (new_fn) outs() << "globalizeFunction => " << new_fn->getName() << "\n";
+          else        outs() << "unable to globalize:\n" << *call << "\n";
           
           calls.push_back(call);
         }
