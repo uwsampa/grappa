@@ -36,6 +36,7 @@ namespace {
       
       auto md = M.getOrInsertNamedMetadata("grappa.asyncs");
       
+      
       for (auto inst = inst_begin(&F); inst != inst_end(&F); inst++) {
         if (auto call = dyn_cast<CallInst>(&*inst)) {
           if (call->getNumArgOperands() > 0) {
@@ -54,6 +55,17 @@ namespace {
           auto cf = call->getCalledFunction();
           if (!cf) continue;
           
+//          for_each_op(o, *call) {
+//            if (auto cast = dyn_cast<AddrSpaceCastInst>(*o)) {
+//              if (cast->getSrcTy()->getPointerAddressSpace() == GLOBAL_SPACE) {
+//                auto new_fn = globalizeCall(cf, cast, call, layout);
+//                outs() << "globalized => " << new_fn->getName() << "\n";
+//                outs() << "call =>" << *call << "\n";
+//                to_remove.push_back(cast);
+//              }
+//            }
+//          }
+          
           if (cf->getName() == "grappa_noop_gce") {
             auto gce = call->getOperand(0);
             if (isa<GlobalVariable>(gce)) {
@@ -68,7 +80,7 @@ namespace {
           
         }
       }
-      
+            
       for (auto inst : to_remove) inst->eraseFromParent();
       
       return changed;

@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <cxxabi.h>
 #include <llvm/Analysis/AliasAnalysis.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
@@ -172,6 +173,18 @@ public:
   bool empty() { return q.empty(); }
 };
 
+
+void analyzeProvenance(Function& fn, AnchorSet& anchors);
+
+inline Value* SmartCast(IRBuilder<>& b, Value* v, Type* ty, const Twine& name = "") {
+  if (CastInst::isCastable(v->getType(), ty)) {
+    return b.CreateCast(CastInst::getCastOpcode(v, true, ty, true), v, ty, name);
+  } else {
+    assert2(false, "smart cast not smart enough", *v, *ty);
+  }
+  return nullptr;
+}
+
 ////////////////////////////////////////////////
 /// Utilities for working with Grappa pointers
 struct GlobalPtrInfo {
@@ -282,15 +295,6 @@ struct GlobalPtrInfo {
     orig->eraseFromParent();
     
     return v;
-  }
-  
-  Value* SmartCast(IRBuilder<>& b, Value* v, Type* ty, const Twine& name = "") {
-    if (CastInst::isCastable(v->getType(), ty)) {
-      return b.CreateCast(CastInst::getCastOpcode(v, true, ty, true), v, ty, name);
-    } else {
-      assert2(false, "smart cast not smart enough", *v, *ty);
-    }
-    return nullptr;
   }
   
   Value* replace_global_access(Value *ptr, Value* core, Instruction *orig, LocalPtrMap& lptrs,
@@ -471,9 +475,16 @@ struct GlobalPtrInfo {
     
     return cast<Instruction>(v);
   }
-
   
 };
+
+void remap(Instruction* inst, ValueToValueMapTy& vmap,
+           SmallVectorImpl<Instruction*>& to_delete);
+
+Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
+                        CallInst* call, DataLayout* layout,
+                        std::set<int>* lines = nullptr);
+
 
 namespace Grappa {
   
@@ -514,10 +525,7 @@ namespace Grappa {
     
     DenseMap<Function*,GlobalVariable*> async_fns;
     
-    void analyzeProvenance(Function& fn, AnchorSet& anchors);
     int fixupFunction(Function* fn, std::set<int>* lines = nullptr);
-    Function* globalizeFunction(Function* old_fn, AddrSpaceCastInst* cast, CallInst* call,
-                                std::set<int>* lines = nullptr);
     
     ExtractorPass() : ModulePass(ID) { }
     
@@ -526,7 +534,6 @@ namespace Grappa {
     virtual bool doFinalization(Module& M);
     
     virtual void getAnalysisUsage(AnalysisUsage& AU) const {
-      AU.addRequired<ProvenanceProp>();
       AU.addRequired<AliasAnalysis>();
     }
   };
