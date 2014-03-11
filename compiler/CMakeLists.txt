@@ -31,7 +31,7 @@ set(LLVM_SRCS
   GrappaGen/GrappaGen.cpp
   GrappaGen/PrePass.cpp
   GrappaGen/ExtractorPass.cpp
-  GrappaGen/ProvenanceProp.cpp
+  # GrappaGen/ProvenanceProp.cpp
   GrappaGen/DelegateExtractor.hpp
   GrappaGen/DelegateExtractor.cpp
 )
