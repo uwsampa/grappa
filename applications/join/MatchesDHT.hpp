@@ -29,7 +29,7 @@ class MatchesDHT {
       K key;
       std::vector<V> * vs;
       //BufferVector<V> * vs;
-      Entry( K key ) : key(key), vs(new std::vector<V>( 16 )) {}
+      Entry( K key ) : key(key), vs(new std::vector<V>()) {}
       //Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
       Entry ( ) {}
     };
