@@ -12,6 +12,7 @@ using color_t = long;
 
 struct Edge {
   int64_t start, end;
+  Edge(int64_t start, int64_t end): start(start), end(end) {}
   bool operator==(const Edge& e) const { return e.start == start && e.end == end; }
   friend std::ostream& operator<<(std::ostream& o, const Edge& e);
 };
@@ -95,7 +96,11 @@ void pram_cc() {
     // Hook
     DVLOG(2) << "hook";
     comp_set->forall_keys([](Edge& e){
+#ifdef __GRAPPA_CLANG__
       auto ga = as_addr(g);
+#else
+      auto ga = g;
+#endif
       
       long i = e.start, j = e.end;
       CHECK_LT(i, ga->nv);
@@ -151,7 +156,7 @@ void pram_cc() {
 #ifdef __GRAPPA_CLANG__
 void explore(int64_t r, color_t mycolor, CompletionEvent global* ce) {
   auto vs = as_ptr(g->vertices());
-  auto& v =vs[r];
+  auto& v = vs[r];
   
   if (mycolor < 0) {
     if (v->color < 0) {
@@ -175,9 +180,12 @@ void explore(int64_t r, color_t mycolor, CompletionEvent global* ce) {
         explore(j, mycolor, ce);
       });
     } else if (vj->color != mycolor) {
-      Edge edge = (vj->color > mycolor) ? Edge{ mycolor, vj->color }
-                                        : Edge{ vj->color, mycolor };
-      comp_set->insert_async(edge, [=]{ ce->complete(); });
+      Edge edge(mycolor, vj->color);
+      if (vj->color < mycolor) {
+        edge.start = vj->color;
+        edge.end = mycolor;
+      }
+      comp_set->insert_async(edge, [=]{ complete(ce); });
       // TODO: mark as 'anywhere', don't inline those, just assume they're okay
     } else {
       complete(ce);
@@ -228,28 +236,29 @@ void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent>
 }
 #endif
 
-void search(int64_t v, color_t mycolor) {
+void propagate(int64_t v, color_t mycolor) {
+
 #ifdef __GRAPPA_CLANG__
-  CCVertex global* vs = g->vertices();
-  auto& rv = vs[v];
+  auto ga = as_addr(g);
 #else
-  CHECK_EQ((g->vs+v).core(), mycore());
-  auto& rv = *(g->vs+v).pointer();
+  auto ga = g;
 #endif
+
+  CHECK(v < ga->nv && v >= 0) << "-- v: " << v << ", nv: " << ga->nv;
+  
+  CHECK_EQ((ga->vs+v).core(), mycore());
+  auto& rv = *(ga->vs+v).pointer();
   
   c.enroll(rv.nadj);
-#ifdef __GRAPPA_CLANG__
-  forall<async,nullptr>(adj(as_addr(g),as_addr(vs+v)), [=](int64_t j, GlobalAddress<CCVertex> vj){
-#else
-  forall<async,nullptr>(adj(g,v), [=](int64_t j, GlobalAddress<CCVertex> vj){
-#endif
+  forall<async,nullptr>(adj(ga,v), [=](int64_t j, GlobalAddress<CCVertex> vj){
+    CHECK(j < ga->nv && j >= 0) << "-- j: " << j << ", vj: " << vj << "\nvs: " << ga->vertices();
     Core origin = mycore();
     call<async,nullptr>(vj, [=](CCVertex& v){      
       if (!v->visited) {
         v->visited = true;
         v->color = mycolor;
         spawn([=]{
-          search(j, mycolor);
+          propagate(j, mycolor);
           c.send_completion(origin);
         });
       } else {
@@ -339,7 +348,7 @@ int main(int argc, char* argv[]) {
             if (!v->visited) {
               v->visited = true;
               spawn([ev,mycolor,origin]{
-                search(ev, mycolor);
+                propagate(ev, mycolor);
                 c.send_completion(origin);
               });
             } else {
