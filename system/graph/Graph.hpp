@@ -337,6 +337,14 @@ namespace Grappa {
     return AdjIterator<V>(g, p.first, p.second);
   }
   
+  template< typename V >
+  AdjIterator<V> adj(SymmetricAddress<Graph<V>> g, int64_t i) {
+    auto p = delegate::call(g->vs+i, [](V& v){
+      return std::make_pair(make_global(v.local_adj), v.nadj);
+    });
+    return AdjIterator<V>(g, p.first, p.second);
+  }
+  
 #ifdef __GRAPPA_CLANG__
   template< typename V >
   AdjIterator<V> adj(Graph<V> grappa_symmetric* g, V grappa_global* v) {
