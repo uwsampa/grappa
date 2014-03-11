@@ -230,7 +230,7 @@ public:
   ///
   /// TODO: detect if async's were used without calling 'sync'.
   template< typename F >
-  void insert_async( K key, F sync) {
+  grappa_anywhere void insert_async( K key, F sync) {
     ++hashset_insert_ops;
     proxy->insert(key);
     if (proxy->is_full()) {
