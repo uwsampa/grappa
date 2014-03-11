@@ -312,30 +312,40 @@ Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     ValueToValueMapTy vmap;
     vmap[recast] = ptr_arg;
     
-    SmallVector<ReturnInst*,8> rets;
-    
     // remap instructions/types to be global
     SmallVector<Instruction*, 64> to_delete;
     for (auto& bb : *new_fn) {
       for (auto it = bb.begin(); it != bb.end();) {
         Instruction *inst = it++;
         remap(inst, vmap, to_delete);
-        if (auto r = dyn_cast<ReturnInst>(inst)) {
-          rets.push_back(r);
-          
-        }
       }
     }
     
     for (auto inst : to_delete) inst->eraseFromParent();
   }
   
-  
-  
   ///////////////////////////////////////////
   // update old call to use the new function
-  call->setCalledFunction(new_fn);
-  for_each_op(op, *call) if (*op == cast) *op = ptr;
+  if (new_fn->getReturnType() == call->getType()) {
+    call->setCalledFunction(new_fn);
+    for_each_op(op, *call) if (*op == cast) *op = ptr;
+  } else {
+    SmallVector<Value*,8> args;
+    for (int i=0; i<call->getNumArgOperands(); i++) {
+      Value *a = call->getArgOperand(i);
+      args.push_back( a == cast ? ptr : a );
+    }
+    IRBuilder<> b(call);
+    auto c = b.CreateCall(new_fn, args);
+    SmallVector<Instruction*,16> to_delete;
+    ValueToValueMapTy vmap;
+    vmap[call] = c;
+    for_each_use(u, *call) {
+      if (auto inst = dyn_cast<Instruction>(*u)) {
+        remap(inst, vmap, to_delete);
+      }
+    }
+  }
   
   return new_fn;
 }
