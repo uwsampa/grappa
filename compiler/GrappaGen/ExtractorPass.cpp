@@ -345,6 +345,7 @@ Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
         remap(inst, vmap, to_delete);
       }
     }
+    call->eraseFromParent();
   }
   
   return new_fn;
