@@ -593,7 +593,7 @@ namespace Grappa {
               for_each(sb, jb, succ) {
                 auto js = (*sb)->begin();
                 if (!region.count(js)) {
-                  outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
+                  // outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
                   emap.add(j, *sb);
                 } else {
                   q.push(js);
@@ -1396,6 +1396,9 @@ namespace Grappa {
       outs() << "~~~~~~~~~~~\n" << *c << "\n";
       Value *ptr = c->getOperand(0);
       
+      SmallVector<Value*,16> cast_uses;
+      for_each_use(u, *c) cast_uses.push_back(*u);
+      
       ///////////////////////////////////////////////////
       // factor out bitcast if element type changes, too
       auto src_space = c->getSrcTy()->getPointerAddressSpace();
@@ -1413,10 +1416,9 @@ namespace Grappa {
       vmap[c] = ptr;
       
       // find any calls using the cast value (so we can inline them below)
-      for_each_use(u, *c) {
-        Value* v = *u;
-        
-        outs() << "--" << *v << "\n";
+      
+      for (auto v : cast_uses) {
+        outs() << ">>>> " << *v << "\n";
         if (auto call = dyn_cast<CallInst>(v)) {
           auto called_fn = call->getCalledFunction();
           if (!called_fn) continue;
