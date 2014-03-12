@@ -206,11 +206,11 @@ void remap(Instruction* inst, ValueToValueMapTy& vmap,
       to_delete.push_back(gep);
     }
   } else if (auto store = dyn_cast<StoreInst>(inst)) {
-    if (store->getPointerOperand()->getType()->getPointerElementType()
-        != store->getValueOperand()->getType()) {
+    auto ptr_elt_ty = store->getPointerOperand()->getType()->getPointerElementType();
+    if (ptr_elt_ty != store->getValueOperand()->getType()) {
       auto val = store->getValueOperand();
       IRBuilder<> b(store);
-      auto cast_val = SmartCast(b, val, store->getPointerOperand()->getType(),
+      auto cast_val = SmartCast(b, val, ptr_elt_ty,
                                 val->getName()+".recast");
       store->setOperand(0, cast_val);
     }
