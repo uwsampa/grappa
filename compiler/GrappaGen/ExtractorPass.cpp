@@ -367,23 +367,24 @@ namespace Grappa {
       // holds either:
       // - Instruction* before
       // - BasicBlock* successor -> pred
-      using Map = ValueMap<Value*,WeakVH>;
-      Map m;
-
+      using Exit = std::pair<WeakVH,WeakVH>;
+      
     public:
+      
+      SmallSetVector<Exit,8> s;
       
       ExitMap() = default;
       
       ExitMap(ExitMap const& o) {
-        for (auto e : o.m) m.insert(e);
+        for (auto e : o.s) s.insert(e);
       }
       
       void operator=(const ExitMap& o) {
         clear();
-        for (auto e : o.m) m.insert(e);
+        for (auto e : o.s) s.insert(e);
       }
       
-      void clear() { m.clear(); }
+      void clear() { s.clear(); }
       
       bool isVoidRetExit() {
         bool all_void = true;
@@ -398,8 +399,8 @@ namespace Grappa {
       
       template< typename F >
       void each(F yield) const {
-        SmallVector<Map::value_type,8> v;
-        for (auto p : m) v.push_back(p);
+        SmallVector<Exit,8> v;
+        for (auto p : s) v.push_back(p);
         
         for (auto p : v) {
           if (auto before = dyn_cast<Instruction>(p.first)) {
@@ -415,45 +416,45 @@ namespace Grappa {
       
       void add(Instruction* pred, BasicBlock* succ) {
         assert(pred && succ);
-        m[succ] = pred;
+        s.insert({succ, pred});
       }
       
       void remove(Instruction* before, Instruction* after) {
         auto bb_after = after->getParent();
-        if (m.count(bb_after)) {
-          assert(m[bb_after] == before);
-          m.erase(bb_after);
-        } else if (m.count(before)) {
-          m.erase(before);
-        } else {
-          assert(false && "trying to remove non-existent exit");
+        for (auto p : s) {
+          if (p.first == bb_after || p.first == before) {
+            s.remove(p);
+            return;
+          }
         }
+        assertN(false, "trying to remove non-existent exit", *before, *after);
       }
       
       void add(Instruction* before) {
         assert(before);
-        m[before] = nullptr;
-      }
-      
-      void removeSuccessor(BasicBlock* succ) {
-        m.erase(succ);
+        s.insert({before, nullptr});
       }
       
       bool isExitStart(Instruction* i) const {
-        if (m.count(i)) {
+        if (s.count(Exit{i,nullptr})) {
           return true;
         } else if (isa<TerminatorInst>(i)) {
           auto pred = i->getParent();
-          for (auto p : m)
+          for (auto p : s)
             if (p.second == pred)
               return true;
         }
         return false;
       }
       
-      bool isExitEnd(BasicBlock* b) const { return m.count(b); }
+      bool isExitEnd(BasicBlock* b) const {
+        for (auto p : s) {
+          if (p.first == b) return true;
+        }
+        return false;
+      }
       
-      unsigned size() { return m.size(); }
+      unsigned size() { return s.size(); }
     };
     
     ExitMap exits, max_extent;
@@ -592,6 +593,7 @@ namespace Grappa {
               for_each(sb, jb, succ) {
                 auto js = (*sb)->begin();
                 if (!region.count(js)) {
+                  outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
                   emap.add(j, *sb);
                 } else {
                   q.push(js);
@@ -1631,7 +1633,9 @@ namespace Grappa {
             AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
             r.expandRegion(aliases);
             
-            r.printHeader();
+            for (auto p : r.max_extent.s) {
+              outs() << *p.first << " => " << *p.second << "\n";
+            }
             
             if (!DisableAsync && r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
@@ -1640,6 +1644,8 @@ namespace Grappa {
                 outs() << "!! grappa_on_async candidate\n";
               }
             }
+
+            r.printHeader();
             
             r.visit([&](BasicBlock::iterator i){
               if (candidate_map[i] != &r) {
