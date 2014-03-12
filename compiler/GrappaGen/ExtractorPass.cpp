@@ -221,6 +221,7 @@ void remap(Instruction* inst, ValueToValueMapTy& vmap,
 
 Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
                         CallInst* call, DataLayout* layout,
+                        ValueToValueMapTy& vmap,
                         std::set<int>* lines) {
   auto mod = old_fn->getParent();
   auto ptr = cast->getOperand(0);
@@ -338,7 +339,6 @@ Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     IRBuilder<> b(call);
     auto c = b.CreateCall(new_fn, args);
     SmallVector<Instruction*,16> to_delete;
-    ValueToValueMapTy vmap;
     vmap[call] = c;
     for_each_use(u, *call) {
       if (auto inst = dyn_cast<Instruction>(*u)) {
@@ -1418,7 +1418,7 @@ namespace Grappa {
           if (!called_fn) continue;
           DEBUG(outs() << "++" << *call << "\n");
           
-          auto new_fn = globalizeCall(called_fn, c, call, layout, lines);
+          auto new_fn = globalizeCall(called_fn, c, call, layout, vmap, lines);
           
           assertN(new_fn, "unable to globalize!", *call, *new_fn);
           
