@@ -1414,8 +1414,10 @@ namespace Grappa {
       
       // find any calls using the cast value (so we can inline them below)
       for_each_use(u, *c) {
-        DEBUG(outs() << "--" << **u << "\n");
-        if (auto call = dyn_cast<CallInst>(*u)) {
+        Value* v = *u;
+        
+        outs() << "--" << *v << "\n";
+        if (auto call = dyn_cast<CallInst>(v)) {
           auto called_fn = call->getCalledFunction();
           if (!called_fn) continue;
           DEBUG(outs() << "++" << *call << "\n");
