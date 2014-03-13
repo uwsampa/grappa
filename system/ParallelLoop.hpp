@@ -266,7 +266,9 @@ namespace Grappa {
     void forall(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t) const) {
       auto f = [loop_body](int64_t s, int64_t n){
         for (int64_t i=0; i < n; i++) {
-          loop_body(s+i);
+          mark_async<C>([=]{
+            loop_body(s+i);
+          })();
         }
       };
       impl::forall<B,S,C,Threshold>(start, iters, f, &decltype(f)::operator());
