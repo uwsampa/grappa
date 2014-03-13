@@ -37,6 +37,13 @@ static cl::opt<bool> DisableAsync("disable-async",
 
 using InstructionSet = SmallPtrSet<Instruction*,16>;
 
+
+
+int poorMansInlineCost(Function* fn) {
+  return fn->size();
+}
+
+
 void setProvenance(Instruction* inst, Value* ptr) {
   inst->setMetadata("grappa.prov", MDNode::get(inst->getContext(), ptr));
 }
@@ -416,6 +423,11 @@ int preFixup(Function* fn, DataLayout* layout) {
         DEBUG(outs() << "++" << *call << "\n");
         
         call = globalizeCall(called_fn, c, call, layout, vmap);
+        
+        if (poorMansInlineCost(called_fn) < 25) {
+          InlineFunctionInfo info;
+          InlineFunction(call, info);
+        }
         
 //        assertN(new_fn, "unable to globalize!", *call, *new_fn);
         
