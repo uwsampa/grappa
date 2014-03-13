@@ -572,6 +572,7 @@ namespace Grappa {
     DataLayout& layout;
     
     InstructionSet hoists;
+    SmallPtrSet<AllocaInst*,4> to_localize;
     
     CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
       ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
@@ -627,7 +628,8 @@ namespace Grappa {
     using RegionSet = SmallSet<Instruction*,64>;
     
     bool hoistable(Instruction *i, RegionSet& region, AliasSetTracker& aliases,
-                   InstructionSet& unhoistable, InstructionSet& tomove) {
+                   InstructionSet& unhoistable, InstructionSet& tomove,
+                   SmallPtrSet<AllocaInst*,4>& allocas_to_localize) {
       if (unhoistable.count(i)) return false;
       if (i->mayHaveSideEffects()) return false;
       
@@ -654,9 +656,12 @@ namespace Grappa {
             if (av->getType()->getPointerAddressSpace() == ptr_space) {
               if (auto ai = dyn_cast<Instruction>(av)) {
                 if (region.count(ai)) {
-                  outs() << "unhoistable_cause =>" << *ai << "\n";
-                  unhoistable.insert(i);
-                  return false;
+                  auto pa = dyn_cast<AllocaInst>(getProvenance(ai));
+                  if (!pa || !allocas_to_localize.count(pa)) {
+                    outs() << "unhoistable_cause =>" << *ai << "\n";
+                    unhoistable.insert(i);
+                    return false;
+                  }
                 }
               }
             }
@@ -675,7 +680,7 @@ namespace Grappa {
       for_each_op(op, *i) {
         if (auto iop = dyn_cast<Instruction>(*op)) {
           if (region.count(iop)) {
-            if (!hoistable(iop, region, aliases, unhoistable, tomove)) {
+            if (!hoistable(iop, region, aliases, unhoistable, tomove, allocas_to_localize)) {
               outs() << "unhoistable_cause =>" << *iop << "\n";
               unhoistable.insert(iop);
               return false;
@@ -691,14 +696,14 @@ namespace Grappa {
       return true;
     }
     
-    void expandRegion(AliasSetTracker& aliases) {
+    void expandRegion(AliasSetTracker& aliases, bool allow_localize = true) {
       
       outs() << "--------------- <line " << entry->getDebugLoc().getLine() << ">\n";
       
       RegionSet region;
       int anchor_ct = 0;
       int best_score = 0;
-      ExitMap emap;
+      ExitMap emap, beforeLocalize;
       
       auto findExitsFromRegion = [this](ExitMap& emap, RegionSet& region){
         emap.clear();
@@ -731,7 +736,11 @@ namespace Grappa {
       SmallSetVector<Instruction*,4> frontier;
       frontier.insert(entry);
       
+      hoists.clear();
+      
       InstructionSet unhoistable, tomove;
+      
+      SmallPtrSet<AllocaInst*,4> allocas_to_localize;
       
       while (!frontier.empty()) {
         auto i = frontier.pop_back_val();
@@ -741,20 +750,28 @@ namespace Grappa {
           DEBUG(outs() << "invalid =>" << *i << "\n");
         }
         
-        bool hoisting = false;
-        if (!valid && i->mayReadOrWriteMemory()
-            && hoistable(i, region, aliases, unhoistable, tomove)) {
-          outs() << "hoist =>" << *i;
-          hoists.insert(i);
-          hoisting = true;
+        bool hoisting = false, localizing = false;
+        
+        if (!valid && i->mayReadOrWriteMemory()) {
+          if ( hoistable(i, region, aliases, unhoistable, tomove, allocas_to_localize) ) {
+            outs() << "hoist =>" << *i << "\n";
+            hoists.insert(i);
+            hoisting = true;
+          } else if (allow_localize) {
+            if (auto p = getProvenance(i) ) {
+              if (auto a = dyn_cast<AllocaInst>(p)) {
+                outs() << "localize =>" << *i << "\n";
+                to_localize.insert(a);
+                allocas_to_localize.insert(a);
+                localizing = true;
+              }
+            }
+          }
         }
         
-        if (valid) {
-          aliases.add(i);
-        }
+        if (valid || localizing) aliases.add(i);
         
-        if (valid || hoisting) {
-//          aliases.add(i);
+        if (valid || hoisting || localizing) {
           region.insert(i);
           
           if (!hoisting) {
@@ -813,27 +830,65 @@ namespace Grappa {
         }
       } // while (!frontier.empty())
       
-      findExitsFromRegion(max_extent,region);
-
-      switchExits(emap);
+      if (!allocas_to_localize.empty()) {
+        bool all_good = true;
+        UniqueQueue<Value*> to_check;
+        for (auto a : allocas_to_localize) to_check.push(a);
+        
+        while (!to_check.empty()) {
+          auto a = to_check.pop();
+          // if any uses aren't in the region, can't localize, so give up
+          for_each_use(u, *a) {
+            auto inst = cast<Instruction>(*u);
+            if (!region.count(inst)) {
+              if (inst->mayReadOrWriteMemory()) {
+                outs() << "!! use of alloca outside region:" << *inst << "\n";
+                all_good = false;
+                break;
+              } else {
+                to_check.push(inst);
+              }
+            }
+          }
+          if (!all_good) break;
+        }
+        if (!all_good) {
+          // try again, this time without attempting to localize
+          outs() << "!! localizing failed :(\n";
+          expandRegion(aliases, false);
+          return;
+        } else {
+          // just ensured that allocas were okay to move into this region,
+          // so have to stick with it now...
+          outs() << "!! localizing!\n";
+          findExitsFromRegion(max_extent,region);
+          switchExits(max_extent);
+        }
+      } else {
+        to_localize.clear();
+        findExitsFromRegion(max_extent,region);
+        switchExits(emap);
+      }
     }
     
     bool validInRegion(Instruction* i) {
-#define returnInvalid { errs() << "invalid @ " << __LINE__ << *i << "\n"; return false; }
+#define returnInvalid { outs() << "invalid." << __LINE__ << *i << "\n"; return false; }
       auto validPtr = [&](Value *p){
         return valid_ptrs.count(p) || isSymmetricPtr(p) || isStatic(p) || isConst(p);
       };
       
       if (i->mayReadOrWriteMemory() || isa<AddrSpaceCastInst>(i)) {
         if (auto p = getProvenance(i)) {
-          if (validPtr(p))
+          if (validPtr(p)) {
             return true;
+          }
         } else if (isa<CallInst>(i)) { // || isa<InvokeInst>(i)) {
           // do nothing for now
           auto cs = CallSite(i);
           if (auto fn = cs.getCalledFunction()) {
-            if (fn->hasFnAttribute("anywhere") || fn->doesNotAccessMemory())
+            if (fn->hasFnAttribute("anywhere") || fn->doesNotAccessMemory()) {
               return true;
+            }
             
             // TODO: is it okay to allow these? should we mark things we want to allow?
             // if (cs->mayThrow()) return false;
@@ -842,8 +897,9 @@ namespace Grappa {
             for (auto o = cs.arg_begin(); o != cs.arg_end(); o++)
               if (isa<PointerType>((*o)->getType())) {
                 DEBUG(outs() << "!! " << *(*o)->getType() << "\n  " << **o << "\n");
-                if (!validPtr(*o))
+                if (!validPtr(*o)) {
                   returnInvalid;
+                }
               }
             
             return true;
@@ -938,6 +994,20 @@ namespace Grappa {
       for (auto i : region) {
         if (hoists.count(i)) {
           doHoist(i, entry, region);
+        }
+      }
+      
+      // localize
+      UniqueQueue<Instruction*> todo;
+      for (auto a : to_localize) todo.push(a);
+      Instruction* insertpt = entry;
+      while (!todo.empty()) {
+        auto inst = todo.pop();
+        if (!region.count(inst)) {
+          for_each_use(u, *inst) todo.push(cast<Instruction>(*u));
+          inst->removeFromParent();
+          inst->insertAfter(insertpt);
+          insertpt = inst;
         }
       }
       
@@ -1635,12 +1705,6 @@ namespace Grappa {
           lines.insert(line);
           
           outs() << "anchor:" << line << " =>" << *a << "\n";
-          
-          if (line == OnlyLine) {
-            outs() << "================================\n"
-                   << *fn
-                   << "================================\n";
-          }
           
           auto p = getProvenance(a);
           if (candidate_map[a]) {
