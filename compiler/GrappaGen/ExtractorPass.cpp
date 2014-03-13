@@ -121,35 +121,35 @@ void analyzeProvenance(Function& fn, AnchorSet& anchors) {
   for (auto& bb: fn) {
     for (auto& i : bb) {
       
-      if (getProvenance(&i)) continue;
+      Value *prov = getProvenance(&i);
       
-      Value *prov = nullptr;
-      if (auto l = dyn_cast<LoadInst>(&i)) {
-        prov = search(l->getPointerOperand());
-      } else if (auto s = dyn_cast<StoreInst>(&i)) {
-        prov = search(s->getPointerOperand());
-      } else if (auto c = dyn_cast<AddrSpaceCastInst>(&i)) {
-        prov = search(c->getOperand(0));
-        
-        for_each_use(u, *c) {
-          if (auto m = dyn_cast<CallInst>(*u)) {
-            if (auto pp = getProvenance(m)) {
-              assert2(pp == prov, "!! two different provenances\n", *c, *m);
-            }
-            // TODO: do 'meet' of provenances of operands
-            // for now, just making sure we're not doing anything dumb
-            for_each_op(o, *m) {
-              if (auto cc = dyn_cast<AddrSpaceCastInst>(*o)) {
-                assert2(cc == c, "!! two different operands being addrspacecast'd\n", *c, *m);
+      if (!prov) {
+        if (auto l = dyn_cast<LoadInst>(&i)) {
+          prov = search(l->getPointerOperand());
+        } else if (auto s = dyn_cast<StoreInst>(&i)) {
+          prov = search(s->getPointerOperand());
+        } else if (auto c = dyn_cast<AddrSpaceCastInst>(&i)) {
+          prov = search(c->getOperand(0));
+          
+          for_each_use(u, *c) {
+            if (auto m = dyn_cast<CallInst>(*u)) {
+              if (auto pp = getProvenance(m)) {
+                assert2(pp == prov, "!! two different provenances\n", *c, *m);
               }
+              // TODO: do 'meet' of provenances of operands
+              // for now, just making sure we're not doing anything dumb
+              for_each_op(o, *m) {
+                if (auto cc = dyn_cast<AddrSpaceCastInst>(*o)) {
+                  assert2(cc == c, "!! two different operands being addrspacecast'd\n", *c, *m);
+                }
+              }
+              
+              // call inherits provenance of this cast
+//              setProvenance(m, prov);
+              
             }
-            
-            // call inherits provenance of this cast
-            setProvenance(m, prov);
-            
           }
         }
-        
       }
       if (prov) {
         setProvenance(&i, prov);
@@ -219,14 +219,13 @@ void remap(Instruction* inst, ValueToValueMapTy& vmap,
   
 }
 
-Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
+CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
                         CallInst* call, DataLayout* layout,
                         ValueToValueMapTy& vmap,
                         std::set<int>* lines) {
   auto mod = old_fn->getParent();
   auto ptr = cast->getOperand(0);
   auto xptr_ty = ptr->getType();
-  auto lptr_ty = cast->getType();
   
   outs() << "!! globalizing <" << call->getDebugLoc().getLine() << ">" << *call << "\n";
   if (lines) lines->insert(call->getDebugLoc().getLine());
@@ -244,13 +243,10 @@ Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
         arg_idx = i;
     if (arg_idx == -1) return nullptr;
     
-    errs() << "arg => " << arg_idx << "\n";
-    errs() << "call => " << *call << "\n";
-    
     if (!call->getCalledFunction()) return nullptr;
     
     auto fn_ty = old_fn->getFunctionType();
-    errs() << "old_fn => " << *old_fn->getType() << "\n";
+    outs() << "old_fn.ty => " << *old_fn->getType() << "\n";
     
     SmallVector<Type*,8> arg_tys;
     int i=0;
@@ -270,10 +266,17 @@ Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     
     auto new_fn_ty = FunctionType::get(ret_ty, arg_tys, fn_ty->isVarArg());
     
-    errs() << "new_fn_ty => " << *new_fn_ty << "\n";
+    outs() << "new_fn.ty => " << *new_fn_ty << "\n";
     
     new_fn = Function::Create(new_fn_ty, old_fn->getLinkage(),
                                    name, old_fn->getParent());
+    
+    auto OldAttrs = old_fn->getAttributes();
+    new_fn->setAttributes(new_fn->getAttributes()
+                           .addAttributes(new_fn->getContext(),
+                                          AttributeSet::FunctionIndex,
+                                          OldAttrs.getFnAttributes()));
+
     
     IRBuilder<> b(BasicBlock::Create(old_fn->getContext(), "entry", new_fn));
     
@@ -340,15 +343,104 @@ Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     auto c = b.CreateCall(new_fn, args);
     SmallVector<Instruction*,16> to_delete;
     vmap[call] = c;
+    outs() << "new_call =>" << *c << "\n";
     for_each_use(u, *call) {
       if (auto inst = dyn_cast<Instruction>(*u)) {
         remap(inst, vmap, to_delete);
       }
     }
     call->eraseFromParent();
+    call = c;
   }
   
-  return new_fn;
+  return call;
+}
+
+int preFixup(Function* fn, DataLayout* layout) {
+  SmallVector<AddrSpaceCastInst*,32> casts;
+  
+  for (auto& bb : *fn) {
+    for (auto it = bb.begin(); it != bb.end(); ) {
+      Instruction *inst = it++;
+      
+      if (isa<AddrSpaceCastInst>(inst) && isGlobalPtr(inst->getOperand(0))) {
+        casts.push_back(cast<AddrSpaceCastInst>(inst));
+      } else {
+        for_each_op(op, *inst) {
+          // find addrspacecasts hiding in constexprs & unpack them
+          if (auto c = dyn_cast<ConstantExpr>(*op)) {
+            if (c->isCast() && strcmp(c->getOpcodeName(), "addrspacecast") == 0) {
+              auto ac = new AddrSpaceCastInst(c->getOperand(0), c->getType(),
+                                              "cast.unpacked", inst);
+              *op = ac;
+              casts.push_back(ac);
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  ValueToValueMapTy vmap;
+  
+  for (auto c : casts) {
+    outs() << "~~~~~~~~~~~\n" << *c << "\n";
+    Value *ptr = c->getOperand(0);
+    
+    SmallVector<Value*,16> cast_uses;
+    for_each_use(u, *c) cast_uses.push_back(*u);
+    
+    ///////////////////////////////////////////////////
+    // factor out bitcast if element type changes, too
+    auto src_space = c->getSrcTy()->getPointerAddressSpace();
+    auto src_elt_ty = c->getSrcTy()->getPointerElementType();
+    auto dst_elt_ty = c->getType()->getPointerElementType();
+    if (src_elt_ty != dst_elt_ty) {
+      ptr = new BitCastInst(c->getOperand(0),
+                            PointerType::get(dst_elt_ty, src_space),
+                            c->getName()+".precast", c);
+      c->setOperand(0, ptr);
+      outs() << "****" << *ptr << "\n****" << *c << "\n";
+    }
+    
+    // will remap addrspacecast -> original global ptr
+    vmap[c] = ptr;
+    
+    // find any calls using the cast value (so we can inline them below)
+    
+    for (auto v : cast_uses) {
+      outs() << ">>>> " << *v << "\n";
+      if (auto call = dyn_cast<CallInst>(v)) {
+        auto called_fn = call->getCalledFunction();
+        if (!called_fn) continue;
+        DEBUG(outs() << "++" << *call << "\n");
+        
+        call = globalizeCall(called_fn, c, call, layout, vmap);
+        
+//        assertN(new_fn, "unable to globalize!", *call, *new_fn);
+        
+      }
+    }
+    
+  }
+  
+  // recompute provenance with new inlined instructions
+  AnchorSet anchors;
+  analyzeProvenance(*fn, anchors);
+  
+  // remap instructions/types to be global
+  SmallVector<Instruction*, 64> to_delete;
+  for (auto& bb : *fn) {
+    for (auto it = bb.begin(); it != bb.end();) {
+      Instruction *inst = it++;
+      remap(inst, vmap, to_delete);
+    }
+  }
+  for (auto inst : to_delete) inst->eraseFromParent();
+  
+  for (auto c : casts) c->eraseFromParent();
+  
+  return casts.size();
 }
 
 namespace Grappa {
@@ -796,7 +888,7 @@ namespace Grappa {
     }
     
     Function* extractRegion(GlobalVariable* gce = nullptr) {
-      auto name = "d" + Twine(ID);
+      auto name = "d" + Twine(ID) + "_l" + Twine(entry->getDebugLoc().getLine());
       DEBUG(outs() << "//////////////////\n// extracting " << name << "\n");
       DEBUG(outs() << "target_ptr =>" << *target_ptr << "\n");
       
@@ -1363,92 +1455,10 @@ namespace Grappa {
   
   
   int ExtractorPass::fixupFunction(Function* fn, std::set<int>* lines) {
-    int fixed_up = 0;
+    
+    int fixed_up = preFixup(fn, layout);
+    
     GlobalPtrInfo::LocalPtrMap lptrs;
-    
-    SmallVector<AddrSpaceCastInst*,32> casts;
-    
-    for (auto& bb : *fn) {
-      for (auto it = bb.begin(); it != bb.end(); ) {
-        Instruction *inst = it++;
-        
-        if (isa<AddrSpaceCastInst>(inst) && isGlobalPtr(inst->getOperand(0))) {
-          casts.push_back(cast<AddrSpaceCastInst>(inst));
-        } else {
-          for_each_op(op, *inst) {
-            // find addrspacecasts hiding in constexprs & unpack them
-            if (auto c = dyn_cast<ConstantExpr>(*op)) {
-              if (c->isCast() && strcmp(c->getOpcodeName(), "addrspacecast") == 0) {
-                auto ac = new AddrSpaceCastInst(c->getOperand(0), c->getType(),
-                                                "cast.unpacked", inst);
-                *op = ac;
-                casts.push_back(ac);
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    ValueToValueMapTy vmap;
-    
-    for (auto c : casts) {
-      outs() << "~~~~~~~~~~~\n" << *c << "\n";
-      Value *ptr = c->getOperand(0);
-      
-      SmallVector<Value*,16> cast_uses;
-      for_each_use(u, *c) cast_uses.push_back(*u);
-      
-      ///////////////////////////////////////////////////
-      // factor out bitcast if element type changes, too
-      auto src_space = c->getSrcTy()->getPointerAddressSpace();
-      auto src_elt_ty = c->getSrcTy()->getPointerElementType();
-      auto dst_elt_ty = c->getType()->getPointerElementType();
-      if (src_elt_ty != dst_elt_ty) {
-        ptr = new BitCastInst(c->getOperand(0),
-                              PointerType::get(dst_elt_ty, src_space),
-                              c->getName()+".precast", c);
-        c->setOperand(0, ptr);
-        outs() << "****" << *ptr << "\n****" << *c << "\n";
-      }
-      
-      // will remap addrspacecast -> original global ptr
-      vmap[c] = ptr;
-      
-      // find any calls using the cast value (so we can inline them below)
-      
-      for (auto v : cast_uses) {
-        outs() << ">>>> " << *v << "\n";
-        if (auto call = dyn_cast<CallInst>(v)) {
-          auto called_fn = call->getCalledFunction();
-          if (!called_fn) continue;
-          DEBUG(outs() << "++" << *call << "\n");
-          
-          auto new_fn = globalizeCall(called_fn, c, call, layout, vmap, lines);
-          
-          assertN(new_fn, "unable to globalize!", *call, *new_fn);
-          
-        }
-      }
-      
-    }
-    
-    // recompute provenance with new inlined instructions
-    AnchorSet anchors;
-    analyzeProvenance(*fn, anchors);
-    
-    // remap instructions/types to be global
-    SmallVector<Instruction*, 64> to_delete;
-    for (auto& bb : *fn) {
-      for (auto it = bb.begin(); it != bb.end();) {
-        Instruction *inst = it++;
-        remap(inst, vmap, to_delete);
-      }
-    }
-    for (auto inst : to_delete) inst->eraseFromParent();
-    
-    for (auto c : casts) c->eraseFromParent();
-    fixed_up += casts.size();
     
     //////////////////////////////////////////////////////
     // find all global/symmetric accesses and fix them up
@@ -1572,40 +1582,11 @@ namespace Grappa {
         }
       }
       
-      ValueToValueMapTy vmap;
-      SmallVector<Instruction*, 32> to_delete;
-      
-      for (auto& bb : *fn) {
-        for (auto it = bb.begin(); it != bb.end(); ) {
-          Instruction *inst = it++;
-          if (auto c = dyn_cast<AddrSpaceCastInst>(inst)) {
-            Value *ptr = c->getOperand(0);
-            
-            ///////////////////////////////////////////////////
-            // factor out bitcast if element type changes, too
-            auto src_space = c->getSrcTy()->getPointerAddressSpace();
-            auto src_elt_ty = c->getSrcTy()->getPointerElementType();
-            auto dst_elt_ty = c->getType()->getPointerElementType();
-            if (src_elt_ty != dst_elt_ty) {
-              ptr = new BitCastInst(c->getOperand(0),
-                                    PointerType::get(dst_elt_ty, src_space),
-                                    c->getName()+".precast", c);
-              c->setOperand(0, ptr);
-            }
-            
-            if (src_space == GLOBAL_SPACE) {
-              vmap[c] = ptr;
-            }
-            
-          } else if (!isa<CallInst>(inst)) {
-            remap(inst, vmap, to_delete);
-          }
-        }
-      }
+      preFixup(fn, layout);
       
       AnchorSet anchors;
       analyzeProvenance(*fn, anchors);
-
+      
       dbg_remover.visit(fn);
       
       std::set<int> lines;
@@ -1618,7 +1599,19 @@ namespace Grappa {
         /////////////////////
         /// Compute regions
         for (auto a : anchors) {
-          lines.insert(a->getDebugLoc().getLine());
+          
+          if (!a->mayReadOrWriteMemory() || !isGlobalPtr(getProvenance(a))) continue;
+          
+          int line = a->getDebugLoc().getLine();
+          lines.insert(line);
+          
+          outs() << "anchor:" << line << " =>" << *a << "\n";
+          
+          if (line == OnlyLine) {
+            outs() << "================================\n"
+                   << *fn
+                   << "================================\n";
+          }
           
           auto p = getProvenance(a);
           if (candidate_map[a]) {

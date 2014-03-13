@@ -481,7 +481,7 @@ struct GlobalPtrInfo {
 void remap(Instruction* inst, ValueToValueMapTy& vmap,
            SmallVectorImpl<Instruction*>& to_delete);
 
-Function* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
+CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
                         CallInst* call, DataLayout* layout,
                         ValueToValueMapTy& vmap,
                         std::set<int>* lines = nullptr);
