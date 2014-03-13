@@ -972,7 +972,7 @@ namespace Grappa {
       }
     }
     
-    Function* extractRegion(GlobalVariable* gce = nullptr) {
+    Function* extractRegion(bool async, Value* gce = nullptr) {
       auto name = "d" + Twine(ID) + "_l" + Twine(entry->getDebugLoc().getLine());
       DEBUG(outs() << "//////////////////\n// extracting " << name << "\n");
       DEBUG(outs() << "target_ptr =>" << *target_ptr << "\n");
@@ -984,7 +984,7 @@ namespace Grappa {
       auto ty_void_gptr = Type::getInt8PtrTy(ctx, GLOBAL_SPACE);
       auto i64 = [&](int64_t v) { return ConstantInt::get(Type::getInt64Ty(ctx), v); };
       
-      if (gce) outs() << "---- extracting async (" << name << ")\n";
+      if (async) outs() << "---- extracting async (" << name << ")\n";
       
       // get set of instructions in region (makes hoist easier)
       RegionSet region;
@@ -1108,7 +1108,7 @@ namespace Grappa {
         for_each_use(u, *it) if (!definedInRegion(*u)) { outputs.insert(it); break; }
       });
       
-      if (gce) assert(outputs.size() == 0);
+      if (async) assert(outputs.size() == 0);
       
       /////////////////////////////////////////////
       // create struct types for inputs & outputs
@@ -1211,7 +1211,7 @@ namespace Grappa {
       }, name+".target_core");
       
       CallInst *call;
-      if (gce) {
+      if (async) {
         size_t sz = layout.getTypeAllocSize(in_struct_ty);
         Function *on_async_fn = ginfo.fn("on_async");
         if      (sz <= 16)  { on_async_fn = ginfo.fn("on_async_16"); errs() << "---- on_async_16\n"; }
@@ -1639,7 +1639,7 @@ namespace Grappa {
       for (int i=0; i<async_md->getNumOperands(); i++) {
         auto md = cast<MDNode>(async_md->getOperand(i));
         auto fn = cast<Function>(md->getOperand(0));
-        auto gce = cast<GlobalVariable>(md->getOperand(1));
+        auto gce = md->getOperand(1);
         async_fns[fn] = gce;
       }
     }
@@ -1729,10 +1729,10 @@ namespace Grappa {
             
             if (!DisableAsync && r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
-              if (async_fns[fn]) {
+//              if (async_fns[fn]) {
                 r.switchExits(r.max_extent);
                 outs() << "!! grappa_on_async candidate\n";
-              }
+//              }
             }
 
             r.printHeader();
@@ -1756,12 +1756,9 @@ namespace Grappa {
         if (found_functions && cnds.size() > 0) {
           for (auto& cnd : cnds) {
             
-            GlobalVariable* async_gce = nullptr;
-            if (!DisableAsync && async_fns[fn] && cnd.max_extent.isVoidRetExit()) {
-              async_gce = async_fns[fn];
-            }
+            bool async = !DisableAsync && cnd.exits.isVoidRetExit();
             
-            auto new_fn = cnd.extractRegion(async_gce);
+            auto new_fn = cnd.extractRegion(async, async_fns[fn]);
             
 //            if (PrintDot && fn->getName().startswith("async"))
             if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))

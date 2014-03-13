@@ -68,12 +68,12 @@ namespace {
           
           if (cf->getName() == "grappa_noop_gce") {
             auto gce = call->getOperand(0);
-            if (isa<GlobalVariable>(gce)) {
+//            if (isa<GlobalVariable>(gce)) {
               md->addOperand(MDNode::get(F.getContext(), {&F, gce}));
               F.setName("async");
-            } else {
-              assert(isa<Constant>(gce));
-            }
+//            } else {
+//              assert(isa<Constant>(gce));
+//            }
             
             to_remove.push_back(call);
           }

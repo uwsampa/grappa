@@ -524,7 +524,7 @@ namespace Grappa {
     GlobalPtrInfo ginfo;
     DataLayout* layout;
     
-    DenseMap<Function*,GlobalVariable*> async_fns;
+    DenseMap<Function*,Value*> async_fns;
     
     int fixupFunction(Function* fn, std::set<int>* lines = nullptr);
     
