@@ -632,6 +632,8 @@ namespace Grappa {
                    SmallPtrSet<AllocaInst*,4>& allocas_to_localize) {
       if (unhoistable.count(i)) return false;
       if (i->mayHaveSideEffects()) return false;
+      auto prov = getProvenance(i);
+      if (i == entry || (prov && prov == getProvenance(entry))) return false;
       
       auto& analysis = aliases.getAliasAnalysis();
       Value *ptr = nullptr;
