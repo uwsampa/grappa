@@ -644,11 +644,27 @@ namespace Grappa {
         
         // only potentially a problem if something in the set modifies it
         if (alias_set.isMod()) {
-          errs() << "unhoistable => alias_set:\n" << alias_set << "\n";
-          // (I think we know it's false right away because we only added
-          //  instructions in the region)
-          unhoistable.insert(i);
-          return false;
+          auto ptr_space = ptr->getType()->getPointerAddressSpace();
+          for (auto a : alias_set) {
+            auto av = a.getValue();
+            assert(isa<PointerType>(av->getType()));
+            
+            if (av == ptr) continue;
+            
+            if (av->getType()->getPointerAddressSpace() == ptr_space) {
+              if (auto ai = dyn_cast<Instruction>(av)) {
+                if (region.count(ai)) {
+                  outs() << "unhoistable_cause =>" << *ai << "\n";
+                  unhoistable.insert(i);
+                  return false;
+                }
+              }
+            }
+          }
+//          // (I think we know it's false right away because we only added
+//          //  instructions in the region)
+//          unhoistable.insert(i);
+//          return false;
         }
         
       }
@@ -660,6 +676,7 @@ namespace Grappa {
         if (auto iop = dyn_cast<Instruction>(*op)) {
           if (region.count(iop)) {
             if (!hoistable(iop, region, aliases, unhoistable, tomove)) {
+              outs() << "unhoistable_cause =>" << *iop << "\n";
               unhoistable.insert(iop);
               return false;
             } else {
@@ -1642,9 +1659,9 @@ namespace Grappa {
             AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
             r.expandRegion(aliases);
             
-            for (auto p : r.max_extent.s) {
-              outs() << *p.first << " => " << *p.second << "\n";
-            }
+//            for (auto p : r.max_extent.s) {
+//              outs() << *p.first << " => " << *p.second << "\n";
+//            }
             
             if (!DisableAsync && r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
