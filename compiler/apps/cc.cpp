@@ -130,7 +130,11 @@ void pram_cc() {
     // Compress
     DVLOG(2) << "compress";
     comp_set->forall_keys([](Edge& e){
+#ifdef __GRAPPA_CLANG__
       auto ga = as_addr(g);
+#else
+      auto ga = g;
+#endif
 
       auto compress = [ga](long i) {
         long ci, cci, nc;
