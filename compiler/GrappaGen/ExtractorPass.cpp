@@ -1646,7 +1646,7 @@ namespace Grappa {
       }
     }
     
-    CandidateMap candidate_map;
+    CandidateMap cmap;
     int ct = 0;
     
     UniqueQueue<Function*> worklist;
@@ -1664,6 +1664,8 @@ namespace Grappa {
         }
       }
     } dbg_remover;
+    
+    AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
     
     while (!worklist.empty()) {
 
@@ -1709,20 +1711,19 @@ namespace Grappa {
           outs() << "anchor:" << line << " =>" << *a << "\n";
           
           auto p = getProvenance(a);
-          if (candidate_map[a]) {
+          if (cmap[a]) {
             DEBUG({
               outs() << "anchor already in another delegate:\n";
               outs() << "  anchor =>" << *a << "\n";
-              outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
+              outs() << "  other  =>" << *cmap[a]->entry << "\n";
             });
           } else if (isGlobalPtr(p)) {
             
-            cnds.emplace(a, new CandidateRegion(p, a, candidate_map, ginfo, *layout));
+            cnds.emplace(a, new CandidateRegion(p, a, cmap, ginfo, *layout));
             auto& r = *cnds[a];
             
             r.valid_ptrs.insert(p);
             
-            AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
             r.expandRegion(aliases);
             
             ////////////////////////////
@@ -1738,7 +1739,7 @@ namespace Grappa {
             r.printHeader();
             
             r.visit([&](BasicBlock::iterator i){
-              if (candidate_map[i] != &r) {
+              if (cmap[i] != &r) {
                 errs() << "!! bad visit: " << *i << "\n";
                 assert(false);
               }
@@ -1747,8 +1748,9 @@ namespace Grappa {
           }
         }
         
-        ///////////////////////////////
-        // find chaining opportunities
+        ////////////////////////////////
+        // find multihop opportunities
+        
         
         
         for (auto& p : cnds) {
@@ -1758,6 +1760,16 @@ namespace Grappa {
             if (cnds.count(after)) {
               auto& o = *cnds[after];
               outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o.entry << "\n";
+              
+              CandidateMap comb_map;
+              auto& comb = *new CandidateRegion(r.target_ptr, r.entry, comb_map, ginfo, *layout);
+              comb.valid_ptrs.insert(getProvenance(r.entry));
+              comb.valid_ptrs.insert(getProvenance(o.entry));
+              
+              comb.expandRegion(aliases);
+              
+              if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
+                                                       taskname+".comb"+Twine(comb.ID));
             }
           });
           
@@ -1766,7 +1778,7 @@ namespace Grappa {
         if (cnds.size() > 0) {
           changed = true;
           if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-            CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
+            CandidateRegion::dumpToDot(*fn, cmap, taskname);
         }
         
         if (found_functions && cnds.size() > 0) {
@@ -1779,7 +1791,7 @@ namespace Grappa {
             
 //            if (PrintDot && fn->getName().startswith("async"))
             if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-              CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(r.ID));
+              CandidateRegion::dumpToDot(*new_fn, cmap, taskname+".d"+Twine(r.ID));
           }
         }
       } // if ( DoExtractor )
@@ -1791,7 +1803,7 @@ namespace Grappa {
         if (nfixed || changed) {
           changed = true;
           if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+            CandidateRegion::dumpToDot(*fn, cmap, taskname+".after");
         }
       }
       
