@@ -37,7 +37,7 @@ static cl::opt<bool> DisableAsync("disable-async",
 
 using InstructionSet = SmallPtrSet<Instruction*,16>;
 
-
+using RegionSet = SmallSetVector<Instruction*,64>;
 
 int poorMansInlineCost(Function* fn) {
   return fn->size();
@@ -562,6 +562,37 @@ namespace Grappa {
       }
       
       unsigned size() { return s.size(); }
+      
+      void fromRegion(RegionSet& region, int score){
+        this->clear();
+        this->score = score;
+        
+        UniqueQueue<Instruction*> q;
+        q.push(region[0]);
+        
+        while (!q.empty()) {
+          auto j = q.pop();
+          auto jb = j->getParent();
+          if (!region.count(j)) {
+            this->add(j->getPrevNode());
+          } else {
+            if (isa<TerminatorInst>(j)) {
+              for_each(sb, jb, succ) {
+                auto js = (*sb)->begin();
+                if (!region.count(js)) {
+                  // outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
+                  this->add(j, *sb);
+                } else {
+                  q.push(js);
+                }
+              }
+            } else {
+              q.push(j->getNextNode());
+            }
+          }
+        }
+      }
+
     };
     
     ExitMap exits, max_extent;
@@ -627,8 +658,6 @@ namespace Grappa {
         }
       }
     }
-    
-    using RegionSet = SmallSet<Instruction*,64>;
     
     bool hoistable(Instruction *i, RegionSet& region, AliasSetTracker& aliases,
                    InstructionSet& unhoistable, InstructionSet& tomove,
@@ -710,34 +739,6 @@ namespace Grappa {
       int best_score = 0;
       ExitMap emap, beforeLocalize;
       
-      auto findExitsFromRegion = [this](ExitMap& emap, RegionSet& region, int score){
-        emap.clear();
-        emap.score = score;
-        UniqueQueue<Instruction*> q;
-        q.push(entry);
-        while (!q.empty()) {
-          auto j = q.pop();
-          auto jb = j->getParent();
-          if (!region.count(j)) {
-            emap.add(j->getPrevNode());
-          } else {
-            if (isa<TerminatorInst>(j)) {
-              for_each(sb, jb, succ) {
-                auto js = (*sb)->begin();
-                if (!region.count(js)) {
-                  // outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
-                  emap.add(j, *sb);
-                } else {
-                  q.push(js);
-                }
-              }
-            } else {
-              q.push(j->getNextNode());
-            }
-          }
-        }
-      };
-      
       auto computeScore = [this](InstructionSet& tomove, RegionSet& region, int anchor_ct){
         ValueSet inputs, outputs;
         for (auto r : region) {
@@ -808,7 +809,7 @@ namespace Grappa {
           if (score > best_score) {
             outs() << "  !! best!";
             best_score = score;
-            findExitsFromRegion(emap, region, score);
+            emap.fromRegion(region, score);
           }
             
           outs() << "\n";
@@ -868,13 +869,14 @@ namespace Grappa {
           // so have to stick with it now...
           outs() << "!! localizing!\n";
           int score = computeScore(tomove, region, anchor_ct);
-          findExitsFromRegion(max_extent, region, score);
+          max_extent.fromRegion(region, score);
+          
           switchExits(max_extent);
         }
       } else {
         to_localize.clear();
         int score = computeScore(tomove, region, anchor_ct);
-        findExitsFromRegion(max_extent, region, score);
+        max_extent.fromRegion(region, score);
         switchExits(emap);
       }
     }

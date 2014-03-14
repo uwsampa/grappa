@@ -19,6 +19,9 @@
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
 
+
+const int MESSAGE_COST = 50;
+
 #define void_ty      Type::getVoidTy(*ctx)
 #define i64_ty       Type::getInt64Ty(*ctx)
 #define i16_ty       Type::getInt16Ty(*ctx)
@@ -90,6 +93,7 @@ inline std::string mangleSimpleGlobal(StringRef n) {
   name << "E";
   return name.str();
 }
+
 
 using AnchorSet = SetVector<Instruction*>;
 using ValueSet = SetVector<Value*>;
