@@ -1722,7 +1722,7 @@ namespace Grappa {
       if ( DoExtractor ) {
         // Get rid of debug info that causes problems with extractor
         
-        std::map<Instruction*,CandidateRegion*> cnds;
+        std::map<Instruction*,unique_ptr<CandidateRegion>> cnds;
         
         /////////////////////
         /// Compute regions
@@ -1744,7 +1744,7 @@ namespace Grappa {
             });
           } else if (isGlobalPtr(p)) {
             
-            cnds.emplace(a, new CandidateRegion(p, a, cmap, ginfo, *layout));
+            cnds[a] = make_unique<CandidateRegion>(p, a, cmap, ginfo, *layout);
             auto& r = *cnds[a];
             
             r.valid_ptrs.insert(p);
@@ -1776,6 +1776,8 @@ namespace Grappa {
         
         //////////////////////////////////////////
         // find & evaluate multihop opportunities
+        SmallVector<std::pair<Instruction*,Instruction*>,8> pairs;
+        
         for (auto& p : cnds) {
           auto& r = *p.second;
           r.max_extent.each([&](Instruction* before, Instruction* after){
@@ -1783,24 +1785,36 @@ namespace Grappa {
             if (cnds.count(after)) {
               auto& o = *cnds[after];
               outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o.entry << "\n";
-              
-              CandidateMap comb_map;
-              auto& comb = *new CandidateRegion(r.target_ptr, r.entry, comb_map, ginfo, *layout);
-              comb.valid_ptrs.insert(getProvenance(r.entry));
-              comb.valid_ptrs.insert(getProvenance(o.entry));
-              
-              comb.expandRegion(aliases);
-              
-              if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
-                                                       taskname+".comb"+Twine(comb.ID));
-              
-              outs() << "first.score    => " << r.exits.score << "\n";
-              outs() << "second.score   => " << o.exits.score << "\n";
-              outs() << "comb.score     => " << comb.exits.score << "\n";
-              outs() << "comb.max.score => " << comb.max_extent.score << "\n";
+              pairs.push_back({r.entry, o.entry});
             }
           });
+        }
+        
+        for (auto p : pairs) {
+          auto& r = *cnds[p.first];
+          auto& o = *cnds[p.second];
           
+          CandidateMap comb_map;
+          auto comb = make_unique<CandidateRegion>(r.target_ptr, r.entry, comb_map,
+                                                   ginfo, *layout);
+          comb->addPtr(getProvenance(r.entry));
+          comb->addPtr(getProvenance(o.entry));
+          
+          comb->expandRegion(aliases);
+          
+          if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
+                                                   taskname+".comb"+Twine(comb->ID));
+          
+          outs() << "first.score    => " << r.cost() << "\n";
+          outs() << "second.score   => " << o.cost() << "\n";
+          outs() << "comb.score     => " << comb->cost() << "\n";
+          
+          if (comb->cost() < (r.cost() + o.cost())) {
+            outs() << "++++ multihop wins!\n";
+            cnds.erase(r.entry);
+            cnds.erase(o.entry);
+            cnds[comb->entry] = std::move(comb);
+          }
         }
         
         if (cnds.size() > 0) {

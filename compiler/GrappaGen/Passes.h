@@ -19,6 +19,11 @@
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
 
+using std::unique_ptr;
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 
 const int MESSAGE_COST = 50;
 
