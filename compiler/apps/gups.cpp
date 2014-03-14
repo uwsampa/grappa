@@ -6,6 +6,9 @@
 #include <Primitive.hpp>
 #endif
 
+#define MULTIHOP 1
+#warning hardcoded MULTIHOP
+
 using namespace Grappa;
 
 DEFINE_int64( log_array_size, 28, "Size of array that GUPS increments (log2)" );
