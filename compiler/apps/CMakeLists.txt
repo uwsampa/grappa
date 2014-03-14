@@ -19,24 +19,33 @@ macro(add_app compiler file flags suffix)
   endif()
   
   set_property(TARGET ${target} PROPERTY FOLDER "Compiler")
-  set_property(TARGET ${target} APPEND_STRING PROPERTY COMPILE_FLAGS " ${flags}")
+  set_property(TARGET ${target} APPEND_STRING PROPERTY COMPILE_FLAGS " -O3 ${flags}")
   
   list(APPEND apps ${fbase})
   list(APPEND apps.${fbase} ${target})
 endmacro()
 
 foreach(file ${miniapp_srcs})
-  add_app(grappaclang ${file} "-mllvm -grappa-extractor -O3" ext)
-  add_app(grappaclang ${file} "-mllvm -grappa-extractor -mllvm -disable-async -O3" ext.noasync)
-  add_app(grappaclang ${file} "-O3" putget)
+  add_app(grappaclang ${file} "-mllvm -grappa-extractor" ext)
+  add_app(grappaclang ${file} "-mllvm -grappa-extractor -mllvm -disable-async" ext.noasync)
+  add_app(grappaclang ${file} "" putget)
 endforeach()
 
 add_app(default "bfs.cpp" "" hand)
 
-add_app(default "gups.cpp" "" hand)
-add_app(default "gups.cpp" "-DBLOCKING=1" blocking.hand)
+############
+# Gups
+add_app(default     "gups.cpp" "" hand)
+# measure benefit of async:
+add_app(default     "gups.cpp" "-DBLOCKING=1" blocking.hand)
+# verify overhead of void interface
 add_app(grappaclang "gups.cpp" "-DVOID_INTERFACE=1" void)
+# multihop:
+add_app(grappaclang "gups.cpp" "-mllvm -grappa-extractor -DMULTIHOP=1" hop.ext)
+add_app(default     "gups.cpp" "-DMULTIHOP=1" hop)
 
+########################
+# Connected components
 add_app(default "cc.cpp" "" hand)
 
 

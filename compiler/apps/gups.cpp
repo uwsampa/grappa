@@ -2,12 +2,11 @@
 #include <GlobalVector.hpp>
 #include <graph/Graph.hpp>
 
+#undef __GRAPPA_CLANG__
+
 #ifdef __GRAPPA_CLANG__
 #include <Primitive.hpp>
 #endif
-
-#define MULTIHOP 1
-#warning hardcoded MULTIHOP
 
 using namespace Grappa;
 
@@ -69,14 +68,20 @@ int main(int argc, char* argv[]) {
       a[b]++;
     });
 #  endif
-#else
-    forall(B, sizeB, [=](int64_t& b){
-#ifdef BLOCKING
-      delegate::increment(A+b, 1);
-#else
-      delegate::increment<async>( A + b, 1);
-#endif
+#else // not __GRAPPA_CLANG__
+#  if defined(MULTIHOP)
+    forall(0, sizeB, [=](int64_t i){
+      delegate::increment(A+delegate::read(B+i), 1);
     });
+#  else
+    forall(B, sizeB, [=](int64_t& b){
+#    ifdef BLOCKING
+      delegate::increment(A+b, 1);
+#    else
+      delegate::increment<async>( A + b, 1);
+#    endif
+    });
+#  endif
 #endif
     
     gups_runtime = walltime() - start;
