@@ -896,7 +896,7 @@ namespace Grappa {
         int score = computeScore(tomove, region, anchor_ct);
         max_extent.fromRegion(region, score);
         
-        if (max_extent.score <= emap.score) {
+        if (max_extent.score < emap.score) {
           outs() << "---- chose max_extent\n";
           switchExits(max_extent);
         } else {
