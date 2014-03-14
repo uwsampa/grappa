@@ -1202,7 +1202,7 @@ namespace Grappa {
       b.SetInsertPoint(bb_ret);
       auto phi_ret = b.CreatePHI(ty_ret, exits.size(), "ret.phi");
       // return from end of created block
-      b.CreateRet(phi_ret);
+      auto ret = b.CreateRet(phi_ret);
       
       ////////////////////////////////
       // store outputs at last use
@@ -1445,11 +1445,23 @@ namespace Grappa {
         
         auto hop = make_unique<CandidateRegion>(getProvenance(next_entry), next_entry,
                                                 owner, ginfo, layout, alias);
+        IRBuilder<> b(ret);
+        auto voidRet = b.CreateRetVoid();
+        ret->setOperand(0, Constant::getNullValue(ty_ret));
+        
         hop->expandRegion();
         
         assert(hop->exits.isVoidRetExit());
         auto next_hop = hop->extractRegion(true, gce);
+        
+        if (PrintDot) {
+          dumpToDot(*next_hop, owner, next_hop->getName());
+        }
+        
+        voidRet->eraseFromParent();
         outs() << "++++ created next hop\n";
+        
+        
       }
       
       return new_fn;
