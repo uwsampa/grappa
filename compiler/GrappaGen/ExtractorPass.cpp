@@ -494,6 +494,8 @@ namespace Grappa {
       void clear() { s.clear(); score = 0; }
       
       bool isVoidRetExit() {
+        if (DisableAsync) return false;
+        
         bool all_void = true;
         
         each([&](Instruction* s, Instruction* e){
@@ -563,9 +565,9 @@ namespace Grappa {
       
       unsigned size() { return s.size(); }
       
-      void fromRegion(RegionSet& region, int score){
-        this->clear();
-        this->score = score;
+      void fromRegion(RegionSet& region, int pre_score){
+        clear();
+        score = pre_score;
         
         UniqueQueue<Instruction*> q;
         q.push(region[0]);
@@ -591,6 +593,8 @@ namespace Grappa {
             }
           }
         }
+        
+        if (isVoidRetExit()) score -= MESSAGE_COST;
       }
 
     };
@@ -610,6 +614,10 @@ namespace Grappa {
     
     CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
       ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
+    
+    int cost() { return exits.score; }
+    
+    void addPtr(Value* ptr) { valid_ptrs.insert(ptr); }
     
     void switchExits(ExitMap& emap) {
       visit([&](BasicBlock::iterator i){ owner[i] = nullptr; });
@@ -736,7 +744,7 @@ namespace Grappa {
       
       RegionSet region;
       int anchor_ct = 0;
-      int best_score = 0;
+      int best_score = INT_MAX;
       ExitMap emap, beforeLocalize;
       
       auto computeScore = [this](InstructionSet& tomove, RegionSet& region, int anchor_ct){
@@ -751,7 +759,11 @@ namespace Grappa {
             sz += layout.getTypeAllocSize(v->getType());
           }
         }
-        return (anchor_ct * 100) - sz;
+        return sz // size of continuation/return message
+            // messages saved by subsuming multiple anchors
+          - (2 * MESSAGE_COST * (anchor_ct-1))
+            // messages needed to hop around to each destination
+          + (MESSAGE_COST * (valid_ptrs.size()-1));
       };
       
       SmallSetVector<BasicBlock*,4> deferred;
@@ -806,7 +818,7 @@ namespace Grappa {
           
           if (!hoisting) outs() << format("(%d,%4d) ", anchor_ct, score) << *i;
           
-          if (score > best_score) {
+          if (score < best_score) {
             outs() << "  !! best!";
             best_score = score;
             emap.fromRegion(region, score);
@@ -870,14 +882,19 @@ namespace Grappa {
           outs() << "!! localizing!\n";
           int score = computeScore(tomove, region, anchor_ct);
           max_extent.fromRegion(region, score);
-          
           switchExits(max_extent);
         }
       } else {
         to_localize.clear();
         int score = computeScore(tomove, region, anchor_ct);
         max_extent.fromRegion(region, score);
-        switchExits(emap);
+        
+        if (max_extent.score <= emap.score) {
+          switchExits(max_extent);
+        } else {
+          switchExits(emap);
+        }
+        
       }
     }
     
@@ -1736,13 +1753,14 @@ namespace Grappa {
             
             ////////////////////////////
             // find async opportunities
-            if (!DisableAsync && r.max_extent.isVoidRetExit()) {
-              assert(layout->getTypeAllocSize(r.ty_output) == 0);
-                // if (async_fns[fn]) {
-                r.switchExits(r.max_extent);
-                outs() << "!! grappa_on_async candidate\n";
-                // }
-            }
+//            if (!DisableAsync && r.max_extent.isVoidRetExit()) {
+//              assert(layout->getTypeAllocSize(r.ty_output) == 0);
+//                // if (async_fns[fn]) {
+//                r.switchExits(r.max_extent);
+//                outs() << "!! grappa_on_async candidate\n";
+//                // }
+//            }
+            if (r.exits.isVoidRetExit()) outs() << "!! grappa_on_async candidate\n";
 
             r.printHeader();
             
