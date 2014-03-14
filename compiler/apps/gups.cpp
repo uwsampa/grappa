@@ -2,18 +2,20 @@
 #include <GlobalVector.hpp>
 #include <graph/Graph.hpp>
 
-#undef __GRAPPA_CLANG__
-
 #ifdef __GRAPPA_CLANG__
 #include <Primitive.hpp>
 #endif
 
 using namespace Grappa;
 
+using delegate::call;
+
 DEFINE_int64( log_array_size, 28, "Size of array that GUPS increments (log2)" );
 DEFINE_int64( log_iterations, 20, "Iterations (log2)" );
 
 static int64_t sizeA, sizeB;
+
+GlobalCompletionEvent phaser;
 
 DEFINE_bool( metrics, false, "Dump metrics");
 
@@ -69,19 +71,34 @@ int main(int argc, char* argv[]) {
     });
 #  endif
 #else // not __GRAPPA_CLANG__
-#  if defined(MULTIHOP)
+# if defined(MULTIHOP)
+    
+#  if defined(BLOCKING)
     forall(0, sizeB, [=](int64_t i){
       delegate::increment(A+delegate::read(B+i), 1);
     });
 #  else
-    forall(B, sizeB, [=](int64_t& b){
-#    ifdef BLOCKING
-      delegate::increment(A+b, 1);
-#    else
-      delegate::increment<async>( A + b, 1);
-#    endif
+    
+    forall<&phaser>(0, sizeB, [=](int64_t i){
+      Core origin = mycore();
+      phaser.enroll();
+      call<async,nullptr>(B+i, [=](int64_t& b){
+        call<async,nullptr>(A+b, [=](int64_t& a){
+          a++;
+          phaser.send_completion(origin);
+        });
+      });
     });
 #  endif
+# else
+    forall(B, sizeB, [=](int64_t& b){
+#  ifdef BLOCKING
+      delegate::increment(A+b, 1);
+#  else
+      delegate::increment<async>( A + b, 1);
+#  endif
+    });
+# endif
 #endif
     
     gups_runtime = walltime() - start;

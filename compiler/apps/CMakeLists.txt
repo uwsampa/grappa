@@ -42,7 +42,8 @@ add_app(default     "gups.cpp" "-DBLOCKING=1" blocking.hand)
 add_app(grappaclang "gups.cpp" "-DVOID_INTERFACE=1" void)
 # multihop:
 add_app(grappaclang "gups.cpp" "-mllvm -grappa-extractor -DMULTIHOP=1" hop.ext)
-add_app(default     "gups.cpp" "-DMULTIHOP=1" hop)
+add_app(default     "gups.cpp" "-DMULTIHOP=1 -DBLOCKING=1" hop.base)
+add_app(default     "gups.cpp" "-DMULTIHOP=1" hop.hand)
 
 ########################
 # Connected components
