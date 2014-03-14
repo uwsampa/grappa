@@ -59,9 +59,8 @@ DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
-DEFINE_int64(hash_size, 1<<10, "size of GlobalHashSet");
+DEFINE_int64(hash_size, 1<<14, "size of GlobalHashSet");
 DEFINE_int64(concurrent_roots, 1, "number of concurrent `explores`");
-DEFINE_bool(insert_async, false, "do inserts asynchronously");
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, ncomponents, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, pram_passes, 0);
