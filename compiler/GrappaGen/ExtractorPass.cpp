@@ -1695,7 +1695,7 @@ namespace Grappa {
       if ( DoExtractor ) {
         // Get rid of debug info that causes problems with extractor
         
-        std::vector<CandidateRegion> cnds;
+        std::map<Instruction*,CandidateRegion*> cnds;
         
         /////////////////////
         /// Compute regions
@@ -1716,25 +1716,23 @@ namespace Grappa {
               outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
             });
           } else if (isGlobalPtr(p)) {
-
-            cnds.emplace_back(p, a, candidate_map, ginfo, *layout);
-            auto& r = cnds.back();
+            
+            cnds.emplace(a, new CandidateRegion(p, a, candidate_map, ginfo, *layout));
+            auto& r = *cnds[a];
             
             r.valid_ptrs.insert(p);
             
             AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
             r.expandRegion(aliases);
             
-//            for (auto p : r.max_extent.s) {
-//              outs() << *p.first << " => " << *p.second << "\n";
-//            }
-            
+            ////////////////////////////
+            // find async opportunities
             if (!DisableAsync && r.max_extent.isVoidRetExit()) {
               assert(layout->getTypeAllocSize(r.ty_output) == 0);
-//              if (async_fns[fn]) {
+                // if (async_fns[fn]) {
                 r.switchExits(r.max_extent);
                 outs() << "!! grappa_on_async candidate\n";
-//              }
+                // }
             }
 
             r.printHeader();
@@ -1749,6 +1747,22 @@ namespace Grappa {
           }
         }
         
+        ///////////////////////////////
+        // find chaining opportunities
+        
+        
+        for (auto& p : cnds) {
+          auto& r = *p.second;
+          r.max_extent.each([&](Instruction* before, Instruction* after){
+            outs() << "---- after =>" << *after << "\n";
+            if (cnds.count(after)) {
+              auto& o = *cnds[after];
+              outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o.entry << "\n";
+            }
+          });
+          
+        }
+        
         if (cnds.size() > 0) {
           changed = true;
           if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
@@ -1756,15 +1770,16 @@ namespace Grappa {
         }
         
         if (found_functions && cnds.size() > 0) {
-          for (auto& cnd : cnds) {
+          for (auto& p : cnds) {
+            auto& r = *p.second;
             
-            bool async = !DisableAsync && cnd.exits.isVoidRetExit();
+            bool async = !DisableAsync && r.exits.isVoidRetExit();
             
-            auto new_fn = cnd.extractRegion(async, async_fns[fn]);
+            auto new_fn = r.extractRegion(async, async_fns[fn]);
             
 //            if (PrintDot && fn->getName().startswith("async"))
             if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-              CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd.ID));
+              CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(r.ID));
           }
         }
       } // if ( DoExtractor )
