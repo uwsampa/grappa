@@ -48,7 +48,14 @@ int main(int argc, char* argv[]) {
     double start = walltime();
     
 #ifdef __GRAPPA_CLANG__
-#  if defined(VOID_INTERFACE)
+#  if defined(MULTIHOP)
+    
+    auto a = as_ptr(A), b = as_ptr(B);
+    forall(0, sizeB, [=](int64_t i){
+      a[b[i]]++;
+    });
+    
+#  elif defined(VOID_INTERFACE)
     forall(B, sizeB, [=](int64_t& b){
       auto in = A+b;
       grappa_on_async(in.core(), incr, &in, sizeof(in), &impl::local_gce);
