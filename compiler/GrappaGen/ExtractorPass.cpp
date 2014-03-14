@@ -114,14 +114,18 @@ bool isStack(Value* v)        { X(isa<AllocaInst>(v) || isa<Argument>(v)); }
 
 #undef X
 
-bool isAnchor(Instruction* inst) {
+bool isAnchor(Instruction* inst, int space = -1) {
   if (!inst->mayReadOrWriteMemory()) return false;
   
   Value* prov = getProvenance(inst);
-  if (prov)
-    return isGlobalPtr(prov) || isStack(prov);
-  else
-    return false;
+  if (prov) {
+    if (space == GLOBAL_SPACE) {
+      return isGlobalPtr(prov);
+    } else {
+      return isGlobalPtr(prov) || isStack(prov);
+    }
+  }
+  return false;
 }
 
 void analyzeProvenance(Function& fn, AnchorSet& anchors) {
@@ -608,12 +612,15 @@ namespace Grappa {
     
     GlobalPtrInfo& ginfo;
     DataLayout& layout;
+    AliasAnalysis& alias;
     
     InstructionSet hoists;
     SmallPtrSet<AllocaInst*,4> to_localize;
     
-    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
-      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
+    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout, AliasAnalysis& alias):
+      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout), alias(alias) {
+        valid_ptrs.insert(target_ptr);
+      }
     
     int cost() { return exits.score; }
     
@@ -738,8 +745,8 @@ namespace Grappa {
       return true;
     }
     
-    void expandRegion(AliasSetTracker& aliases, bool allow_localize = true) {
-      
+    void expandRegion(bool allow_localize = true) {
+      AliasSetTracker aliases(alias);
       outs() << "--------------- <line " << entry->getDebugLoc().getLine() << ">\n";
       
       RegionSet region;
@@ -874,7 +881,7 @@ namespace Grappa {
         if (!all_good) {
           // try again, this time without attempting to localize
           outs() << "!! localizing failed :(\n";
-          expandRegion(aliases, false);
+          expandRegion(false);
           return;
         } else {
           // just ensured that allocas were okay to move into this region,
@@ -890,6 +897,7 @@ namespace Grappa {
         max_extent.fromRegion(region, score);
         
         if (max_extent.score <= emap.score) {
+          outs() << "---- chose max_extent\n";
           switchExits(max_extent);
         } else {
           switchExits(emap);
@@ -1326,18 +1334,22 @@ namespace Grappa {
       // also strip provenance metadata so it doesn't confuse 'fixupFunction()'
       SmallDenseMap<Value*,Value*> lptrs;
       
+      auto new_tgt = clone_map[target_ptr];
+      
       for (auto bb = new_fn->begin(); bb != new_fn->end(); bb++) {
         for (auto inst = bb->begin(); inst != bb->end(); ) {
           Instruction *orig = inst++;
           auto prov = getProvenance(orig);
-          setProvenance(orig, nullptr);
-          if (isGlobalPtr(prov)) {
-            if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-              ginfo.replace_with_local<GLOBAL_SPACE>(gptr, orig, lptrs);
-            }
-          } else if (isSymmetricPtr(prov)) {
-            if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
-              ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+          if (prov == new_tgt) {
+            setProvenance(orig, nullptr);
+            if (isGlobalPtr(prov)) {
+              if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+                ginfo.replace_with_local<GLOBAL_SPACE>(gptr, orig, lptrs);
+              }
+            } else if (isSymmetricPtr(prov)) {
+              if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+                ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+              }
             }
           }
         }
@@ -1415,6 +1427,31 @@ namespace Grappa {
         outs() << "-------------------------------\n";
         outs() << *bb_call;
       );
+      
+      //////////////////////////
+      // recurse for multi-hop
+      if (valid_ptrs.size() > 1) {
+        // find hop anchor
+        Instruction* next_entry = nullptr;
+        for_each(i, new_fn, inst) {
+          Instruction* inst = &*i;
+          if (isAnchor(inst,GLOBAL_SPACE)) {
+            next_entry = inst;
+            break;
+          }
+        }
+        
+        outs() << "next_hop.entry =>" << *next_entry << "\n";
+        
+        auto hop = make_unique<CandidateRegion>(getProvenance(next_entry), next_entry,
+                                                owner, ginfo, layout, alias);
+        hop->expandRegion();
+        
+        assert(hop->exits.isVoidRetExit());
+        auto next_hop = hop->extractRegion(true, gce);
+        outs() << "++++ created next hop\n";
+      }
+      
       return new_fn;
     }
     
@@ -1690,7 +1727,7 @@ namespace Grappa {
       }
     } dbg_remover;
     
-    AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
+    AliasAnalysis aliases = getAnalysis<AliasAnalysis>();
     
     while (!worklist.empty()) {
 
@@ -1744,12 +1781,10 @@ namespace Grappa {
             });
           } else if (isGlobalPtr(p)) {
             
-            cnds[a] = make_unique<CandidateRegion>(p, a, cmap, ginfo, *layout);
+            cnds[a] = make_unique<CandidateRegion>(p, a, cmap, ginfo, *layout, aliases);
             auto& r = *cnds[a];
             
-            r.valid_ptrs.insert(p);
-            
-            r.expandRegion(aliases);
+            r.expandRegion();
             
             ////////////////////////////
             // find async opportunities
@@ -1795,15 +1830,14 @@ namespace Grappa {
           auto& o = *cnds[p.second];
           
           CandidateMap comb_map;
-          auto comb = make_unique<CandidateRegion>(r.target_ptr, r.entry, comb_map,
-                                                   ginfo, *layout);
-          comb->addPtr(getProvenance(r.entry));
+          auto comb = make_unique<CandidateRegion>(r.target_ptr, r.entry, cmap,
+                                                   ginfo, *layout, aliases);
           comb->addPtr(getProvenance(o.entry));
           
-          comb->expandRegion(aliases);
+          comb->expandRegion();
           
-          if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
-                                                   taskname+".comb"+Twine(comb->ID));
+//          if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
+//                                                   taskname+".comb"+Twine(comb->ID));
           
           outs() << "first.score    => " << r.cost() << "\n";
           outs() << "second.score   => " << o.cost() << "\n";
