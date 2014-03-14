@@ -475,20 +475,23 @@ namespace Grappa {
       
     public:
       
+      int score;
+      
       SmallSetVector<Exit,8> s;
       
       ExitMap() = default;
       
-      ExitMap(ExitMap const& o) {
+      ExitMap(ExitMap const& o): score(o.score) {
         for (auto e : o.s) s.insert(e);
       }
       
       void operator=(const ExitMap& o) {
         clear();
+        score = o.score;
         for (auto e : o.s) s.insert(e);
       }
       
-      void clear() { s.clear(); }
+      void clear() { s.clear(); score = 0; }
       
       bool isVoidRetExit() {
         bool all_void = true;
@@ -707,8 +710,9 @@ namespace Grappa {
       int best_score = 0;
       ExitMap emap, beforeLocalize;
       
-      auto findExitsFromRegion = [this](ExitMap& emap, RegionSet& region){
+      auto findExitsFromRegion = [this](ExitMap& emap, RegionSet& region, int score){
         emap.clear();
+        emap.score = score;
         UniqueQueue<Instruction*> q;
         q.push(entry);
         while (!q.empty()) {
@@ -732,6 +736,21 @@ namespace Grappa {
             }
           }
         }
+      };
+      
+      auto computeScore = [this](InstructionSet& tomove, RegionSet& region, int anchor_ct){
+        ValueSet inputs, outputs;
+        for (auto r : region) {
+          if (!tomove.count(r)) computeInOut(r, region, inputs, outputs);
+        }
+        
+        int sz = 0;
+        for (auto& s : {inputs, outputs}) {
+          for (auto v : s) {
+            sz += layout.getTypeAllocSize(v->getType());
+          }
+        }
+        return (anchor_ct * 100) - sz;
       };
       
       SmallSetVector<BasicBlock*,4> deferred;
@@ -782,29 +801,14 @@ namespace Grappa {
             }
           }
           
-          int score;
-          { // compute score
-            ValueSet inputs, outputs;
-            for (auto r : region) {
-              if (!tomove.count(r)) computeInOut(r, region, inputs, outputs);
-            }
-            
-            int sz = 0;
-            for (auto& s : {inputs, outputs}) {
-              for (auto v : s) {
-                sz += layout.getTypeAllocSize(v->getType());
-              }
-            }
-            
-            score = (anchor_ct * 100) - sz;
-          }
+          int score = computeScore(tomove, region, anchor_ct);
           
           if (!hoisting) outs() << format("(%d,%4d) ", anchor_ct, score) << *i;
           
           if (score > best_score) {
             outs() << "  !! best!";
             best_score = score;
-            findExitsFromRegion(emap,region);
+            findExitsFromRegion(emap, region, score);
           }
             
           outs() << "\n";
@@ -863,12 +867,14 @@ namespace Grappa {
           // just ensured that allocas were okay to move into this region,
           // so have to stick with it now...
           outs() << "!! localizing!\n";
-          findExitsFromRegion(max_extent,region);
+          int score = computeScore(tomove, region, anchor_ct);
+          findExitsFromRegion(max_extent, region, score);
           switchExits(max_extent);
         }
       } else {
         to_localize.clear();
-        findExitsFromRegion(max_extent,region);
+        int score = computeScore(tomove, region, anchor_ct);
+        findExitsFromRegion(max_extent, region, score);
         switchExits(emap);
       }
     }
@@ -1748,11 +1754,8 @@ namespace Grappa {
           }
         }
         
-        ////////////////////////////////
-        // find multihop opportunities
-        
-        
-        
+        //////////////////////////////////////////
+        // find & evaluate multihop opportunities
         for (auto& p : cnds) {
           auto& r = *p.second;
           r.max_extent.each([&](Instruction* before, Instruction* after){
@@ -1770,6 +1773,11 @@ namespace Grappa {
               
               if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
                                                        taskname+".comb"+Twine(comb.ID));
+              
+              outs() << "first.score    => " << r.exits.score << "\n";
+              outs() << "second.score   => " << o.exits.score << "\n";
+              outs() << "comb.score     => " << comb.exits.score << "\n";
+              outs() << "comb.max.score => " << comb.max_extent.score << "\n";
             }
           });
           
