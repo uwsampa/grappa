@@ -44,6 +44,9 @@ add_app(grappaclang "gups.cpp" "-DVOID_INTERFACE=1" void)
 add_app(grappaclang "gups.cpp" "-mllvm -grappa-extractor -DMULTIHOP=1" hop.ext)
 add_app(default     "gups.cpp" "-DMULTIHOP=1 -DBLOCKING=1" hop.base)
 add_app(default     "gups.cpp" "-DMULTIHOP=1" hop.hand)
+# message cost experiment
+add_app(default     "gups.cpp" "-DCOST_EXPERIMENT -DBLOCKING" cost.stay)
+add_app(default     "gups.cpp" "-DCOST_EXPERIMENT" cost.go)
 
 ########################
 # Connected components
