@@ -43,6 +43,7 @@ int poorMansInlineCost(Function* fn) {
   return fn->size();
 }
 
+#pragma mark - Provenance
 
 void setProvenance(Instruction* inst, Value* ptr) {
   inst->setMetadata("grappa.prov", MDNode::get(inst->getContext(), ptr));
@@ -172,6 +173,7 @@ void analyzeProvenance(Function& fn, AnchorSet& anchors) {
   }
 }
 
+#pragma mark - Fixups
 
 void remap(Instruction* inst, ValueToValueMapTy& vmap,
            SmallVectorImpl<Instruction*>& to_delete) {
@@ -463,6 +465,8 @@ namespace Grappa {
   
   struct CandidateRegion;
   using CandidateMap = std::map<Instruction*,CandidateRegion*>;
+  
+#pragma mark - Region
   
   struct CandidateRegion {
     static long id_counter;
@@ -1628,7 +1632,8 @@ namespace Grappa {
     
   };
   
-  
+
+#pragma mark - fixupFunction
   int ExtractorPass::fixupFunction(Function* fn, std::set<int>* lines) {
     
     int fixed_up = preFixup(fn, layout);
