@@ -15,4 +15,4 @@ while [[ $# > 0 ]]; do
   esac
 done
 
-exec @CMAKE_CXX_COMPILER@ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_LOCATION@ @GRAPPA_INCLUDES@ @GRAPPA_DEFINITIONS@ @CMAKE_CXX_FLAGS_DEBUG@ $args -rdynamic @GRAPPA_LIBRARIES@ -Qunused-arguments
+exec @CMAKE_CXX_COMPILER@ -std=c++11 -Xclang -load -Xclang @GRAPPA_GEN_LOCATION@ @GRAPPA_INCLUDES@ @GRAPPA_DEFINITIONS@ -D__GRAPPA_CLANG__ @CMAKE_CXX_FLAGS_DEBUG@ $args -rdynamic @GRAPPA_LIBRARIES@ -Qunused-arguments
