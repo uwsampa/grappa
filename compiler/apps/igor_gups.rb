@@ -15,6 +15,9 @@ Igor do
            gups.void.exe
            gups.hand.exe
            gups.blocking.hand.exe
+           gups.hop.base.exe
+           gups.hop.hand.exe
+           gups.hop.ext.exe
          ]
   
   params { exe *exes }

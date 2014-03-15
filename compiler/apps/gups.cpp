@@ -8,10 +8,23 @@
 
 using namespace Grappa;
 
+using delegate::call;
+
 DEFINE_int64( log_array_size, 28, "Size of array that GUPS increments (log2)" );
 DEFINE_int64( log_iterations, 20, "Iterations (log2)" );
 
-static int64_t sizeA, sizeB;
+/// size of index array
+int64_t sizeA;
+/// size of target array
+int64_t sizeB;
+
+GlobalCompletionEvent phaser;
+
+#ifndef DATA_SIZE
+# define DATA_SIZE 16
+#endif
+
+double data[DATA_SIZE];
 
 DEFINE_bool( metrics, false, "Dump metrics");
 
@@ -37,7 +50,7 @@ int main(int argc, char* argv[]) {
     
     auto A = global_alloc<int64_t>(sizeA);
     Grappa::memset(A, 0, sizeA );
-
+    
     auto B = global_alloc<int64_t>(sizeB);
     
     forall(B, sizeB, [](int64_t& b) {
@@ -48,7 +61,14 @@ int main(int argc, char* argv[]) {
     double start = walltime();
     
 #ifdef __GRAPPA_CLANG__
-#  if defined(VOID_INTERFACE)
+#  if defined(MULTIHOP)
+    
+    auto a = as_ptr(A), b = as_ptr(B);
+    forall(0, sizeB, [=](int64_t i){
+      a[b[i]]++;
+    });
+    
+#  elif defined(VOID_INTERFACE)
     forall(B, sizeB, [=](int64_t& b){
       auto in = A+b;
       grappa_on_async(in.core(), incr, &in, sizeof(in), &impl::local_gce);
@@ -59,14 +79,50 @@ int main(int argc, char* argv[]) {
       a[b]++;
     });
 #  endif
-#else
+#else // not __GRAPPA_CLANG__
+# if defined(COST_EXPERIMENT)
+
     forall(B, sizeB, [=](int64_t& b){
-#ifdef BLOCKING
-      delegate::increment(A+b, 1);
-#else
-      delegate::increment<async>( A + b, 1);
-#endif
+      double d[DATA_SIZE];
+#  if defined(BLOCKING)
+      call(A+b, [=](int64_t& a){ a++; });
+      for (int i=0; i<DATA_SIZE; i++) data[i] = d[i];
+#  else
+      call<async>(A+b, [=](int64_t& a){
+        a++;
+        for (int i=0; i<DATA_SIZE; i++) data[i] = d[i];
+      });
+#  endif
     });
+    
+# elif defined(MULTIHOP)
+    
+#  if defined(BLOCKING)
+    forall(0, sizeB, [=](int64_t i){
+      delegate::increment(A+delegate::read(B+i), 1);
+    });
+#  else
+    
+    forall<&phaser>(0, sizeB, [=](int64_t i){
+      Core origin = mycore();
+      phaser.enroll();
+      call<async,nullptr>(B+i, [=](int64_t& b){
+        call<async,nullptr>(A+b, [=](int64_t& a){
+          a++;
+          phaser.send_completion(origin);
+        });
+      });
+    });
+#  endif
+# else
+    forall(B, sizeB, [=](int64_t& b){
+#  ifdef BLOCKING
+      delegate::increment(A+b, 1);
+#  else
+      delegate::increment<async>( A + b, 1);
+#  endif
+    });
+# endif
 #endif
     
     gups_runtime = walltime() - start;

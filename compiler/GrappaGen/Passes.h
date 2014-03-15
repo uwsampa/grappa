@@ -19,6 +19,14 @@
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
 
+using std::unique_ptr;
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+const int MESSAGE_COST = 50;
+
 #define void_ty      Type::getVoidTy(*ctx)
 #define i64_ty       Type::getInt64Ty(*ctx)
 #define i16_ty       Type::getInt16Ty(*ctx)
@@ -90,6 +98,7 @@ inline std::string mangleSimpleGlobal(StringRef n) {
   name << "E";
   return name.str();
 }
+
 
 using AnchorSet = SetVector<Instruction*>;
 using ValueSet = SetVector<Value*>;

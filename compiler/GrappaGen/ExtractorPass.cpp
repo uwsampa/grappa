@@ -37,12 +37,13 @@ static cl::opt<bool> DisableAsync("disable-async",
 
 using InstructionSet = SmallPtrSet<Instruction*,16>;
 
-
+using RegionSet = SmallSetVector<Instruction*,64>;
 
 int poorMansInlineCost(Function* fn) {
   return fn->size();
 }
 
+#pragma mark - Provenance
 
 void setProvenance(Instruction* inst, Value* ptr) {
   inst->setMetadata("grappa.prov", MDNode::get(inst->getContext(), ptr));
@@ -114,14 +115,18 @@ bool isStack(Value* v)        { X(isa<AllocaInst>(v) || isa<Argument>(v)); }
 
 #undef X
 
-bool isAnchor(Instruction* inst) {
+bool isAnchor(Instruction* inst, int space = -1) {
   if (!inst->mayReadOrWriteMemory()) return false;
   
   Value* prov = getProvenance(inst);
-  if (prov)
-    return isGlobalPtr(prov) || isStack(prov);
-  else
-    return false;
+  if (prov) {
+    if (space == GLOBAL_SPACE) {
+      return isGlobalPtr(prov);
+    } else {
+      return isGlobalPtr(prov) || isStack(prov);
+    }
+  }
+  return false;
 }
 
 void analyzeProvenance(Function& fn, AnchorSet& anchors) {
@@ -168,6 +173,7 @@ void analyzeProvenance(Function& fn, AnchorSet& anchors) {
   }
 }
 
+#pragma mark - Fixups
 
 void remap(Instruction* inst, ValueToValueMapTy& vmap,
            SmallVectorImpl<Instruction*>& to_delete) {
@@ -460,6 +466,8 @@ namespace Grappa {
   struct CandidateRegion;
   using CandidateMap = std::map<Instruction*,CandidateRegion*>;
   
+#pragma mark - Region
+  
   struct CandidateRegion {
     static long id_counter;
     long ID;
@@ -475,22 +483,27 @@ namespace Grappa {
       
     public:
       
+      int score;
+      
       SmallSetVector<Exit,8> s;
       
       ExitMap() = default;
       
-      ExitMap(ExitMap const& o) {
+      ExitMap(ExitMap const& o): score(o.score) {
         for (auto e : o.s) s.insert(e);
       }
       
       void operator=(const ExitMap& o) {
         clear();
+        score = o.score;
         for (auto e : o.s) s.insert(e);
       }
       
-      void clear() { s.clear(); }
+      void clear() { s.clear(); score = 0; }
       
       bool isVoidRetExit() {
+        if (DisableAsync) return false;
+        
         bool all_void = true;
         
         each([&](Instruction* s, Instruction* e){
@@ -559,6 +572,39 @@ namespace Grappa {
       }
       
       unsigned size() { return s.size(); }
+      
+      void fromRegion(RegionSet& region, int pre_score){
+        clear();
+        score = pre_score;
+        
+        UniqueQueue<Instruction*> q;
+        q.push(region[0]);
+        
+        while (!q.empty()) {
+          auto j = q.pop();
+          auto jb = j->getParent();
+          if (!region.count(j)) {
+            this->add(j->getPrevNode());
+          } else {
+            if (isa<TerminatorInst>(j)) {
+              for_each(sb, jb, succ) {
+                auto js = (*sb)->begin();
+                if (!region.count(js)) {
+                  // outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
+                  this->add(j, *sb);
+                } else {
+                  q.push(js);
+                }
+              }
+            } else {
+              q.push(j->getNextNode());
+            }
+          }
+        }
+        
+        if (isVoidRetExit()) score -= MESSAGE_COST;
+      }
+
     };
     
     ExitMap exits, max_extent;
@@ -570,12 +616,19 @@ namespace Grappa {
     
     GlobalPtrInfo& ginfo;
     DataLayout& layout;
+    AliasAnalysis& alias;
     
     InstructionSet hoists;
     SmallPtrSet<AllocaInst*,4> to_localize;
     
-    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout):
-      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout) {}
+    CandidateRegion(Value* target_ptr, Instruction* entry, CandidateMap& owner, GlobalPtrInfo& ginfo, DataLayout& layout, AliasAnalysis& alias):
+      ID(id_counter++), entry(entry), target_ptr(target_ptr), owner(owner), ginfo(ginfo), layout(layout), alias(alias) {
+        valid_ptrs.insert(target_ptr);
+      }
+    
+    int cost() { return exits.score; }
+    
+    void addPtr(Value* ptr) { valid_ptrs.insert(ptr); }
     
     void switchExits(ExitMap& emap) {
       visit([&](BasicBlock::iterator i){ owner[i] = nullptr; });
@@ -624,8 +677,6 @@ namespace Grappa {
         }
       }
     }
-    
-    using RegionSet = SmallSet<Instruction*,64>;
     
     bool hoistable(Instruction *i, RegionSet& region, AliasSetTracker& aliases,
                    InstructionSet& unhoistable, InstructionSet& tomove,
@@ -698,40 +749,32 @@ namespace Grappa {
       return true;
     }
     
-    void expandRegion(AliasSetTracker& aliases, bool allow_localize = true) {
-      
+    void expandRegion(bool allow_localize = true) {
+      AliasSetTracker aliases(alias);
       outs() << "--------------- <line " << entry->getDebugLoc().getLine() << ">\n";
       
       RegionSet region;
       int anchor_ct = 0;
-      int best_score = 0;
+      int best_score = INT_MAX;
       ExitMap emap, beforeLocalize;
       
-      auto findExitsFromRegion = [this](ExitMap& emap, RegionSet& region){
-        emap.clear();
-        UniqueQueue<Instruction*> q;
-        q.push(entry);
-        while (!q.empty()) {
-          auto j = q.pop();
-          auto jb = j->getParent();
-          if (!region.count(j)) {
-            emap.add(j->getPrevNode());
-          } else {
-            if (isa<TerminatorInst>(j)) {
-              for_each(sb, jb, succ) {
-                auto js = (*sb)->begin();
-                if (!region.count(js)) {
-                  // outs() << "---- " << j->getName() << " => " << (*sb)->getName() << "\n";
-                  emap.add(j, *sb);
-                } else {
-                  q.push(js);
-                }
-              }
-            } else {
-              q.push(j->getNextNode());
-            }
+      auto computeScore = [this](InstructionSet& tomove, RegionSet& region, int anchor_ct){
+        ValueSet inputs, outputs;
+        for (auto r : region) {
+          if (!tomove.count(r)) computeInOut(r, region, inputs, outputs);
+        }
+        
+        int sz = 0;
+        for (auto& s : {inputs, outputs}) {
+          for (auto v : s) {
+            sz += layout.getTypeAllocSize(v->getType());
           }
         }
+        return sz // size of continuation/return message
+            // messages saved by subsuming multiple anchors
+          - (2 * MESSAGE_COST * (anchor_ct-1))
+            // messages needed to hop around to each destination
+          + (MESSAGE_COST * (valid_ptrs.size()-1));
       };
       
       SmallSetVector<BasicBlock*,4> deferred;
@@ -782,29 +825,14 @@ namespace Grappa {
             }
           }
           
-          int score;
-          { // compute score
-            ValueSet inputs, outputs;
-            for (auto r : region) {
-              if (!tomove.count(r)) computeInOut(r, region, inputs, outputs);
-            }
-            
-            int sz = 0;
-            for (auto& s : {inputs, outputs}) {
-              for (auto v : s) {
-                sz += layout.getTypeAllocSize(v->getType());
-              }
-            }
-            
-            score = (anchor_ct * 100) - sz;
-          }
+          int score = computeScore(tomove, region, anchor_ct);
           
           if (!hoisting) outs() << format("(%d,%4d) ", anchor_ct, score) << *i;
           
-          if (score > best_score) {
+          if (score < best_score) {
             outs() << "  !! best!";
             best_score = score;
-            findExitsFromRegion(emap,region);
+            emap.fromRegion(region, score);
           }
             
           outs() << "\n";
@@ -857,19 +885,28 @@ namespace Grappa {
         if (!all_good) {
           // try again, this time without attempting to localize
           outs() << "!! localizing failed :(\n";
-          expandRegion(aliases, false);
+          expandRegion(false);
           return;
         } else {
           // just ensured that allocas were okay to move into this region,
           // so have to stick with it now...
           outs() << "!! localizing!\n";
-          findExitsFromRegion(max_extent,region);
+          int score = computeScore(tomove, region, anchor_ct);
+          max_extent.fromRegion(region, score);
           switchExits(max_extent);
         }
       } else {
         to_localize.clear();
-        findExitsFromRegion(max_extent,region);
-        switchExits(emap);
+        int score = computeScore(tomove, region, anchor_ct);
+        max_extent.fromRegion(region, score);
+        
+        if (max_extent.score < emap.score) {
+          outs() << "---- chose max_extent\n";
+          switchExits(max_extent);
+        } else {
+          switchExits(emap);
+        }
+        
       }
     }
     
@@ -1169,7 +1206,7 @@ namespace Grappa {
       b.SetInsertPoint(bb_ret);
       auto phi_ret = b.CreatePHI(ty_ret, exits.size(), "ret.phi");
       // return from end of created block
-      b.CreateRet(phi_ret);
+      auto ret = b.CreateRet(phi_ret);
       
       ////////////////////////////////
       // store outputs at last use
@@ -1301,18 +1338,22 @@ namespace Grappa {
       // also strip provenance metadata so it doesn't confuse 'fixupFunction()'
       SmallDenseMap<Value*,Value*> lptrs;
       
+      auto new_tgt = clone_map[target_ptr];
+      
       for (auto bb = new_fn->begin(); bb != new_fn->end(); bb++) {
         for (auto inst = bb->begin(); inst != bb->end(); ) {
           Instruction *orig = inst++;
           auto prov = getProvenance(orig);
-          setProvenance(orig, nullptr);
-          if (isGlobalPtr(prov)) {
-            if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
-              ginfo.replace_with_local<GLOBAL_SPACE>(gptr, orig, lptrs);
-            }
-          } else if (isSymmetricPtr(prov)) {
-            if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
-              ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+          if (prov == new_tgt) {
+            setProvenance(orig, nullptr);
+            if (isGlobalPtr(prov)) {
+              if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+                ginfo.replace_with_local<GLOBAL_SPACE>(gptr, orig, lptrs);
+              }
+            } else if (isSymmetricPtr(prov)) {
+              if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+                ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+              }
             }
           }
         }
@@ -1390,6 +1431,43 @@ namespace Grappa {
         outs() << "-------------------------------\n";
         outs() << *bb_call;
       );
+      
+      //////////////////////////
+      // recurse for multi-hop
+      if (valid_ptrs.size() > 1) {
+        // find hop anchor
+        Instruction* next_entry = nullptr;
+        for_each(i, new_fn, inst) {
+          Instruction* inst = &*i;
+          if (isAnchor(inst,GLOBAL_SPACE)) {
+            next_entry = inst;
+            break;
+          }
+        }
+        
+        outs() << "next_hop.entry =>" << *next_entry << "\n";
+        
+        auto hop = make_unique<CandidateRegion>(getProvenance(next_entry), next_entry,
+                                                owner, ginfo, layout, alias);
+        IRBuilder<> b(ret);
+        auto voidRet = b.CreateRetVoid();
+        ret->setOperand(0, Constant::getNullValue(ty_ret));
+        
+        hop->expandRegion();
+        
+        assert(hop->exits.isVoidRetExit());
+        auto next_hop = hop->extractRegion(true, gce);
+        
+        if (PrintDot) {
+          dumpToDot(*next_hop, owner, next_hop->getName());
+        }
+        
+        voidRet->eraseFromParent();
+        outs() << "++++ created next hop\n";
+        
+        
+      }
+      
       return new_fn;
     }
     
@@ -1554,7 +1632,8 @@ namespace Grappa {
     
   };
   
-  
+
+#pragma mark - fixupFunction
   int ExtractorPass::fixupFunction(Function* fn, std::set<int>* lines) {
     
     int fixed_up = preFixup(fn, layout);
@@ -1646,7 +1725,7 @@ namespace Grappa {
       }
     }
     
-    CandidateMap candidate_map;
+    CandidateMap cmap;
     int ct = 0;
     
     UniqueQueue<Function*> worklist;
@@ -1664,6 +1743,8 @@ namespace Grappa {
         }
       }
     } dbg_remover;
+    
+    AliasAnalysis aliases = getAnalysis<AliasAnalysis>();
     
     while (!worklist.empty()) {
 
@@ -1695,7 +1776,7 @@ namespace Grappa {
       if ( DoExtractor ) {
         // Get rid of debug info that causes problems with extractor
         
-        std::vector<CandidateRegion> cnds;
+        std::map<Instruction*,unique_ptr<CandidateRegion>> cnds;
         
         /////////////////////
         /// Compute regions
@@ -1709,38 +1790,34 @@ namespace Grappa {
           outs() << "anchor:" << line << " =>" << *a << "\n";
           
           auto p = getProvenance(a);
-          if (candidate_map[a]) {
+          if (cmap[a]) {
             DEBUG({
               outs() << "anchor already in another delegate:\n";
               outs() << "  anchor =>" << *a << "\n";
-              outs() << "  other  =>" << *candidate_map[a]->entry << "\n";
+              outs() << "  other  =>" << *cmap[a]->entry << "\n";
             });
           } else if (isGlobalPtr(p)) {
-
-            cnds.emplace_back(p, a, candidate_map, ginfo, *layout);
-            auto& r = cnds.back();
             
-            r.valid_ptrs.insert(p);
+            cnds[a] = make_unique<CandidateRegion>(p, a, cmap, ginfo, *layout, aliases);
+            auto& r = *cnds[a];
             
-            AliasSetTracker aliases(getAnalysis<AliasAnalysis>());
-            r.expandRegion(aliases);
+            r.expandRegion();
             
-//            for (auto p : r.max_extent.s) {
-//              outs() << *p.first << " => " << *p.second << "\n";
+            ////////////////////////////
+            // find async opportunities
+//            if (!DisableAsync && r.max_extent.isVoidRetExit()) {
+//              assert(layout->getTypeAllocSize(r.ty_output) == 0);
+//                // if (async_fns[fn]) {
+//                r.switchExits(r.max_extent);
+//                outs() << "!! grappa_on_async candidate\n";
+//                // }
 //            }
-            
-            if (!DisableAsync && r.max_extent.isVoidRetExit()) {
-              assert(layout->getTypeAllocSize(r.ty_output) == 0);
-//              if (async_fns[fn]) {
-                r.switchExits(r.max_extent);
-                outs() << "!! grappa_on_async candidate\n";
-//              }
-            }
+            if (r.exits.isVoidRetExit()) outs() << "!! grappa_on_async candidate\n";
 
             r.printHeader();
             
             r.visit([&](BasicBlock::iterator i){
-              if (candidate_map[i] != &r) {
+              if (cmap[i] != &r) {
                 errs() << "!! bad visit: " << *i << "\n";
                 assert(false);
               }
@@ -1749,22 +1826,65 @@ namespace Grappa {
           }
         }
         
+        //////////////////////////////////////////
+        // find & evaluate multihop opportunities
+        SmallVector<std::pair<Instruction*,Instruction*>,8> pairs;
+        
+        for (auto& p : cnds) {
+          auto& r = *p.second;
+          r.max_extent.each([&](Instruction* before, Instruction* after){
+            outs() << "---- after =>" << *after << "\n";
+            if (cnds.count(after)) {
+              auto& o = *cnds[after];
+              outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o.entry << "\n";
+              pairs.push_back({r.entry, o.entry});
+            }
+          });
+        }
+        
+        for (auto p : pairs) {
+          auto& r = *cnds[p.first];
+          auto& o = *cnds[p.second];
+          
+          CandidateMap comb_map;
+          auto comb = make_unique<CandidateRegion>(r.target_ptr, r.entry, cmap,
+                                                   ginfo, *layout, aliases);
+          comb->addPtr(getProvenance(o.entry));
+          
+          comb->expandRegion();
+          
+//          if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
+//                                                   taskname+".comb"+Twine(comb->ID));
+          
+          outs() << "first.score    => " << r.cost() << "\n";
+          outs() << "second.score   => " << o.cost() << "\n";
+          outs() << "comb.score     => " << comb->cost() << "\n";
+          
+          if (comb->cost() < (r.cost() + o.cost())) {
+            outs() << "++++ multihop wins!\n";
+            cnds.erase(r.entry);
+            cnds.erase(o.entry);
+            cnds[comb->entry] = std::move(comb);
+          }
+        }
+        
         if (cnds.size() > 0) {
           changed = true;
           if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-            CandidateRegion::dumpToDot(*fn, candidate_map, taskname);
+            CandidateRegion::dumpToDot(*fn, cmap, taskname);
         }
         
         if (found_functions && cnds.size() > 0) {
-          for (auto& cnd : cnds) {
+          for (auto& p : cnds) {
+            auto& r = *p.second;
             
-            bool async = !DisableAsync && cnd.exits.isVoidRetExit();
+            bool async = !DisableAsync && r.exits.isVoidRetExit();
             
-            auto new_fn = cnd.extractRegion(async, async_fns[fn]);
+            auto new_fn = r.extractRegion(async, async_fns[fn]);
             
 //            if (PrintDot && fn->getName().startswith("async"))
             if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-              CandidateRegion::dumpToDot(*new_fn, candidate_map, taskname+".d"+Twine(cnd.ID));
+              CandidateRegion::dumpToDot(*new_fn, cmap, taskname+".d"+Twine(r.ID));
           }
         }
       } // if ( DoExtractor )
@@ -1776,7 +1896,7 @@ namespace Grappa {
         if (nfixed || changed) {
           changed = true;
           if (PrintDot && (OnlyLine == 0 || lines.count(OnlyLine)))
-            CandidateRegion::dumpToDot(*fn, candidate_map, taskname+".after");
+            CandidateRegion::dumpToDot(*fn, cmap, taskname+".after");
         }
       }
       

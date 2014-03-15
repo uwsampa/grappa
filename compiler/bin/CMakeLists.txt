@@ -33,7 +33,7 @@ endif()
 set(GRAPPA_LIBRARIES "${GRAPPA_LIBRARIES} -Wl,-rpath,${myrpath}")
 
 get_property( defs DIRECTORY "${sysdir}" PROPERTY COMPILE_DEFINITIONS )
-foreach(d ${defs} "__GRAPPA_CLANG__")
+foreach(d ${defs})
   set(GRAPPA_DEFINITIONS "${GRAPPA_DEFINITIONS} -D${d}")
 endforeach()
 
