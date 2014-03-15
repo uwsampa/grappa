@@ -108,7 +108,10 @@ module Isolatable
         for l in $(ls #{@ldir}); do
           echo $l; sbcast -f #{@ldir}/$l #{tdir}/${l};
         done;
-        LD_LIBRARY_PATH=#{tdir} IGOR_OVERRIDE_LIBRARY_PATH=1 #{c}
+        export LD_LIBRARY_PATH=#{tdir}:#{ENV['LD_LIBRARY_PATH']};
+        export IGOR_OVERRIDE_LIBRARY_PATH=1;
+        export PATH=#{tdir}:#{ENV['PATH']};
+        #{c}
       ].tr("\n "," ")
     end
     return super(c)
