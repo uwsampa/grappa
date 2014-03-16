@@ -495,48 +495,46 @@ namespace Grappa {
   ///     delegate::write<async,&gce>(shared_pool, dest+i, 2.0*v);
   ///   });
   /// @endcode
-  template< TaskMode B = TaskMode::Bound,
-            SyncMode S = SyncMode::Blocking,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void forall(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    impl::forall<B,S,GCE,Threshold>(base, nelems, loop_body, &F::operator());
-  }
-
-  /// Overload for specifying just SyncMode (or SyncMode first)
-  template< SyncMode S,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            TaskMode B = TaskMode::Bound,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void forall(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    impl::forall<B,S,GCE,Threshold>(base, nelems, loop_body, &F::operator());
+#define OVERLOAD(BaseType, BaseTransform, ...) \
+  template< __VA_ARGS__, \
+            typename T = decltype(nullptr), \
+            typename F = decltype(nullptr) > \
+  void forall(BaseType base, int64_t nelems, F loop_body) { \
+    impl::forall<B,S,C,Threshold>(BaseTransform, nelems, loop_body, &F::operator()); \
   }
   
-  /// Overload to allow using default GCE but specifying threshold
-  template< int64_t Threshold,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
-            TaskMode B = TaskMode::Bound,
-            SyncMode S = SyncMode::Blocking,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void forall(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    impl::forall<B,S,GCE,Threshold>(base, nelems, loop_body, &F::operator());
-  }
+#define ALL_OVERLOADS(BaseType, BaseTransform) \
+  OVERLOAD(BaseType, BaseTransform, \
+           TaskMode B = TaskMode::Bound, \
+           SyncMode S = SyncMode::Blocking, \
+           GlobalCompletionEvent * C = &impl::local_gce, \
+           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG); \
+  OVERLOAD(BaseType, BaseTransform, \
+           SyncMode S, \
+           TaskMode B = TaskMode::Bound, \
+           GlobalCompletionEvent * C = &impl::local_gce, \
+           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG); \
+  OVERLOAD(BaseType, BaseTransform, \
+           int64_t Threshold, \
+           GlobalCompletionEvent * C = &impl::local_gce, \
+           TaskMode B = TaskMode::Bound, \
+           SyncMode S = SyncMode::Blocking); \
+  OVERLOAD(BaseType, BaseTransform, \
+           SyncMode S, \
+           GlobalCompletionEvent * C, \
+           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, \
+           TaskMode B = TaskMode::Bound); \
+  OVERLOAD(BaseType, BaseTransform, \
+           GlobalCompletionEvent * C, \
+           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, \
+           TaskMode B = TaskMode::Bound, \
+           SyncMode S = SyncMode::Blocking);
   
-  /// Overload for specifying GCE only
-  template< GlobalCompletionEvent * GCE,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            TaskMode B = TaskMode::Bound,
-            SyncMode S = SyncMode::Blocking,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void forall(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    impl::forall<B,S,GCE,Threshold>(base, nelems, loop_body, &F::operator());
-  }
+  ALL_OVERLOADS(GlobalAddress<T>, base);
+  
+#undef OVERLOADS
+#undef OVERLOAD
+  
   
   /// @}
   
