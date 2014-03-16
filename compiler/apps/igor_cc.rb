@@ -1,14 +1,12 @@
 #!/usr/bin/env ruby
 require 'igor'
-
-# inherit parser, sbatch_flags
-require_relative_to_symlink '../../util/igor_common.rb'
+require_relative_to_symlink '../igor_db'
 
 Igor do
   include Isolatable
   
-  database '~/exp/oopsla14.sqlite', :cc
-
+  database(table: :gups)
+  
   exes = %w[ cc.putget.exe
            cc.ext.exe
            cc.hand.exe
