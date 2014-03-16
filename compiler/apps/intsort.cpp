@@ -106,6 +106,11 @@ inline int next_seq_element() {
 GlobalAddress<Key> key_array;
 GlobalAddress<Bucket> bucketlist;
 
+#ifdef __GRAPPA_CLANG__
+Key global* keys;
+Bucket global* buckets;
+#endif
+
 /// Local copy of counts, each core has a copy of the global state
 LocalVector<Index> counts, bucket_ranks;
 
@@ -167,6 +172,17 @@ void rank(int iteration) {
   
   VLOG(2) << "scattering...";
   GRAPPA_TIME_REGION(scatter_time) {
+    
+#ifdef __GRAPPA_CLANG__
+    
+    forall(key_array, nkeys, [](Key& k){
+      auto b = k >> BSHIFT;
+      CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
+      delegate::call<async>(bucketlist+b, [k](Bucket& b){
+        b.append(k);
+      });
+    });
+#else
     // scatter into buckets
     forall(key_array, nkeys, [](Key& k){
       auto b = k >> BSHIFT;
@@ -175,6 +191,7 @@ void rank(int iteration) {
         b.append(k);
       });
     });
+#endif
   }
   
   VLOG(2) << "locally ranking...";
@@ -250,7 +267,15 @@ int main(int argc, char* argv[]) {
 
     auto _k = global_alloc<Key>(nkeys);
     auto _b = global_alloc<LocalVector<Key>>(nbuckets);
-    call_on_all_cores([=]{ key_array = _k; bucketlist = _b; init_seed(); });
+    call_on_all_cores([=]{
+      key_array = _k;
+      bucketlist = _b;
+      init_seed();
+#ifdef __GRAPPA_CLANG__
+      keys = as_ptr(key_array);
+      buckets = as_ptr(bucketlist);
+#endif
+    });
     
     // initialize buckets
     forall<1>(bucketlist, nbuckets, [](Bucket& bucket){ new (&bucket) Bucket(); });
