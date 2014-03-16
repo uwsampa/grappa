@@ -140,6 +140,18 @@ namespace Grappa {
       return o;
     }
     
+    virtual std::ostream& pretty(std::ostream& o) const {
+      o << name << ": "
+        << "{\n  mean:   " << mean
+        << ",\n  stddev: " << stddev()
+        << ",\n  min:    " << min
+        << ",\n  max:    " << max
+        << ",\n  total:  " << value_
+        << ",\n  count:  " << n
+        << "\n}";
+      return o;
+    }
+    
     virtual void sample() {
 #ifdef VTRACE_SAMPLED
       // vt_sample() specialized for supported tracing types in Metrics.cpp
@@ -178,6 +190,8 @@ namespace Grappa {
     
     // allow casting as just the value
     inline operator T() const { return value_; }
+    
+    inline double avg() { return mean; }
     
     inline SummarizingMetric& operator=( const SummarizingMetric<T>& t ) {
       this->value_ = t.value_;
