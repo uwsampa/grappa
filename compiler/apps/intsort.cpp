@@ -174,13 +174,8 @@ void rank(int iteration) {
   GRAPPA_TIME_REGION(scatter_time) {
     
 #ifdef __GRAPPA_CLANG__
-    
-    forall(key_array, nkeys, [](Key& k){
-      auto b = k >> BSHIFT;
-      CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
-      delegate::call<async>(bucketlist+b, [k](Bucket& b){
-        b.append(k);
-      });
+    forall(keys, nkeys, [](Key& k){
+      buckets[ k >> BSHIFT ].append(k);
     });
 #else
     // scatter into buckets
