@@ -532,6 +532,10 @@ namespace Grappa {
   
   ALL_OVERLOADS(GlobalAddress<T>, base);
   
+#ifdef __GRAPPA_CLANG__
+  ALL_OVERLOADS(T grappa_global*, as_addr(base));
+#endif
+  
 #undef OVERLOADS
 #undef OVERLOAD
   
