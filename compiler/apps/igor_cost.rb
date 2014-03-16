@@ -1,19 +1,14 @@
 #!/usr/bin/env ruby
 require 'igor'
-
-def with(obj, &blk); obj.instance_eval(&blk); end
-
-# inherit parser, sbatch_flags
-require_relative_to_symlink '../../util/igor_common.rb'
+require_relative_to_symlink '../igor_db'
 
 # find source directory (assumes this is symlinked into )
-with(File) {
-  DIR = expand_path(dirname(symlink?(__FILE__) ? readlink(__FILE__) : __FILE__))
-}
+DIR = with(File){expand_path(dirname(symlink?(__FILE__) ? readlink(__FILE__) : __FILE__))}
 
 Igor do
   
-  database '~/exp/oopsla14.sqlite', :gups
+  # database '~/exp/oopsla14.sqlite', :gups
+  database(table: :gups)
   
   GFLAGS.merge!({
     v: 0,
