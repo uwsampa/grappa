@@ -37,6 +37,7 @@ Igor do
   }
   
   expect :gups_runtime
+  ignore :command
   
   interact # enter interactive mode
 end

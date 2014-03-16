@@ -5,7 +5,7 @@ require_relative_to_symlink '../igor_db'
 Igor do
   include Isolatable
   
-  database(table: :gups)
+  database(table: :cc)
   
   exes = %w[ cc.putget.exe
            cc.ext.exe
