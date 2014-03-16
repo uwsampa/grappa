@@ -53,6 +53,11 @@ add_app(default     "gups.cpp" "-DCOST_EXPERIMENT" cost.go)
 add_app(default "cc.cpp" "" hand)
 
 
+##########
+# Intsort
+add_app(default "intsort.cpp" "" hand)
+
+
 list(REMOVE_DUPLICATES apps)
 foreach(app ${apps})
   add_custom_target(cl.app.${app}._ DEPENDS ${apps.${app}})
