@@ -8,6 +8,7 @@
 
 using namespace Grappa;
 
+
 using color_t = long;
 
 struct Edge {
@@ -311,13 +312,22 @@ int main(int argc, char* argv[]) {
       for (size_t i = 0; i < g->nv; i++) {
         sem->decrement(); // (after filling, blocks until an exploration finishes)
         delegate::call<async,nullptr>(g->vs+i, [=](CCVertex& v){
-          auto mycolor = v->color;
-          spawn([=]{
-            CompletionEvent ce(1);
-            explore(i, mycolor, make_global(&ce));
-            ce.wait();
+          auto signal = [sem]{
             send_heap_message(sem.core(), [sem]{ sem->increment(); });
-          });
+          };
+          auto mycolor = v->color;
+          
+          if (v.nadj == 0) {
+            v->color = mycolor;
+            signal();
+          } else {
+            spawn([=]{
+              CompletionEvent ce(1);
+              explore(i, mycolor, make_global(&ce));
+              ce.wait();
+              signal();
+            });
+          }
         });
       }
       comp_set->sync_all_cores();
