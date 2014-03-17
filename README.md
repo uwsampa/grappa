@@ -35,6 +35,7 @@ If you don't have github keys set up and get an authentication error, then try t
 git clone http://github.com/uwsampa/grappa.git
 ```
 
+```bash
 cd grappa
 ./configure
 cd build/Make+Release
