@@ -258,6 +258,10 @@ int main(int argc, char* argv[]) {
                                     : (1ul << FLAGS_log_maxkey) - 1;
   
   Grappa::run([]{
+    std::cout << "log_keys: " << FLAGS_log_keys << "\n";
+    std::cout << "log_maxkey: " << FLAGS_log_maxkey << "\n";
+    std::cout << "log_buckets: " << FLAGS_log_buckets << "\n";
+    
     double t;
 
     auto _k = global_alloc<Key>(nkeys);
