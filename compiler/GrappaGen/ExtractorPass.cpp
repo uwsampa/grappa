@@ -35,6 +35,7 @@ static cl::opt<bool> DoExtractor("grappa-extractor",
 static cl::opt<bool> DisableAsync("disable-async",
                                  cl::desc("Disable detection/creationg of async delegates."));
 
+
 using InstructionSet = SmallPtrSet<Instruction*,16>;
 
 using RegionSet = SmallSetVector<Instruction*,64>;
@@ -1347,11 +1348,11 @@ namespace Grappa {
           if (prov == new_tgt) {
             setProvenance(orig, nullptr);
             if (isGlobalPtr(prov)) {
-              if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+              if (auto gptr = ptr_operand<GLOBAL_SPACE>(orig)) {
                 ginfo.replace_with_local<GLOBAL_SPACE>(gptr, orig, lptrs);
               }
             } else if (isSymmetricPtr(prov)) {
-              if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+              if (auto sptr = ptr_operand<SYMMETRIC_SPACE>(orig)) {
                 ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
               }
             }
@@ -1645,10 +1646,7 @@ namespace Grappa {
     for (auto& bb : *fn ) {
       for (auto inst = bb.begin(); inst != bb.end(); ) {
         Instruction *orig = inst++;
-        Value* ptr = nullptr;
-        if (auto l = dyn_cast<LoadInst>(orig))  ptr = l->getPointerOperand();
-        if (auto l = dyn_cast<StoreInst>(orig)) ptr = l->getPointerOperand();
-        if (auto l = dyn_cast<AddrSpaceCastInst>(orig)) ptr = l->getOperand(0);
+        auto ptr = ptr_operand(orig);
         
         if (!ptr) continue;
         if (isGlobalPtr(ptr)) {
@@ -1656,13 +1654,13 @@ namespace Grappa {
 //            assertN(c->getNumUses() == 0, "addrspacecast slipped in", *c);
 //            c->eraseFromParent();
             
-          } else if (auto gptr = ginfo.ptr_operand<GLOBAL_SPACE>(orig)) {
+          } else if (auto gptr = ptr_operand<GLOBAL_SPACE>(orig)) {
             if (lines) lines->insert(orig->getDebugLoc().getLine());
             ginfo.replace_global_access(gptr, nullptr, orig, lptrs, *layout);
             fixed_up++;
           }
         } else if (isSymmetricPtr(ptr)) {
-          if (auto sptr = ginfo.ptr_operand<SYMMETRIC_SPACE>(orig)) {
+          if (auto sptr = ptr_operand<SYMMETRIC_SPACE>(orig)) {
             if (lines) lines->insert(orig->getDebugLoc().getLine());
             ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
             fixed_up++;

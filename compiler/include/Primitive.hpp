@@ -97,9 +97,15 @@ void grappa_put_i64_on(Core c, int64_t * a, int64_t v) {
 }
 
 extern "C"
-long grappa_fetchadd_i64(long global* a, long inc) {
-  return Grappa::delegate::fetch_and_add(gaddr(a), inc);
+int64_t grappa_fetchadd_i64(int64_t global* a, int64_t inc) {
+  return Grappa::delegate::fetch_and_add(as_addr(a), inc);
 }
+
+extern "C"
+int64_t grappa_cmpswap_i64(int64_t global* a, int64_t cmpval, int64_t newval) {
+  return Grappa::delegate::compare_and_swap(as_addr(a), cmpval, newval);
+}
+
 
 extern "C"
 void myprint_i64(long v) {

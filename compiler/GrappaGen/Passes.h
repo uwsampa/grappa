@@ -100,6 +100,25 @@ inline std::string mangleSimpleGlobal(StringRef n) {
 }
 
 
+template< int SPACE = -1 >
+Value* ptr_operand(Instruction* inst) {
+  Value* ptr = nullptr;
+  
+  if (auto i = dyn_cast<LoadInst>(inst))          ptr = i->getPointerOperand();
+  if (auto i = dyn_cast<StoreInst>(inst))         ptr = i->getPointerOperand();
+  if (auto i = dyn_cast<AtomicRMWInst>(inst))     ptr = i->getPointerOperand();
+  if (auto i = dyn_cast<AtomicCmpXchgInst>(inst)) ptr = i->getPointerOperand();
+  if (auto i = dyn_cast<AddrSpaceCastInst>(inst)) ptr = i->getOperand(0);
+  
+  if (SPACE == -1 || ptr->getType()->getPointerAddressSpace() == SPACE) {
+    return ptr;
+  } else {
+    return nullptr;
+  }  
+}
+
+
+
 using AnchorSet = SetVector<Instruction*>;
 using ValueSet = SetVector<Value*>;
 
@@ -251,6 +270,11 @@ struct GlobalPtrInfo {
     fn_map["get_i64_on"] = getFunction("grappa_get_i64_on");
     fn_map["put_i64_on"] = getFunction("grappa_put_i64_on");
     fn_map["make_gptr"] = getFunction("grappa_make_gptr");
+
+    
+    fn_map["fetchadd_i64"] = getFunction("grappa_fetchadd_i64");
+    fn_map["cmpswap_i64"] = getFunction("grappa_cmpswap_i64");
+
     
     return !disabled;
   }
@@ -325,6 +349,7 @@ struct GlobalPtrInfo {
       
       if (auto l = dyn_cast<LoadInst>(orig)) {
         outs() << "get(" << *l->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
+        outs() << "----" << *orig << "\n";
 
         if (ty != i64) v = SmartCast(b, v, i64_ptr_ty, name+".ptr.bc");
         if (core) {
@@ -336,6 +361,8 @@ struct GlobalPtrInfo {
         
       } else if (auto s = dyn_cast<StoreInst>(orig)) {
         outs() << "put(" << *s->getValueOperand()->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
+        outs() << "----" << *orig << "\n";
+
         auto val = s->getValueOperand();
         if (ty != i64) {
           v = SmartCast(b, v, i64_ptr_ty, name+".ptr.bc");
@@ -346,6 +373,41 @@ struct GlobalPtrInfo {
         } else {
           v = b.CreateCall(fn("put_i64"), { v, val });
         }
+      } else if (auto a = dyn_cast<AtomicRMWInst>(orig)) {
+        
+        assertN(a->getOpcode() != AtomicRMWInst::Add, "unhandled atomicrmw opcode", *a);
+        
+        outs() << "fetchadd(" << *a->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
+        outs() << "----" << *orig << "\n";
+        
+        auto val = a->getValOperand();
+        
+        if (ty != i64) {
+          ptr = SmartCast(b, ptr, i64_ptr_ty);
+          val = SmartCast(b, val, i64_ty);
+        }
+        
+        assertN(!core, "not supported");
+        
+        v = b.CreateCall(fn("fetchadd_i64"), { ptr, val }, name+".rmw");
+        
+        if (ty != i64) v = SmartCast(b, v, ty, name+".val.cast");
+        
+      } else if (auto a = dyn_cast<AtomicCmpXchgInst>(orig)) {
+        outs() << "cmpswap(" << *a->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
+        outs() << "----" << *orig << "\n";
+        
+        auto cmpval = a->getCompareOperand();
+        auto newval = a->getNewValOperand();
+        if (ty != i64) {
+          ptr    = SmartCast(b, ptr, i64_ptr_ty);
+          cmpval = SmartCast(b, cmpval, i64_ty);
+          newval = SmartCast(b, newval, i64_ty);
+        }
+        
+        assertN(!core, "not supported");
+        v = b.CreateCall(fn("cmpswap_i64"), { ptr, cmpval, newval }, name+".cmpswap");
+        if (ty != i64) v = SmartCast(b, v, ty, name+".val.cast");
         
       } else {
         assert(false && "unimplemented case");
@@ -454,20 +516,6 @@ struct GlobalPtrInfo {
     }
     
     return v;
-  }
-  
-  template< int SPACE >
-  Value* ptr_operand(Instruction* orig) {
-    if (auto ld = dyn_cast_addr<SPACE,LoadInst>(orig)) {
-      return ld->getPointerOperand();
-    } else if (auto st = dyn_cast_addr<SPACE,StoreInst>(orig)) {
-      return st->getPointerOperand();
-    } else if (auto c = dyn_cast<AddrSpaceCastInst>(orig)) {
-      if (c->getSrcTy()->getPointerAddressSpace() == SPACE) {
-        return c->getOperand(0);
-      }
-    }
-    return nullptr;
   }
   
   Instruction* insert_get_pointer(Instruction *gptr) {
