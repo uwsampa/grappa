@@ -137,11 +137,8 @@ void analyzeProvenance(Function& fn, AnchorSet& anchors) {
       Value *prov = getProvenance(&i);
       
       if (!prov) {
-        if (auto l = dyn_cast<LoadInst>(&i)) {
-          prov = search(l->getPointerOperand());
-        } else if (auto s = dyn_cast<StoreInst>(&i)) {
-          prov = search(s->getPointerOperand());
-        } else if (auto c = dyn_cast<AddrSpaceCastInst>(&i)) {
+        
+        if (auto c = dyn_cast<AddrSpaceCastInst>(&i)) {
           prov = search(c->getOperand(0));
           
           for_each_use(u, *c) {
@@ -156,12 +153,13 @@ void analyzeProvenance(Function& fn, AnchorSet& anchors) {
                   assert2(cc == c, "!! two different operands being addrspacecast'd\n", *c, *m);
                 }
               }
-              
-              // call inherits provenance of this cast
-//              setProvenance(m, prov);
-              
+              // // call inherits provenance of this cast
+              // setProvenance(m, prov);
+
             }
           }
+        } else if (auto ptr = ptr_operand(&i)) {
+          prov = search( ptr );
         }
       }
       if (prov) {

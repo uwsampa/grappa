@@ -110,7 +110,7 @@ Value* ptr_operand(Instruction* inst) {
   if (auto i = dyn_cast<AtomicCmpXchgInst>(inst)) ptr = i->getPointerOperand();
   if (auto i = dyn_cast<AddrSpaceCastInst>(inst)) ptr = i->getOperand(0);
   
-  if (SPACE == -1 || ptr->getType()->getPointerAddressSpace() == SPACE) {
+  if (ptr && (SPACE == -1 || ptr->getType()->getPointerAddressSpace() == SPACE)) {
     return ptr;
   } else {
     return nullptr;
@@ -375,7 +375,7 @@ struct GlobalPtrInfo {
         }
       } else if (auto a = dyn_cast<AtomicRMWInst>(orig)) {
         
-        assertN(a->getOpcode() != AtomicRMWInst::Add, "unhandled atomicrmw opcode", *a);
+        assertN(a->getOperation() == AtomicRMWInst::Add, "unhandled atomicrmw opcode", *a);
         
         outs() << "fetchadd(" << *a->getType() << ")(i64) -- line " << orig->getDebugLoc().getLine() << "\n";
         outs() << "----" << *orig << "\n";
@@ -506,6 +506,10 @@ struct GlobalPtrInfo {
       v = b.CreateStore(st->getOperand(0), lptr, st->isVolatile());
     } else if (auto ac = dyn_cast<AddrSpaceCastInst>(orig)) {
       v = b.CreateBitCast(lptr, ac->getType(), name+".bc");
+    } else if (auto a = dyn_cast<AtomicCmpXchgInst>(orig)) {
+      v = b.CreateAtomicCmpXchg(lptr, a->getCompareOperand(), a->getNewValOperand(), a->getOrdering());
+    } else if (auto a = dyn_cast<AtomicRMWInst>(orig)) {
+      v = b.CreateAtomicRMW(a->getOperation(), lptr, a->getValOperand(), a->getOrdering());
     } else {
       assert(false && "tried to replace instruction of unknown type!");
     }
