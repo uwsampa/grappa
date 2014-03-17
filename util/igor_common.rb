@@ -162,7 +162,7 @@ Igor do
                  flat_combining 1
   }
   
-  params { grappa_version 'oopsla14' }
+  params { grappa_version 'oopsla14-smaller-delegate' }
   
   class << GFLAGS
     def expand
