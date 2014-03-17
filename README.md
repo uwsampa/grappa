@@ -29,6 +29,12 @@ Ensure you have the dependences described above. Then:
 
 ```bash
 git clone git@github.com:uwsampa/grappa.git
+```
+If you get an authentication error, then try the http URL
+```bash
+git clone http://github.com/uwsampa/grappa.git
+```
+
 cd grappa
 ./configure
 cd build/Make+Release
