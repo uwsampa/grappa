@@ -66,25 +66,36 @@ namespace Grappa {
         delegate_short_circuits++;
         func();
       } else {
-        int64_t network_time = 0;
-        int64_t start_time = Grappa::timestamp();
-        FullEmpty<bool> result;
-        send_message(dest, [&result, origin, func, &network_time, start_time] {
+        
+        struct Desc {
+          int64_t network_time;
+          int64_t start_time;
+        } desc;
+        
+        desc.network_time = 0;
+        desc.start_time = Grappa::timestamp();
+        
+        FullEmpty<Desc*> result(&desc);
+        result.readFE();
+        auto ra = make_global(&result);
+        
+        send_message(dest, [ra,func] {
           delegate_targets++;
   
           func();
   
           // TODO: replace with handler-safe send_message
-          send_heap_message(origin, [&result, &network_time, start_time] {
-            network_time = Grappa::timestamp();
-            record_network_latency(start_time);
-            result.writeXF(true);
+          send_heap_message(ra.core(), [ra] {
+            auto r = ra->readXX();
+            r->network_time = Grappa::timestamp();
+            record_network_latency(r->start_time);
+            ra->writeXF(r);
           });
         }); // send message
 
         // ... and wait for the call to complete
         result.readFF();
-        record_wakeup_latency(start_time, network_time);
+        record_wakeup_latency(desc.start_time, desc.network_time);
       }
     }
 
@@ -110,25 +121,39 @@ namespace Grappa {
         delegate_short_circuits++;
         return func();
       } else {
-        FullEmpty<T> result;
-        int64_t network_time = 0;
-        int64_t start_time = Grappa::timestamp();
-
-        send_message(dest, [&result, origin, func, &network_time, start_time] {
+        
+        struct Desc {
+          T result;
+          int64_t network_time;
+          int64_t start_time;
+        } desc;
+        
+        desc.network_time = 0;
+        desc.start_time = Grappa::timestamp();
+        
+        FullEmpty<Desc*> dfe(&desc);
+        dfe.readFE();
+        auto da = make_global(&dfe);
+        
+        send_message(dest, [da,func] {
           delegate_targets++;
-          T val = func();
-  
+          
+          auto val = func();
+          
           // TODO: replace with handler-safe send_message
-          send_heap_message(origin, [&result, val, &network_time, start_time] {
-            network_time = Grappa::timestamp();
-            record_network_latency(start_time);
-            result.writeXF(val); // can't block in message, assumption is that result is already empty
+          send_heap_message(da.core(), [da,val] {
+            auto d = da->readXX();
+            d->result = val;
+            d->network_time = Grappa::timestamp();
+            record_network_latency(d->start_time);
+            da->writeXF(d);
           });
         }); // send message
-        // ... and wait for the result
-        T r = result.readFE();
-        record_wakeup_latency(start_time, network_time);
-        return r;
+        
+        // ... and wait for the call to complete
+        dfe.readFF();
+        record_wakeup_latency(desc.start_time, desc.network_time);
+        return desc.result;
       }
     }
     
