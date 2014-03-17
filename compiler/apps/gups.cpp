@@ -60,6 +60,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "starting timed portion";
     double start = walltime();
     
+    
 #ifdef __GRAPPA_CLANG__
 #  if defined(MULTIHOP)
     
@@ -81,11 +82,22 @@ int main(int argc, char* argv[]) {
 #  endif
 #else // not __GRAPPA_CLANG__
 # if defined(COST_EXPERIMENT)
-
+    
+    size_t sz = 0;
+    auto origin = mycore();
+#ifdef BLOCKING
+    auto waker = make_global(&sz);
+    auto msg = message(origin, [A,waker]{ });
+#else
+    double d[DATA_SIZE];
+    auto msg = message(origin, [origin,A,d]{ });
+#endif
+    LOG(INFO) << "serialized_size: " << msg.serialized_size();
+    
     forall(B, sizeB, [=](int64_t& b){
       double d[DATA_SIZE];
 #  if defined(BLOCKING)
-      call(A+b, [=](int64_t& a){ a++; });
+      call(A+b, [](int64_t& a){ a++; });
       for (int i=0; i<DATA_SIZE; i++) data[i] = d[i];
 #  else
       call<async>(A+b, [=](int64_t& a){
@@ -134,7 +146,7 @@ int main(int argc, char* argv[]) {
     global_free(A);
     
     if (FLAGS_metrics) Metrics::merge_and_print();
-      
+    Metrics::merge_and_dump_to_file();
   });
   finalize();
 }
