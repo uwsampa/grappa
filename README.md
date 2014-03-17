@@ -30,7 +30,7 @@ Ensure you have the dependences described above. Then:
 ```bash
 git clone git@github.com:uwsampa/grappa.git
 ```
-If you get an authentication error, then try the http URL
+If you don't have github keys set up and get an authentication error, then try the http URL
 ```bash
 git clone http://github.com/uwsampa/grappa.git
 ```
