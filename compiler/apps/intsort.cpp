@@ -71,8 +71,8 @@ public:
   const T& operator[](const Index i) const { return v[i]; }
   
   void append(T val) {
-    v[sz] = val;
-    sz++;
+    auto i = __sync_fetch_and_add(&sz, 1);
+    v[i] = val;
     assert(sz <= nalloc);
   }
   
