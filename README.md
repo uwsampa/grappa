@@ -25,7 +25,7 @@ In addition, our test and run scripts all assume your machine uses the Slurm job
 
 Quick Start
 -------------------------------------------------------------------------------
-Ensure you have the dependences described above. Then:
+Ensure you have the dependences described above. Then checkout the code:
 
 ```bash
 git clone git@github.com:uwsampa/grappa.git
@@ -34,6 +34,8 @@ If you don't have github keys set up and get an authentication error, then try t
 ```bash
 git clone http://github.com/uwsampa/grappa.git
 ```
+
+Now build grappa and hello world.
 
 ```bash
 cd grappa
