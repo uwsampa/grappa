@@ -81,10 +81,10 @@ void spmv_mult(vindex vx, vindex vy) {
     phaser.enroll(v.nadj);
     
 #ifdef __GRAPPA_CLANG__
-    forall<async,nullptr>(adj(ga,v), [=](int64_t localj, VertexID j){
+    forall<async,nullptr>(adj(ga,v), [=,&v](int64_t localj, VertexID j){
       auto& vi = as_ptr(ga->vertices())[i];
       auto& vj = as_ptr(ga->vertices())[j];
-      vi->v[vy] += vi->weights[localj] * vj->v[vx];
+      vi->v[vy] += v->weights[localj] * vj->v[vx];
       phaser.send_completion(origin);
     });
 #else
