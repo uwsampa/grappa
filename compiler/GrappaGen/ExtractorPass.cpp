@@ -226,17 +226,17 @@ void remap(Instruction* inst, ValueToValueMapTy& vmap,
                                 val->getName()+".recast");
       store->setOperand(0, cast_val);
     }
-
+    
   }
   
 }
 
-CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
+CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* addrcast,
                         CallInst* call, DataLayout* layout,
                         ValueToValueMapTy& vmap,
                         std::set<int>* lines) {
   auto mod = old_fn->getParent();
-  auto ptr = cast->getOperand(0);
+  auto ptr = addrcast->getOperand(0);
   auto xptr_ty = ptr->getType();
   
   outs() << "!! globalizing <" << call->getDebugLoc().getLine() << ">" << *call << "\n";
@@ -251,7 +251,7 @@ CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     
     int arg_idx = -1;
     for (int i=0; i < call->getNumArgOperands(); i++)
-      if (call->getArgOperand(i) == cast)
+      if (call->getArgOperand(i) == addrcast)
         arg_idx = i;
     if (arg_idx == -1) return nullptr;
     
@@ -298,7 +298,7 @@ CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
       for (int i=0; i<arg_idx; i++) a++;
       ptr_arg = a;
     }
-    auto recast = b.CreateAddrSpaceCast(ptr_arg, cast->getType(), "recast");
+    auto recast = cast<Instruction>(b.CreateAddrSpaceCast(ptr_arg, addrcast->getType(), "rc"));
     
     SmallVector<Value*,8> args;
     i = 0;
@@ -330,6 +330,7 @@ CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     
     // remap instructions/types to be global
     SmallVector<Instruction*, 64> to_delete;
+    to_delete.push_back(recast);
     for (auto& bb : *new_fn) {
       for (auto it = bb.begin(); it != bb.end();) {
         Instruction *inst = it++;
@@ -344,12 +345,12 @@ CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
   // update old call to use the new function
   if (new_fn->getReturnType() == call->getType()) {
     call->setCalledFunction(new_fn);
-    for_each_op(op, *call) if (*op == cast) *op = ptr;
+    for_each_op(op, *call) if (*op == addrcast) *op = ptr;
   } else {
     SmallVector<Value*,8> args;
     for (int i=0; i<call->getNumArgOperands(); i++) {
       Value *a = call->getArgOperand(i);
-      args.push_back( a == cast ? ptr : a );
+      args.push_back( a == addrcast ? ptr : a );
     }
     IRBuilder<> b(call);
     auto c = b.CreateCall(new_fn, args);
