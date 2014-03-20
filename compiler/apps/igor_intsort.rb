@@ -18,7 +18,8 @@ Igor do
   
   GFLAGS.merge!({
     v: 0,
-    cls: 16,
+    cls: 'A',
+    iterations: 3
   })
   GFLAGS.delete :flat_combining
   

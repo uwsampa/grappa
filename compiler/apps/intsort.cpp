@@ -136,7 +136,7 @@ void full_verify() {
 }
 
 void rank(int iteration) {
-  VLOG(1) << "iteration " << iteration;
+  VLOG(0) << "iteration " << iteration;
   
   call_on_all_cores([]{
     counts.resize(nbuckets);
