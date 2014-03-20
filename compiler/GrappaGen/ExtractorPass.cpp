@@ -356,10 +356,14 @@ CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* cast,
     SmallVector<Instruction*,16> to_delete;
     vmap[call] = c;
     outs() << "new_call =>" << *c << "\n";
+    SmallVector<Instruction*,16> uses;
     for_each_use(u, *call) {
       if (auto inst = dyn_cast<Instruction>(*u)) {
-        remap(inst, vmap, to_delete);
+        uses.push_back(inst);
       }
+    }
+    for (auto inst : uses) {
+      remap(inst, vmap, to_delete);
     }
     call->eraseFromParent();
     call = c;
