@@ -77,9 +77,18 @@ void spmv_mult(vindex vx, vindex vy) {
   CHECK( vx < (1<<3) && vy < (1<<3) );
   // forall rows
   forall<&phaser>(ga, [vx,vy](int64_t i, PagerankVertex& v){
-    auto weights = v->weights;
     auto origin = mycore();
     phaser.enroll(v.nadj);
+    
+#ifdef __GRAPPA_CLANG__
+    forall<async,nullptr>(adj(ga,v), [=](int64_t localj, VertexID j){
+      auto& vi = as_ptr(ga->vertices())[i];
+      auto& vj = as_ptr(ga->vertices())[j];
+      vi->v[vy] += vi->weights[localj] * vj->v[vx];
+      phaser.send_completion(origin);
+    });
+#else
+    auto weights = v->weights;
     struct { int64_t i:44; vindex x:2, y:2; Core origin:16; } p
          = {         i,          vx,  vy,        origin };
     
@@ -93,6 +102,8 @@ void spmv_mult(vindex vx, vindex vy) {
         });
       });
     });
+#endif
+    
   });
 
 }
