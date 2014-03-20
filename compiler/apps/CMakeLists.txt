@@ -57,6 +57,9 @@ add_app(default "cc.cpp" "" hand)
 # Intsort
 add_app(default "intsort.cpp" "" hand)
 
+###########
+# Pagerank
+add_app(default "pagerank.cpp" "" hand)
 
 list(REMOVE_DUPLICATES apps)
 foreach(app ${apps})
