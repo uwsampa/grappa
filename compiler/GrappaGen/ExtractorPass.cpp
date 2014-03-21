@@ -468,7 +468,7 @@ int preFixup(Function* fn, DataLayout* layout) {
 namespace Grappa {
   
   struct CandidateRegion;
-  using CandidateMap = std::map<Instruction*,CandidateRegion*>;
+  using CandidateMap = std::map<Instruction*,SmallPtrSet<CandidateRegion*,4>>;
   
 #pragma mark - Region
   
@@ -635,7 +635,9 @@ namespace Grappa {
     void addPtr(Value* ptr) { valid_ptrs.insert(ptr); }
     
     void switchExits(ExitMap& emap) {
-      visit([&](BasicBlock::iterator i){ owner[i] = nullptr; });
+//      visit([&](BasicBlock::iterator i){
+//        owner[i].erase(this);
+//      });
       
       exits = emap;
       
@@ -648,14 +650,14 @@ namespace Grappa {
         });
         if (preds.size() == 1) {
           exits.clear();
-          owner[preds[0]] = nullptr;
+          owner[preds[0]].erase(this);
           auto p = BasicBlock::iterator(preds[0])->getPrevNode();
           DEBUG(outs() << "@bh unique_pred =>" << *preds[0] << "\n");
           exits.add(p);
         }
       }
       
-      visit([&](BasicBlock::iterator i){ owner[i] = this; });
+      visit([&](BasicBlock::iterator i){ owner[i].insert(this); });
 
       computeInputsOutputs();
     }
@@ -987,7 +989,7 @@ namespace Grappa {
       ValueSet inputs, outputs;
       
       SmallSet<Instruction*,64> rs;
-      for (auto p : owner) if (p.second == this) rs.insert(p.first);
+      for (auto p : owner) if (p.second.count(this)) rs.insert(p.first);
       
       visit([&](BasicBlock::iterator it){
         computeInOut(it, rs, inputs, outputs);
@@ -1536,8 +1538,10 @@ namespace Grappa {
         std::string font_tag;
         { std::string _s; raw_string_ostream os(_s);
           os << "<font face='InconsolataLGC' point-size='11'";
-          if (candidates[&i])
-            os << " color='" << getColorString(candidates[&i]->ID) << "'";
+          if (candidates[&i].size()) {
+            CandidateRegion* cnd = *candidates[&i].begin();
+            os << " color='" << getColorString(cnd->ID) << "'";
+          }
           os << ">";
           font_tag = os.str();
         }
@@ -1573,7 +1577,7 @@ namespace Grappa {
       
       for_each(sb, bb, succ) {
         o << "  \"" << bb << "\"->\"" << *sb << "\";\n";
-        if (this_region && candidates[sb->begin()] == this_region) {
+        if (this_region && candidates[sb->begin()].count(this_region)) {
           dotBB(o, candidates, *sb, this_region);
         }
       }
@@ -1791,11 +1795,12 @@ namespace Grappa {
           outs() << "anchor:" << line << " =>" << *a << "\n";
           
           auto p = getProvenance(a);
-          if (cmap[a]) {
+          if (cmap[a].size()) {
             DEBUG({
               outs() << "anchor already in another delegate:\n";
               outs() << "  anchor =>" << *a << "\n";
-              outs() << "  other  =>" << *cmap[a]->entry << "\n";
+              auto cnd = *cmap[a].begin();
+              outs() << "  other  =>" << *cnd->entry << "\n";
             });
           } else if (isGlobalPtr(p)) {
             
@@ -1818,7 +1823,7 @@ namespace Grappa {
             r.printHeader();
             
             r.visit([&](BasicBlock::iterator i){
-              if (cmap[i] != &r) {
+              if (!cmap[i].count(&r)) {
                 errs() << "!! bad visit: " << *i << "\n";
                 assert(false);
               }
@@ -1835,10 +1840,11 @@ namespace Grappa {
           auto& r = *p.second;
           r.max_extent.each([&](Instruction* before, Instruction* after){
             outs() << "---- after =>" << *after << "\n";
-            if (cnds.count(after)) {
-              auto& o = *cnds[after];
-              outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o.entry << "\n";
-              pairs.push_back({r.entry, o.entry});
+            if (!cmap[after].empty()) {
+              for (auto o : cmap[after]) {
+                outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o->entry << "\n";
+                pairs.push_back({r.entry, o->entry});
+              }
             }
           });
         }
