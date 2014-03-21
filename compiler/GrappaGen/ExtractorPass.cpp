@@ -1344,7 +1344,8 @@ namespace Grappa {
       // also strip provenance metadata so it doesn't confuse 'fixupFunction()'
       SmallDenseMap<Value*,Value*> lptrs;
       
-      auto new_tgt = clone_map[target_ptr];
+      auto new_tgt = clone_map.count(target_ptr) ? clone_map[target_ptr] : target_ptr;
+      outs() << "<<<< current locality\n<<<<" << *target_ptr << "\n<<<<" << *new_tgt << "\n";
       
       for (auto bb = new_fn->begin(); bb != new_fn->end(); bb++) {
         for (auto inst = bb->begin(); inst != bb->end(); ) {
