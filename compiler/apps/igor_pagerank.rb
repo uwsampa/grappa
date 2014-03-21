@@ -19,6 +19,8 @@ Igor do
   GFLAGS.merge!({
     v: 0,
     scale: 16,
+    global_heap_fraction: 0.2,
+    shared_pool_memory_fraction: 1.0
   })
   GFLAGS.delete :flat_combining
   
