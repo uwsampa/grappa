@@ -758,6 +758,7 @@ namespace Grappa {
     void expandRegion(bool allow_localize = true) {
       AliasSetTracker aliases(alias);
       outs() << "--------------- <line " << entry->getDebugLoc().getLine() << ">\n";
+      for (auto v : valid_ptrs) outs() << ">>>>" << *v << "\n";
       
       RegionSet region;
       int anchor_ct = 0;
@@ -1030,6 +1031,7 @@ namespace Grappa {
       auto i64 = [&](int64_t v) { return ConstantInt::get(Type::getInt64Ty(ctx), v); };
       
       if (async) outs() << "---- extracting async (" << name << ")\n";
+      outs() << "   " << *entry << "\n";
       
       // get set of instructions in region (makes hoist easier)
       RegionSet region;
@@ -1442,6 +1444,7 @@ namespace Grappa {
       //////////////////////////
       // recurse for multi-hop
       if (valid_ptrs.size() > 1) {
+        
         // find hop anchor
         Instruction* next_entry = nullptr;
         for_each(i, new_fn, inst) {
