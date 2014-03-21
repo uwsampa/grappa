@@ -205,7 +205,9 @@ public:
 void analyzeProvenance(Function& fn, AnchorSet& anchors);
 
 inline Value* SmartCast(IRBuilder<>& b, Value* v, Type* ty, const Twine& name = "") {
-  if (CastInst::isCastable(v->getType(), ty)) {
+  if (CastInst::isBitCastable(v->getType(), ty)) {
+    return b.CreateBitCast(v, ty, name);
+  } else if (CastInst::isCastable(v->getType(), ty)) {
     return b.CreateCast(CastInst::getCastOpcode(v, true, ty, true), v, ty, name);
   } else {
     assert2(false, "smart cast not smart enough", *v, *ty);

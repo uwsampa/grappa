@@ -197,8 +197,10 @@ void remap(Instruction* inst, ValueToValueMapTy& vmap,
   }
   
   if (auto bc = dyn_cast<BitCastInst>(inst)) {
-    if (bc->getType()->getPointerAddressSpace() !=
-        bc->getSrcTy()->getPointerAddressSpace()) {
+    auto bc_pty = dyn_cast<PointerType>(bc->getType()),
+         src_pty = dyn_cast<PointerType>(bc->getSrcTy());
+    if (bc_pty && src_pty && bc_pty->getPointerAddressSpace() !=
+                  src_pty->getPointerAddressSpace()) {
       auto new_bc = new BitCastInst(bc->getOperand(0),
                                     PointerType::get(bc->getType()->getPointerElementType(),
                                                      bc->getSrcTy()->getPointerAddressSpace()),
