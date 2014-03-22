@@ -12,6 +12,7 @@
 #include <llvm/Support/Format.h>
 #include <llvm/Analysis/AliasSetTracker.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/ADT/Statistic.h>
 
 #include "Passes.h"
 #include "DelegateExtractor.hpp"
@@ -35,6 +36,9 @@ static cl::opt<bool> DoExtractor("grappa-extractor",
 static cl::opt<bool> DisableAsync("disable-async",
                                  cl::desc("Disable detection/creationg of async delegates."));
 
+static int64_t nPutGets = 0, nAnchors = 0, nHoisted = 0, nLocalized = 0,
+               nMigrations = 0, nAsyncMigrations = 0, nGlobalizedFns = 0,
+               nAnywhereCalls = 0, nSymmetricAccesses = 0;
 
 using InstructionSet = SmallPtrSet<Instruction*,16>;
 
@@ -250,6 +254,7 @@ CallInst* globalizeCall(Function* old_fn, AddrSpaceCastInst* addrcast,
   auto new_fn = mod->getFunction(name.str());
   
   if (!new_fn) {
+    nGlobalizedFns++;
     
     int arg_idx = -1;
     for (int i=0; i < call->getNumArgOperands(); i++)
@@ -1009,6 +1014,8 @@ namespace Grappa {
     }
     
     void doHoist(Instruction *i, Instruction *before, RegionSet& region) {
+      if (isAnchor(i)) nHoisted++;
+      
       i->removeFromParent();
       i->insertBefore(before);
       for_each_op(o, *i) {
@@ -1043,10 +1050,18 @@ namespace Grappa {
       for (auto i : region) {
         if (hoists.count(i)) {
           doHoist(i, entry, region);
+        } else if (auto c = dyn_cast<CallInst>(i)) {
+          if (auto fn = c->getCalledFunction()) {
+            if (fn->hasFnAttribute("anywhere")) {
+              nAnywhereCalls++;
+            }
+          }
         }
       }
       
       // localize
+      nLocalized += to_localize.size();
+      
       UniqueQueue<Instruction*> todo;
       for (auto a : to_localize) todo.push(a);
       Instruction* insertpt = entry;
@@ -1480,6 +1495,9 @@ namespace Grappa {
         
       }
       
+      nMigrations++;
+      if (async) nAsyncMigrations++;
+      
       return new_fn;
     }
     
@@ -1670,12 +1688,14 @@ namespace Grappa {
           } else if (auto gptr = ptr_operand<GLOBAL_SPACE>(orig)) {
             if (lines) lines->insert(orig->getDebugLoc().getLine());
             ginfo.replace_global_access(gptr, nullptr, orig, lptrs, *layout);
+            ++nPutGets;
             fixed_up++;
           }
         } else if (isSymmetricPtr(ptr)) {
           if (auto sptr = ptr_operand<SYMMETRIC_SPACE>(orig)) {
             if (lines) lines->insert(orig->getDebugLoc().getLine());
             ginfo.replace_with_local<SYMMETRIC_SPACE>(sptr, orig, lptrs);
+            nSymmetricAccesses++;
             fixed_up++;
           } else {
             assertN(false, "huh?", *orig, *ptr);
@@ -1696,6 +1716,7 @@ namespace Grappa {
           auto core = b.CreateCall(ginfo.fn("get_core"), { v_prov }, "core");
           if (lines) lines->insert(orig->getDebugLoc().getLine());
           ginfo.replace_global_access(ptr, core, orig, lptrs, *layout);
+          nPutGets++;
         }
         
       }
@@ -1779,6 +1800,12 @@ namespace Grappa {
       
       AnchorSet anchors;
       analyzeProvenance(*fn, anchors);
+      
+      for (auto a : anchors) {
+        if (a->mayReadOrWriteMemory() && isGlobalPtr(getProvenance(a))) {
+          nAnchors++;
+        }
+      }
       
       dbg_remover.visit(fn);
       
@@ -1941,6 +1968,17 @@ namespace Grappa {
   
   bool ExtractorPass::doFinalization(Module& M) {
     outs() << "---\n";
+    
+    outs() << "nAnchors:         " << nAnchors << "\n"
+           << "nMigrations:      " << nMigrations << "\n"
+           << "nAsyncMigrations: " << nAsyncMigrations << "\n"
+           << "nHoisted:         " << nHoisted << "\n"
+           << "nLocalized:       " << nLocalized << "\n"
+           << "nSymmetric:       " << nSymmetricAccesses << "\n"
+           << "nAnywhereCalls:   " << nAnywhereCalls << "\n"
+           << "----\n"
+           << "nPutGets:         " << nPutGets << "\n"
+           << "nGlobalizedFns:   " << nGlobalizedFns << "\n";
     outs().flush();
     return true;
   }
