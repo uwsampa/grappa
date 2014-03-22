@@ -14,6 +14,7 @@ Igor do
            gups.hand.exe
            gups.blocking.hand.exe
            gups.hop.base.exe
+           gups.hop.putget.exe
            gups.hop.hand.exe
            gups.hop.ext.exe
          ]
@@ -24,8 +25,8 @@ Igor do
   
   GFLAGS.merge!({
     v: 0,
-    log_array_size: 28,
-    log_iterations: 20,
+    log_array_size: 31,
+    log_iterations: 28,
   })
   GFLAGS.delete :flat_combining
   
