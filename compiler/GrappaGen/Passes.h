@@ -15,6 +15,7 @@
 #include <cxxabi.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <llvm/Support/CommandLine.h>
 
 #undef DEBUG_TYPE
 #define DEBUG_TYPE "grappa"
@@ -25,7 +26,7 @@ std::unique_ptr<T> make_unique(Args&&... args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
-const int MESSAGE_COST = 50;
+extern llvm::cl::opt<int> MESSAGE_COST;
 
 #define void_ty      Type::getVoidTy(*ctx)
 #define i64_ty       Type::getInt64Ty(*ctx)

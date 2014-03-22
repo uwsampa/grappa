@@ -36,6 +36,8 @@ static cl::opt<bool> DoExtractor("grappa-extractor",
 static cl::opt<bool> DisableAsync("disable-async",
                                  cl::desc("Disable detection/creationg of async delegates."));
 
+cl::opt<int> MESSAGE_COST("message-cost", cl::init(100));
+
 static int64_t nPutGets = 0, nAnchors = 0, nHoisted = 0, nLocalized = 0,
                nMigrations = 0, nAsyncMigrations = 0, nGlobalizedFns = 0,
                nAnywhereCalls = 0, nSymmetricAccesses = 0;
