@@ -25,6 +25,7 @@ namespace Grappa {
   public:
     VertexID(int64_t idx): idx(idx) {}
     operator int64_t () { return idx; }
+    operator int64_t () const { return idx; }
   };
   
   struct VertexBase {
