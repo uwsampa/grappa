@@ -218,7 +218,7 @@ void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent>
   // now visit adjacencies
   enroll(ce, rv.nadj);
   
-  forall<async,nullptr>(adj(g,rv), [=](int64_t j, GlobalAddress<CCVertex> vj){
+  forall<async,nullptr>(adj(g,rv), [=](VertexID j, GlobalAddress<CCVertex> vj){
     delegate::call<async,nullptr>(vj, [mycolor,ce](CCVertex& v){
       auto j = make_linear(&v) - g->vs;
       
@@ -254,7 +254,7 @@ void propagate(int64_t v, color_t mycolor) {
   auto& rv = *(ga->vs+v).pointer();
   
   c.enroll(rv.nadj);
-  forall<async,nullptr>(adj(ga,v), [=](int64_t j, GlobalAddress<CCVertex> vj){
+  forall<async,nullptr>(adj(ga,v), [=](VertexID j, GlobalAddress<CCVertex> vj){
     CHECK(j < ga->nv && j >= 0) << "-- j: " << j << ", vj: " << vj << "\nvs: " << ga->vertices();
     Core origin = mycore();
     call<async,nullptr>(vj, [=](CCVertex& v){      
