@@ -334,6 +334,7 @@ int main(int argc, char* argv[]) {
     }
     LOG(INFO) << set_insert_time;
     set_size = comp_set->size();
+    LOG(INFO) << set_size;
     
     if (VLOG_IS_ON(1)) {
       VLOG(0) << "components set: {";
