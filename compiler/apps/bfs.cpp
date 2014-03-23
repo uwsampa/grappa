@@ -258,8 +258,7 @@ int main(int argc, char* argv[]) {
             auto vi = frontier.pop();
             
             forall<async,&joiner>(adj(g,vs+vi), [=](int64_t j){
-              if (vs[j]->parent == -1) {
-                vs[j]->parent = vi;
+              if (__sync_bool_compare_and_swap(&vs[j]->parent, -1, vi)) {
                 frontier.push(j);
               }
             });
