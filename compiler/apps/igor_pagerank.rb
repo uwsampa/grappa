@@ -10,6 +10,7 @@ Igor do
   exes = %w[ pagerank.putget.exe
            pagerank.ext.exe
            pagerank.hand.exe
+           pagerank.ext.nohop.exe
          ]
   
   params { exe *exes }
@@ -18,7 +19,7 @@ Igor do
   
   GFLAGS.merge!({
     v: 0,
-    scale: 16,
+    scale: 23,
     global_heap_fraction: 0.2,
     shared_pool_memory_fraction: 1.0
   })
@@ -35,6 +36,12 @@ Igor do
   sbatch_flags << "--time=10:00"
   
   expect :pagerank_time
+  
+  params {
+    scale 23; nnode 12; ppn 8
+    num_starting_workers 1024
+    loop_threshold 128
+  }
   
   interact # enter interactive mode
 end

@@ -9,6 +9,7 @@ Igor do
   
   exes = %w[ intsort.putget.exe
            intsort.ext.exe
+           intsort.ext.noasync.exe
            intsort.hand.exe
          ]
   
@@ -34,6 +35,11 @@ Igor do
   sbatch_flags << "--time=10:00"
   
   expect :rank_time_mean
+  
+  params {
+    cls 'D'; nnode 12; ppn 8
+    num_starting_workers 768; loop_threshold 1024
+  }
   
   interact # enter interactive mode
 end

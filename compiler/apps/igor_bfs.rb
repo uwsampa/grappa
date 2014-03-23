@@ -10,7 +10,7 @@ Igor do
   exes = %w{
     bfs.putget.exe
     bfs.ext.exe
-    bfs.ext.noasync.exe
+    bfs.ext.nohoist.exe
     bfs.hand.exe
   }
   
@@ -34,6 +34,14 @@ Igor do
   sbatch_flags << "--time=10:00"
   
   params { exe *exes }
+  params {
+    scale 23
+    nnode 12
+    ppn    8
+    num_starting_workers 768
+    loop_threshold 64,1024
+    trial 1,2,3
+  }
   
   expect :bfs_mteps
   

@@ -10,6 +10,7 @@ Igor do
   exes = %w[ cc.putget.exe
            cc.ext.exe
            cc.hand.exe
+           cc.ext.nolocalize.exe
          ]
   
   params { exe *exes }
@@ -34,6 +35,13 @@ Igor do
   sbatch_flags << "--time=10:00"
   
   expect :ncomponents, :components_time
+  
+  params {
+    nnode 12; ppn 8; scale 23
+    num_starting_workers 768
+    loop_threshold 256
+    concurrent_roots 512
+  }
   
   interact # enter interactive mode
 end
