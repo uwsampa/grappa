@@ -257,7 +257,7 @@ int main(int argc, char* argv[]) {
           while ( !frontier.level_empty() ) {
             auto vi = frontier.pop();
             
-            forall<async,&joiner>(adj(g,vs+vi), [=](int64_t j){
+            forall<async,&joiner>(adj(g,vs+vi), [=](VertexID j){
               if (__sync_bool_compare_and_swap(&vs[j]->parent, -1, vi)) {
                 frontier.push(j);
               }
