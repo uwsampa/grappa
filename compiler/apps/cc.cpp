@@ -175,10 +175,10 @@ void explore(int64_t r, color_t mycolor, CompletionEvent global* ce) {
   // now visit adjacencies
   enroll(ce, v.nadj);
   
-  forall<async,nullptr>(adj(g,vs+r), [=](int64_t j){
+  forall<async,nullptr>(adj(g,vs+r), [=](VertexID j){
     auto& vj = vs[j];
-    if (vj->color < 0) {
-      vj->color = mycolor;
+    auto vjc = vj->color;
+    if (vjc < 0 && __sync_bool_compare_and_swap(&vj->color, vjc, mycolor)) {
       // mark 'spawn' as 'anywhere'
       spawn([=]{
         explore(j, mycolor, ce);
