@@ -35,6 +35,9 @@ static cl::opt<bool> DoExtractor("grappa-extractor",
                                  cl::desc("Run pass to automatically extract delegates."));
 static cl::opt<bool> DisableAsync("disable-async",
                                  cl::desc("Disable detection/creationg of async delegates."));
+static cl::opt<bool> DisableAllocaLocalize("disable-localize");
+static cl::opt<bool> DisableMultihop("disable-multihop");
+static cl::opt<bool> DisableHoisting("disable-hoisting");
 
 cl::opt<int> MESSAGE_COST("message-cost", cl::init(100));
 
@@ -696,6 +699,7 @@ namespace Grappa {
     bool hoistable(Instruction *i, RegionSet& region, AliasSetTracker& aliases,
                    InstructionSet& unhoistable, InstructionSet& tomove,
                    SmallPtrSet<AllocaInst*,4>& allocas_to_localize) {
+      if (DisableHoisting) return false;
       if (unhoistable.count(i)) return false;
       if (i->mayHaveSideEffects()) return false;
       auto prov = getProvenance(i);
@@ -765,6 +769,7 @@ namespace Grappa {
     }
     
     void expandRegion(bool allow_localize = true) {
+      if (DisableAllocaLocalize) allow_localize = false;
       AliasSetTracker aliases(alias);
       outs() << "--------------- <line " << entry->getDebugLoc().getLine() << ">\n";
       for (auto v : valid_ptrs) outs() << ">>>>" << *v << "\n";
@@ -1867,46 +1872,48 @@ namespace Grappa {
           }
         }
         
-        //////////////////////////////////////////
-        // find & evaluate multihop opportunities
-        SmallVector<std::pair<Instruction*,Instruction*>,8> pairs;
-        
-        for (auto& p : cnds) {
-          auto& r = *p.second;
-          r.max_extent.each([&](Instruction* before, Instruction* after){
-            outs() << "---- after =>" << *after << "\n";
-            if (!cmap[after].empty()) {
-              for (auto o : cmap[after]) {
-                outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o->entry << "\n";
-                pairs.push_back({r.entry, o->entry});
+        if (!DisableMultihop) {
+          //////////////////////////////////////////
+          // find & evaluate multihop opportunities
+          SmallVector<std::pair<Instruction*,Instruction*>,8> pairs;
+          
+          for (auto& p : cnds) {
+            auto& r = *p.second;
+            r.max_extent.each([&](Instruction* before, Instruction* after){
+              outs() << "---- after =>" << *after << "\n";
+              if (!cmap[after].empty()) {
+                for (auto o : cmap[after]) {
+                  outs() << "++++ chaining opportunity!\n" << *r.entry << "\n" << *o->entry << "\n";
+                  pairs.push_back({r.entry, o->entry});
+                }
               }
+            });
+          }
+          
+          for (auto p : pairs) {
+            auto& r = *cnds[p.first];
+            auto& o = *cnds[p.second];
+            
+            CandidateMap comb_map;
+            auto comb = make_unique<CandidateRegion>(r.target_ptr, r.entry, cmap,
+                                                     ginfo, *layout, aliases);
+            comb->addPtr(getProvenance(o.entry));
+            
+            comb->expandRegion();
+            
+  //          if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
+  //                                                   taskname+".comb"+Twine(comb->ID));
+            
+            outs() << "first.score    => " << r.cost() << "\n";
+            outs() << "second.score   => " << o.cost() << "\n";
+            outs() << "comb.score     => " << comb->cost() << "\n";
+            
+            if (comb->cost() < (r.cost() + o.cost())) {
+              outs() << "++++ multihop wins!\n";
+              cnds.erase(r.entry);
+              cnds.erase(o.entry);
+              cnds[comb->entry] = std::move(comb);
             }
-          });
-        }
-        
-        for (auto p : pairs) {
-          auto& r = *cnds[p.first];
-          auto& o = *cnds[p.second];
-          
-          CandidateMap comb_map;
-          auto comb = make_unique<CandidateRegion>(r.target_ptr, r.entry, cmap,
-                                                   ginfo, *layout, aliases);
-          comb->addPtr(getProvenance(o.entry));
-          
-          comb->expandRegion();
-          
-//          if (PrintDot) CandidateRegion::dumpToDot(*fn, comb_map,
-//                                                   taskname+".comb"+Twine(comb->ID));
-          
-          outs() << "first.score    => " << r.cost() << "\n";
-          outs() << "second.score   => " << o.cost() << "\n";
-          outs() << "comb.score     => " << comb->cost() << "\n";
-          
-          if (comb->cost() < (r.cost() + o.cost())) {
-            outs() << "++++ multihop wins!\n";
-            cnds.erase(r.entry);
-            cnds.erase(o.entry);
-            cnds[comb->entry] = std::move(comb);
           }
         }
         

@@ -32,6 +32,7 @@ foreach(file ${miniapp_srcs})
 endforeach()
 
 add_app(default "bfs.cpp" "" hand)
+add_app(grappaclang "bfs.cpp" "-mllvm -grappa-extractor -mllvm -disable-hoisting" ext.nohoist)
 
 ############
 # Gups
@@ -51,16 +52,17 @@ add_app(default     "gups.cpp" "-DCOST_EXPERIMENT" cost.go)
 
 ########################
 # Connected components
-add_app(default "cc.cpp" "" hand)
-
+add_app(default     "cc.cpp" "" hand)
+add_app(grappaclang "cc.cpp" "-mllvm -grappa-extractor -mllvm -disable-localize" ext.nolocalize)
 
 ##########
 # Intsort
-add_app(default "intsort.cpp" "" hand)
+add_app(default     "intsort.cpp" "" hand)
 
 ###########
 # Pagerank
-add_app(default "pagerank.cpp" "" hand)
+add_app(default     "pagerank.cpp" "" hand)
+add_app(grappaclang "pagerank.cpp" "-mllvm -grappa-extractor -mllvm -disable-multihop" ext.nohop)
 
 list(REMOVE_DUPLICATES apps)
 foreach(app ${apps})
