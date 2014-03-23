@@ -1970,6 +1970,8 @@ namespace Grappa {
   }
     
   bool ExtractorPass::doInitialization(Module& M) {
+    if (DisableAsync) DisableMultihop = true;
+    
     outs() << "-- Grappa Extractor --\n";
     outs().flush();
     return false;
