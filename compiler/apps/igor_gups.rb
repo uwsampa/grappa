@@ -44,5 +44,11 @@ Igor do
   
   expect :gups_runtime
   
+  params {
+    nnode 12; ppn 8
+    num_starting_workers 512
+    loop_threshold 768
+  }
+  
   interact # enter interactive mode
 end
