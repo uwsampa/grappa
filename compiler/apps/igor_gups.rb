@@ -17,6 +17,8 @@ Igor do
            gups.hop.putget.exe
            gups.hop.hand.exe
            gups.hop.ext.exe
+           gups.hop.ext.noasync.exe
+           gups.hop.ext.nohop.exe
          ]
   
   params { exe *exes }

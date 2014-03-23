@@ -43,6 +43,8 @@ add_app(default     "gups.cpp" "-DBLOCKING=1" blocking.hand)
 add_app(grappaclang "gups.cpp" "-DVOID_INTERFACE=1" void)
 # multihop:
 add_app(grappaclang "gups.cpp" "-mllvm -grappa-extractor -DMULTIHOP=1" hop.ext)
+add_app(grappaclang "gups.cpp" "-mllvm -grappa-extractor -mllvm -disable-async -DMULTIHOP=1" hop.ext.noasync)
+add_app(grappaclang "gups.cpp" "-mllvm -grappa-extractor -mllvm -disable-multihop -DMULTIHOP=1" hop.ext.nohop)
 add_app(grappaclang "gups.cpp" "-DMULTIHOP=1" hop.putget)
 add_app(default     "gups.cpp" "-DMULTIHOP=1 -DBLOCKING=1" hop.base)
 add_app(default     "gups.cpp" "-DMULTIHOP=1" hop.hand)
