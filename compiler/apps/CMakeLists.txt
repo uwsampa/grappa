@@ -37,6 +37,7 @@ add_app(grappaclang "bfs.cpp" "-mllvm -grappa-extractor -mllvm -disable-hoisting
 ################
 # Winner's GUPS
 add_app(default     "hops.cpp" "" hand)
+add_app(grappaclang "hops.cpp" "-mllvm -grappa-extractor -mllvm -disable-multihop" ext.nohop)
 
 ############
 # Gups
