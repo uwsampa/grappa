@@ -1620,7 +1620,7 @@ namespace Grappa {
         
         std::string font_tag;
         { std::string _s; raw_string_ostream os(_s);
-          os << "<font face='InconsolataLGC' point-size='11'";
+          os << "<font";
           if (candidates[&i].size()) {
             CandidateRegion* cnd = *candidates[&i].begin();
             os << " color='" << getColorString(cnd->ID) << "'";
@@ -1710,7 +1710,7 @@ namespace Grappa {
       o << "digraph TaskFunction {\n";
       o << "  fontname=\"InconsolataLGC\";\n";
       o << "  label=\"" << demangle(F.getName()) << "\"";
-      o << "  node[shape=record];\n";
+      o << "  node[shape=record,fontname=\"InconsolataLGC\"];\n";
       
       for (auto& bb : F) {
         dotBB(o, candidates, &bb);
