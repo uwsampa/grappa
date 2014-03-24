@@ -78,6 +78,20 @@ GetElementPtrInst* GetBaseGEP(Value *ptr, Value* idx) {
   }
 }
 
+bool sameLocale(Value *a, Value* b) {
+  if (a == b) return true;
+  if (!a || !b) return false;
+  if (auto aa = dyn_cast<GetElementPtrInst>(a)) {
+    if (auto bb = dyn_cast<GetElementPtrInst>(b)) {
+      if (aa->getPointerOperand() == bb->getPointerOperand() &&
+          aa->getOperand(1) == bb->getOperand(1)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 Value* search(Value* v) {
   if (auto inst = dyn_cast<Instruction>(v))
     if (auto prov = getProvenance(inst))
@@ -89,9 +103,8 @@ Value* search(Value* v) {
       if (gep->getPointerAddressSpace() == GLOBAL_SPACE) {
         auto idx = gep->getOperand(1);
         if (idx != ConstantInt::get(idx->getType(), 0)) {
-          auto base = GetBaseGEP(gep->getPointerOperand(), idx);
-          setProvenance(gep, base);
-          return base;
+          setProvenance(gep, v);
+          return v;
         }
       }
     }
@@ -947,7 +960,11 @@ namespace Grappa {
     bool validInRegion(Instruction* i) {
 #define returnInvalid { outs() << "invalid." << __LINE__ << *i << "\n"; return false; }
       auto validPtr = [&](Value *p){
-        return valid_ptrs.count(p) || isSymmetricPtr(p) || isStatic(p) || isConst(p);
+        if (isSymmetricPtr(p) || isStatic(p) || isConst(p)) return true;
+        for (auto ptr : valid_ptrs) {
+          if (sameLocale(ptr, p)) return true;
+        }
+        return false;
       };
       
       if (i->mayReadOrWriteMemory() || isa<AddrSpaceCastInst>(i)) {
@@ -1215,6 +1232,14 @@ namespace Grappa {
 //      if (out_struct_ty != ty_output) for (auto v : outputs) outs() << "-- " << *v << "\n";
 //      assert2(out_struct_ty == ty_output, "different output types", *ty_output, *out_struct_ty);
       
+      SmallPtrSet<Instruction*,8> local_anchors;
+      visit([&](BasicBlock::iterator i){
+        if (isAnchor(i) && sameLocale(getProvenance(i), target_ptr)) {
+          outs() << "++++ local_anchor:" << *i;
+          local_anchors.insert(i);
+        }
+      });
+      
       /////////////////////////
       // create function shell
       auto new_fn = Function::Create(
@@ -1391,6 +1416,12 @@ namespace Grappa {
       // also strip provenance metadata so it doesn't confuse 'fixupFunction()'
       SmallDenseMap<Value*,Value*> lptrs;
       
+      SmallPtrSet<Instruction*,8> new_local_anchors;
+      for (auto l : local_anchors) {
+        if (clone_map.count(l)) new_local_anchors.insert(dyn_cast<Instruction>(clone_map[l]));
+        else new_local_anchors.insert(l);
+      }
+      
       auto new_tgt = clone_map.count(target_ptr) ? clone_map[target_ptr] : target_ptr;
       outs() << "<<<< current locality\n<<<<" << *target_ptr << "\n<<<<" << *new_tgt << "\n";
       
@@ -1398,7 +1429,7 @@ namespace Grappa {
         for (auto inst = bb->begin(); inst != bb->end(); ) {
           Instruction *orig = inst++;
           auto prov = getProvenance(orig);
-          if (prov == new_tgt) {
+          if (new_local_anchors.count(orig)) {
             setProvenance(orig, nullptr);
             if (isGlobalPtr(prov)) {
               if (auto gptr = ptr_operand<GLOBAL_SPACE>(orig)) {
