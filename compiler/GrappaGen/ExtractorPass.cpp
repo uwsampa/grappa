@@ -66,6 +66,18 @@ Value* getProvenance(Instruction* inst) {
   return nullptr;
 }
 
+GetElementPtrInst* GetBaseGEP(Value *ptr, Value* idx) {
+  static std::map<std::pair<Value*,Value*>, GetElementPtrInst*> bases;
+  auto key = std::make_pair(ptr,idx);
+  if (bases.count(key)) {
+    return bases[key];
+  } else {
+    auto gep_base = GetElementPtrInst::Create(ptr, { idx }, "base");
+    bases[key] = gep_base;
+    return gep_base;
+  }
+}
+
 Value* search(Value* v) {
   if (auto inst = dyn_cast<Instruction>(v))
     if (auto prov = getProvenance(inst))
@@ -77,8 +89,9 @@ Value* search(Value* v) {
       if (gep->getPointerAddressSpace() == GLOBAL_SPACE) {
         auto idx = gep->getOperand(1);
         if (idx != ConstantInt::get(idx->getType(), 0)) {
-          setProvenance(gep, v);
-          return v;
+          auto base = GetBaseGEP(gep->getPointerOperand(), idx);
+          setProvenance(gep, base);
+          return base;
         }
       }
     }
@@ -1108,8 +1121,8 @@ namespace Grappa {
         bb_in = bb_new;
       }
       
-      DEBUG({
-        outs() << "bb_in => " << bb_in->getName() << "\n";
+//      DEBUG({
+//        outs() << "bb_in => " << bb_in->getName() << "\n";
 
         outs() << "old exits:\n";
         exits.each([&](Instruction* before_exit, Instruction* after_exit){
@@ -1117,7 +1130,7 @@ namespace Grappa {
         });
         outs() << "\n";
         outs() << "^^^^^^^^^^^^^^^\nnew exits:\n";
-      });
+//      });
       
       exits.each([&](Instruction* before, Instruction* after){
         assert(isa<Instruction>(before));
@@ -1127,7 +1140,7 @@ namespace Grappa {
         if (bb_exit == after->getParent()) {
           std::string bbname = Twine(name+".exit." + bb_exit->getName()).str();
           bb_after = bb_exit->splitBasicBlock(after, bbname);
-          DEBUG(outs() << *bb_exit->getTerminator() << " (in " << before->getParent()->getName() << ")\n  =>" << *after << " (in " << after->getParent()->getName() << ")\n");
+          outs() << *bb_exit->getTerminator() << " (in " << before->getParent()->getName() << ")\n  =>" << *after << " (in " << after->getParent()->getName() << ")\n";
           exits.remove(before, after);
           exits.add(bb_exit->getTerminator(), bb_after);
         } else {
@@ -1176,8 +1189,16 @@ namespace Grappa {
       ValueSet inputs, outputs;
       visit([&](BasicBlock::iterator it){
         for_each_op(o, *it)  if (definedInCaller(*o)) inputs.insert(*o);
-        for_each_use(u, *it) if (!definedInRegion(*u)) { outputs.insert(it); break; }
+        for_each_use(u, *it) {
+          auto inst = dyn_cast<Instruction>(*u);
+          if (inst && !definedInRegion(inst) && inst->getParent()) {
+            outputs.insert(it); break;
+          }
+        }
       });
+      
+      for(auto o : inputs) outs() << ">>>>" << *o << "\n";
+      for(auto o : outputs) outs() << "<<<<" << *o << "\n";
       
       if (async) assert(outputs.size() == 0);
       
@@ -1442,7 +1463,7 @@ namespace Grappa {
         for (auto& i : *bb) {
           for (auto u = i.use_begin(), ue = i.use_end(); u != ue; u++) {
             if (auto uu = dyn_cast<Instruction>(*u)) {
-              if (bbs.count(uu->getParent()) == 0) {
+              if (uu->getParent() && !bbs.count(uu->getParent())) {
                 auto uubb = uu->getParent();
                 assert(uubb->getParent() == old_fn);
                 assertN(false, "!! use escaped", i, "---- use:", *uu, "----", *uubb);
