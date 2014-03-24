@@ -7,38 +7,41 @@
 #endif
 
 using namespace Grappa;
+
 using delegate::call;
 
-struct EdgeWeights {
-  double * weights;
-};
-using SparseRow = Vertex<EdgeWeights>;
-using SparseMatrix = Graph<SparseRow>;
+DEFINE_int64( log_array_size, 28, "Size of array that GUPS increments (log2)" );
+DEFINE_int64( log_iterations, 20, "Iterations (log2)" );
 
-DEFINE_uint64(scale, 16, "logN dimension of square matrix" );
-DEFINE_uint64(nnz_factor, 16, "Approximate number of non-zeros per matrix row");
+/// size of index array
+int64_t sizeA;
+/// size of target array
+int64_t sizeB;
 
-void spmv_mult(Graph symmetric* A, double global* X, double global* Y) {
-  forall(A, [=](VertexID i, Vertex& v){
-    auto w = v.weights;
-    auto adj = v.adjacencies;
-    forall<async>(0, v.nadj, [=](int64_t j){
-      Y[i] += w[j] * X[adj[j]];
-    });
-  });
+GlobalCompletionEvent phaser;
+
+DEFINE_bool( metrics, false, "Dump metrics");
+
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
+
+template< typename T, typename U >
+T fetch_add(T global* a, U inc) {
+  return __sync_fetch_and_add(a, inc);
 }
 
 struct Counter {
   size_t count;
-  Locale first;
+  Core winner;
 };
 
-void gups(Counter global* A, int64_t global* B, size_t N) {
-  forall(0, N, [](int64_t i){
-    Locale origin = here();
-    int64_t prev = fetch_add(&A[B[i]].count, 1);
+void winners_gups(Counter global* A, int64_t global* B, size_t N) {
+  forall<&phaser>(0, N, [=](int64_t i){
+    Core me = mycore();
+    auto a = &A[B[i]];
+    auto prev = __sync_fetch_and_add(&a->count, 1);
     if (prev == 0) {
-      A[B[i]].core = origin;
+      a->winner = me;
     }
   });
 }
@@ -52,34 +55,24 @@ int main(int argc, char* argv[]) {
   run([]{
     LOG(INFO) << "running";
     
-    auto nv = 1L << FLAGS_scale;
-    auto ne = nv * FLAGS_nnz_factor;
+    auto A = global_alloc<Counter>(sizeA);
+    forall(A, sizeA, [](Counter& c){ c.count = 0; c.winner = -1; });
     
-    auto A = SparseMatrix::create(
-               TupleGraph::Kronecker(FLAGS_scale, ne, 111, 222)
-             );
-    
-    auto X = as_ptr(global_alloc<int64_t>(nv));
-    auto Y = as_ptr(global_alloc<int64_t>(nv));
+    auto B = global_alloc<int64_t>(sizeB);
     
     forall(B, sizeB, [](int64_t& b) {
       b = random() % sizeA;
     });
     
-    LOG(INFO) << "starting timed portion";
-    double start = walltime();
-    
-    Graph A;
-    double global* X;
-    double global* Y;
-    
-    forall(A, [=](VertexID i, Vertex& v){
-      auto w = v.weights;
-      auto adj = v.adjacencies;
-      forall<async>(0, v.nadj, [=](int64_t j){
-        Y[i] += w[j] * X[adj[j]];
-      });
-    });
+    GRAPPA_TIME_REGION(gups_runtime) {
+      winners_gups(A, B, sizeB);
+    }
+    gups_throughput = sizeB / gups_runtime;
+
+    LOG(INFO) << gups_throughput.value() << " UPS in " << gups_runtime.value() << " seconds";
+
+    global_free(B);
+    global_free(A);
     
     if (FLAGS_metrics) Metrics::merge_and_print();
     Metrics::merge_and_dump_to_file();
