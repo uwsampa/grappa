@@ -1235,7 +1235,7 @@ namespace Grappa {
       SmallPtrSet<Instruction*,8> local_anchors;
       visit([&](BasicBlock::iterator i){
         if (isAnchor(i) && sameLocale(getProvenance(i), target_ptr)) {
-          outs() << "++++ local_anchor:" << *i;
+          outs() << "++++ local_anchor:" << *i << "\n";
           local_anchors.insert(i);
         }
       });
