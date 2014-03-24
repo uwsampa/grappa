@@ -34,6 +34,10 @@ endforeach()
 add_app(default "bfs.cpp" "" hand)
 add_app(grappaclang "bfs.cpp" "-mllvm -grappa-extractor -mllvm -disable-hoisting" ext.nohoist)
 
+################
+# Winner's GUPS
+add_app(default     "toy.cpp" "" hand)
+
 ############
 # Gups
 add_app(default     "gups.cpp" "" hand)

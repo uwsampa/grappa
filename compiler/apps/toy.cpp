@@ -7,7 +7,6 @@
 #endif
 
 using namespace Grappa;
-
 using delegate::call;
 
 DEFINE_int64( log_array_size, 28, "Size of array that GUPS increments (log2)" );
@@ -25,26 +24,38 @@ DEFINE_bool( metrics, false, "Dump metrics");
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
 
-template< typename T, typename U >
-T fetch_add(T global* a, U inc) {
-  return __sync_fetch_and_add(a, inc);
-}
-
 struct Counter {
   size_t count;
-  Core winner;
+  int64_t winner;
 };
 
+#ifdef __GRAPPA_CLANG__
 void winners_gups(Counter global* A, int64_t global* B, size_t N) {
   forall<&phaser>(0, N, [=](int64_t i){
-    Core me = mycore();
     auto a = &A[B[i]];
     auto prev = __sync_fetch_and_add(&a->count, 1);
     if (prev == 0) {
-      a->winner = me;
+      a->winner = i;
     }
   });
 }
+#else
+void winners_gups(GlobalAddress<Counter> A, GlobalAddress<int64_t> B, size_t N) {
+  forall<&phaser>(0, N, [=](int64_t i){
+    Core origin = mycore();
+    phaser.enroll();
+    call<async,nullptr>(B+i, [=](int64_t& b){
+      call<async,nullptr>(A+b, [=](Counter& a){
+        auto prev = __sync_fetch_and_add(&a.count, 1);
+        if (prev == 0) {
+          a.winner = i;
+        }
+        phaser.send_completion(origin);
+      });
+    });
+  });
+}
+#endif
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
