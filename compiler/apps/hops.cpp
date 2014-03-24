@@ -30,7 +30,7 @@ struct Counter {
 };
 
 #ifdef __GRAPPA_CLANG__
-void winners_gups(Counter global* A, int64_t global* B, size_t N) {
+void hops(Counter global* A, int64_t global* B, size_t N) {
   forall<&phaser>(0, N, [=](int64_t i){
     auto a = &A[B[i]];
     auto prev = __sync_fetch_and_add(&a->count, 1);
@@ -40,7 +40,7 @@ void winners_gups(Counter global* A, int64_t global* B, size_t N) {
   });
 }
 #else
-void winners_gups(GlobalAddress<Counter> A, GlobalAddress<int64_t> B, size_t N) {
+void hops(GlobalAddress<Counter> A, GlobalAddress<int64_t> B, size_t N) {
   forall<&phaser>(0, N, [=](int64_t i){
     Core origin = mycore();
     phaser.enroll();
@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
     });
     
     GRAPPA_TIME_REGION(gups_runtime) {
-      winners_gups(A, B, sizeB);
+      hops(A, B, sizeB);
     }
     gups_throughput = sizeB / gups_runtime;
 
