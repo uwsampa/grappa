@@ -39,6 +39,7 @@ Igor do
   expect :gups_runtime
   
   params {
+    version 'inline_phaser'
     nnode 12; ppn 8
     num_starting_workers 512
     loop_threshold 768

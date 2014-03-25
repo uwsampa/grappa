@@ -31,26 +31,29 @@ struct Counter {
 
 #ifdef __GRAPPA_CLANG__
 void hops(Counter global* A, int64_t global* B, size_t N) {
+  phaser.enroll(N);
   forall<&phaser>(0, N, [=](int64_t i){
-    auto a = &A[B[i]];
-    auto prev = __sync_fetch_and_add(&a->count, 1);
-    if (prev == 0) {
-      a->winner = i;
-    }
+    mark_async<nullptr>([=]{
+      auto a = &A[B[i]];
+      auto prev = __sync_fetch_and_add(&a->count, 1);
+      if (prev == 0) {
+        a->winner = i;
+      }
+      phaser.send_completion(0);
+    })();
   });
 }
 #else
 void hops(GlobalAddress<Counter> A, GlobalAddress<int64_t> B, size_t N) {
+  phaser.enroll(N);
   forall<&phaser>(0, N, [=](int64_t i){
-    Core origin = mycore();
-    phaser.enroll();
     call<async,nullptr>(B+i, [=](int64_t& b){
       call<async,nullptr>(A+b, [=](Counter& a){
         auto prev = __sync_fetch_and_add(&a.count, 1);
         if (prev == 0) {
           a.winner = i;
         }
-        phaser.send_completion(origin);
+        phaser.send_completion(0);
       });
     });
   });
