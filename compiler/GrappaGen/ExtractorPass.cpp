@@ -1331,11 +1331,13 @@ namespace Grappa {
       if (async) {
         size_t sz = layout.getTypeAllocSize(in_struct_ty);
         Function *on_async_fn = ginfo.fn("on_async");
-        if      (sz <= 16)  { on_async_fn = ginfo.fn("on_async_16"); errs() << "---- on_async_16\n"; }
-        else if (sz <= 32)  { on_async_fn = ginfo.fn("on_async_32"); errs() << "---- on_async_32\n"; }
-        else if (sz <= 64)  { on_async_fn = ginfo.fn("on_async_64"); errs() << "---- on_async_64\n"; }
-        else if (sz <= 128) { on_async_fn = ginfo.fn("on_async_128"); errs() << "---- on_async_128\n"; }
-        else { errs() << "---- on_async (generic)\n"; }
+        if      (sz <= 16)  { on_async_fn = ginfo.fn("on_async_16"); outs() << "---- on_async_16\n"; }
+        else if (sz <= 32)  { on_async_fn = ginfo.fn("on_async_32"); outs() << "---- on_async_32\n"; }
+        else if (sz <= 64)  { on_async_fn = ginfo.fn("on_async_64"); outs() << "---- on_async_64\n"; }
+        else if (sz <= 128) { on_async_fn = ginfo.fn("on_async_128"); outs() << "---- on_async_128\n"; }
+        else { outs() << "---- on_async (generic:" << sz << ")\n"; }
+        
+        outs() << "---- gce: " << *gce << "\n";
         
         auto in_void = b.CreateBitCast(in_alloca, ty_void_ptr);
         call = b.CreateCall(on_async_fn, { target_core, new_fn, in_void, i64(sz), gce },
