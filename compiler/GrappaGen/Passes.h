@@ -255,6 +255,8 @@ struct GlobalPtrInfo {
     };
     
     fn_map["on"] = getFunction("grappa_on");
+    fn_map["on_32_0"] = getFunction("grappa_on_32_0");
+    fn_map["on_8_8"] = getFunction("grappa_on_8_8");
     fn_map["on_async"] = getFunction("grappa_on_async");
     fn_map["on_async_16"] = getFunction("grappa_on_async_16");
     fn_map["on_async_32"] = getFunction("grappa_on_async_32");

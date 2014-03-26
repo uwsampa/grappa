@@ -236,6 +236,69 @@ void grappa_put_on(Core c, void* dest, void* src, size_t sz) {
 using retcode_t = int16_t;
 
 extern "C"
+retcode_t grappa_on_32_0(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz, void* out, size_t out_sz) {
+  auto origin = Grappa::mycore();
+  retcode_t retcode;
+  if (dst == origin) {
+    delegate_short_circuits++;
+    retcode = fn(args, out);
+  } else {
+    int8_t _args[32];
+    memcpy(_args, args, args_sz);
+    
+    Grappa::FullEmpty<retcode_t> fe;
+    auto gfe = make_global(&fe);
+    
+    Grappa::send_heap_message(dst, [fn,_args,gfe]{
+      retcode_t retcode = fn((void*)_args, nullptr);
+      Grappa::send_heap_message(gfe.core(), [gfe,retcode]{
+        gfe->writeEF(retcode);
+      });
+    });
+    retcode = fe.readFF();
+  }
+  return retcode;
+}
+
+extern "C"
+retcode_t grappa_on_8_8(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz, void* out, size_t out_sz) {
+ auto origin = Grappa::mycore();
+ retcode_t retcode;
+ if (dst == origin) {
+   delegate_short_circuits++;
+   retcode = fn(args, out);
+  } else {
+    int8_t _args[8];
+    int8_t _out[8];
+    void* out_buf = _out;
+    
+    memcpy(_args, args, args_sz);
+    
+    Grappa::FullEmpty<retcode_t> fe;
+    auto gfe = make_global(&fe);
+    
+    Grappa::send_heap_message(dst, [fn,_args,gfe,out_buf]{
+      
+      int8_t _out[8];
+      
+      retcode_t retcode = fn((void*)_args, _out);
+      
+      Grappa::send_heap_message(gfe.core(), [gfe,_out,out_buf,retcode]{
+        
+        memcpy(out_buf, _out, 8);
+        gfe->writeEF(retcode);
+      });
+      
+    });
+    
+    retcode = fe.readFF();
+    
+    memcpy(out, _out, out_sz);
+  }
+  return retcode;
+}
+
+extern "C"
 retcode_t grappa_on(Core dst, retcode_t (*fn)(void* args, void* out), void* args, size_t args_sz,
                void* out, size_t out_sz) {
 

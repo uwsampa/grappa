@@ -1343,7 +1343,22 @@ namespace Grappa {
         call = b.CreateCall(on_async_fn, { target_core, new_fn, in_void, i64(sz), gce },
                             name+".call_on_async");
       } else {
-        call = b.CreateCall(ginfo.fn("on"), {
+        
+        Function *on_fn = ginfo.fn("on");
+        size_t in_sz = layout.getTypeAllocSize(in_struct_ty);
+        size_t out_sz = layout.getTypeAllocSize(out_struct_ty);
+        
+        outs() << "^^^^^^^^^^\nin_sz => " << in_sz << ", out_sz => " << out_sz << "\n";
+        
+        if (in_sz == 32 && out_sz == 0) {
+          outs() << "!! on_32_0\n";
+          on_fn = ginfo.fn("on_32_0");
+        } else if (in_sz == 8 && out_sz == 8) {
+          outs() << "!! on_8_8\n";
+          on_fn = ginfo.fn("on_8_8");
+        }
+        
+        call = b.CreateCall(on_fn, {
           target_core, new_fn,
           b.CreateBitCast(in_alloca, ty_void_ptr),
           i64(layout.getTypeAllocSize(in_struct_ty)),
