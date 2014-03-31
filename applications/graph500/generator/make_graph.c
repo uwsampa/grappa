@@ -43,7 +43,14 @@ static void compute_edge_range(int rank, int size, int64_t M, int64_t* start_idx
 #ifndef GRAPH_GENERATOR_MPI
 
 #ifdef _GRAPPA
+#include <gflags/gflags.h>
 #include <GlobalAllocator.hpp> // Grappa::global_alloc
+#include <iostream>
+#include <string>
+#include <boost/algorithm/string/predicate.hpp>
+#include <FileIO.hpp>
+#include <mpi.h>
+
 void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
 	/* Add restrict to input pointers. */
 	int64_t* /*restrict*/ nedges_ptr = nedges_ptr_in;   // XXX: restrict keyword causing 'unexpected initilizer'
@@ -61,6 +68,69 @@ void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userse
 	
 	generate_kronecker_range(seed, log_numverts, 0, M, edges);
 }
+
+DECLARE_string( path );
+void load_tuplegraph_bintsv4( std::string path, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
+
+  // make sure something is there
+  CHECK( boost::filesystem::exists( path ) ) << "File not found. Multiple files are not supported for bintsv4 format.";
+  CHECK( boost::filesystem::is_regular_file( path ) ) << "File is not a regular file. Multiple files are not supported for bintsv4 format.";
+
+  // get file size
+  auto file_size = boost::filesystem::file_size( path );
+  auto edge_count = file_size / 8; // in bintsv4, edges are two 4-byte integers
+  CHECK_EQ( edge_count * 8, file_size ) << "File appears to contain a partial edge";
+  *nedges_ptr_in = edge_count;
+
+  LOG(INFO) << "Loading " << edge_count << " edges from file " << path;
+
+  // allocate array
+  auto edges = Grappa::global_alloc<packed_edge>(edge_count);
+  *result_ptr_in = edges;
+
+  // load into array
+   Grappa::on_all_cores( [edge_count, edges] {
+                          int64_t each = edge_count / Grappa::cores();
+                          int64_t offset = each * Grappa::mycore();
+                          packed_edge * myedges = edges.localize();
+                          
+                          std::ifstream infile( FLAGS_path,
+                                                std::ios_base::in | std::ios_base::binary );
+                          infile.seekg(offset * 8);
+                          
+                          int32_t src, dst;
+                          int64_t count = 0;
+                          while( count < each && infile.good() ) {
+                            infile.read(reinterpret_cast<char*>(&src), 4);
+                            infile.read(reinterpret_cast<char*>(&dst), 4);
+                            if( infile.fail() ) break;
+                            write_edge( myedges, src, dst );
+                            ++count;
+                            ++myedges;
+                          }
+                          
+                          // make sure all IO is done before continuing.
+                          Grappa::barrier();
+                          
+                        });
+}
+
+void load_tuplegraph_tsv( std::string path, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
+  LOG(ERROR) << "Not supported yet.";
+  exit(2);
+}
+
+void load_tuple_graph( std::string path, std::string format, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
+  if( format == "bintsv4" ) {
+    load_tuplegraph_bintsv4( path, nedges_ptr_in, result_ptr_in );
+  } else if( format == "tsv" ) {
+    load_tuplegraph_tsv( path, nedges_ptr_in, result_ptr_in );
+  } else {
+    LOG(ERROR) << "Unknown file format " << format;
+    exit(1);
+  }
+}
+
 #else
 void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, int64_t* nedges_ptr_in, packed_edge** result_ptr_in) {
 	/* Add restrict to input pointers. */

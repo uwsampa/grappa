@@ -19,6 +19,9 @@
 
 using namespace Grappa;
 
+// file input
+DEFINE_string( path, "", "Path to input" );
+DEFINE_string( format, "bintsv4", "Input format" );
 
 // input size
 DEFINE_uint64( nnz_factor, 16, "Approximate number of non-zeros per matrix row" );
@@ -268,7 +271,11 @@ int main(int argc, char* argv[]) {
 
     double time;
     TIME(time, 
-      make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
+         if( FLAGS_path.empty() ) {
+           make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
+         } else {
+           load_tuple_graph( FLAGS_path, FLAGS_format, &tg.nedge, &tg.edges );
+         }
       //print_array("tuples", tg.edges, tg.nedge, 10);
     );
     LOG(INFO) << "make_graph: " << time;
