@@ -46,6 +46,7 @@ set(QUERIES_IND
   triangles.cpp
   triangles_partition.cpp
   twohop.cpp
+  DoubleDHT_test.cpp
 )
 
 set(QUERIES_SOURCES
