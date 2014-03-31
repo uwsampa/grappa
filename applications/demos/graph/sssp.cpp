@@ -49,12 +49,14 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 void dump_sssp_graph(GlobalAddress<Graph<SSSPVertex>> &g);
 int64_t verify(TupleGraph tg, GlobalAddress<Graph<SSSPVertex>> g, int64_t root);
 
+bool local_complete = false;
 
 void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
-      // intialize parent to -1
-      forall(g, [](SSSPVertex& v){ v->init(v.nadj); });
 
-      VLOG(1) << "root => " << root;
+		// intialize parent to -1
+		forall(g, [](SSSPVertex& v){ v->init(v.nadj); });
+
+		VLOG(1) << "root => " << root;
 
 	  // set zero value for root distance and
 		// setup 'root' as the parent of itself
@@ -63,41 +65,59 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
 			 v->parent = root;
 		});
 
-	  // completion flag is exposed to global addressed space
+	  // global completion flag 
 	  bool complete = false;
+		// local completion flag
+		//bool local_complete = false;
+
+		// expose global completion flag to global address space
 	  GlobalAddress<bool> complete_addr = make_global(&complete);
+		// expose local completion flag to global address space
+	  GlobalAddress<bool> local_complete_addr = make_global(&local_complete);
 
 	  while (!complete) {
 		  complete = true;
+			local_complete = true;
+
 		  // iterate over all vertices of the graph
-		  forall(g->vs, g->nv, [g,complete_addr](int64_t parent, SSSPVertex& vs) {
+		  forall(g, [=](int64_t vsid, SSSPVertex& vs) {
 
-			if (vs->dist !=  std::numeric_limits<double>::max()) {
-			  // if vertex is visited (i.e. dist != max()) then
-			  // visit all the adjacencies of the vertex 
-			  // and update there dist values if needed
-			  double dist = vs->dist;
-			  double *weights = vs->weights;
+				if (vs->dist !=  std::numeric_limits<double>::max()) {
 
-			  forall_here(0,vs.nadj,[=](int64_t i){
-				  // calculate potentinal new distance and...
-				  double sum = dist + weights[i]; 				   
-				  // ...send it to the core where the vertex is located
-				  bool updated = delegate::call(g->vs+vs.local_adj[i], [sum,parent](SSSPVertex& ve){
-					  if (sum < ve->dist) {
-						  ve->dist = sum;
-							ve->parent = parent;
-						  return true;
-					  }
-					  return false;
-				  });
-				  // if dist has been updated send false to completion variable to 
-				  // run next iteration
-				  if (updated)
-				  	delegate::write(complete_addr, false);
-			  });//forall_here
-			}//if
+					// if vertex is visited (i.e. dist != max()) then
+					// visit all the adjacencies of the vertex 
+					// and update there dist values if needed
+					double dist = vs->dist;
+					double *weights = vs->weights;
+
+					forall_here(0,vs.nadj,[=](int64_t i){
+						// calculate potentinal new distance and...
+						double sum = dist + weights[i]; 				   
+						// ...send it to the core where the vertex is located
+						bool updated = delegate::call(g->vs+vs.local_adj[i], [sum,vsid](SSSPVertex& ve){
+							if (sum < ve->dist) {
+								ve->dist = sum;
+								ve->parent = vsid;
+								return true;
+							}
+							return false;
+						});
+
+						// update local complete flag
+						if (updated)
+							//delegate::write<async>(local_complete_addr,false);
+							//delegate::write(local_complete_addr,false);
+							delegate::write(complete_addr,false);
+							//local_complete = false;
+
+					});//forall_here
+				}//if
 		  });//forall
+
+		  // find if SSSP calculation is completed (must be completed
+		  // in each core)
+		  //complete = allreduce<bool,collective_and>(&local_complete);
+
 	  }//while
 }
 
