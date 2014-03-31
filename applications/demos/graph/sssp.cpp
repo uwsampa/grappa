@@ -2,6 +2,8 @@
 #include <GlobalVector.hpp>
 #include <graph/Graph.hpp>
 
+#include "verificator.hpp"
+
 #include <sstream>
 
 /* Options */
@@ -12,16 +14,27 @@ DEFINE_int64(root, 16, "Average number of edges per vertex.");
 
 using namespace Grappa;
 
+int64_t nedge_traversed;
+
 /* Vertex specific data */
 struct SSSPData {
 	double dist;
 	double *weights;
 	
+	//TODO: these field are taken from BFSData. Should SSSPData inherit BFSData?
+	int64_t parent;
+	int64_t level;
+	bool seen;
+
 	void init(int64_t nadj) {
 		dist = std::numeric_limits<double>::max();
 		weights = new double [nadj];
 		for (int i=0; i<nadj; i++)
 			weights[i] = drand48();
+
+    parent = -1;
+    level = 0;
+    seen = false;
 	}
 };
 
@@ -34,7 +47,7 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, graph_create_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 
 void dump_sssp_graph(GlobalAddress<Graph<SSSPVertex>> &g);
-int64_t verify(TupleGraph tg, GlobalAddress<Graph<SSSPVertex>> g, int64_t root) { return 0; }
+int64_t verify(TupleGraph tg, GlobalAddress<Graph<SSSPVertex>> g, int64_t root);
 
 
 void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
@@ -43,9 +56,11 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
 
       VLOG(1) << "root => " << root;
 
-	  // set zero value for root distance
-	  delegate::call(g->vs+root,[](SSSPVertex& v) { 
+	  // set zero value for root distance and
+		// setup 'root' as the parent of itself
+	  delegate::call(g->vs+root,[=](SSSPVertex& v) { 
 		   v->dist = 0.0;
+			 v->parent = root;
 		});
 
 	  // completion flag is exposed to global addressed space
@@ -55,7 +70,7 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
 	  while (!complete) {
 		  complete = true;
 		  // iterate over all vertices of the graph
-		  forall(g->vs, g->nv, [g,complete_addr](int64_t i, SSSPVertex& vs) {
+		  forall(g->vs, g->nv, [g,complete_addr](int64_t parent, SSSPVertex& vs) {
 
 			if (vs->dist !=  std::numeric_limits<double>::max()) {
 			  // if vertex is visited (i.e. dist != max()) then
@@ -64,13 +79,14 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
 			  double dist = vs->dist;
 			  double *weights = vs->weights;
 
-			  forall_here(0,vs.nadj,[g,vs,dist,weights,complete_addr](int64_t i){
+			  forall_here(0,vs.nadj,[=](int64_t i){
 				  // calculate potentinal new distance and...
 				  double sum = dist + weights[i]; 				   
 				  // ...send it to the core where the vertex is located
-				  bool updated = delegate::call(g->vs+vs.local_adj[i], [sum](SSSPVertex& ve){
+				  bool updated = delegate::call(g->vs+vs.local_adj[i], [sum,parent](SSSPVertex& ve){
 					  if (sum < ve->dist) {
 						  ve->dist = sum;
+							ve->parent = parent;
 						  return true;
 					  }
 					  return false;
@@ -116,7 +132,7 @@ int main(int argc, char* argv[]) {
 		if (!verified) {
 			// only verify the first one to save time
 			t = walltime();
-			sssp_nedge = verify(tg, g, root);
+			sssp_nedge = Verificator<SSSPVertex>::verify(tg, g, root);
 			verify_time = (walltime()-t);
 			LOG(INFO) << verify_time;
 			verified = true;
@@ -145,4 +161,3 @@ void dump_sssp_graph(GlobalAddress<Graph<SSSPVertex>> &g) {
 		});
 	}
 }
-
