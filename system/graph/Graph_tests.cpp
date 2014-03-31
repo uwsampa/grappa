@@ -47,7 +47,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     int64_t nv = 1L << FLAGS_scale;
     size_t ne = nv * 16;
     
-    auto tg = TupleGraph::Kronecker(scale, ne, 11111, 22222);
+    TupleGraph tg;
+    tg = TupleGraph::Kronecker(scale, ne, 11111, 22222);
     
     BOOST_CHECK_EQUAL(tg.nedge, ne);
     
