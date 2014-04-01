@@ -19,81 +19,112 @@
 #endif
 
 namespace Grappa {
+  /// @addtogroup Graph
+  /// @{
   
+  /// For distinguishing parameters in forall().
   class VertexID {
     int64_t idx;
   public:
-    VertexID(int64_t idx): idx(idx) {}
+    VertexID(int64_t idx = 0): idx(idx) {}
+    operator int64_t () const { return idx; }
+  };
+  
+  /// Index into a local array (contrast with VertexID), for distinguishing parameters by type
+  class LocalIndex {
+    int64_t idx;
+  public:
+    LocalIndex(int64_t idx): idx(idx) {}
     operator int64_t () { return idx; }
   };
   
-  struct VertexBase {
-    int64_t * local_adj; // adjacencies that are local
-    int64_t nadj;        // number of adjacencies
-    int64_t local_sz;    // size of local allocation (regardless of how full it is)
+
+  namespace impl {
+    
+    struct VertexBase {
+      VertexID * local_adj; // adjacencies that are local
+      int64_t nadj;        // number of adjacencies
+      int64_t local_sz;    // size of local allocation (regardless of how full it is)
       
-    VertexBase(): local_adj(nullptr), nadj(0), local_sz(0) {}
+      VertexBase(): local_adj(nullptr), nadj(0), local_sz(0) {}
+      
+      VertexBase(const VertexBase& v):
+        local_adj(v.local_adj),
+        nadj(v.nadj),
+        local_sz(v.local_sz)
+      { }
+    };
     
-    VertexBase(const VertexBase& v):
-      local_adj(v.local_adj),
-      nadj(v.nadj),
-      local_sz(v.local_sz)
-    { }
-  };
+    ///////////////////////////////////////////////////////////////
+    /// Vertex with customizable inline 'data' field. Will attempt 
+    /// to pack the provided type into the block-aligned Vertex 
+    /// class, but if it is too large, will heap-allocate (from 
+    /// locale-shared heap). Defines a '->' operator to access data 
+    /// fields.
+    ///
+    /// Example subclasses:
+    /// @code
+    /// ////////////////////////
+    /// // Vertex with parent
+    ///
+    /// // Preferred:
+    /// struct Parent { int64_t parent; };
+    /// 
+    /// Vertex<Parent> p;
+    /// p->parent = -1;
+    ///
+    /// struct VertexP : public Vertex<int64_t> {
+    ///   VertexP(): Vertex() { parent(-1); }
+    ///   int64_t parent() { return data; }
+    ///   void parent(int64_t parent) { data = parent; }
+    /// };
+    /// @endcode
+    template< typename T = int64_t, typename E = double, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(int64_t)*2-sizeof(int64_t*)) >
+    struct Vertex : public VertexBase {
+      T data;
+      E * local_edge_state;
+    
+      Vertex(): VertexBase(), data() {}
+      Vertex(const VertexBase& v): VertexBase(v), data() {}
+      ~Vertex() {}
+    
+      T* operator->() { return &data; }
+    
+    } GRAPPA_BLOCK_ALIGNED;
   
-  ///////////////////////////////////////////////////////////////
-  /// Vertex with customizable inline 'data' field. Will attempt 
-  /// to pack the provided type into the block-aligned Vertex 
-  /// class, but if it is too large, will heap-allocate (from 
-  /// locale-shared heap). Defines a '->' operator to access data 
-  /// fields.
-  ///
-  /// Example subclasses:
-  /// @code
-  /// ////////////////////////
-  /// // Vertex with parent
-  ///
-  /// // Preferred:
-  /// struct Parent { int64_t parent; };
-  /// 
-  /// Vertex<Parent> p;
-  /// p->parent = -1;
-  ///
-  /// struct VertexP : public Vertex<int64_t> {
-  ///   VertexP(): Vertex() { parent(-1); }
-  ///   int64_t parent() { return data; }
-  ///   void parent(int64_t parent) { data = parent; }
-  /// };
-  /// @endcode
-  template< typename T = int64_t, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(int64_t)*2-sizeof(int64_t*)) >
-  struct Vertex : public VertexBase {
-    T data;
+    template< typename T, typename E >
+    struct Vertex<T, E, /*HeapData = */ true> : public VertexBase {
+      T& data;
+      E * local_edge_state;
     
-    Vertex(): VertexBase(), data() {}
-    Vertex(const VertexBase& v): VertexBase(v), data() {}
-    ~Vertex() {}
+      Vertex(): VertexBase(), data(*locale_alloc<T>()) {}
+      Vertex(const VertexBase& v): VertexBase(v), data(*locale_alloc<T>()) {}
     
-    T* operator->() { return &data; }
+      ~Vertex() { locale_free(&data); }
     
-  } GRAPPA_BLOCK_ALIGNED;
+      T* operator->() { return &data; }
+    
+    } GRAPPA_BLOCK_ALIGNED;
   
-  template< typename T >
-  struct Vertex<T, /*HeapData = */ true> : public VertexBase {
-    T& data;
-    
-    Vertex(): VertexBase(), data(*locale_alloc<T>()) {}
-    Vertex(const VertexBase& v): VertexBase(v), data(*locale_alloc<T>()) {}
-    
-    ~Vertex() { locale_free(&data); }
-    
-    T* operator->() { return &data; }
-    
-  } GRAPPA_BLOCK_ALIGNED;
+  }
   
   
-  template< class V = Vertex<> >
+  template< typename V, typename E >
   struct Graph {
-    static_assert(block_size % sizeof(V) == 0, "V size not evenly divisible into blocks!");
+    
+    using Vertex = impl::Vertex<V,E>;
+    using EdgeState = E;
+    
+    struct Edge {
+      VertexID id; ///< Global index of adjacent vertex
+      GlobalAddress<Vertex> ga; ///< Global address to adjacent vertex
+      EdgeState& data;
+      
+      /// Access elements of EdgeState with operator '->'
+      EdgeState* operator->(){ return &data; }
+    };
+    
+    static_assert(block_size % sizeof(Vertex) == 0, "V size not evenly divisible into blocks!");
     
     // using Vertex = V;
     
@@ -102,16 +133,19 @@ namespace Grappa {
     // inline int64_t vertex_offset(int64_t v) { return v / cores(); }
   
     // Fields
-    GlobalAddress<V> vs;
+    GlobalAddress<Vertex> vs;
     int64_t nv, nadj, nadj_local;
   
     // Internal fields
-    int64_t * adj_buf;
-    int64_t * scratch;
-  
+    VertexID * adj_buf;
+    EdgeState * edge_storage;
+    
+    // Temporary internal state
+    int64_t* scratch;
+    
     GlobalAddress<Graph> self;
     
-    Graph(GlobalAddress<Graph> self, GlobalAddress<V> vs, int64_t nv)
+    Graph(GlobalAddress<Graph> self, GlobalAddress<Vertex> vs, int64_t nv)
       : self(self)
       , vs(vs)
       , nv(nv)
@@ -122,7 +156,13 @@ namespace Grappa {
     { }
   
     ~Graph() {
-      for (V& v : iterate_local(vs, nv)) { v.~V(); }
+      for (Vertex& v : iterate_local(vs, nv)) { v.~Vertex(); }
+      if (edge_storage) {
+        for (int64_t i=0; i<nadj_local; i++) {
+          edge_storage[i].~E();
+        }
+        locale_free(edge_storage);
+      }
       if (adj_buf) locale_free(adj_buf);
     }
   
@@ -136,10 +176,10 @@ namespace Grappa {
     template< int LEVEL = 0 >
     static void dump(GlobalAddress<Graph> g) {
       for (int64_t i=0; i<g->nv; i++) {
-        delegate::call(g->vs+i, [i](V * v){
+        delegate::call(g->vs+i, [i](Vertex& v){
           std::stringstream ss;
           ss << "<" << i << ">";
-          for (int64_t i=0; i<v->nadj; i++) ss << " " << v->local_adj[i];
+          for (int64_t i=0; i<v->nadj; i++) ss << " " << v.local_adj[i];
           VLOG(LEVEL) << ss.str();
         });
       }
@@ -159,25 +199,25 @@ namespace Grappa {
     ///   b.value = v->weight / v.nadj;
     /// });
     /// @endcode
-    template< typename NewData, typename F = decltype(nullptr) >
-    GlobalAddress<Graph<Vertex<NewData>>> transform(F f) {
-      static_assert(sizeof(V) == sizeof(Vertex<NewData>), "transformed vertex size must be the unchanged.");
-      forall(vs, nv, [f](V& v){
-        NewData d;
-        f(v, d);
-        v.~V();
-        V b = v;
-        auto nv = new (&v) Vertex<NewData>(b);
-        nv->data = d;
-      });
-      return static_cast<GlobalAddress<Graph<Vertex<NewData>>>>(self);
-    }
+//    template< typename NewData, typename F = decltype(nullptr) >
+//    GlobalAddress<Graph<Vertex<NewData>>> transform(F f) {
+//      static_assert(sizeof(V) == sizeof(Vertex<NewData>), "transformed vertex size must be the unchanged.");
+//      forall(vs, nv, [f](V& v){
+//        NewData d;
+//        f(v, d);
+//        v.~V();
+//        V b = v;
+//        auto nv = new (&v) Vertex<NewData>(b);
+//        nv->data = d;
+//      });
+//      return static_cast<GlobalAddress<Graph<Vertex<NewData>>>>(self);
+//    }
   
     // Constructor
     static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false) {
       double t;
-      auto g = symmetric_global_alloc<Graph<V>>();
-  
+      auto g = symmetric_global_alloc<Graph>();
+      
       // find nv
           t = walltime();
       forall(tg.edges, tg.nedge, [g](TupleGraph::Edge& e){
@@ -189,12 +229,12 @@ namespace Grappa {
       });
           VLOG(1) << "find_nv_time: " << walltime() - t;
   
-      auto vs = global_alloc<V>(g->nv);
+      auto vs = global_alloc<Vertex>(g->nv);
       auto self = g;
       on_all_cores([g,vs]{
         new (g.localize()) Graph(g, vs, g->nv);
-        for (V& v : iterate_local(g->vs, g->nv)) {
-          new (&v) V();
+        for (Vertex& v : iterate_local(g->vs, g->nv)) {
+          new (&v) Vertex();
         }
     
     #ifdef SMALL_GRAPH
@@ -219,7 +259,7 @@ namespace Grappa {
         __sync_fetch_and_add(g->scratch+e.v0, 1);
         if (!directed) __sync_fetch_and_add(g->scratch+e.v1, 1);
     #else    
-        auto count = [](GlobalAddress<V> v){
+        auto count = [](GlobalAddress<Vertex> v){
           delegate::call<SyncMode::Async>(v.core(), [v]{ v->local_sz++; });
         };
         count(g->vs+e.v0);
@@ -247,14 +287,14 @@ namespace Grappa {
     #endif // SMALL_GRAPH  
   
       // allocate space for each vertex's adjacencies (+ duplicates)
-      forall(g->vs, g->nv, [g](int64_t i, V& v) {
+      forall(g->vs, g->nv, [g](int64_t i, Vertex& v) {
     #ifdef SMALL_GRAPH
         // adjust b/c allreduce didn't account for having 1 instance per locale
         v.local_sz = g->scratch[i] / locale_cores();
     #endif
     
         v.nadj = 0;
-        if (v.local_sz > 0) v.local_adj = new int64_t[v.local_sz];
+        if (v.local_sz > 0) v.local_adj = new VertexID[v.local_sz];
       });
       VLOG(3) << "after adj allocs";
   
@@ -273,7 +313,7 @@ namespace Grappa {
       VLOG(3) << "after scatter, nv = " << g->nv;
   
       // sort & de-dup
-      forall(g->vs, g->nv, [g](int64_t vi, V& v){
+      forall(g->vs, g->nv, [g](int64_t vi, Vertex& v){
         CHECK_EQ(v.nadj, v.local_sz);
         std::sort(v.local_adj, v.local_adj+v.nadj);
     
@@ -297,19 +337,29 @@ namespace Grappa {
         VLOG(2) << "nadj_local = " << g->nadj_local;
     
         // allocate storage for local vertices' adjacencies
-        g->adj_buf = locale_alloc<int64_t>(g->nadj_local);
+        g->adj_buf = locale_alloc<VertexID>(g->nadj_local);
+        g->edge_storage = locale_alloc<EdgeState>(g->nadj_local);
+        
+        // default-initialize edges
+        // TODO: import edge info from TupleGraph
+        for (size_t i=0; i<g->nadj_local; i++) {
+          new (g->edge_storage+i) EdgeState();
+        }
+        
         // compute total nadj
         g->nadj = allreduce<int64_t,collective_add>(g->nadj_local);
-    
-        int64_t * adj = g->adj_buf;
-        for (V& v : iterate_local(g->vs, g->nv)) {
+        
+        size_t offset = 0;
+        for (Vertex& v : iterate_local(g->vs, g->nv)) {
+          auto adj = g->adj_buf + offset;
           Grappa::memcpy(adj, v.local_adj, v.nadj);
           if (v.local_sz > 0) delete[] v.local_adj;
           v.local_sz = v.nadj;
           v.local_adj = adj;
-          adj += v.nadj;
+          v.local_edge_state = g->edge_storage+offset;
+          offset += v.nadj;
         }
-        CHECK_EQ(adj - g->adj_buf, g->nadj_local);
+        CHECK_EQ(offset, g->nadj_local);
       });
   
       return g;
@@ -320,54 +370,57 @@ namespace Grappa {
   ////////////////////////////////////////////////////
   // Vertex iterators
   
-  template< typename V >
+  template< typename G >
   struct AdjIterator {
-    GlobalAddress<Graph<V>> g;
-    GlobalAddress<int64_t> adj;
-    int64_t nadj;
-    AdjIterator(GlobalAddress<Graph<V>> g, GlobalAddress<int64_t> adj, int64_t nadj):
-      g(g), adj(adj), nadj(nadj) {}
+    GlobalAddress<G> g;
+    VertexID i;
+    AdjIterator(GlobalAddress<G> g, VertexID i): g(g), i(i) {}
   };
   
-  template< typename V >
-  AdjIterator<V> adj(GlobalAddress<Graph<V>> g, V& v) {
-    return AdjIterator<V>(g, make_global(v.local_adj), v.nadj);
+  /// Iterator over adjacent vertices. Used with Grappa::forall().
+  template< typename G >
+  AdjIterator<G> adj(GlobalAddress<G> g, typename G::Vertex& v) {
+    return AdjIterator<G>(g, make_linear(&v) - g->vs);
   }
   
-  template< typename V >
-  AdjIterator<V> adj(GlobalAddress<Graph<V>> g, GlobalAddress<V> v) {
-    auto p = delegate::call(v, [](V& v){
-      return std::make_pair(make_global(v.local_adj), v.nadj);
-    });
-    return AdjIterator<V>(g, p.first, p.second);
+  template< typename G >
+  AdjIterator<G> adj(GlobalAddress<G> g, GlobalAddress<typename G::Vertex> v) {
+    return AdjIterator<G>(g, v - g->vs);
   }
+  
+  template< typename G >
+  AdjIterator<G> adj(GlobalAddress<G> g, VertexID i) { return AdjIterator<G>(g, i); }  
   
   namespace impl {
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body,
-                void (F::*mf)(int64_t,VertexID,GlobalAddress<V>) const)
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(AdjIterator<G> a, F body,
+                void (F::*mf)(int64_t,typename G::Edge&) const)
     {
       if (C) C->enroll();
       auto origin = mycore();
       
       auto loop = [a,origin,body]{
-        auto adj = a.adj.pointer();
         auto vs = a.g->vs;
-        Grappa::forall_here<S,C,Threshold>(0, a.nadj, [body,origin,adj,vs](int64_t i){
-          body(i, adj[i], vs + adj[i]);
+        auto v = (vs+a.i).pointer();
+        Grappa::forall_here<S,C,Threshold>(0, v->nadj, [body,v,vs](int64_t i){
+          auto j = v->local_adj[i];
+          typename G::Edge e = { j, vs+j, v->local_edge_state[i] };
+          body(i, e);
         });
         if (C) C->send_completion(origin);
       };
       
-      if (a.adj.core() == mycore()) {
+      auto v = a.g->vs+a.i;
+      
+      if (v.core() == mycore()) {
         loop();
       } else {
         if (S == SyncMode::Async) {
-          spawnRemote<nullptr>(a.adj.core(), [loop]{ loop(); });
+          spawnRemote<nullptr>(v.core(), [loop]{ loop(); });
         } else {
           CompletionEvent ce(1);
           auto ce_a = make_global(&ce);
-          spawnRemote<nullptr>(a.adj.core(), [loop,ce_a]{
+          spawnRemote<nullptr>(v.core(), [loop,ce_a]{
             loop();
             complete(ce_a);
           });
@@ -375,43 +428,24 @@ namespace Grappa {
         }
       }
     }
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(GlobalAddress<V>) const) {
-      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(v); };
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(AdjIterator<G> a, F body, void (F::*mf)(int64_t) const) {
+      auto f = [body](int64_t i, typename G::Edge& e){ body(i); };
       impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
     }
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t) const) {
-      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(i); };
-      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
-    }
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(VertexID) const) {
-      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(j); };
-      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
-    }
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,VertexID) const) {
-      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(i,j); };
-      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
-    }
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(VertexID,GlobalAddress<V>) const) {
-      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(j,v); };
-      impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
-    }
-    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(AdjIterator<V> a, F body, void (F::*mf)(int64_t,GlobalAddress<V>) const) {
-      auto f = [body](int64_t i, VertexID j, GlobalAddress<V> v){ body(i,v); };
+    template< SyncMode S, GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(AdjIterator<G> a, F body, void (F::*mf)(typename G::Edge&) const) {
+      auto f = [body](int64_t i, typename G::Edge& e){ body(e); };
       impl::forall<S,C,Threshold>(a, f, &decltype(f)::operator());
     }
   }
   
 #define OVERLOAD(...) \
-  template< __VA_ARGS__, typename V = nullptr_t, typename F = nullptr_t > \
-  void forall(AdjIterator<V> a, F body) { \
+  template< __VA_ARGS__, typename G = nullptr_t, typename F = nullptr_t > \
+  void forall(AdjIterator<G> a, F body) { \
     impl::forall<S,C,Threshold>(a, body, &F::operator()); \
   }
+  /// Parallel loop over adjacent vertices. Use adj() to construct iterator
   OVERLOAD( SyncMode S = SyncMode::Blocking,
             GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG );
@@ -424,45 +458,75 @@ namespace Grappa {
   // Graph iterators
   
   namespace impl {
-    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(V&) const) {
-      forall<C,Threshold>(g->vs, g->nv, loop_body);
-    }
-
-    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t,V&) const) {
-      forall<C,Threshold>(g->vs, g->nv, loop_body);
-    }
-
-    /// Demonstrating another "visitor" we could provide for graphs (this is kinda
-    /// silly as it just gives you the indices of each edge).
-    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(GlobalAddress<Graph<V>> g, F loop_body, void (F::*mf)(int64_t src, int64_t dst) const) {
-      forall<C,Threshold>(g, [g,loop_body](int64_t i, V& v){
-        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,i](int64_t j){
-          loop_body(i, j);
-        });
+        
+    /// Iterate over all vertices, with vertex index
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(GlobalAddress<G> g, F body,
+                void (F::*mf)(VertexID,typename G::Vertex&) const) {
+      Grappa::forall<C,Threshold>(g->vs, g->nv, [body](int64_t i, typename G::Vertex& v){
+        body(i, v);
       });
     }
     
-    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename F >
-    void forall(GlobalAddress<Graph<V>> g, F loop_body,
-                void (F::*mf)(GlobalAddress<V> src, GlobalAddress<V> dst) const) {
-      forall<C,Threshold>(g, [g,loop_body](int64_t i, V& v){
+    /// Iterate over all vertices
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(GlobalAddress<G> g, F body, void (F::*mf)(typename G::Vertex&) const) {
+      auto f = [body](VertexID i, typename G::Vertex& v){ body(v); };
+      impl::forall<C,Threshold>(g, f, &decltype(f)::operator());
+    }
+    
+    /// Iterate over all adjacencies of all vertices in parallel
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(GlobalAddress<G> g, F loop_body,
+                void (F::*mf)(typename G::Vertex& src, typename G::Edge& adj) const) {
+      auto f = [g,loop_body](VertexID i, typename G::Vertex& v){
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v),
+            [&v,loop_body](typename G::Edge& e){
+          loop_body(v, e);
+        });
+      };
+      forall<C,Threshold>(g, f, &decltype(f)::operator());
+    }
+    
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(GlobalAddress<G> g, F loop_body,
+                void (F::*mf)(GlobalAddress<typename G::Vertex> src, GlobalAddress<typename G::Vertex> dst) const) {
+      Grappa::forall<C,Threshold>(g, [g,loop_body](VertexID i, typename G::Vertex& v){
         auto vi = make_linear(&v);
-        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,vi](GlobalAddress<V> vj){
-          loop_body(vi, vj);
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v), [loop_body,vi](typename G::Edge& e){
+          loop_body(vi, e.ga);
         });
       });
     }
     
   }
   
+  /// Parallel iteration over a Graph. Options are:
+  ///
+  /// @code
+  /// using G = Graph<VertexData,EdgeData>;
+  /// GlobalAddress<G> g;
+  ///
+  /// // simple iteration over vertices
+  /// forall(g, [](G::Vertex& v){});
+  ///
+  /// // simple iteration over vertices with index
+  /// forall(g, [](VertexID i, G::Vertex& v){});
+  ///
+  /// // iterate over all adjacencies of all vertices
+  /// forall(g, [](G::Vertex& src, G::Edge& adj){ ... });
+  /// // (equivalent to)
+  /// forall(g, [](G::Vertex& src){
+  ///   forall(adj(g,src), [](G::Edge& adj){
+  ///     ...
+  ///   });
+  /// });
+  ///
   template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename V = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void forall(GlobalAddress<Graph<V>> g, F loop_body) {
+            typename G = nullptr_t,
+            typename F = nullptr_t >
+  void forall(GlobalAddress<G> g, F loop_body) {
     impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
     
@@ -505,4 +569,5 @@ namespace Grappa {
   // });
   //
   
+  /// @}
 } // namespace Grappa

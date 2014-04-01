@@ -31,6 +31,16 @@ BOOST_AUTO_TEST_SUITE( Graph_tests );
 using namespace Grappa;
 using Grappa::wait;
 
+struct VData {
+  VertexID parent;
+};
+
+struct EData {
+  double weight;
+};
+
+using MyGraph = Graph<VData,EData>;
+
 GlobalCompletionEvent c;
 
 int64_t count;
@@ -38,6 +48,7 @@ int64_t count;
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<int64_t>, degree, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, edge_weight, 0);
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   init( GRAPPA_TEST_ARGS );
@@ -57,101 +68,112 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       for (auto v : {e.v0, e.v1}) BOOST_CHECK( v >= 0 && v < nv);
     });
     
-    auto g = Graph<>::create(tg);
+    auto g = MyGraph::create(tg);
     
     BOOST_CHECK( g->nv <= nv );
     
-    forall(g, [](Vertex<>& v){ degree += v.nadj; });
+    forall(g, [](MyGraph::Vertex& v){ degree += v.nadj; });
     
     ////////////////////////////////////////////
     // make sure adj() iterator gets every edge
     call_on_all_cores([]{ count = 0; });    
-    forall(g, [g](Vertex<>& v){
-      forall<async>(adj(g,v), [](GlobalAddress<Vertex<>> v){
+    forall(g, [g](MyGraph::Vertex& v){
+      auto n = v.nadj;
+      forall<async>(adj(g,v), [n](int64_t i){
+        CHECK_LT(i, n);
         count++;
       });
     });
     total = reduce<int64_t,collective_add>(&count);
     CHECK_EQ(total, g->nadj);
     
-    struct Data { int64_t parent; double w; };
-    auto g2 = g->transform<Data>([](Vertex<>& v, Data& d){
-      d.parent = -1;
-      d.w = 1.0 / v.nadj;
-    });
-    
-    ///////////////////////////////////
-    // check again with custom joiner
+    //////////////////////////////
+    // test forall(Vertex&,Edge&)
     call_on_all_cores([]{ count = 0; });
-    forall<&c>(g2, [g2](Vertex<Data>& v){
-      auto nadj = v.nadj;
-      auto nv = g2->nv;
-      
-      forall<async,&c>(adj(g2,v), [nv](VertexID j, GlobalAddress<Vertex<Data>> v){
-        CHECK(j < nv && j >= 0) << "=> " << j << ", " << nv;
-        count++;
-      });
-      
-      forall<async,&c>(adj(g2,v), [nadj](int64_t i, GlobalAddress<Vertex<Data>> v){
-        CHECK(i < nadj && i >= 0) << "=> " << i << ", " << nadj;
-        count++;
-      });
-      
-      forall<async,&c>(adj(g2,v), [nadj,nv](int64_t i, VertexID j){
-        CHECK(j < nv && j >= 0) << "=> " << j << ", " << nv;
-        CHECK(i < nadj && i >= 0) << "=> " << i << ", " << nadj;
-        count++;
-      });
-      
-    });
-    total = reduce<int64_t,collective_add>(&count);
-    CHECK_EQ(total, g->nadj * 3);
-    
-    //////////////////////////////////////////////////////
-    // check again, running forall(adj) on different core
-    call_on_all_cores([]{ count = 0; });
-    auto q = GlobalVector<int64_t>::create(g->nv);
-    
-    forall<&c>(g2, [g2,q](int64_t vi, Vertex<Data>& v){
-      q->push(vi);
-    });
-    
-    CHECK_EQ(q->size(), g->nv);
-    
-    int64_t _c = 0;
-    auto counter = make_global(&_c);
-    forall<&c>(q, [g2,counter](int64_t& v){
-      auto n = g2->nv;
-      forall<async,&c>(adj(g2,g2->vs+v), [counter,n](VertexID vj, GlobalAddress<Vertex<Data>> v){
-        CHECK(vj < n && vj >= 0) << "=> " << vj << ", " << n;
-        count++;
-        delegate::fetch_and_add(counter, 1);
-      });
-    });
-    total = reduce<int64_t,collective_add>(&count);
-    CHECK_EQ(total, g->nadj);
-    CHECK_EQ(_c, g->nadj);
-
-    
-    call_on_all_cores([]{ count = 0; });
-    forall(g, [](int64_t src, int64_t dst){
+    forall(g, [](MyGraph::Vertex& v, MyGraph::Edge& e){
       count++;
-    });
-    total = reduce<int64_t,collective_add>(&count);
-    CHECK_EQ(total, g->nadj);
-    
-    LOG(INFO) << "self edges: " << reduce<int64_t,collective_add>(&count);
-    
-    struct BigData { double v[1024]; };
-    auto g3 = g2->transform<BigData>([](Vertex<Data>& v, BigData& d){
-      for (int i=0; i<1024; i++) { d.v[i] = 0.2; }
+      edge_weight += e->weight;
     });
     
-    forall(g3, [](Vertex<BigData>& v){
-      double total = 0.0;
-      for (int i=0; i<1024; i++) { total += v->v[i]; }
-      count += (total > 0);
-    });
+    
+    // struct Data { int64_t parent; double w; };
+    // auto g2 = g->transform<Data>([](Vertex<>& v, Data& d){
+    //   d.parent = -1;
+    //   d.w = 1.0 / v.nadj;
+    // });
+    // 
+    // ///////////////////////////////////
+    // // check again with custom joiner
+    // call_on_all_cores([]{ count = 0; });
+    // forall<&c>(g2, [g2](Vertex<Data>& v){
+    //   auto nadj = v.nadj;
+    //   auto nv = g2->nv;
+    //   
+    //   forall<async,&c>(adj(g2,v), [nv](VertexID j, GlobalAddress<Vertex<Data>> v){
+    //     CHECK(j < nv && j >= 0) << "=> " << j << ", " << nv;
+    //     count++;
+    //   });
+    //   
+    //   forall<async,&c>(adj(g2,v), [nadj](int64_t i, GlobalAddress<Vertex<Data>> v){
+    //     CHECK(i < nadj && i >= 0) << "=> " << i << ", " << nadj;
+    //     count++;
+    //   });
+    //   
+    //   forall<async,&c>(adj(g2,v), [nadj,nv](int64_t i, VertexID j){
+    //     CHECK(j < nv && j >= 0) << "=> " << j << ", " << nv;
+    //     CHECK(i < nadj && i >= 0) << "=> " << i << ", " << nadj;
+    //     count++;
+    //   });
+    //   
+    // });
+    // total = reduce<int64_t,collective_add>(&count);
+    // CHECK_EQ(total, g->nadj * 3);
+    // 
+    // //////////////////////////////////////////////////////
+    // // check again, running forall(adj) on different core
+    // call_on_all_cores([]{ count = 0; });
+    // auto q = GlobalVector<int64_t>::create(g->nv);
+    // 
+    // forall<&c>(g2, [g2,q](int64_t vi, Vertex<Data>& v){
+    //   q->push(vi);
+    // });
+    // 
+    // CHECK_EQ(q->size(), g->nv);
+    // 
+    // int64_t _c = 0;
+    // auto counter = make_global(&_c);
+    // forall<&c>(q, [g2,counter](int64_t& v){
+    //   auto n = g2->nv;
+    //   forall<async,&c>(adj(g2,g2->vs+v), [counter,n](VertexID vj, GlobalAddress<Vertex<Data>> v){
+    //     CHECK(vj < n && vj >= 0) << "=> " << vj << ", " << n;
+    //     count++;
+    //     delegate::fetch_and_add(counter, 1);
+    //   });
+    // });
+    // total = reduce<int64_t,collective_add>(&count);
+    // CHECK_EQ(total, g->nadj);
+    // CHECK_EQ(_c, g->nadj);
+    // 
+    // 
+    // call_on_all_cores([]{ count = 0; });
+    // forall(g, [](int64_t src, int64_t dst){
+    //   count++;
+    // });
+    // total = reduce<int64_t,collective_add>(&count);
+    // CHECK_EQ(total, g->nadj);
+    // 
+    // LOG(INFO) << "self edges: " << reduce<int64_t,collective_add>(&count);
+    // 
+    // struct BigData { double v[1024]; };
+    // auto g3 = g2->transform<BigData>([](Vertex<Data>& v, BigData& d){
+    //   for (int i=0; i<1024; i++) { d.v[i] = 0.2; }
+    // });
+    // 
+    // forall(g3, [](Vertex<BigData>& v){
+    //   double total = 0.0;
+    //   for (int i=0; i<1024; i++) { total += v->v[i]; }
+    //   count += (total > 0);
+    // });
     
     LOG(INFO) << degree;
     Metrics::merge_and_dump_to_file();
