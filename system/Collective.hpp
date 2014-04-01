@@ -295,7 +295,7 @@ namespace Grappa {
   ///   }
   /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
-  T reduce(T * global_ptr) {
+  T reduce(const T * global_ptr) {
     //NOTE: this is written in a continuation passing
     //style to avoid the use of a GCE which async delegates only support
     CompletionEvent ce(cores()-1);
