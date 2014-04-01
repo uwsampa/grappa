@@ -49,6 +49,9 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 void dump_sssp_graph(GlobalAddress<Graph<SSSPVertex>> &g);
 int64_t verify(TupleGraph tg, GlobalAddress<Graph<SSSPVertex>> g, int64_t root);
 
+// global completion flag 
+bool global_complete = false;
+// local completion flag
 bool local_complete = false;
 
 void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
@@ -62,22 +65,18 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
 		// setup 'root' as the parent of itself
 	  delegate::call(g->vs+root,[=](SSSPVertex& v) { 
 		   v->dist = 0.0;
-			 v->parent = root;
-		});
+	   	   v->parent = root;
+	  });
 
-	  // global completion flag 
-	  bool complete = false;
-		// local completion flag
-		//bool local_complete = false;
+	  // expose global completion flag to global address space
+	  GlobalAddress<bool> complete_addr = make_global(&global_complete);
 
-		// expose global completion flag to global address space
-	  GlobalAddress<bool> complete_addr = make_global(&complete);
-		// expose local completion flag to global address space
-	  GlobalAddress<bool> local_complete_addr = make_global(&local_complete);
+	  int iter = 0;
+	  while (!global_complete) {
+		  VLOG(1) << "iteration --> " << iter++;
 
-	  while (!complete) {
-		  complete = true;
-			local_complete = true;
+		  global_complete = true;
+		  on_all_cores([]{ local_complete = true; });
 
 		  // iterate over all vertices of the graph
 		  forall(g, [=](int64_t vsid, SSSPVertex& vs) {
@@ -94,29 +93,23 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
 						// calculate potentinal new distance and...
 						double sum = dist + weights[i]; 				   
 						// ...send it to the core where the vertex is located
-						bool updated = delegate::call(g->vs+vs.local_adj[i], [sum,vsid](SSSPVertex& ve){
+						delegate::call<async>(g->vs+vs.local_adj[i], [=](SSSPVertex& ve){
 							if (sum < ve->dist) {
+								// update vertex parameters
 								ve->dist = sum;
 								ve->parent = vsid;
-								return true;
+
+								// update local global_complete flag
+								local_complete = false;
 							}
-							return false;
 						});
-
-						// update local complete flag
-						if (updated)
-							//delegate::write<async>(local_complete_addr,false);
-							//delegate::write(local_complete_addr,false);
-							delegate::write(complete_addr,false);
-							//local_complete = false;
-
 					});//forall_here
 				}//if
 		  });//forall
 
 		  // find if SSSP calculation is completed (must be completed
 		  // in each core)
-		  //complete = allreduce<bool,collective_and>(&local_complete);
+		  global_complete = reduce<bool,collective_and>(&local_complete);
 
 	  }//while
 }
@@ -165,7 +158,7 @@ int main(int argc, char* argv[]) {
 		Metrics::merge_and_dump_to_file();
 
 		// dump graph after computation
-		dump_sssp_graph(g);
+		//dump_sssp_graph(g);
 
 		tg.destroy();
 		g->destroy();
