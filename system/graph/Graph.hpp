@@ -11,6 +11,7 @@
 #include "TupleGraph.hpp"
 
 #include <algorithm>
+#include <iomanip>
 
 // #define USE_MPI3_COLLECTIVES
 #undef USE_MPI3_COLLECTIVES
@@ -166,7 +167,20 @@ namespace Grappa {
         delegate::call(g->vs+i, [i](Vertex& v){
           std::stringstream ss;
           ss << "<" << i << ">";
-          for (int64_t i=0; i<v->nadj; i++) ss << " " << v.local_adj[i];
+          for (int64_t i=0; i<v.nadj; i++) ss << " " << v.local_adj[i];
+          VLOG(LEVEL) << ss.str();
+        });
+      }
+    }
+    
+    template< int LEVEL = 0, typename F = nullptr_t >
+    void dump(F print_vertex) {
+      for (int64_t i=0; i<nv; i++) {
+        delegate::call(vs+i, [i,print_vertex](Vertex& v){
+          std::stringstream ss;
+          ss << "<" << std::setw(2) << i << ">";
+          print_vertex(ss, v);
+          for (int64_t i=0; i<v.nadj; i++) ss << " " << v.local_adj[i];
           VLOG(LEVEL) << ss.str();
         });
       }
