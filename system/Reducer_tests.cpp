@@ -80,6 +80,8 @@ TEST(int_max) {
   });
 }
   
+Reducer<bool> active;
+Reducer<int> count;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -89,6 +91,24 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     RUNTEST(int_add);
     RUNTEST(int_add_more);
     RUNTEST(int_max);
+    
+    BOOST_MESSAGE("== Test Reducer<T> ==");
+    set(active, false);
+    BOOST_CHECK_EQUAL(any(active), false);
+    
+    active = true;
+    BOOST_CHECK_EQUAL(any(active), true);
+    BOOST_CHECK_EQUAL(all(active), false);
+    
+    set(count, 0);
+    BOOST_CHECK_EQUAL(sum(count), 0);
+    
+    count += 1;
+    BOOST_CHECK_EQUAL(sum(count), 1);
+    
+    call_on_all_cores([]{ count += 1; });
+    BOOST_CHECK_EQUAL(sum(count), cores()+1);
+    
   });
   Grappa::finalize();
 }

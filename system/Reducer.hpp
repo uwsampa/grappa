@@ -20,10 +20,7 @@
 // License along with this program. If not, you may obtain one from
 // http://www.affero.org/oagpl.html.
 ////////////////////////////////////////////////////////////////////////
-
-#ifndef REDUCER_HPP
-#define REDUCER_HPP
-
+#pragma once
 #include <Collective.hpp>
 
 /// 
@@ -74,4 +71,41 @@ class AllReducer {
     //value lives (e.g. process-global variable)
 };
 
-#endif // REDUCER_HPP
+namespace Grappa {
+
+  /// @brief Symmetric Reduction object
+  template< typename T >
+  class Reducer {
+    T local_value;
+    // GlobalAddress<Reducer> self;
+  public:
+    Reducer(): local_value() {}
+  
+    T& local() { return local_value; }
+    const T& local() const { return local_value; }
+  
+    // static GlobalAddress<Reducer> create() {
+    //   auto s = symmetric_global_alloc<Reducer>();
+    //   call_on_all_cores([s]{
+    //     s->self = s;
+    //   });
+    // }
+  
+    friend T all(Reducer * r) { return reduce<T,collective_and>(&r->local_value); }
+    friend T any(Reducer * r) { return reduce<T,collective_or >(&r->local_value); }
+    friend T sum(Reducer * r) { return reduce<T,collective_add>(&r->local_value); }
+    friend void set(Reducer * r, const T& val) {
+      call_on_all_cores([=]{ r->local_value = val; });
+    }
+
+    friend T all(Reducer& r) { return all(&r); }
+    friend T any(Reducer& r) { return any(&r); }
+    friend T sum(Reducer& r) { return sum(&r); }
+    friend void set(Reducer& r, const T& val) { return set(&r, val); }
+  
+    void operator=(const T& val) { local() = val; }
+    void operator+=(const T& val) { local() += val; }
+  
+  } GRAPPA_BLOCK_ALIGNED;
+
+} // namespace Grappa
