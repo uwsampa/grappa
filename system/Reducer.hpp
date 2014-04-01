@@ -75,37 +75,45 @@ namespace Grappa {
 
   /// @brief Symmetric Reduction object
   template< typename T >
-  class Reducer {
+  class SimpleSymmetric {
     T local_value;
-    // GlobalAddress<Reducer> self;
+    // GlobalAddress<SimpleSymmetric> self;
   public:
-    Reducer(): local_value() {}
+    SimpleSymmetric(): local_value() {}
   
     T& local() { return local_value; }
     const T& local() const { return local_value; }
   
-    // static GlobalAddress<Reducer> create() {
-    //   auto s = symmetric_global_alloc<Reducer>();
+    // static GlobalAddress<SimpleSymmetric> create() {
+    //   auto s = symmetric_global_alloc<SimpleSymmetric>();
     //   call_on_all_cores([s]{
     //     s->self = s;
     //   });
     // }
   
-    friend T all(Reducer * r) { return reduce<T,collective_and>(&r->local_value); }
-    friend T any(Reducer * r) { return reduce<T,collective_or >(&r->local_value); }
-    friend T sum(Reducer * r) { return reduce<T,collective_add>(&r->local_value); }
-    friend void set(Reducer * r, const T& val) {
+    friend T all(SimpleSymmetric * r) {
+      return reduce<T,collective_and>(&r->local_value);
+    }
+    friend T any(SimpleSymmetric * r) {
+      return reduce<T,collective_or >(&r->local_value);
+    }
+    friend T sum(SimpleSymmetric * r) {
+      return reduce<T,collective_add>(&r->local_value);
+    }
+    friend void set(SimpleSymmetric * r, const T& val) {
       call_on_all_cores([=]{ r->local_value = val; });
     }
 
-    friend T all(Reducer& r) { return all(&r); }
-    friend T any(Reducer& r) { return any(&r); }
-    friend T sum(Reducer& r) { return sum(&r); }
-    friend void set(Reducer& r, const T& val) { return set(&r, val); }
+    friend T all(SimpleSymmetric& r) { return all(&r); }
+    friend T any(SimpleSymmetric& r) { return any(&r); }
+    friend T sum(SimpleSymmetric& r) { return sum(&r); }
+    friend void set(SimpleSymmetric& r, const T& val) { return set(&r, val); }
   
     void operator=(const T& val) { local() = val; }
     void operator+=(const T& val) { local() += val; }
-  
+    void operator++() { local()++; }
+    void operator++(int) { local()++; }
+    
   } GRAPPA_BLOCK_ALIGNED;
 
 } // namespace Grappa

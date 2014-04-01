@@ -80,8 +80,8 @@ TEST(int_max) {
   });
 }
   
-Reducer<bool> active;
-Reducer<int> count;
+SimpleSymmetric<bool> active;
+SimpleSymmetric<int> count;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
