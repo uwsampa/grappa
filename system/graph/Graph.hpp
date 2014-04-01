@@ -22,21 +22,8 @@ namespace Grappa {
   /// @addtogroup Graph
   /// @{
   
-  /// For distinguishing parameters in forall().
-  class VertexID {
-    int64_t idx;
-  public:
-    VertexID(int64_t idx = 0): idx(idx) {}
-    operator int64_t () const { return idx; }
-  };
-  
-  /// Index into a local array (contrast with VertexID), for distinguishing parameters by type
-  class LocalIndex {
-    int64_t idx;
-  public:
-    LocalIndex(int64_t idx): idx(idx) {}
-    operator int64_t () { return idx; }
-  };
+  /// Currently just an overload for int64, may someday be used for distinguishing parameters in forall().
+  using VertexID = int64_t;
   
 
   namespace impl {
@@ -141,7 +128,7 @@ namespace Grappa {
     EdgeState * edge_storage;
     
     // Temporary internal state
-    int64_t* scratch;
+    void* scratch;
     
     GlobalAddress<Graph> self;
     
@@ -192,27 +179,27 @@ namespace Grappa {
     ///
     /// Example:
     /// @code
-    /// struct A { double weight; }
-    /// GlobalAddress<Graph<Vertex<A>>> g = ...
-    /// struct B { double value; }
-    /// auto gnew = g->transform<B>([](Vertex<A>& v, B& b){
+    /// struct A { int64_t parent; }
+    /// GlobalAddress<Graph<A>> g = ...;
+    /// struct B { double value; };
+    /// auto gnew = g->transform<B>([](Graph<A>::Vertex& v, B& b){
     ///   b.value = v->weight / v.nadj;
     /// });
     /// @endcode
-//    template< typename NewData, typename F = decltype(nullptr) >
-//    GlobalAddress<Graph<Vertex<NewData>>> transform(F f) {
-//      static_assert(sizeof(V) == sizeof(Vertex<NewData>), "transformed vertex size must be the unchanged.");
-//      forall(vs, nv, [f](V& v){
-//        NewData d;
-//        f(v, d);
-//        v.~V();
-//        V b = v;
-//        auto nv = new (&v) Vertex<NewData>(b);
-//        nv->data = d;
-//      });
-//      return static_cast<GlobalAddress<Graph<Vertex<NewData>>>>(self);
-//    }
-  
+    template< typename VV, typename F = decltype(nullptr) >
+    GlobalAddress<Graph<VV,E>> transform(F f) {
+      forall(vs, nv, [f](Vertex& v){
+        VV d;
+        f(v, d);
+        v.~Vertex();
+        Vertex b = v;
+        auto vv = new (&v) typename Graph<VV,E>::Vertex(b);
+        vv->data = d;
+        vv->local_edge_state = b.local_edge_state;
+      });
+      return static_cast<GlobalAddress<Graph<VV,E>>>(self);
+    }
+    
     // Constructor
     static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false) {
       double t;
