@@ -46,21 +46,39 @@ DEFINE_int32(max_iterations, 1024, "Stop after this many iterations, no matter w
 const double RESET_PROB = 0.15;
 const double TOLERANCE = 1.0E-2;
 
-struct PagerankVertexData {
-  bool active;
-  double cache;
-  double delta;
-  double rank;
-  PagerankVertexData(): active(false), cache(0), rank(0) {}
-};
-struct PagerankEdgeData {}; // empty
+Reducer<int64_t,ReducerType::Add> active_count;
 
-using G = Graph<PagerankVertexData,PagerankEdgeData>;
+using Empty = struct {};
+
+template< typename T >
+struct GraphlabVertex {
+  bool active;
+  T cache;
+  GraphlabVertex(): active(false), cache() {}
+  void activate() {
+    if (!active) {
+      active_count++;
+      active = true;
+    }
+  }
+  void post_delta(T d){ cache += d; }
+};
+
+struct PagerankVertexData : public GraphlabVertex<double> {
+
+  double rank;
+  
+  PagerankVertexData(double initial_rank = 0.0)
+    : GraphlabVertex()
+    , rank(initial_rank)
+  { }
+};
+
+using G = Graph<PagerankVertexData,Empty>;
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iteration_time, 0);
 
-SimpleSymmetric<int64_t> active;
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
@@ -73,10 +91,8 @@ int main(int argc, char* argv[]) {
     auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
     auto g = G::create(tg);
     
-    forall(g, [](G::Vertex& v){
-      v->cache = 0.0;
-      v->rank = 0.2; // TODO: random init
-    });
+    // TODO: random init
+    forall(g, [](G::Vertex& v){ new (&v.data) PagerankVertexData(0.2); });
     
     tg.destroy();
     
@@ -86,22 +102,27 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "starting pagerank";
     
     // "gather" once to initialize cache (doing with a scatter)
-    forall(g, [](G::Vertex& v, G::Edge& e){
+    forall(g, [=](G::Vertex& v){
       auto delta = v->rank / v.nadj;
-      call<async>(e.ga, [=](G::Vertex& ve){
-        ve->cache += delta;
+      forall<async>(adj(g,v), [=](G::Edge& e){
+        call<async>(e.ga, [=](G::Vertex& ve){
+          ve->post_delta(delta);
+        });
       });
-      v->active = true;
+      v->activate();
     });
-    active = g->nv;
+    VLOG(0) << "after gather";
     
     int iteration = 0;
     
-    while ( sum(active) > 0 ) GRAPPA_TIME_REGION(iteration_time) {
-      if (iteration > FLAGS_max_iterations) { set(active, 0); break; }
+    VLOG(0) << "active_count => " << active_count;
+    
+    while ( active_count > 0 ) GRAPPA_TIME_REGION(iteration_time) {
+      if (iteration > FLAGS_max_iterations) { active_count = 0; break; }
       VLOG(1) << "iteration " << std::setw(3) << iteration
-              << " -- active:" << sum(active);
-      set(active, 0);
+              << " -- active:" << active_count;
+      
+      active_count = 0; // 'apply' deactivates all vertices 
       
       forall(g, [=](G::Vertex& v){
         if (!v->active) return;
@@ -115,10 +136,9 @@ int main(int argc, char* argv[]) {
         // scatter
         forall<async>(adj(g,v), [=](G::Edge& e){
           call<async>(e.ga, [=](G::Vertex& ve){
-            ve->cache += delta;
+            ve->post_delta(delta);
             if (std::fabs(delta) > TOLERANCE) {
-              ve->active = true;
-              active++;
+              ve->activate();
             }
           });
         });
