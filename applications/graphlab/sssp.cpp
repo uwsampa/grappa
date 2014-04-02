@@ -34,14 +34,11 @@ DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 
-struct SSSPVertexData : public GraphlabVertex<double> {
+const double MAX_DIST = std::numeric_limits<double>::max();
 
-  double dist;
-  
-  SSSPVertexData()
-    : GraphlabVertex()
-    , dist(std::numeric_limits<double>::max())
-  { }
+struct SSSPVertexData : public GraphlabVertex<double> {
+  double dist, new_dist;
+  SSSPVertexData(): GraphlabVertex(), dist(MAX_DIST), new_dist(0.0) {}
 };
 struct EdgeDistance {
   double dist;
@@ -60,27 +57,28 @@ inline VertexID choose_root(GlobalAddress<G> g) {
 }
 
 struct SSSPVertexProgram {
-  double min_dist = 0.0;
   bool changed;
+  double min_dist;
   
   bool gather_edges(G::Vertex& v) const { return false; }
-  bool scatter_edges(G::Vertex& v) const { return changed; }
   
   double gather(G::Vertex& src, G::Edge& e) const { return 0; }
   
   void apply(G::Vertex& v, double ignore) {
     changed = false;
-    if (v->dist > min_dist) {
+    if (v->dist > v->new_dist) {
       changed = true;
-      v->dist = min_dist;
+      v->dist = v->new_dist;
     }
     min_dist = v->dist; // so we can use it in 'scatter'
   }
-    
+  
+  bool scatter_edges(G::Vertex& v) const { return changed; }
+  
   void scatter(const G::Edge& e, G::Vertex& target) const {
     auto new_dist = min_dist + e->dist;
     if (new_dist < target->dist) {
-      target->dist = new_dist;
+      target->new_dist = new_dist;
       target->activate();
     }
   }
@@ -96,7 +94,7 @@ int main(int argc, char* argv[]) {
     
     auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
     auto g = G::create(tg);
-    
+        
     // TODO: random init
     forall(g, [=](G::Vertex& v){
       new (&v.data) SSSPVertexData();
@@ -111,7 +109,6 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << construction_time;
     
     auto root = choose_root(g);
-    // auto root = 1;
     
     LOG(INFO) << "starting SSSP on root:" << root;
     GRAPPA_TIME_REGION(total_time) {
