@@ -18,7 +18,7 @@
 
 // You should have received a copy of the Affero General Public
 // License along with this program. If not, you may obtain one from
-// http://www.affero.org/oagpl.html.
+// http://www.affero.org/oagl.html.
 ////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////
@@ -43,6 +43,11 @@ DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 
 DEFINE_int32(max_iterations, 1024, "Stop after this many iterations, no matter what.");
 
+
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iteration_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, sync_iteration_time, 0);
+
 const double RESET_PROB = 0.15;
 const double TOLERANCE = 1.0E-2;
 
@@ -52,17 +57,21 @@ using Empty = struct {};
 
 template< typename T >
 struct GraphlabVertex {
+  static Reducer<int64_t,ReducerType::Add> total_active;  
+  
   bool active;
   T cache;
   GraphlabVertex(): active(false), cache() {}
   void activate() {
     if (!active) {
       active_count++;
+      total_active++;
       active = true;
     }
   }
   void post_delta(T d){ cache += d; }
 };
+template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertex<T>::total_active;
 
 struct PagerankVertexData : public GraphlabVertex<double> {
 
@@ -76,9 +85,84 @@ struct PagerankVertexData : public GraphlabVertex<double> {
 
 using G = Graph<PagerankVertexData,Empty>;
 
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
-GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iteration_time, 0);
+struct PagerankVertexProgram {
+  double last_change;
+  
+  double gather(G::Vertex& src, G::Edge& e) const {
+    return src->rank / src.nadj;
+  }
+  void apply(G::Vertex& v, double total) {
+    auto new_val = (1.0 - RESET_PROB) * v->cache + RESET_PROB;
+    last_change = (new_val - v->rank) / v.nadj;
+    v->rank = new_val;
+  }
+  void scatter(const G::Edge& e, G::Vertex& target) const {
+    target->post_delta(last_change);
+  }
+};
 
+template< typename VertexProg, typename V, typename E >
+void run_synchronous(GlobalAddress<Graph<V,E>> g) {
+  
+  // // tack the VertexProg data onto the existing vertex data
+  // struct VPlus : public V {
+  //   VertexProg prog;
+  //   VPlus(typename Graph<V,E>::Vertex& v): V(v.data), prog(v) {}
+  // };
+  // auto g = g->template transform<VPlus>([](typename Graph<V,E>::Vertex& v, VPlus& d){
+  //   new (&d) VPlus(v);
+  // });
+  // using GPVertex = typename Graph<VPlus,E>::Vertex;
+  // using GPEdge = typename Graph<VPlus,E>::Edge;
+  
+  // "gather" once to initialize cache (doing with a scatter)
+  forall(g, [=](G::Vertex& v){
+    forall<async>(adj(g,v), [&v](G::Edge& e){
+      
+      VertexProg prog;
+      
+      // gather
+      auto delta = prog.gather(v, e);
+      
+      call<async>(e.ga, [=](G::Vertex& ve){
+        ve->post_delta(delta);
+      });
+    });
+    v->activate();
+  });
+  
+  int iteration = 0;
+  
+  while ( GraphlabVertex<V>::total_active > 0 ) GRAPPA_TIME_REGION(sync_iteration_time) {
+    
+    VLOG(1) << "iteration " << std::setw(3) << iteration
+            << " -- active:" << GraphlabVertex<V>::total_active;
+    
+    GraphlabVertex<V>::total_active = 0; // 'apply' deactivates all vertices 
+    
+    if (iteration > FLAGS_max_iterations) break;
+    
+    forall(g, [=](G::Vertex& v){
+      if (!v->active) return;
+      
+      VertexProg prog;
+      
+      // apply
+      prog.apply(v, v->cache);
+      v->active = false;
+      
+      // scatter
+      forall<async>(adj(g,v), [prog](G::Edge& e){
+        auto edge = e;
+        call<async>(e.ga, [edge,prog](G::Vertex& ve){
+          prog.scatter(edge, ve);
+        });
+      });
+    });
+    
+    iteration++;
+  }
+}
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
@@ -100,7 +184,10 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << construction_time;
     
     LOG(INFO) << "starting pagerank";
-    
+
+#ifndef MANUAL
+    run_synchronous< PagerankVertexProgram >(g);
+#else
     // "gather" once to initialize cache (doing with a scatter)
     forall(g, [=](G::Vertex& v){
       auto delta = v->rank / v.nadj;
@@ -146,7 +233,8 @@ int main(int argc, char* argv[]) {
       
       iteration++;
     }
-  done:
+#endif
+    
     LOG(INFO) << "-- pagerank done";
     
     if (FLAGS_metrics) Metrics::merge_and_print();
