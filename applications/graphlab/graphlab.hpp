@@ -29,6 +29,10 @@ struct GraphlabVertex {
 template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertex<T>::total_active;
 
 
+////////////////////////////////////////////////////////
+/// Synchronous GraphLab engine, assumes:
+/// - Delta caching enabled
+/// - (currently) gather_edges:IN_EDGES, scatter_edges:OUT_EDGES
 template< typename VertexProg, typename V, typename E >
 void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   using G = Graph<V,E>;
