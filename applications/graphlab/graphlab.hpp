@@ -100,10 +100,13 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
       
       if (prog.scatter_edges(v)) {
         // scatter
-        forall<async>(adj(g,v), [prog](GEdge& e){
-          auto edge = e;
-          call<async>(e.ga, [edge,prog](GVertex& ve){
-            prog.scatter(edge, ve);
+        forall<async>(adj(g,v), [g,prog](GEdge& e){
+          auto e_id = e.id;
+          auto e_data = e.data;
+          call<async>(e.ga, [g,e_id,e_data,prog](GVertex& ve){
+            auto local_e_data = e_data;
+            GEdge e = { e_id, g->vs+e_id, local_e_data };
+            prog.scatter(e, ve);
           });
         });
       }
