@@ -65,6 +65,9 @@ struct PagerankVertexProgram {
   }
   void scatter(const G::Edge& e, G::Vertex& target) const {
     target->post_delta(last_change);
+    if (std::fabs(last_change) > TOLERANCE) {
+      target->activate();
+    }
   }
 };
 
