@@ -22,55 +22,23 @@
 ////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////
-/// This mini-app demonstrates a breadth-first-search of the built-in 
-/// graph data structure. This implement's Graph500's BFS benchmark:
-/// - Uses the Graph500 Specification Kronecker graph generator with
-///   numVertices = 2^scale (--scale specified on command-line)
-/// - Uses the builtin hybrid compressed-sparse-row graph format
-/// - Computes the 'parent' tree given a root, and does this a number 
-///   of times (specified by --nbfs).
+/// Demonstrates using the GraphLab API to implement Pagerank
 ////////////////////////////////////////////////////////////////////////
 #include <Grappa.hpp>
-#include <graph/Graph.hpp>
-#include <Reducer.hpp>
-using namespace Grappa;
-using delegate::call;
+#include "graphlab.hpp"
 
 DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 
-DEFINE_int32(max_iterations, 1024, "Stop after this many iterations, no matter what.");
-
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
-GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iteration_time, 0);
 
 const double RESET_PROB = 0.15;
 const double TOLERANCE = 1.0E-2;
 
 Reducer<int64_t,ReducerType::Add> active_count;
-
-using Empty = struct {};
-
-template< typename T >
-struct GraphlabVertex {
-  static Reducer<int64_t,ReducerType::Add> total_active;  
-  
-  bool active;
-  T cache;
-  GraphlabVertex(): active(false), cache() {}
-  void activate() {
-    if (!active) {
-      active_count++;
-      total_active++;
-      active = true;
-    }
-  }
-  void post_delta(T d){ cache += d; }
-};
-template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertex<T>::total_active;
 
 struct PagerankVertexData : public GraphlabVertex<double> {
 
@@ -99,69 +67,6 @@ struct PagerankVertexProgram {
     target->post_delta(last_change);
   }
 };
-
-template< typename VertexProg, typename V, typename E >
-void run_synchronous(GlobalAddress<Graph<V,E>> g) {
-  
-  // // tack the VertexProg data onto the existing vertex data
-  // struct VPlus : public V {
-  //   VertexProg prog;
-  //   VPlus(typename Graph<V,E>::Vertex& v): V(v.data), prog(v) {}
-  // };
-  // auto g = g->template transform<VPlus>([](typename Graph<V,E>::Vertex& v, VPlus& d){
-  //   new (&d) VPlus(v);
-  // });
-  // using GPVertex = typename Graph<VPlus,E>::Vertex;
-  // using GPEdge = typename Graph<VPlus,E>::Edge;
-  
-  // "gather" once to initialize cache (doing with a scatter)
-  forall(g, [=](G::Vertex& v){
-    forall<async>(adj(g,v), [&v](G::Edge& e){
-      
-      VertexProg prog;
-      
-      // gather
-      auto delta = prog.gather(v, e);
-      
-      call<async>(e.ga, [=](G::Vertex& ve){
-        ve->post_delta(delta);
-      });
-    });
-    v->activate();
-  });
-  
-  int iteration = 0;
-  
-  while ( GraphlabVertex<V>::total_active > 0 ) GRAPPA_TIME_REGION(iteration_time) {
-    
-    VLOG(1) << "iteration " << std::setw(3) << iteration
-            << " -- active:" << GraphlabVertex<V>::total_active;
-    
-    GraphlabVertex<V>::total_active = 0; // 'apply' deactivates all vertices 
-    
-    if (iteration > FLAGS_max_iterations) break;
-    
-    forall(g, [=](G::Vertex& v){
-      if (!v->active) return;
-      
-      VertexProg prog;
-      
-      // apply
-      prog.apply(v, v->cache);
-      v->active = false;
-      
-      // scatter
-      forall<async>(adj(g,v), [prog](G::Edge& e){
-        auto edge = e;
-        call<async>(e.ga, [edge,prog](G::Vertex& ve){
-          prog.scatter(edge, ve);
-        });
-      });
-    });
-    
-    iteration++;
-  }
-}
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
