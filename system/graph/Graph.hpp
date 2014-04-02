@@ -109,7 +109,8 @@ namespace Grappa {
       EdgeState& data;
       
       /// Access elements of EdgeState with operator '->'
-      EdgeState* operator->(){ return &data; }
+      EdgeState* operator->() { return &data; }
+      const EdgeState* operator->() const { return &data; }
     };
     
     static_assert(block_size % sizeof(Vertex) == 0, "V size not evenly divisible into blocks!");
