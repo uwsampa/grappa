@@ -46,7 +46,6 @@ DEFINE_int32(max_iterations, 1024, "Stop after this many iterations, no matter w
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iteration_time, 0);
-GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, sync_iteration_time, 0);
 
 const double RESET_PROB = 0.15;
 const double TOLERANCE = 1.0E-2;
@@ -133,7 +132,7 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   
   int iteration = 0;
   
-  while ( GraphlabVertex<V>::total_active > 0 ) GRAPPA_TIME_REGION(sync_iteration_time) {
+  while ( GraphlabVertex<V>::total_active > 0 ) GRAPPA_TIME_REGION(iteration_time) {
     
     VLOG(1) << "iteration " << std::setw(3) << iteration
             << " -- active:" << GraphlabVertex<V>::total_active;
