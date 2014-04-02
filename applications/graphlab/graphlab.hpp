@@ -28,6 +28,16 @@ struct GraphlabVertex {
 };
 template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertex<T>::total_active;
 
+template< typename V, typename E >
+void activate_all(GlobalAddress<Graph<V,E>> g) {
+  forall(g, [](typename Graph<V,E>::Vertex& v){ v->activate(); });
+}
+
+template< typename V >
+void activate(GlobalAddress<V> v) {
+  delegate::call(v, [](V& v){ v->activate(); });
+}
+
 
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:
@@ -51,11 +61,14 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   // using GPEdge = typename Graph<VPlus,E>::Edge;
   
   // "gather" once to initialize cache (doing with a scatter)
+  
+  // TODO: find efficient way to skip 'gather' if 'gather_edges' is always false
+  
   forall(g, [=](GVertex& v){
     forall<async>(adj(g,v), [&v](GEdge& e){
       
       VertexProg prog;
-      
+            
       // gather
       auto delta = prog.gather(v, e);
       
@@ -63,7 +76,6 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
         ve->post_delta(delta);
       });
     });
-    v->activate();
   });
   
   int iteration = 0;
@@ -86,13 +98,15 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
       prog.apply(v, v->cache);
       v->active = false;
       
-      // scatter
-      forall<async>(adj(g,v), [prog](GEdge& e){
-        auto edge = e;
-        call<async>(e.ga, [edge,prog](GVertex& ve){
-          prog.scatter(edge, ve);
+      if (prog.scatter_edges(v)) {
+        // scatter
+        forall<async>(adj(g,v), [prog](GEdge& e){
+          auto edge = e;
+          call<async>(e.ga, [edge,prog](GVertex& ve){
+            prog.scatter(edge, ve);
+          });
         });
-      });
+      }
     });
     
     iteration++;

@@ -1,6 +1,6 @@
 set(COMMON graphlab.hpp graphlab.cpp)
 
-foreach(app "pagerank")
+foreach(app pagerank sssp)
   add_grappa_exe(graphlab-${app} ${app}.exe ${app}.cpp ${COMMON})
   set_property(TARGET ${name} PROPERTY FOLDER "Graphlab")
 endforeach()

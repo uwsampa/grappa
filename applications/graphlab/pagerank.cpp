@@ -55,6 +55,9 @@ using G = Graph<PagerankVertexData,Empty>;
 struct PagerankVertexProgram {
   double last_change;
   
+  bool gather_edges(const G::Vertex& v) const { return true; }
+  bool scatter_edges(const G::Vertex& v) const { return true; }
+  
   double gather(G::Vertex& src, G::Edge& e) const {
     return src->rank / src.nadj;
   }
@@ -93,6 +96,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "starting pagerank";
 
 #ifndef MANUAL
+    activate_all(g);
     run_synchronous< PagerankVertexProgram >(g);
 #else
     // "gather" once to initialize cache (doing with a scatter)
