@@ -64,12 +64,12 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   
   int iteration = 0;
   
-  while ( GraphlabVertex<V>::total_active > 0 ) GRAPPA_TIME_REGION(iteration_time) {
+  while ( V::total_active > 0 ) GRAPPA_TIME_REGION(iteration_time) {
     
     VLOG(1) << "iteration " << std::setw(3) << iteration
-            << " -- active:" << GraphlabVertex<V>::total_active;
+            << " -- active:" << V::total_active;
     
-    GraphlabVertex<V>::total_active = 0; // 'apply' deactivates all vertices 
+    V::total_active = 0; // 'apply' deactivates all vertices 
     
     if (iteration > FLAGS_max_iterations) break;
     
