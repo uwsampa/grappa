@@ -56,10 +56,12 @@ int main(int argc, char* argv[]) {
     
     t = walltime();
     
+    TupleGraph tg;
+
     // generate "NE" edge tuples, sampling vertices using the
     // Graph500 Kronecker generator to get a power-law graph
-    auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
-    
+    tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
+
     // construct the compact graph representation (roughly CSR)
     auto g = Graph<BFSVertex>::create( tg );
     
