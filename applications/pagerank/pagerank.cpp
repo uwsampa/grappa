@@ -15,6 +15,10 @@ DEFINE_bool(metrics, false, "Dump metrics to stdout.");
 DEFINE_uint64( nnz_factor, 16, "Approximate number of non-zeros per matrix row" );
 DEFINE_uint64( scale, 16, "logN dimension of square matrix" );
 
+// input file
+DEFINE_string(path, "", "Path to graph source file");
+DEFINE_string(format, "bintsv4", "Format of graph source file");
+
 // pagerank options
 DEFINE_double( damping, 0.8f, "Pagerank damping factor" );
 DEFINE_double( epsilon, 0.001f, "Acceptable error magnitude" );
@@ -246,7 +250,17 @@ int main(int argc, char* argv[]) {
 
     double t;
     long userseed = 0xDECAFBAD; // from (prng.c: default seed)
-    auto tg = TupleGraph::Kronecker(FLAGS_scale, desired_nnz, userseed, userseed);
+
+
+    TupleGraph tg;
+    
+    if( FLAGS_path.empty() ) {
+      tg = TupleGraph::Kronecker(FLAGS_scale, desired_nnz, userseed, userseed);
+    } else {
+      // load from file
+      tg = TupleGraph::Load( FLAGS_path, FLAGS_format );
+    }
+
     t = walltime() - t;
     LOG(INFO) << "make_graph: " << t;
     make_graph_time_SO = t;

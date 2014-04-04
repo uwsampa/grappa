@@ -39,6 +39,9 @@ DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 DEFINE_int32(nbfs, 1, "Number of BFS traversals to do.");
 
+DEFINE_string(path, "", "Path to graph source file.");
+DEFINE_string(format, "bintsv4", "Format of graph source file.");
+
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_mteps, 0);
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, bfs_nedge, 0);
@@ -58,10 +61,15 @@ int main(int argc, char* argv[]) {
     
     TupleGraph tg;
 
-    // generate "NE" edge tuples, sampling vertices using the
-    // Graph500 Kronecker generator to get a power-law graph
-    tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
-
+    if( FLAGS_path.empty() ) {
+      // generate "NE" edge tuples, sampling vertices using the
+      // Graph500 Kronecker generator to get a power-law graph
+      tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
+    } else {
+      // load from file
+      tg = TupleGraph::Load( FLAGS_path, FLAGS_format );
+    }
+    
     // construct the compact graph representation (roughly CSR)
     auto g = Graph<BFSVertex>::create( tg );
     
