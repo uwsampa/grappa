@@ -120,13 +120,13 @@ namespace Grappa {
     /// addresses specifically.
     ///
     /// Example:
-    /// @code
-    ///   GlobalAddress<int> xa;
-    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
+    /// ~~~~
+    /// GlobalAddress<int> xa;
+    /// bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
     ///
-    ///   // or by reference:
-    ///   bool is_zero = delegate::call(xa, [](int& x){ return x == 0; });
-    /// @endcode
+    /// // or by reference:
+    /// bool is_zero = delegate::call(xa, [](int& x){ return x == 0; });
+    /// ~~~
     template< SyncMode S = SyncMode::Blocking,
               GlobalCompletionEvent * C = &impl::local_gce,
               typename T = decltype(nullptr),
