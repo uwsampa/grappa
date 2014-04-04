@@ -30,6 +30,9 @@
 
 using namespace Grappa;
 
+
+DEFINE_bool( use_sampa_hdfs, false, "Set this to use Sampa cluster HDFS" );
+
 BOOST_AUTO_TEST_SUITE( FileIO_tests );
 
 static const size_t N = (1L<<10);
@@ -43,7 +46,7 @@ int64_t global_sum = 0;
 void test_single_read() {
   // create test file to read from
   char fname[256];
-  sprintf(fname, "fileio_tests_seq.%ld.bin", N);
+  snprintf(fname, 256, "fileio_tests_seq.%ld.bin", N);
   FILE * fout = fopen(fname, "w");
 
   int64_t * loc_array = new int64_t[N];
@@ -94,13 +97,13 @@ void test_read_save_array(bool asDirectory) {
 
   // create test file to read from
   char fname[256];
-  if( boost::filesystem::exists( "/scratch/hdfs" ) ) {
+  if( FLAGS_use_sampa_hdfs && boost::filesystem::exists( "/scratch/hdfs" ) ) {
     // probably the Sampa cluster
-    sprintf(fname, "/scratch/hdfs/fileio_tests_seq.%ld.bin", NN);
+    snprintf(fname, 256, "/scratch/hdfs/fileio_tests_seq.%ld.bin", NN);
   } else { 
     // probably not the Sampa cluster.
     // Assume current directory is shared across the cluster.
-    sprintf(fname, "./fileio_tests_seq.%ld.bin", NN);
+    snprintf(fname, 256, "./fileio_tests_seq.%ld.bin", NN);
   }
   Grappa::File f(fname, asDirectory);
 
@@ -118,7 +121,7 @@ void test_read_save_array(bool asDirectory) {
   Grappa::memset(array, 0, NN);
 
   sync();
-  sleep(5); // having it wait here helps it crash less due to inconsistent FS state
+  //sleep(5); // having it wait here helps it crash less due to inconsistent FS state
 
   Grappa::read_array(f, array, NN);
   
@@ -133,11 +136,11 @@ void test_read_save_array(bool asDirectory) {
   if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
-void test_collective_read() {
+void test_unordered_collective_read() {
   // create test file to read from
   char fname[256];
   // Assume current directory is shared across the cluster.
-  sprintf(fname, "./fileio_tests_collective_read.%ld.bin", NN);
+  snprintf(fname, 256, "./fileio_tests_collective_read.%ld.bin", NN);
 
   // create an array to save and restore
   array = global_alloc<int64_t>(NN);
@@ -155,12 +158,12 @@ void test_collective_read() {
   save_array(f, false, array, NN);
 
   sync();
-
+  
   // clear out array so we can read back into it
   Grappa::memset(array, 0, NN);
   
   std::string fn(fname);
-  read_array( fn, array, NN );
+  read_array_unordered( fn, array, NN );
 
   // verify that we read what we wrote
   on_all_cores( [] { global_sum = 0; } );
@@ -170,6 +173,48 @@ void test_collective_read() {
   int64_t read_sum = Grappa::reduce<int64_t,collective_add>(&global_sum);
   CHECK_EQ( read_sum, write_sum ) << "Read array checksum didn't match written array checksum!";
 
+  Grappa::global_free(array);
+  if (fs::exists(fname)) { fs::remove_all(fname); }
+}
+
+void test_unordered_collective_write() {
+  // create test file to read from
+  char fname[256];
+  // Assume current directory is shared across the cluster.
+  snprintf(fname, 256, "./fileio_tests_collective_write.%ld.bin", NN);
+
+  // create an array to save and restore
+  array = global_alloc<int64_t>(NN);
+
+  // fill array and compute sum for verification
+  on_all_cores( [] { global_sum = 0; } );
+  forall(array, NN, [](int64_t i, int64_t& e){
+      e = i;
+      global_sum += e;
+    } );
+  int64_t write_sum = Grappa::reduce<int64_t,collective_add>(&global_sum);
+
+  // save array using new MPI writer
+  write_array_unordered( fname, array, NN );
+
+  sync();
+
+  // clear out array so we can read back into it
+  Grappa::memset(array, 0, NN);
+  
+  // load array using old async reader
+  Grappa::File f(fname, false);
+  read_array(f, array, NN);
+
+  // verify that we read what we wrote
+  on_all_cores( [] { global_sum = 0; } );
+  forall(array, NN, [](int64_t i, int64_t& e){
+      global_sum += e;
+    } );
+  int64_t read_sum = Grappa::reduce<int64_t,collective_add>(&global_sum);
+  CHECK_EQ( read_sum, write_sum ) << "Read array checksum didn't match written array checksum!";
+
+  Grappa::global_free(array);
   if (fs::exists(fname)) { fs::remove_all(fname); }
 }
 
@@ -178,17 +223,23 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::run([]{
       test_single_read();
     
-      // LOG(INFO) << "testing file read/write";
-      // test_read_save_array(false);
+      sync();
+      LOG(INFO) << "testing file read/write";
+      test_read_save_array(false);
 
       sync();
-      sleep(1);
-    
+      //sleep(1);
       LOG(INFO) << "testing dir read/write";
       test_read_save_array(true);
 
-      LOG(INFO) << "testing collective array read";
-      test_collective_read();
+      sync();
+      LOG(INFO) << "testing unordered collective array read";
+      test_unordered_collective_read();
+
+      // doesn't work yet due to nfs locking problems
+      // sync();
+      // LOG(INFO) << "testing unordered collective array write";
+      // test_unordered_collective_write();
   });
   Grappa::finalize();
 }
