@@ -142,6 +142,7 @@ set(SYSTEM_SOURCES
 list(APPEND SYSTEM_SOURCES
   graph/Graph.hpp
   graph/Graph.cpp
+  graph/TupleGraph.cpp
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )

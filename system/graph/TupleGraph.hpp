@@ -7,6 +7,10 @@ namespace Grappa {
   private:
     bool initialized;
 
+    static TupleGraph load_bintsv4( std::string path );
+    void save_bintsv4( std::string path );
+    void save_tsv( std::string path );
+    
   public:    
     struct Edge { int64_t v0, v1; };
 
@@ -17,7 +21,10 @@ namespace Grappa {
     /// Use Graph500 Kronecker generator (@see graph/KroneckerGenerator.cpp)
     static TupleGraph Kronecker(int scale, int64_t desired_nedge, 
                                          uint64_t seed1, uint64_t seed2);
-    
+
+    // create new TupleGraph with edges loaded from file
+    static TupleGraph Load( std::string path, std::string format );
+
      void destroy() { global_free(edges); }
 
     // default contstructor
@@ -37,7 +44,9 @@ namespace Grappa {
       nedge = tg.nedge;
       return *this;
     }
-    
+
+    void save( std::string path, std::string format );
+
   protected:
     TupleGraph(int64_t nedge): initialized(true), edges(global_alloc<Edge>(nedge)), nedge(nedge) {}
     

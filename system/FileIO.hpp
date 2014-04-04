@@ -430,6 +430,9 @@ template< typename T >
 void write_array_unordered( std::string filename, GlobalAddress<T> array, size_t nelem ) {
 
   LOG(WARNING) << "Make sure you're writing to a shared filesystem with proper locking!";
+
+
+  // all this stuff is trying to find a workaround for NFS problems on the sampa cluster
   if( fs::exists( filename ) ) {
     fs::remove( filename );
   }
