@@ -22,6 +22,7 @@ set(SYSTEM_SOURCES
   Collective.cpp
   Communicator.cpp
   Delegate.cpp
+  FileIO.cpp
   FlatCombiner.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
