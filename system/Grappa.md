@@ -1,6 +1,6 @@
 Grappa: Developer Documentation    {#mainpage}
 ===========================
-These pages are the API documentation for the Grappa runtime system. For beginners, we recommend first reading through the [tutorial](https://github.com/uwsampa/grappa/blob/master/doc/tutorial/tutorial.md) on Github, as it will explain the programming model and main ideas. For other information about the project, including technical papers about the techniques, we refer readers to the project website: [grappa.io](http://grappa.io).
+These pages are the API documentation for the Grappa runtime system. For beginners, we recommend first reading through the <a href="https://github.com/uwsampa/grappa/blob/master/doc/tutorial/tutorial.md">tutorial</a> on Github, as it will explain the programming model and main ideas. For other information about the project, including technical papers about the techniques, we refer readers to the project website: [grappa.io](http://grappa.io).
 
 Grappa is a runtime system for scaling irregular applications on commodity clusters. It's a PGAS library and runtime system that allows you to write global-view C++11 code that runs on distributed-memory computers.
 
