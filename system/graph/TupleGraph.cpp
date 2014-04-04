@@ -5,6 +5,8 @@
 
 #include <fstream>
 
+DEFINE_bool( use_mpi_io, false, "Use MPI IO optimizations" );
+
 namespace Grappa {
 
 /// load edges stored as int32_t tuples
@@ -44,18 +46,36 @@ TupleGraph TupleGraph::load_bintsv4( std::string path ) {
 
       struct Int32Edge { int32_t v0, v1; };
       Int32Edge * local_load_ptr = reinterpret_cast<Int32Edge*>(local_ptr);
+
+      if( !FLAGS_use_mpi_io ) {
+        std::ifstream infile( &helper->filename[0],
+                              std::ios_base::in | std::ios_base::binary );
+        int64_t offset = local_count * Grappa::mycore();
+        infile.seekg( offset * sizeof(Int32Edge) );
         
-      // load int32's into local chunk
-      impl::read_unordered_shared( &helper->filename[0], local_ptr, local_count * sizeof(Int32Edge) );
-      
-      // expand int32's into int64's
-      for( int64_t i = local_count - 1; i >= 0; --i ) {
-        auto v0 = local_load_ptr[i].v0;
-        auto v1 = local_load_ptr[i].v1;
-        local_ptr[i].v0 = v0;
-        local_ptr[i].v1 = v1;
+        int32_t src, dst;
+        for( int64_t count = 0; count < local_count && infile.good(); ++count ) {
+          infile.read(reinterpret_cast<char*>(&src), 4);
+          infile.read(reinterpret_cast<char*>(&dst), 4);
+          if( infile.fail() ) break;
+          local_ptr[count].v0 = src;
+          local_ptr[count].v1 = dst;
+        }
+      } else {
+        
+        // load int32's into local chunk
+        impl::read_unordered_shared( &helper->filename[0], local_ptr, local_count * sizeof(Int32Edge) );
+        
+        // expand int32's into int64's
+        for( int64_t i = local_count - 1; i >= 0; --i ) {
+          auto v0 = local_load_ptr[i].v0;
+          auto v1 = local_load_ptr[i].v1;
+          local_ptr[i].v0 = v0;
+          local_ptr[i].v1 = v1;
+        }
       }
 
+      Grappa::barrier();
     } );
 
   // Do this once it's supported
