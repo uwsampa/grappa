@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'igor'
+require_relative_to_symlink '../../util/igor_common.rb'
 
 Igor do
   include Isolatable
@@ -19,7 +20,7 @@ Igor do
   params.merge!(GFLAGS)
   
   @c = -> { %Q[ %{tdir}/grappa_srun --no-freeze-on-error
-    -- %{tdir}/%{exe} --metrics
+    -- %{tdir}/pagerank.exe --metrics
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
   command @c[]
@@ -32,6 +33,7 @@ Igor do
     num_starting_workers 512
     loop_threshold 1024
     trial 1
+    max_iterations 10
   }
   
   expect :total_time
