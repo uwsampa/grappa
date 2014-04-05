@@ -116,58 +116,10 @@ int main(int argc, char* argv[]) {
     
     LOG(INFO) << "starting pagerank";
 
-#ifndef MANUAL
     GRAPPA_TIME_REGION(total_time) {
       activate_all(g);
       run_synchronous< PagerankVertexProgram >(g);
     }
-#else
-    // "gather" once to initialize cache (doing with a scatter)
-    forall(g, [=](G::Vertex& v){
-      auto delta = v->rank / v.nadj;
-      forall<async>(adj(g,v), [=](G::Edge& e){
-        call<async>(e.ga, [=](G::Vertex& ve){
-          ve->post_delta(delta);
-        });
-      });
-      v->activate();
-    });
-    VLOG(0) << "after gather";
-    
-    int iteration = 0;
-    
-    VLOG(0) << "active_count => " << active_count;
-    
-    while ( active_count > 0 ) GRAPPA_TIME_REGION(iteration_time) {
-      if (iteration > FLAGS_max_iterations) { active_count = 0; break; }
-      VLOG(1) << "iteration " << std::setw(3) << iteration
-              << " -- active:" << active_count;
-      
-      active_count = 0; // 'apply' deactivates all vertices 
-      
-      forall(g, [=](G::Vertex& v){
-        if (!v->active) return;
-        
-        // apply
-        auto new_val = (1.0 - RESET_PROB) * v->cache + RESET_PROB;
-        auto delta = (new_val - v->rank) / v.nadj;
-        v->rank = new_val;
-        v->active = false;
-        
-        // scatter
-        forall<async>(adj(g,v), [=](G::Edge& e){
-          call<async>(e.ga, [=](G::Vertex& ve){
-            ve->post_delta(delta);
-            if (std::fabs(delta) > TOLERANCE) {
-              ve->activate();
-            }
-          });
-        });
-      });
-      
-      iteration++;
-    }
-#endif
     
     LOG(INFO) << "-- pagerank done";
     
