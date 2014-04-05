@@ -43,7 +43,7 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 const double RESET_PROB = 0.15;
 const double TOLERANCE = 1.0E-2;
 
-Reducer<int64_t,ReducerType::Add> active_count;
+Reducer<double,ReducerType::Add> total_rank;
 
 struct PagerankVertexData : public GraphlabVertex<double> {
 
@@ -68,7 +68,7 @@ struct PagerankVertexProgram {
   }
   void apply(G::Vertex& v, double total) {
     auto new_val = (1.0 - RESET_PROB) * v->cache + RESET_PROB;
-    last_change = (new_val - v->rank) / v.nadj;
+    last_change = (new_val - v->rank);
     v->rank = new_val;
   }
   void scatter(const G::Edge& e, G::Vertex& target) const {
@@ -122,6 +122,10 @@ int main(int argc, char* argv[]) {
     }
     
     LOG(INFO) << "-- pagerank done";
+    
+    total_rank = 0;
+    forall(g, [](G::Vertex& v){ total_rank += v->rank; });
+    std::cerr << "total_rank: " << total_rank << "\n";
     
     if (FLAGS_metrics) Metrics::merge_and_print();
     else {
