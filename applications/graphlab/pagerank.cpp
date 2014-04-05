@@ -35,8 +35,10 @@ DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 DEFINE_string(path, "", "Path to graph source file.");
 DEFINE_string(format, "bintsv4", "Format of graph source file.");
 
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, init_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuple_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 
 const double RESET_PROB = 0.15;
 const double TOLERANCE = 1.0E-2;
@@ -83,6 +85,8 @@ int main(int argc, char* argv[]) {
 
     double t;
     
+    DVLOG(0) << "debug mode";
+    
     TupleGraph tg;
     
     GRAPPA_TIME_REGION(tuple_time) {
@@ -92,17 +96,18 @@ int main(int argc, char* argv[]) {
       } else {
         LOG(INFO) << "loading " << FLAGS_path;
         tg = TupleGraph::Load(FLAGS_path, FLAGS_format);
-        LOG(INFO) << "done! loaded " << tg.nedge << " edges";
       }
     }
-    
+    LOG(INFO) << tuple_time;
     LOG(INFO) << "constructing graph";
     t = walltime();
     
-    auto g = G::create(tg);
+    auto g = G::create(tg, true);
     
-    // TODO: random init
-    forall(g, [](G::Vertex& v){ new (&v.data) PagerankVertexData(0.2); });
+    GRAPPA_TIME_REGION(init_time) {
+      // TODO: random init
+      forall(g, [](G::Vertex& v){ new (&v.data) PagerankVertexData(1.0); });
+    }
     
     tg.destroy();
     
@@ -112,8 +117,10 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "starting pagerank";
 
 #ifndef MANUAL
-    activate_all(g);
-    run_synchronous< PagerankVertexProgram >(g);
+    GRAPPA_TIME_REGION(total_time) {
+      activate_all(g);
+      run_synchronous< PagerankVertexProgram >(g);
+    }
 #else
     // "gather" once to initialize cache (doing with a scatter)
     forall(g, [=](G::Vertex& v){
@@ -166,7 +173,7 @@ int main(int argc, char* argv[]) {
     
     if (FLAGS_metrics) Metrics::merge_and_print();
     else {
-      std::cerr << iteration_time << "\n";
+      std::cerr << total_time << "\n" << iteration_time << "\n";
     }
     Metrics::merge_and_dump_to_file();
 
