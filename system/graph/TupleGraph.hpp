@@ -4,17 +4,18 @@
 namespace Grappa {
 
   class TupleGraph {
-  private:
-    bool initialized;
-
-    static TupleGraph load_bintsv4( std::string path );
-    void save_bintsv4( std::string path );
-    void save_tsv( std::string path );
-    
   public:    
     struct Edge { int64_t v0, v1; };
 
+  private:
+    bool initialized;
 
+    static TupleGraph load_generic( std::string, void (*f)( const char *, Edge*, Edge*) );
+    void save_generic( std::string, void (*f)( const char *, Edge*, Edge*) );
+    
+    void save_tsv( std::string path );
+    
+  public:
     GlobalAddress<Edge> edges;
     int64_t nedge; /* Number of edges in graph, in both cases */
   
