@@ -100,7 +100,7 @@ inline double walltime(void) {
 
 #define GRAPPA_TIME_REGION(var) \
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
-         var = (Grappa::walltime()-_tmpstart), _tmptime = 1)
+         var += (Grappa::walltime()-_tmpstart), _tmptime = 1)
 
 /// Compute ratio of doubles, returning 0 when divisor is 0
 template< typename T, typename U >

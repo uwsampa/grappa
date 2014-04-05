@@ -219,8 +219,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &Grappa::impl::failure_function );
   google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
-
-  DVLOG(1) << "Initializing Grappa library....";
+  
+  DVLOG(2) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
   VLOG(1) << "heap check enabled";
   Grappa_heapchecker = new HeapLeakChecker("Grappa");
@@ -325,7 +325,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     int64_t bytes_per_node = ppn * bytes_per_proc;
     DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
              << ", SHMMAX = " << SHMMAX << ", shmmax_adjusted_floor = " << shmmax_adjusted_floor;
-    VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
+    VLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     global_memory_size_bytes = bytes;
 
     Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
@@ -337,9 +337,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     Grappa::impl::global_bytes_per_locale = global_memory_size_bytes / locales();
   }
   
-  VLOG(1) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
-  VLOG(1) << "global_bytes_per_core = " << Grappa::impl::global_bytes_per_core;
-  VLOG(1) << "global_bytes_per_locale = " << Grappa::impl::global_bytes_per_locale;
+  VLOG(2) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
+  VLOG(2) << "global_bytes_per_core = " << Grappa::impl::global_bytes_per_core;
+  VLOG(2) << "global_bytes_per_locale = " << Grappa::impl::global_bytes_per_locale;
 
   Grappa_done_flag = false;
 
@@ -357,7 +357,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   // start threading layer
   master_thread = convert_to_master();
-  VLOG(1) << "Initializing tasking layer."
+  VLOG(2) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa::mycore(), node_neighbors, Grappa::cores() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
@@ -383,7 +383,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 /// arbitrary communication is allowed.
 void Grappa_activate() 
 {
-  DVLOG(1) << "Activating Grappa library....";
+  DVLOG(2) << "Activating Grappa library....";
   global_communicator.activate();
   locale_shared_memory.activate();
   global_task_manager.activate();
