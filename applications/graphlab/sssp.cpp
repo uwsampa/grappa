@@ -31,6 +31,11 @@ DEFINE_bool( metrics, false, "Dump metrics");
 
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
+
+DEFINE_string(path, "", "Path to graph source file.");
+DEFINE_string(format, "bintsv4", "Format of graph source file.");
+
+GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuple_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 
@@ -87,14 +92,25 @@ struct SSSPVertexProgram {
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
-    int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
-
-    double t;    
+    double t;
+    
+    TupleGraph tg;
+    
+    GRAPPA_TIME_REGION(tuple_time) {
+      if (FLAGS_path.empty()) {
+        int64_t NE = (1L << FLAGS_scale) * FLAGS_edgefactor;
+        tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
+      } else {
+        LOG(INFO) << "loading " << FLAGS_path;
+        tg = TupleGraph::Load(FLAGS_path, FLAGS_format);
+        LOG(INFO) << "done! loaded " << tg.nedge << " edges";
+      }
+    }
+    
     t = walltime();
     
-    auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
     auto g = G::create(tg);
-        
+    
     // TODO: random init
     forall(g, [=](G::Vertex& v){
       new (&v.data) SSSPVertexData();
