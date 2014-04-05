@@ -45,9 +45,11 @@ void activate(GlobalAddress<V> v) {
 /// - (currently) gather_edges:IN_EDGES, scatter_edges:(OUT_EDGES || NONE)
 template< typename VertexProg, typename V, typename E >
 void run_synchronous(GlobalAddress<Graph<V,E>> g) {
-  using G = Graph<V,E>;
-  using GVertex = typename G::Vertex;
-  using GEdge = typename G::Edge;
+#define GVertex typename Graph<V,E>::Vertex
+#define GEdge typename Graph<V,E>::Edge
+  // using G = Graph<V,E>;
+  // using GVertex = typename G::Vertex;
+  // using GEdge = typename G::Edge;
   
   // // tack the VertexProg data onto the existing vertex data
   // struct VPlus : public V {
