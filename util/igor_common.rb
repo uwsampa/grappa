@@ -156,7 +156,7 @@ Igor do
                  flat_combining 1
   }
   
-  params { grappa_version 'asplos14' }
+  params { grappa_version 'osdi14' }
   
   class << GFLAGS
     def expand
