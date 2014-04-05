@@ -42,7 +42,7 @@ void activate(GlobalAddress<V> v) {
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:
 /// - Delta caching enabled
-/// - (currently) gather_edges:IN_EDGES, scatter_edges:OUT_EDGES
+/// - (currently) gather_edges:IN_EDGES, scatter_edges:(OUT_EDGES || NONE)
 template< typename VertexProg, typename V, typename E >
 void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   using G = Graph<V,E>;
