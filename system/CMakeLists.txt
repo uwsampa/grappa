@@ -22,6 +22,7 @@ set(SYSTEM_SOURCES
   Collective.cpp
   Communicator.cpp
   Delegate.cpp
+  FileIO.cpp
   FlatCombiner.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
@@ -141,6 +142,7 @@ set(SYSTEM_SOURCES
 list(APPEND SYSTEM_SOURCES
   graph/Graph.hpp
   graph/Graph.cpp
+  graph/TupleGraph.cpp
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
