@@ -82,14 +82,14 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   
   int iteration = 0;
   
-  while ( V::total_active > 0 ) GRAPPA_TIME_REGION(iteration_time) {
+  while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
+      GRAPPA_TIME_REGION(iteration_time) {
     
     VLOG(1) << "iteration " << std::setw(3) << iteration
             << " -- active:" << V::total_active;
+    double t = walltime();
     
     V::total_active = 0; // 'apply' deactivates all vertices 
-    
-    if (iteration > FLAGS_max_iterations) break;
     
     forall(g, [=](GVertex& v){
       if (!v->active) return;
@@ -115,5 +115,6 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
     });
     
     iteration++;
+    VLOG(1) << "> time: " << walltime()-t;
   }
 }
