@@ -33,7 +33,7 @@ static void dump_mpi_info( MPI_Info info, const char * prefix = NULL  ) {
     ss << "   key " << i << ": " << key << " => " << value;
   }
 
-  LOG(INFO) << ss;
+  LOG(INFO) << ss.str();
 }
 
 static void dump_mpi_file_info( MPI_File f, const char * prefix = NULL ) {
