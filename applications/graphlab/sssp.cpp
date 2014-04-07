@@ -41,9 +41,9 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 
 const double MAX_DIST = std::numeric_limits<double>::max();
 
-struct SSSPVertexData : public GraphlabVertex<double> {
+struct SSSPVertexData : public GraphlabVertexData<double> {
   double dist, new_dist;
-  SSSPVertexData(): GraphlabVertex(), dist(MAX_DIST), new_dist(0.0) {}
+  SSSPVertexData(): dist(MAX_DIST), new_dist(0.0) {}
 };
 struct EdgeDistance {
   double dist;

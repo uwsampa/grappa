@@ -12,21 +12,17 @@ using delegate::call;
 using Empty = struct {};
 
 template< typename T >
-struct GraphlabVertex {
-  static Reducer<int64_t,ReducerType::Add> total_active;  
+struct GraphlabVertexData {
+  static Reducer<int64_t,ReducerType::Add> total_active;
   
   bool active;
   T cache;
-  GraphlabVertex(): active(false), cache() {}
-  void activate() {
-    if (!active) {
-      total_active++;
-      active = true;
-    }
-  }
+  GraphlabVertexData(): active(false), cache() {}
+  void activate() { if (!active) { total_active++; active = true; } }
+  void deactivate() { if (active) { total_active--; active = false; } }
   void post_delta(T d){ cache += d; }
 };
-template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertex<T>::total_active;
+template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertexData<T>::total_active;
 
 template< typename V, typename E >
 void activate_all(GlobalAddress<Graph<V,E>> g) {
@@ -98,7 +94,8 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
       
       // apply
       prog.apply(v, v->cache);
-      v->active = false;
+      
+      v->deactivate(); // FIXME: race with scatter
       
       if (prog.scatter_edges(v)) {
         // scatter
