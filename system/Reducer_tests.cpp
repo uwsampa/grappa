@@ -86,6 +86,9 @@ SimpleSymmetric<int> s_count;
 Reducer<int,ReducerType::Add> count;
 Reducer<bool,ReducerType::Or> active;
 
+using C = CmpElement<int,double>;
+Reducer<C,ReducerType::Max> best;
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
@@ -112,7 +115,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     call_on_all_cores([]{ s_count += 1; });
     BOOST_CHECK_EQUAL(sum(s_count), cores()+1);
     
-    BOOST_MESSAGE("== Test Reducer<T> ==");
+    BOOST_MESSAGE("# Test Reducer<T>");
+    BOOST_MESSAGE("## Test Reducer<T,Add>");
     
     BOOST_CHECK_EQUAL(count, 0);
     
@@ -122,6 +126,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     on_all_cores([]{ count++; });
     BOOST_CHECK_EQUAL(count, cores()+1);
     
+    BOOST_MESSAGE("## Test Reducer<T,Or>");
     BOOST_CHECK(!active);
     
     active |= true;
@@ -129,7 +134,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     active = false;
     BOOST_CHECK(!active);
-    
+
+    BOOST_MESSAGE("## Test Reducer<T,Max>");
+    on_all_cores([]{ best << C(mycore(), 3.0*mycore()); });
+    BOOST_CHECK_EQUAL(static_cast<C>(best).idx(), cores()-1);
   });
   Grappa::finalize();
 }

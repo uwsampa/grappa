@@ -136,7 +136,7 @@ namespace Grappa {
   using Super::operator=; \
   using Super::reset
   
-  enum class ReducerType { Add, Or, And };
+  enum class ReducerType { Add, Or, And, Max, Min };
   
   template< typename T, ReducerType R >
   class Reducer : public ReducerBase<T,collective_add> {};
@@ -172,6 +172,40 @@ namespace Grappa {
     void operator&=(const T& v){ this->local_value &= v; }
   };
   
+  template< typename T >
+  class Reducer<T,ReducerType::Max> : public ReducerBase<T,collective_max> {
+  public:
+    Super(ReducerBase<T,collective_max>);
+    void operator<<(const T& v){
+      if (v > this->local_value) {
+        this->local_value = v;
+      }
+    }
+  };
+
+  template< typename T >
+  class Reducer<T,ReducerType::Min> : public ReducerBase<T,collective_min> {
+  public:
+    Super(ReducerBase<T,collective_min>);
+    void operator<<(const T& v){
+      if (v < this->local_value) {
+        this->local_value = v;
+      }
+    }
+  };
+  
 #undef Super  
+  
+  template< typename Id, typename Cmp >
+  class CmpElement {
+    Id i; Cmp c;
+  public:
+    CmpElement(): i(), c() {}
+    CmpElement(Id i, Cmp c): i(i), c(c) {}
+    Id idx() const { return i; }
+    Cmp elem() const { return c; }
+    bool operator<(const CmpElement& e) const { return elem() < e.elem(); }
+    bool operator>(const CmpElement& e) const { return elem() > e.elem(); }
+  };
   
 } // namespace Grappa
