@@ -153,10 +153,13 @@ namespace Grappa {
   public:
     Super(ReducerBase<T,collective_add>);
     void operator+=(const T& v){ this->local_value += v; }
-    void operator++(){ this->local_value++; }  
+    void operator++(){ this->local_value++; }
     void operator++(int){ this->local_value++; }
+    void operator-=(const T& v){ this->local_value -= v; }
+    void operator--(){ this->local_value--; }
+    void operator--(int){ this->local_value--; }
     void operator=(const T& v){ this->reset(); this->local_value = v; }
-  };  
+  };
 
   template< typename T >
   class Reducer<T,ReducerType::Or> : public ReducerBase<T,collective_or> {
