@@ -217,6 +217,7 @@ namespace Grappa {
     
     // Constructor
     static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false) {
+      VLOG(1) << "Graph: " << (directed ? "directed" : "undirected");
       double t;
       auto g = symmetric_global_alloc<Graph>();
       
@@ -229,7 +230,7 @@ namespace Grappa {
       on_all_cores([g]{
         g->nv = Grappa::allreduce<int64_t,collective_max>(g->nv) + 1;
       });
-          VLOG(1) << "find_nv_time: " << walltime() - t;
+          VLOG(2) << "find_nv_time: " << walltime() - t;
   
       auto vs = global_alloc<Vertex>(g->nv);
       auto self = g;
@@ -268,7 +269,7 @@ namespace Grappa {
         if (!directed) count(g->vs+e.v1);
     #endif
       });
-      VLOG(1) << "count_time: " << walltime() - t;
+      VLOG(2) << "count_time: " << walltime() - t;
   
     #ifdef SMALL_GRAPH
       t = walltime();  
@@ -284,7 +285,7 @@ namespace Grappa {
     #else
       on_all_cores([g]{ allreduce_inplace<int64_t,collective_add>(g->scratch, g->nv); });
     #endif // USE_MPI3_COLLECTIVES
-      VLOG(1) << "allreduce_inplace_time: " << walltime() - t;  
+      VLOG(2) << "allreduce_inplace_time: " << walltime() - t;
       // on_all_cores([g]{ VLOG(5) << util::array_str("scratch", g->scratch, g->nv, 25); });
     #endif // SMALL_GRAPH  
   
@@ -363,7 +364,8 @@ namespace Grappa {
         }
         CHECK_EQ(offset, g->nadj_local);
       });
-  
+      
+      VLOG(1) << "-- vertices: " << g->nv;
       return g;
     }
   
@@ -461,7 +463,7 @@ namespace Grappa {
   
   namespace impl {
         
-    /// Iterate over all vertices, with vertex index
+    /// Parallel iteration over vertices with their corresponding index
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(GlobalAddress<G> g, F body,
                 void (F::*mf)(VertexID,typename G::Vertex&) const) {
@@ -470,18 +472,19 @@ namespace Grappa {
       });
     }
     
-    /// Iterate over all vertices
+    /// Parallel iteration over each vertex
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(GlobalAddress<G> g, F body, void (F::*mf)(typename G::Vertex&) const) {
       auto f = [body](VertexID i, typename G::Vertex& v){ body(v); };
       impl::forall<C,Threshold>(g, f, &decltype(f)::operator());
     }
     
-    /// Iterate over all adjacencies of all vertices in parallel
+    /// Parallel iteration over all adjacencies of all vertices,
+    /// executing at the *source* vertex.
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(GlobalAddress<G> g, F loop_body,
                 void (F::*mf)(typename G::Vertex& src, typename G::Edge& adj) const) {
-      auto f = [g,loop_body](VertexID i, typename G::Vertex& v){
+      auto f = [g,loop_body](typename G::Vertex& v){
         Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v),
             [&v,loop_body](typename G::Edge& e){
           loop_body(v, e);
@@ -489,7 +492,30 @@ namespace Grappa {
       };
       forall<C,Threshold>(g, f, &decltype(f)::operator());
     }
+
+    /// Parallel iteration over all adjacencies of all vertices,
+    /// executing at the *destination* vertex.
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(GlobalAddress<G> g, F loop_body,
+                void (F::*mf)(typename G::Edge& adj, typename G::Vertex& src) const) {
+      auto f = [g,loop_body](typename G::Vertex& v){
+        Grappa::forall<SyncMode::Async,C,Threshold>(adj(g,v),
+            [&v,loop_body,g](typename G::Edge& e){
+          auto e_id = e.id;
+          auto e_data = e.data;
+          Grappa::delegate::call<SyncMode::Async>(e.ga, [=](typename G::Vertex& ve){
+            auto local_e_data = e_data;
+            typename G::Edge e = { e_id, g->vs+e_id, local_e_data };
+            loop_body(e, ve);
+          });
+        });
+      };
+      forall<C,Threshold>(g, f, &decltype(f)::operator());
+    }
     
+    /// @deprecated
+    /// Parallel iteration over edges, making no assumptions about where it is executed.
+    /// Provides global addresses to both source and destination.
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(GlobalAddress<G> g, F loop_body,
                 void (F::*mf)(GlobalAddress<typename G::Vertex> src, GlobalAddress<typename G::Vertex> dst) const) {
@@ -503,9 +529,10 @@ namespace Grappa {
     
   }
   
-  /// Parallel iteration over a Graph. Options are:
-  ///
-  /// @code
+  /// Parallel iteration over a Graph. Specialization is performed
+  /// based on what arguments are asked for (and in what order).
+  /// Available options are:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   /// using G = Graph<VertexData,EdgeData>;
   /// GlobalAddress<G> g;
   ///
@@ -516,7 +543,9 @@ namespace Grappa {
   /// forall(g, [](VertexID i, G::Vertex& v){});
   ///
   /// // iterate over all adjacencies of all vertices
-  /// forall(g, [](G::Vertex& src, G::Edge& adj){ ... });
+  /// // (at the source vertex and edge, so both may be modified)
+  /// forall(g, [](G::Vertex& src, G::Edge& e){ ... });
+  /// 
   /// // (equivalent to)
   /// forall(g, [](G::Vertex& src){
   ///   forall(adj(g,src), [](G::Edge& adj){
@@ -524,6 +553,11 @@ namespace Grappa {
   ///   });
   /// });
   ///
+  /// // iterate over edges from the destination vertex, 
+  /// // must be **non-blocking**
+  /// // (edge no longer modifiable, but a copy is carried along)
+  /// forall(g, [](const G::Edge& e, G::Vertex& dst){ ... });
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename G = nullptr_t,
