@@ -29,6 +29,7 @@
 
 DEFINE_bool( metrics, false, "Dump metrics");
 
+DEFINE_bool( max_degree_source, false, "Start from maximum degree vertex");
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 
@@ -89,6 +90,9 @@ struct SSSPVertexProgram {
   }
 };
 
+using MaxDegree = CmpElement<VertexID,int64_t>;
+Reducer<MaxDegree,ReducerType::Max> max_degree;
+
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{
@@ -109,7 +113,7 @@ int main(int argc, char* argv[]) {
     
     t = walltime();
     
-    auto g = G::create(tg);
+    auto g = G::create(tg); // undirected
     
     // TODO: random init
     forall(g, [=](G::Vertex& v){
@@ -124,7 +128,13 @@ int main(int argc, char* argv[]) {
     construction_time = (walltime()-t);
     LOG(INFO) << construction_time;
     
-    auto root = choose_root(g);
+    VertexID root;
+    if (FLAGS_max_degree_source) {
+      forall(g, [](VertexID i, G::Vertex& v){ max_degree << MaxDegree(i, v.nadj); });
+      root = static_cast<MaxDegree>(max_degree).idx();
+    } else {
+      root = choose_root(g);
+    }
     
     LOG(INFO) << "starting SSSP on root:" << root;
     GRAPPA_TIME_REGION(total_time) {
