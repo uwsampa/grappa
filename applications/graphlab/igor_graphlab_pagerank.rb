@@ -20,7 +20,7 @@ Igor do
   params.merge!(GFLAGS)
   
   @c = -> { %Q[ %{tdir}/grappa_srun --no-freeze-on-error
-    -- %{tdir}/pagerank.exe --metrics
+    -- %{tdir}/pagerank.exe --metrics --vmodule graphlab=1
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
   command @c[]
