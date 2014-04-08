@@ -44,32 +44,34 @@ const double RESET_PROB = 0.15;
 DEFINE_double(tolerance, 1.0E-2, "tolerance");
 #define TOLERANCE FLAGS_tolerance
 
-struct PagerankVertexData : public GraphlabVertexData<double> {
+struct PagerankVertexData : public GraphlabVertexData<PagerankVertexData> {
   double rank;
-  PagerankVertexData(double initial_rank = 1.0): rank(initial_rank) {}
+  PagerankVertexData(double rank = 1.0): rank(rank) {}
 };
 
 using G = Graph<PagerankVertexData,Empty>;
 
-struct PagerankVertexProgram {
+struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   double delta;
   
-  bool gather_edges(const G::Vertex& v) const { return true; }
+  PagerankVertexProgram(Vertex& v) {}
   
-  double gather(G::Vertex& src, G::Edge& e) const {
+  bool gather_edges(const Vertex& v) const { return true; }
+  
+  Gather gather(Vertex& src, Edge& e) const {
     return src->rank / src.nadj;
   }
-  void apply(G::Vertex& v, double total) {
+  void apply(Vertex& v, double total) {
     auto new_val = (1.0 - RESET_PROB) * total + RESET_PROB;
     delta = (new_val - v->rank) / v.nadj;
     v->rank = new_val;
   }
-  bool scatter_edges(const G::Vertex& v) const {
+  bool scatter_edges(const Vertex& v) const {
     return std::fabs(delta * v.nadj) > TOLERANCE;
   }
-  void scatter(const G::Edge& e, G::Vertex& target) const {
-    target->post_delta(delta);
+  Gather scatter(const Edge& e, Vertex& target) const {
     target->activate();
+    return delta;
   }
 };
 

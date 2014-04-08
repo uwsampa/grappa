@@ -11,18 +11,33 @@ using delegate::call;
 
 using Empty = struct {};
 
-template< typename T >
+template< typename G, typename GatherType >
+struct GraphlabVertexProgram {
+  using Vertex = typename G::Vertex;
+  using Edge = typename G::Edge;
+  using Gather = GatherType;
+  
+  GatherType cache;
+  
+  GraphlabVertexProgram(): cache() {}
+  
+  void post_delta(GatherType d){ cache += d; }
+};
+
+template< typename Subclass >
 struct GraphlabVertexData {
   static Reducer<int64_t,ReducerType::Add> total_active;
   
-  bool active;
-  T cache;
-  GraphlabVertexData(): active(false), cache() {}
+  void* prog;
+  bool active, temp_active;
+  
+  GraphlabVertexData(): active(false) {}
   void activate() { if (!active) { total_active++; active = true; } }
   void deactivate() { if (active) { total_active--; active = false; } }
-  void post_delta(T d){ cache += d; }
 };
-template<typename T> Reducer<int64_t,ReducerType::Add> GraphlabVertexData<T>::total_active;
+
+template< typename Subclass >
+Reducer<int64_t,ReducerType::Add> GraphlabVertexData<Subclass>::total_active;
 
 template< typename V, typename E >
 void activate_all(GlobalAddress<Graph<V,E>> g) {
@@ -41,13 +56,15 @@ extern Reducer<int64_t,ReducerType::Add> ct;
 /// Synchronous GraphLab engine, assumes:
 /// - Delta caching enabled
 /// - (currently) gather_edges:IN_EDGES, scatter_edges:(OUT_EDGES || NONE)
+/// 
+/// Also requires that the Graph already contains the GraphlabVertexProgram
 template< typename VertexProg, typename V, typename E >
 void run_synchronous(GlobalAddress<Graph<V,E>> g) {
 #define GVertex typename Graph<V,E>::Vertex
 #define GEdge typename Graph<V,E>::Edge
-  // using G = Graph<V,E>;
-  // using GVertex = typename G::Vertex;
-  // using GEdge = typename G::Edge;
+  auto prog = [](GVertex& v) -> VertexProg& {
+    return *static_cast<VertexProg*>(v->prog);
+  };
   
   // // tack the VertexProg data onto the existing vertex data
   // struct VPlus : public V {
@@ -64,20 +81,16 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   
   // TODO: find efficient way to skip 'gather' if 'gather_edges' is always false
   
-  forall(g, [=](GVertex& v){
-    v->cache = 0.0;
-  });
+  // initialize GraphlabVertexProgram
+  forall(g, [=](GVertex& v){ v->prog = new VertexProg(v); });
   
   forall(g, [=](GVertex& v){
-    forall<async>(adj(g,v), [&v](GEdge& e){
-      
-      VertexProg prog;
-      
+    forall<async>(adj(g,v), [=,&v](GEdge& e){
       // gather
-      auto delta = prog.gather(v, e);
+      auto delta = prog(v).gather(v, e);
       
-      call<async>(e.ga, [=](GVertex& ve){
-        ve->post_delta(delta);
+      call<async>(e.ga, [=](GVertex& ve){        
+        prog(ve).post_delta(delta);
       });
     });
   });
@@ -96,24 +109,31 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
     double t = walltime();
     
     forall(g, [=](GVertex& v){
-      if (!v->active) return;
+      if (v->active) {
+        v->temp_active = true;
+        v->deactivate();
+      }
+    });
+    
+    forall(g, [=](GVertex& v){
+      if (!v->temp_active) return;
       
-      VertexProg prog;
+      auto& p = prog(v);
       
       // apply
-      prog.apply(v, v->cache);
+      p.apply(v, p.cache);
       
-      v->deactivate(); // FIXME: race with scatter
-      
-      if (prog.scatter_edges(v)) {
+      if (p.scatter_edges(v)) {
+        auto prog_copy = p;
         // scatter
-        forall<async>(adj(g,v), [g,prog](GEdge& e){
+        forall<async>(adj(g,v), [=](GEdge& e){
           auto e_id = e.id;
           auto e_data = e.data;
-          call<async>(e.ga, [g,e_id,e_data,prog](GVertex& ve){
+          call<async>(e.ga, [=](GVertex& ve){
             auto local_e_data = e_data;
             GEdge e = { e_id, g->vs+e_id, local_e_data };
-            prog.scatter(e, ve);
+            auto gather_delta = prog_copy.scatter(e, ve);
+            prog(ve).post_delta(gather_delta);
           });
         });
       }
@@ -122,4 +142,6 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
     iteration++;
     VLOG(1) << "> time: " << walltime()-t;
   }
+  
+  forall(g, [](GVertex& v){ delete static_cast<VertexProg*>(v->prog); });
 }
