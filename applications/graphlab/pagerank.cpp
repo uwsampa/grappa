@@ -41,43 +41,41 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 
 const double RESET_PROB = 0.15;
-const double TOLERANCE = 1.0E-2;
+DEFINE_double(tolerance, 1.0E-2, "tolerance");
+#define TOLERANCE FLAGS_tolerance
 
-Reducer<double,ReducerType::Add> total_rank;
-
-struct PagerankVertexData : public GraphlabVertex<double> {
-
+struct PagerankVertexData : public GraphlabVertexData<double> {
   double rank;
-  
-  PagerankVertexData(double initial_rank = 0.0)
-    : GraphlabVertex()
-    , rank(initial_rank)
-  { }
+  PagerankVertexData(double initial_rank = 1.0): rank(initial_rank) {}
 };
 
 using G = Graph<PagerankVertexData,Empty>;
 
 struct PagerankVertexProgram {
-  double last_change;
+  double delta;
   
   bool gather_edges(const G::Vertex& v) const { return true; }
-  bool scatter_edges(const G::Vertex& v) const { return true; }
   
   double gather(G::Vertex& src, G::Edge& e) const {
     return src->rank / src.nadj;
   }
   void apply(G::Vertex& v, double total) {
-    auto new_val = (1.0 - RESET_PROB) * v->cache + RESET_PROB;
-    last_change = (new_val - v->rank);
+    auto new_val = (1.0 - RESET_PROB) * total + RESET_PROB;
+    delta = (new_val - v->rank) / v.nadj;
     v->rank = new_val;
   }
+  bool scatter_edges(const G::Vertex& v) const {
+    return std::fabs(delta * v.nadj) > TOLERANCE;
+  }
   void scatter(const G::Edge& e, G::Vertex& target) const {
-    target->post_delta(last_change);
-    if (std::fabs(last_change) > TOLERANCE) {
-      target->activate();
-    }
+    target->post_delta(delta);
+    target->activate();
   }
 };
+
+Reducer<double,ReducerType::Add> total_rank;
+Reducer<int64_t,ReducerType::Add> nzero;
+Reducer<int64_t,ReducerType::Add> count;
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
@@ -108,6 +106,18 @@ int main(int argc, char* argv[]) {
       // TODO: random init
       forall(g, [](G::Vertex& v){ new (&v.data) PagerankVertexData(1.0); });
     }
+    
+    forall(g, [](G::Vertex& v){ if (v.nadj == 0) nzero++; });
+    VLOG(0) << "nzero: " << nzero;
+    
+    count = 0;
+    forall(g, [](G::Vertex& v){ if (v.nadj > 0) v->activate(); });
+    forall(g, [](G::Edge& e, G::Vertex& ve){ ve->activate(); });
+    forall(g, [](G::Vertex& v){
+      if (v->active) count++;
+      v->deactivate();
+    });
+    VLOG(0) << "actual vertices: " << count;
     
     tg.destroy();
     
