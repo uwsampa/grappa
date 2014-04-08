@@ -35,6 +35,8 @@ void activate(GlobalAddress<V> v) {
 }
 
 
+extern Reducer<int64_t,ReducerType::Add> ct;
+
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:
 /// - Delta caching enabled
@@ -63,10 +65,14 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   // TODO: find efficient way to skip 'gather' if 'gather_edges' is always false
   
   forall(g, [=](GVertex& v){
+    v->cache = 0.0;
+  });
+  
+  forall(g, [=](GVertex& v){
     forall<async>(adj(g,v), [&v](GEdge& e){
       
       VertexProg prog;
-            
+      
       // gather
       auto delta = prog.gather(v, e);
       
@@ -81,11 +87,13 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
       GRAPPA_TIME_REGION(iteration_time) {
     
+    ct = 0;
+    forall(g, [=](GVertex& v){ if (v->active) ct++; });
+    CHECK_EQ(ct, V::total_active);
+    
     VLOG(1) << "iteration " << std::setw(3) << iteration
             << " -- active:" << V::total_active;
     double t = walltime();
-    
-    V::total_active = 0; // 'apply' deactivates all vertices 
     
     forall(g, [=](GVertex& v){
       if (!v->active) return;
