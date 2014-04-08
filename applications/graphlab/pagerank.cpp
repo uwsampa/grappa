@@ -61,7 +61,7 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   Gather gather(Vertex& src, Edge& e) const {
     return src->rank / src.nadj;
   }
-  void apply(Vertex& v, double total) {
+  void apply(Vertex& v, const Gather& total) {
     auto new_val = (1.0 - RESET_PROB) * total + RESET_PROB;
     delta = (new_val - v->rank) / v.nadj;
     v->rank = new_val;

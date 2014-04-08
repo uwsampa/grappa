@@ -29,7 +29,7 @@ struct GraphlabVertexData {
   static Reducer<int64_t,ReducerType::Add> total_active;
   
   void* prog;
-  bool active, temp_active;
+  bool active, active_minor_step;
   
   GraphlabVertexData(): active(false) {}
   void activate() { if (!active) { total_active++; active = true; } }
@@ -110,21 +110,25 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
     
     forall(g, [=](GVertex& v){
       if (v->active) {
-        v->temp_active = true;
+        v->active_minor_step = true;
         v->deactivate();
       }
     });
     
     forall(g, [=](GVertex& v){
-      if (!v->temp_active) return;
+      if (!v->active_minor_step) return;
       
       auto& p = prog(v);
       
       // apply
       p.apply(v, p.cache);
       
-      if (p.scatter_edges(v)) {
-        auto prog_copy = p;
+      v->active_minor_step = p.scatter_edges(v);
+    });
+    
+    forall(g, [=](GVertex& v){
+      if (v->active_minor_step) {
+        auto prog_copy = prog(v);
         // scatter
         forall<async>(adj(g,v), [=](GEdge& e){
           auto e_id = e.id;
