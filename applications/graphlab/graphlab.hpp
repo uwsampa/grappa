@@ -49,9 +49,6 @@ void activate(GlobalAddress<V> v) {
   delegate::call(v, [](V& v){ v->activate(); });
 }
 
-
-extern Reducer<int64_t,ReducerType::Add> ct;
-
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:
 /// - Delta caching enabled
@@ -99,10 +96,6 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   
   while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
       GRAPPA_TIME_REGION(iteration_time) {
-    
-    ct = 0;
-    forall(g, [=](GVertex& v){ if (v->active) ct++; });
-    CHECK_EQ(ct, V::total_active);
     
     VLOG(1) << "iteration " << std::setw(3) << iteration
             << " -- active:" << V::total_active;
