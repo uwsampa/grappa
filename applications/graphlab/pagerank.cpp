@@ -113,12 +113,7 @@ int main(int argc, char* argv[]) {
     VLOG(0) << "nzero: " << nzero;
     
     count = 0;
-    forall(g, [](G::Vertex& v){ if (v.nadj > 0) v->activate(); });
-    forall(g, [](G::Edge& e, G::Vertex& ve){ ve->activate(); });
-    forall(g, [](G::Vertex& v){
-      if (v->active) count++;
-      v->deactivate();
-    });
+    forall(g, [](G::Vertex& v){ count++; });
     VLOG(0) << "actual vertices: " << count;
     
     tg.destroy();

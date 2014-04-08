@@ -35,12 +35,13 @@ namespace Grappa {
       int64_t nadj;        // number of adjacencies
       int64_t local_sz;    // size of local allocation (regardless of how full it is)
       
-      VertexBase(): local_adj(nullptr), nadj(0), local_sz(0) {}
+      VertexBase(): valid(true), local_adj(nullptr), nadj(0), local_sz(0) {}
       
       VertexBase(const VertexBase& v):
         local_adj(v.local_adj),
         nadj(v.nadj),
-        local_sz(v.local_sz)
+        local_sz(v.local_sz),
+        valid(true)
       { }
     };
     
@@ -317,8 +318,11 @@ namespace Grappa {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(GlobalAddress<G> g, F body,
                 void (F::*mf)(VertexID,typename G::Vertex&) const) {
-      Grappa::forall<C,Threshold>(g->vs, g->nv, [body](int64_t i, typename G::Vertex& v){
-        body(i, v);
+      Grappa::forall<C,Threshold>(g->vs, g->nv,
+      [body](int64_t i, typename G::Vertex& v){
+        if (v.valid) {
+          body(i, v);
+        }
       });
     }
     
@@ -604,6 +608,12 @@ namespace Grappa {
       }
       CHECK_EQ(offset, g->nadj_local);
     });
+    
+    // (note: this isn't necessary if we don't create vertices for those with no edges)
+    // find which are actually active (first, those with outgoing edges)
+    forall(g, [](Vertex& v){ v.valid = (v.nadj > 0); });
+    // then those with only incoming edges (reachable from at least one active vertex)
+    forall(g, [](Edge& e, Vertex& ve){ ve.valid = true; });
     
     VLOG(1) << "-- vertices: " << g->nv;
     return g;
