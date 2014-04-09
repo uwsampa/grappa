@@ -217,6 +217,48 @@ add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
+macro(add_commtest_exe target exe )
+  add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
+  set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
+  target_link_libraries(${target}
+    gflags
+    glog
+    rt
+    ${MPI_CXX_LIBRARIES}
+    ${Boost_LIBRARIES}
+  )
+endmacro(add_commtest_exe)
+
+macro(add_commtest_test name nnode ppn)
+  get_filename_component(base ${name} NAME_WE) # name without extension
+  
+  add_commtest_exe(${name} ${name} Communicator.cpp ${ARGN})
+  set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
+  set_target_properties(${test} PROPERTIES
+    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
+  )
+  
+  # TODO: use "ctest" to make whole regression test suite
+  add_custom_target("check-${base}"
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+  )
+  add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+  )
+  
+  set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
+  list(APPEND GRAPPA_TESTS "check-${base}")
+endmacro(add_commtest_test)
+
+macro(add_commtest_check test_cpp nnode ppn target)
+  get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
+  set(test "${test_name}.test")
+  add_commtest_test(${test} ${nnode} ${ppn} ${test_cpp})
+endmacro()
+
+add_commtest_check( Communicator_tests.cpp   2 1  pass )
+
+
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
