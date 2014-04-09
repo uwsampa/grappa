@@ -3,6 +3,7 @@
 
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
+#include <GlobalCompletionEvent.hpp>
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
 #include <Metrics.hpp>
@@ -10,10 +11,11 @@
 #include <list>
 #include <cmath>
 
-// for all hash tables
-//GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_tables_size, 0);
-GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps, 0);
+
+//GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
+
 
 // for naming the types scoped in MatchesDHT
 #define MDHT_TYPE(type) typename MatchesDHT<K,V,HF>::type
@@ -150,7 +152,7 @@ class MatchesDHT {
 
 
     // version of lookup that takes a continuation instead of returning results back
-    template< typename CF, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup_iter ( K key, CF f ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
@@ -158,11 +160,11 @@ class MatchesDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
-      spawnRemote<GCE>( target.core(), [key, target, f, this]() {
+      Grappa::spawnRemote<GCE>( target.core(), [key, target, f, this]() {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
-          forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
+          Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               auto results = *resultsptr;
               // call the continuation with the lookup result
@@ -174,7 +176,7 @@ class MatchesDHT {
     }
 
     // version of lookup that takes a continuation instead of returning results back
-    template< typename CF, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup ( K key, CF f ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 

@@ -10,6 +10,8 @@ set(SOURCES
   relation_io.cpp
   utils.h
   MatchesDHT.hpp
+  MatchesDHT.cpp
+  DoubleDHT.hpp
   Hypercube.hpp
   Hypercube.cpp
   local_graph.cpp

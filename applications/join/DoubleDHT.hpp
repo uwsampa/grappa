@@ -2,6 +2,7 @@
 
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
+#include <GlobalCompletionEvent.hpp>
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
 #include <Metrics.hpp>
@@ -9,10 +10,9 @@
 #include <list>
 #include <cmath>
 
-// for all hash tables
-//GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, max_cell_length, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_tables_size, 0);
-GRAPPA_DEFINE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps, 0);
+//GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
 // for naming the types scoped in DoubleDHT
 #define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,HF>::type
@@ -196,7 +196,7 @@ class DoubleDHT {
     // VL == VR, or might be different, so we can't check on them either.
     
     // version of lookup that takes a continuation instead of returning results back
-    template< typename CF, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert_lookup_iter_left ( K key, VL val, CF f ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
@@ -204,7 +204,7 @@ class DoubleDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
-      spawnRemote<GCE>( target.core(), [key, val, target, f, this]() {
+      Grappa::spawnRemote<GCE>( target.core(), [key, val, target, f, this]() {
         
         // this is atomic { insert_local; lookup_local }
         insert_local_left( key, target.pointer(), val );
@@ -212,7 +212,7 @@ class DoubleDHT {
         Entry<VR> e;
         if (lookup_local_right( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
-          forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
+          Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               auto results = *resultsptr;
               // call the continuation with the lookup result
@@ -223,13 +223,13 @@ class DoubleDHT {
       });
     }
     // overload for only specifying GCE
-  template<GlobalCompletionEvent * GCE, typename CF>
+  template<Grappa::GlobalCompletionEvent * GCE, typename CF>
   void insert_lookup_iter_left ( K key, VL val, CF f ) {
     insert_lookup_iter_left<CF, GCE>( key, val, f );
   }
 
 
-    template< typename CF, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert_lookup_iter_right ( K key, VR val, CF f ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
@@ -237,7 +237,7 @@ class DoubleDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
-      spawnRemote<GCE>( target.core(), [key, val, target, f, this]() {
+      Grappa::spawnRemote<GCE>( target.core(), [key, val, target, f, this]() {
         
         // this is atomic { insert_local; lookup_local }
         insert_local_right( key, target.pointer(), val );
@@ -245,7 +245,7 @@ class DoubleDHT {
         Entry<VL> e;
         if (lookup_local_left( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
-          forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
+          Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               auto results = *resultsptr;
               // call the continuation with the lookup result
@@ -256,7 +256,7 @@ class DoubleDHT {
       });
     }
     // overload for only specifying GCE
-  template<GlobalCompletionEvent * GCE, typename CF>
+  template<Grappa::GlobalCompletionEvent * GCE, typename CF>
   void insert_lookup_iter_right ( K key, VR val, CF f ) {
     insert_lookup_iter_right<CF, GCE>( key, val, f );
   }
