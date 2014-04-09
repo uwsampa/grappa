@@ -462,6 +462,7 @@ struct LocalIterator {
   size_t nelem;
   T * begin() { return base.localize(); }
   T * end()   { return (base+nelem).localize(); }
+  size_t size() { return nelem; }
 };
 
 /// Helper for iterating over local elements of a Linear address range.

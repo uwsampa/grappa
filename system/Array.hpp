@@ -56,6 +56,14 @@ void memset(GlobalAddress<T> base, S value, size_t count) {
   });
 }
 
+/// Type-based memset for local arrays to match what is provided for distributed arrays.
+template< typename T, typename S >
+void memset(T* base, S value, size_t count) {
+  for (size_t i=0; i < count; i++) {
+    base[i] = value;
+  }
+}
+
 namespace impl {
   /// Copy elements of array (src..src+nelem) that are local to corresponding locations in dst
   template< typename T >
@@ -150,7 +158,11 @@ namespace util {
   /// String representation of a local array, matches form of Grappa::array_str that takes a global array.
   template<typename T>
   inline std::string array_str(const char * name, T * base, size_t nelem, int width = 10) {
-    std::stringstream ss; ss << "\n" << name << ": [";
+    std::stringstream ss;
+    if (name) {
+      ss << "\n" << name << ": ";
+    }
+    ss << "[";
     for (size_t i=0; i<nelem; i++) {
       if (i % width == 0) ss << "\n  ";
       ss << " " << base[i];
@@ -182,7 +194,11 @@ namespace util {
 
   template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
   inline std::string array_str(const char * name, ArrayT array, int width = 10) {
-    std::stringstream ss; ss << "\n" << name << ": [";
+    std::stringstream ss;
+    if (name) {
+      ss << "\n" << name << ": ";
+    }
+    ss << "[";
     long i=0;
     for (auto e : array) {
       if (i % width == 0) ss << "\n  ";
@@ -191,7 +207,7 @@ namespace util {
     }
     ss << "\n]";
     return ss.str();
-  }
+  }  
   
   template<typename T>
   struct SimpleIterator {
@@ -216,3 +232,9 @@ namespace util {
 
 /// @}
 } // namespace Grappa
+
+template< typename T >
+std::ostream& operator<<(std::ostream& o, std::vector<T> v) {
+  o << Grappa::util::array_str(nullptr, &v[0], v.size());
+  return o;
+}

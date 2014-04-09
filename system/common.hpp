@@ -29,6 +29,22 @@
 #include <stdint.h>
 #include <iostream>
 #include <glog/logging.h>
+#include <memory>
+#include <algorithm>
+
+using std::unique_ptr;
+
+/// Construct unique_ptr more easily. (to be included in C++1y)
+/// 
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// auto m = make_unique<MyClass>(a,5);
+/// // equivalent to:
+/// auto m = std::unique_ptr<MyClass>(new MyClass(a,5));
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 
 #include <cstddef>
 using std::nullptr_t;

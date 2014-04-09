@@ -21,6 +21,8 @@
 // http://www.affero.org/oagpl.html.
 ////////////////////////////////////////////////////////////////////////
 
+#pragma once
+
 #include <unistd.h>
 #include <aio.h>
 #include <stdint.h>
