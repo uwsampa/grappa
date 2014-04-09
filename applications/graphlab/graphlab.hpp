@@ -2,6 +2,20 @@
 #include <Grappa.hpp>
 #include <graph/Graph.hpp>
 #include <Reducer.hpp>
+#include <SmallLocalSet.hpp>
+
+#include <unordered_set>
+#include <unordered_map>
+#include <vector>
+using std::unordered_set;
+using std::unordered_map;
+using std::vector;
+
+using CoreSet = SmallLocalSet<Core>;
+
+// #include "cuckoo_set_pow2.hpp"
+// using graphlab::cuckoo_set_pow2;
+//using CoreSet = cuckoo_set_pow2<Core>;
 
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, iteration_time);
 DECLARE_int32(max_iterations);
@@ -10,6 +24,94 @@ using namespace Grappa;
 using delegate::call;
 
 using Empty = struct {};
+
+namespace Graphlab {
+
+  template< typename V, typename E >
+  class Graph {
+    GlobalAddress<Graph> self;
+  public:
+    static GlobalAddress<Graph> create(TupleGraph tg) {
+      VLOG(1) << "Graphlab::Graph::create( undirected, greedy_oblivious )";
+      auto g = symmetric_global_alloc<Graph>();
+      
+      on_all_cores([=]{
+        g->self = g;
+        
+        // vertex placements that this core knows about (array of cores, each with a set of vertices mapped to it)
+        unordered_map<VertexID,CoreSet> vplace;
+        auto local_edges = iterate_local(tg.edges, tg.nedge);
+        auto nlocal = local_edges.size();
+        auto idx = [&](TupleGraph::Edge& e){ return &e - local_edges.begin(); };
+        
+        std::vector<Core> assignments; assignments.resize(local_edges.size());
+        size_t* edge_cts = locale_alloc<size_t>(cores());
+        Grappa::memset(edge_cts, 0, cores());
+        
+        /// cores this vertex has been placed on
+        auto vcores = [&](VertexID i) -> CoreSet& {
+          if (vplace.count(i) == 0) {
+            vplace[i];
+          }
+          return vplace[i];
+        };
+        
+        auto assign = [&](TupleGraph::Edge& e, Core c) {
+          CHECK_LT(c, cores());
+          CHECK_LT(idx(e), nlocal);
+          assignments[idx(e)] = c;
+          edge_cts[c]++;
+          for (auto v : {e.v0, e.v1}) {
+            if (vplace[v].count(c) == 0) {
+              CHECK_GE(c, 0);
+              vplace[v].insert(c);
+            }
+          }
+        };
+        
+        auto cmp_load = [&](Core c0, Core c1) { return edge_cts[c0] < edge_cts[c1]; };
+        
+        for (auto& e : local_edges) {
+          auto &vs0 = vcores(e.v0), &vs1 = vcores(e.v1);
+          
+          auto common = intersect_choose_random(vs0, vs1);
+          if (common != CoreSet::INVALID) {
+            // place this edge on 'common' because both vertices are already there
+            assign(e, common);
+          } else if (!vs0.empty() && !vs1.empty()) {
+            // both assigned but no intersect, choose the least-loaded machine
+            assign(e, min_element(vs0, vs1, cmp_load));
+          } else if (!vs0.empty()) {
+            // only v0 assigned, choose one of its cores
+            assign(e, min_element(vs0, cmp_load));
+          } else if (!vs1.empty()) {
+            // only v1 assigned, choose one of its cores
+            assign(e, min_element(vs1, cmp_load));
+          } else {
+            // neither assigned, so pick overall least-loaded core
+            auto c = min_element(Range<Core>{0,cores()}, cmp_load);
+            // prefer spreading out over all cores
+            if (edge_cts[mycore()] <= edge_cts[c]) c = mycore();
+            assign(e, c);
+          }
+        }
+        
+        allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
+        
+        if (mycore() == 0) {
+          std::cerr << util::array_str("edge_cts", edge_cts, cores()) << "\n";
+        }
+      });
+      
+      // forall(tg.edges, tg.nedge, [](TupleGraph::Edge& e){
+      //   
+      // });
+      
+      return g;
+    }
+  } GRAPPA_BLOCK_ALIGNED;
+
+}
 
 template< typename G, typename GatherType >
 struct GraphlabVertexProgram {
