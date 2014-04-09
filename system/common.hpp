@@ -176,8 +176,40 @@ T * Grappa_magic_identity_function(T * t) {
   return t;
 }
 
+/// Helper for invoking 'std::min_element' on containers.
+template< typename Container, typename Comparator >
+auto min_element(const Container& c, Comparator cmp) -> decltype(*c.begin()) {
+  return *std::min_element(c.begin(), c.end(), cmp);
+}
+
+/// Helper for invoking 'std::min_element' on containers.
+template< typename Container, typename Comparator >
+auto min_element(const Container& c0, const Container& c1, Comparator cmp) -> decltype(*c0.begin()) {
+   auto m0 = min_element(c0, cmp);
+   auto m1 = min_element(c1, cmp);
+   return cmp(m0,m1) ? m0 : m1;
+}
+
+/// Range type that represents the values `[start,end)`.
+/// Only valid for types that define `<`, `==`, and `++`.
+template< typename T >
+struct Range { T start, end; };
+
+/// Helper for invoking 'std::min_element' on a Range.
+template< typename T, typename Comparator >
+T min_element(Range<T> r, Comparator cmp) {
+  T best = r.start;
+  for (T e = r.start; e < r.end; e++) {
+    if (cmp(e,best)) {
+      best = e;
+    }
+  }
+  return best;
+}
+
 /// range for block distribution
-struct range_t { int64_t start, end; };
+using range_t = Range<int64_t>;
+
 
 inline std::ostream& operator<<(std::ostream& o, const range_t& r) {
   o << "<" << r.start << "," << r.end << ">";
