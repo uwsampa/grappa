@@ -27,9 +27,11 @@ using delegate::call;
 using Empty = struct {};
 
 namespace Grappa {
-
+  
+  namespace impl { class GraphlabGraphBase {}; }
+  
   template< typename V, typename E >
-  class GraphlabGraph {
+  class GraphlabGraph : public impl::GraphlabGraphBase {
   public:
     struct Edge {
       VertexID src, dst;
@@ -300,23 +302,43 @@ namespace Grappa {
       
       return g;
     }
-    
+        
   } GRAPPA_BLOCK_ALIGNED;
   
-  template< typename G > struct MasterIterator { GlobalAddress<G> g; };
-  template< typename G > MasterIterator<G> masters(GlobalAddress<G> g) {
-    return MasterIterator<G>{g};
+  
+  struct Iter {
+    /// Iterator over master vertices in GraphlabGraph.
+    template< typename G, class = typename std::enable_if<std::is_base_of<impl::GraphlabGraphBase,G>::value>::type >
+    struct Masters { GlobalAddress<G> g; };
+    
+    /// Iterator over all vertices in GraphlabGraph.
+    template< typename G, class = typename std::enable_if<std::is_base_of<impl::GraphlabGraphBase,G>::value>::type >
+    struct Ghosts { GlobalAddress<G> g; };
+  };
+  
+  /// Iterator over master vertices in GraphlabGraph.
+  template< typename V, typename E >
+  Iter::Masters<GraphlabGraph<V,E>> masters(GlobalAddress<GraphlabGraph<V,E>> g) {
+    return Iter::Masters<GraphlabGraph<V,E>>{ g };
+  }
+
+  /// Iterator over all vertices in GraphlabGraph.
+  template< typename V, typename E >
+  Iter::Ghosts<GraphlabGraph<V,E>> ghosts(GlobalAddress<GraphlabGraph<V,E>> g) {
+    return Iter::Ghosts<GraphlabGraph<V,E>>{ g };
   }
   
   namespace impl {
   
+    /// Iterate over just master vertices in GraphlabGraph.
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
-    void forall(MasterIterator<G> it, F body,
+    void forall(Iter::Masters<G> it, F body,
                 void (F::*mf)(typename G::Vertex&) const) {
       on_all_cores([=]{
         finish<C>([=]{
           auto g = it.g;
-          forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>(0, g->l_verts.size(), [g,body](int64_t i){
+          forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
+          (0, g->l_verts.size(), [g,body](int64_t i){
             auto& v = g->l_verts[i];
             if (v.master.core() == mycore()) {
               body(v);
@@ -326,13 +348,43 @@ namespace Grappa {
       });
     }
     
+    
+    /// Iterate over all vertices including ghosts
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(Iter::Ghosts<G> it, F body,
+                void (F::*mf)(typename G::Vertex&) const) {
+      on_all_cores([=]{
+        finish<C>([=]{
+          auto g = it.g;
+          forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
+          (0, g->l_verts.size(), [g,body](int64_t i){
+            body(g->l_verts[i]);
+          });
+        });
+      });
+    }
+    
+    /// Iterate over each vertex once; equivalent to forall(masters(g),...).
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename E, typename F >
+    void forall(GlobalAddress<GraphlabGraph<V,E>> g, F body,
+                void (F::*mf)(typename GraphlabGraph<V,E>::Vertex&) const) {
+      forall(masters(g), body, &F::operator());
+    }
+
+    /// Iterate over all edges
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename E, typename F >
+    void forall(GlobalAddress<GraphlabGraph<V,E>> g, F body,
+                void (F::*mf)(typename GraphlabGraph<V,E>::Edge&) const) {
+      
+    }
+    
   }
   
   template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename G = nullptr_t,
+            typename Iter,
             typename F = nullptr_t >
-  void forall(MasterIterator<G> it, F body) {
+  void forall(Iter it, F body) {
     impl::forall<C,Threshold>(it, body, &F::operator());
   }
   

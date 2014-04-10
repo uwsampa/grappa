@@ -111,6 +111,13 @@ int main(int argc, char* argv[]) {
     });
     LOG(INFO) << "count: " << count;
     CHECK_EQ(count, g->nv);
+
+    count = 0;
+    forall(ghosts(g), [](G::Vertex& v){
+      count++;
+    });
+    LOG(INFO) << "count(all): " << count;
+    CHECK_EQ(count, g->nv_over);
     
   });
   finalize();
