@@ -95,6 +95,12 @@ void deserializer( char * f ) {
   (*obj)();
 }
 
+template < typename F >
+void deserializer_with_payload( char * f ) {
+  F * obj = reinterpret_cast< F * >( f );
+  (*obj)( (void*) (f + sizeof(F)) );
+}
+
 }
 }
 
@@ -171,7 +177,7 @@ public:
     return locale_of_core_[c];
   }
 
-    const char * hostname();
+  const char * hostname();
 
   Context * try_get_send_context();
 
@@ -194,16 +200,41 @@ public:
     c->callback = NULL;
     char * buf = (char*) c->buf;
 
-    *((Grappa::impl::Deserializer*)buf) = Grappa::impl::deserializer<F>;
+    *((void**)buf) = (void*) Grappa::impl::deserializer<F>;
+    buf += sizeof(Grappa::impl::Deserializer);
     
-    memcpy( buf + sizeof(Grappa::impl::Deserializer), &f, sizeof(f) );
-
-    post_send( c, dest, sizeof(Grappa::impl::Deserializer) + sizeof(f) );
+    memcpy( buf, &f, sizeof(f) );
+    buf += sizeof(f);
+    
+    post_send( c, dest, (buf - ((char*) c->buf)) );
   }
-  
+
+  template< typename F >
+  void send_immediate_with_payload( int dest, F f, void * payload = NULL, size_t payload_size ) {
+    Context * c = NULL;
+    while( NULL == (c = try_get_send_context()) ) {
+      garbage_collect();
+    }
+          
+    DVLOG(3) << "Sending immediate " << &f << " to " << dest << " with " << c;
+    c->callback = NULL;
+    char * buf = (char*) c->buf;
+
+    *((void**)buf) = (void*) Grappa::impl::deserializer_with_payload<F>;
+    buf += sizeof(Grappa::impl::Deserializer);
+    
+    memcpy( buf, &f, sizeof(f) );
+    buf += sizeof(f);
+
+    memcpy( buf, payload, payload_size );
+    buf += payload_size;
+    
+    post_send( c, dest, (buf - ((char*) c->buf)) );
+  }
+
   void poll( unsigned int max_receives = 0 );
-
-
+  
+  
   
   /// Global (anonymous) barrier (ALLNODES)
   inline void barrier() {
@@ -255,21 +286,6 @@ public:
 //     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
 // #endif
 //     GASNET_CHECK( gasnet_AMRequestLong0( node, handler, buf, size, dest_buf ) );
-//   }
-
-//   /// Send no-argment active message with payload via RDMA asynchronously.
-//   inline void send_async( Core node, int handler, void * buf, size_t size, void * dest_buf ) { 
-//     DCHECK_EQ( communication_is_allowed_, true );
-//     stats.record_message( size );
-// #ifdef VTRACE_FULL
-//     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
-// #endif
-//     GASNET_CHECK( gasnet_AMRequestLongAsync0( node, handler, buf, size, dest_buf ) );
-//   }
-
-//   /// poll messaging layer
-//   inline void poll() { 
-//     //
 //   }
 
 };
