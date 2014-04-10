@@ -307,7 +307,7 @@ void Communicator::repost_receive_buffers() {
 
 static void receive_buffer( void * buf ) {
   auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( buf );
-  (*fp)( (char*) buf );
+  (*fp)( (char*) (fp+1) );
 }
 
 static void receive( Context * c ) {

@@ -42,8 +42,6 @@ int receive_count = 0;
 
 
 void ping_test() {
-  success = false;
-
   int target = (Grappa::mycore() + ( Grappa::cores() / 2 ) ) % Grappa::cores();
 
   double start = MPI_Wtime();
@@ -56,6 +54,7 @@ void ping_test() {
           DVLOG(1) << "Receive count now " << receive_count;
         });
     }
+    receive_count = send_count;
   } else {
     while( receive_count != send_count ) {
       global_communicator.poll();
@@ -67,9 +66,7 @@ void ping_test() {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   double end = MPI_Wtime();
 
-  if( Grappa::mycore() >= Grappa::cores() / 2 ) {
-    BOOST_CHECK_EQUAL( send_count, receive_count );
-  }
+  BOOST_CHECK_EQUAL( send_count, receive_count );
 
   if( Grappa::mycore() == 0 ) {
     double time = end - start;
@@ -80,7 +77,39 @@ void ping_test() {
   }
 }
 
+void payload_test() {
 
+  send_count = 12345678;
+  receive_count = 0;
+
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+
+  BOOST_CHECK_EQUAL( receive_count, 0 );
+
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+
+  if( Grappa::mycore() == 0 ) {
+    size_t size = sizeof(send_count);
+    global_communicator.send_immediate_with_payload( 1, [size] (void * buf) {
+        int * ptr = (int*) buf;
+        LOG(INFO) << "Got payload message with pointer " << ptr
+                  << " size " << size
+                  << " value " << *ptr;
+        receive_count = *ptr;
+        success = true;
+      }, &send_count, size );
+    receive_count = send_count;
+  } else {
+    while( !success ) {
+      global_communicator.poll();
+    }
+  }
+
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+
+  BOOST_CHECK_EQUAL( send_count, receive_count );
+}
+  
 BOOST_AUTO_TEST_CASE( test1 ) {
   google::ParseCommandLineFlags( &(boost::unit_test::framework::master_test_suite().argc),
                                  &(boost::unit_test::framework::master_test_suite().argv), true );
@@ -93,7 +122,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   ping_test();
 
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+
+  payload_test();
   
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+
   BOOST_CHECK_EQUAL( true, true );
 
   global_communicator.finish();

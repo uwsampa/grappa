@@ -98,7 +98,7 @@ void deserializer( char * f ) {
 template < typename F >
 void deserializer_with_payload( char * f ) {
   F * obj = reinterpret_cast< F * >( f );
-  (*obj)( (void*) (f + sizeof(F)) );
+  (*obj)( (void*) (obj+1) );
 }
 
 }
@@ -210,7 +210,7 @@ public:
   }
 
   template< typename F >
-  void send_immediate_with_payload( int dest, F f, void * payload = NULL, size_t payload_size ) {
+  void send_immediate_with_payload( int dest, F f, void * payload, size_t payload_size ) {
     Context * c = NULL;
     while( NULL == (c = try_get_send_context()) ) {
       garbage_collect();
