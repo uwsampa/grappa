@@ -3,6 +3,7 @@
 #include <graph/Graph.hpp>
 #include <Reducer.hpp>
 #include <SmallLocalSet.hpp>
+#include <GlobalHashMap.hpp>
 
 #include <unordered_set>
 #include <unordered_map>
@@ -41,25 +42,32 @@ namespace Graphlab {
       }
     };
     
+    struct MasterInfo {
+      std::vector<Core> mirrors;
+    };
+    
     struct Vertex {
       VertexID id;
       V data;
       Edge * l_out;
       size_t l_nout;
+      GlobalAddress<Vertex> master;
       
       Vertex(VertexID id): id(id) {}
     };
     
     GlobalAddress<Graph> self;
+    size_t nv, nv_over;
     
     std::vector<Edge> l_edges;   ///< Local edges
     std::vector<Vertex> l_verts; ///< Local vertices (indexes into l_edges)
     size_t l_nsrc;             ///< Number of source vertices
     
-    unordered_map<VertexID,Vertex*> l_vid;
-    
+    unordered_map<VertexID,Vertex*> l_vmap;
+    unordered_map<VertexID,MasterInfo> l_masters;
+        
     Graph(GlobalAddress<Graph> self)
-      : self(self) , l_edges() , l_verts() , l_nsrc(0) , l_vid()
+      : self(self) , l_edges() , l_verts() , l_nsrc(0) , l_vmap()
     { }
     
   public:
@@ -166,16 +174,16 @@ namespace Graphlab {
         
         VLOG(0) << "l_edges: " << edges;
         
-        auto& l_vid = g->l_vid;
+        auto& l_vmap = g->l_vmap;
         auto& lvs = g->l_verts;
         
         // so we can pre-size l_verts and get all the hashtable allocs over with
         for (auto& e : edges) {
           for (auto v : {e.src, e.dst}) {
-            l_vid[v] = nullptr;
+            l_vmap[v] = nullptr;
           }
         }
-        lvs.reserve(l_vid.size());
+        lvs.reserve(l_vmap.size());
         
         VertexID src = -1;
         Vertex* cv;
@@ -189,7 +197,7 @@ namespace Graphlab {
             // start of new src
             lvs.emplace_back(e.src);
             cv = &lvs.back();
-            l_vid[e.src] = cv;
+            l_vmap[e.src] = cv;
             cv->l_out = &e;
             src = e.src;
           }
@@ -199,30 +207,80 @@ namespace Graphlab {
         
         // now go add all the ones that are destination-only (on this core)
         for (auto& e : g->l_edges) {
-          if (l_vid[e.dst] == nullptr) {
+          if (l_vmap[e.dst] == nullptr) {
             lvs.emplace_back(e.dst);
             cv = &lvs.back();
-            l_vid[e.dst] = cv;
+            l_vmap[e.dst] = cv;
             cv->l_out = nullptr;
             cv->l_nout = 0;
           }
         }
         
+        size_t nv_overestimate = allreduce<int64_t,collective_add>(g->l_vmap.size());
+        g->nv_over = nv_overestimate; // (over-estimate, includes ghosts)
         
-        
-        // for (auto& v : lvs) {
-        //   VLOG(0) << "{id:" << v.id << ", l_out:" << v.l_out << ", l_nout:" << v.l_nout << "}";
-        // }
-        
-        // VLOG(0) << "vertices, edges => " << g->l_vid.size() << ", " << edge_cts[mycore()];
-        
-        size_t total_verts = allreduce<int64_t,collective_add>(g->l_vid.size());
-        if (mycore() == 0) VLOG(0) << "total_vert_ct => " << total_verts;
+        if (mycore() == 0) VLOG(0) << "total_vert_ct => " << nv_overestimate;
       }); // on_all_cores
       
-      // forall(tg.edges, tg.nedge, [](TupleGraph::Edge& e){
-      //   
-      // });
+      ///////////////////////////////////////////////////////////////////
+      // find all the existing mirrors of each vertex, choose a master, 
+      // and propagate this info
+      auto mirror_map = GlobalHashMap<VertexID,CoreSet>::create(g->nv_over);
+      
+      on_all_cores([=]{
+        finish([=]{
+          for (auto& v : g->l_verts) {
+            auto c = mycore();
+            mirror_map->insert_async(v.id, [c](CoreSet& cs){ cs.insert(c); });
+          }
+        });
+      });
+      
+      forall(mirror_map, [g](const VertexID& k, CoreSet& cs){
+        int rnd = rand() % cs.size();
+        int i=0;
+        Core master = -1;
+        for (auto c : cs) {
+          if (i == rnd) {
+            master = c;
+            break;
+          }
+          i++;
+        }
+        CHECK(master >= 0);
+        
+        // TODO: do in bulk?
+        for (auto c : cs) {
+          delegate::call<async>(master, [=]{
+            g->l_masters[k].mirrors.push_back(c);
+          });
+        }
+      });
+      
+      on_all_cores([=]{
+        finish([=]{
+          for (auto& p : g->l_masters) {
+            auto& vid = p.first;
+            auto& master = p.second;
+          
+            VLOG(3) << "master<" << vid << ">: " << master.mirrors;
+          
+            auto ga = make_global(g->l_vmap[vid]);
+            for (auto c : master.mirrors) {
+              delegate::call<async>(c, [=]{
+                g->l_vmap[vid]->master = ga;
+              });
+            }
+          }
+        });
+        
+        if (VLOG_IS_ON(3)) {
+          for (auto& v : g->l_verts) {
+            std::cerr << "<" << std::setw(2) << v.id << "> master:" << v.master << "\n";
+          }
+        }
+        
+      });
       
       return g;
     }
