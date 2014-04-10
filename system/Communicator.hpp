@@ -77,7 +77,7 @@ const static int16_t MAX_CORES_PER_LOCALE = 64;
 struct Context {
   MPI_Request request;
   void * buf;
-  size_t size;
+  int size;
   int reference_count;
   void (*callback)( Context * c, int source, int tag, size_t received_size );
   Context(): request(MPI_REQUEST_NULL), buf(NULL), size(0), reference_count(0), callback(NULL) {}

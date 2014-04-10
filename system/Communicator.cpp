@@ -270,9 +270,9 @@ void Communicator::garbage_collect() {
     if( c->reference_count > 0 ) {
       MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
       if( flag ) {
-        // if( c->callback ) {
-        //   callback( c, status.MPI_SOURCE, status.MPI_TAG, size );
-        // }
+        if( c->callback ) {
+          (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
+        }
         c->reference_count = 0;
         send_tail = (send_tail + 1) & send_mask;
       }
@@ -330,9 +330,11 @@ void Communicator::process_received_buffers() {
     if( flag ) {
       // start delivering received buffer
       receive( c );
-      // if( c->callback ) {
-      //   callback( c, status.MPI_SOURCE, status.MPI_TAG, buf, size );
-      // }
+      if( c->callback ) {
+        int size = 0;
+        MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
+        (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, size );
+      }
       receive_dispatch = (receive_dispatch + 1) & receive_mask;
       // update if anything has finished delivery
       repost_receive_buffers();
