@@ -192,8 +192,9 @@ namespace util {
     return ss.str();
   }
 
-  template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
-  inline std::string array_str(const char * name, ArrayT array, int width = 10) {
+  // template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
+  template< typename ArrayT, int width = 10 >
+  inline std::string array_str(const char * name, const ArrayT& array) {
     std::stringstream ss;
     if (name) {
       ss << "\n" << name << ": ";
