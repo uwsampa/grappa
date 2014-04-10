@@ -26,10 +26,10 @@ using delegate::call;
 
 using Empty = struct {};
 
-namespace Graphlab {
+namespace Grappa {
 
   template< typename V, typename E >
-  class Graph {
+  class GraphlabGraph {
   public:
     struct Edge {
       VertexID src, dst;
@@ -56,7 +56,7 @@ namespace Graphlab {
       Vertex(VertexID id): id(id) {}
     };
     
-    GlobalAddress<Graph> self;
+    GlobalAddress<GraphlabGraph> self;
     size_t nv, nv_over;
     
     std::vector<Edge> l_edges;   ///< Local edges
@@ -68,21 +68,21 @@ namespace Graphlab {
     
   private:
     
-    Graph(GlobalAddress<Graph> self)
+    GraphlabGraph(GlobalAddress<GraphlabGraph> self)
       : self(self) , l_edges() , l_verts() , l_nsrc(0) , l_vmap()
     { }
     
   public:
-    Graph() = default;
-    ~Graph() = default;
+    GraphlabGraph() = default;
+    ~GraphlabGraph() = default;
     
-    static GlobalAddress<Graph> create(TupleGraph tg) {
+    static GlobalAddress<GraphlabGraph> create(TupleGraph tg) {
       VLOG(1) << "Graphlab::Graph::create( undirected, greedy_oblivious )";
-      auto g = symmetric_global_alloc<Graph>();
+      auto g = symmetric_global_alloc<GraphlabGraph>();
       
       on_all_cores([=]{
         // intialize graph
-        new (g.localize()) Graph(g);
+        new (g.localize()) GraphlabGraph(g);
         
         // vertex placements that this core knows about (array of cores, each with a set of vertices mapped to it)
         unordered_map<VertexID,CoreSet> vplace;
@@ -165,7 +165,7 @@ namespace Graphlab {
             auto target = assignments[idx(e)];
             if (target != CoreSet::INVALID) {
               auto e_copy = e;
-              call<async>(target, [e_copy,g]{
+              delegate::call<async>(target, [e_copy,g]{
                 g->l_edges.emplace_back(e_copy);
               });
             }
@@ -183,7 +183,7 @@ namespace Graphlab {
         });
         edges.resize(std::distance(edges.begin(), it));
         
-        VLOG(3) << "l_edges: " << edges;
+        // VLOG(3) << "l_edges: " << edges;
         
         auto& l_vmap = g->l_vmap;
         auto& lvs = g->l_verts;
@@ -274,7 +274,7 @@ namespace Graphlab {
             auto& vid = p.first;
             auto& master = p.second;
           
-            VLOG(3) << "master<" << vid << ">: " << master.mirrors;
+            // VLOG(3) << "master<" << vid << ">: " << master.mirrors;
           
             auto ga = make_global(g->l_vmap[vid]);
             for (auto c : master.mirrors) {
