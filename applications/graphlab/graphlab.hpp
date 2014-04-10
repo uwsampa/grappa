@@ -230,7 +230,7 @@ namespace Grappa {
         }
         
         size_t nv_overestimate = allreduce<int64_t,collective_add>(g->l_vmap.size());
-        g->nv_over = nv_overestimate; // (over-estimate, includes ghosts)
+        g->nv_over = nv_overestimate; // (over-estimate, includes mirrors)
         g->nv = 0;
         if (mycore() == 0) VLOG(2) << "total_vert_ct: " << nv_overestimate;
       }); // on_all_cores
@@ -271,6 +271,7 @@ namespace Grappa {
       });
       
       on_all_cores([=]{
+        // propagate 'master' info to all mirrors
         finish([=]{
           for (auto& p : g->l_masters) {
             auto& vid = p.first;
@@ -313,7 +314,7 @@ namespace Grappa {
     
     /// Iterator over all vertices in GraphlabGraph.
     template< typename G, class = typename std::enable_if<std::is_base_of<impl::GraphlabGraphBase,G>::value>::type >
-    struct Ghosts { GlobalAddress<G> g; };
+    struct Mirrors { GlobalAddress<G> g; };
   };
   
   /// Iterator over master vertices in GraphlabGraph.
@@ -324,8 +325,8 @@ namespace Grappa {
 
   /// Iterator over all vertices in GraphlabGraph.
   template< typename V, typename E >
-  Iter::Ghosts<GraphlabGraph<V,E>> ghosts(GlobalAddress<GraphlabGraph<V,E>> g) {
-    return Iter::Ghosts<GraphlabGraph<V,E>>{ g };
+  Iter::Mirrors<GraphlabGraph<V,E>> mirrors(GlobalAddress<GraphlabGraph<V,E>> g) {
+    return Iter::Mirrors<GraphlabGraph<V,E>>{ g };
   }
   
   namespace impl {
@@ -349,9 +350,9 @@ namespace Grappa {
     }
     
     
-    /// Iterate over all vertices including ghosts
+    /// Iterate over all vertices including mirrors
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
-    void forall(Iter::Ghosts<G> it, F body,
+    void forall(Iter::Mirrors<G> it, F body,
                 void (F::*mf)(typename G::Vertex&) const) {
       on_all_cores([=]{
         finish<C>([=]{
@@ -441,7 +442,7 @@ struct GraphlabSyncronousEngine {
     
     ///////////////
     // initialize
-    forall(ghosts(g), [=](Vertex& v){
+    forall(mirrors(g), [=](Vertex& v){
       v->prog = new VertexProg(v);
     });
     

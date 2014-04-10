@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
     CHECK_EQ(count, g->nv);
 
     count = 0;
-    forall(ghosts(g), [](G::Vertex& v){
+    forall(mirrors(g), [](G::Vertex& v){
       count++;
     });
     LOG(INFO) << "count(all): " << count;
