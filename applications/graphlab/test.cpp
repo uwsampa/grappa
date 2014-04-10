@@ -49,7 +49,9 @@ struct PagerankVertexData : public GraphlabVertexData<PagerankVertexData> {
   PagerankVertexData(double rank = 1.0): rank(rank) {}
 };
 
-using G = Graphlab::Graph<PagerankVertexData,Empty>;
+using G = GraphlabGraph<PagerankVertexData,Empty>;
+
+Reducer<int64_t,ReducerType::Add> count;
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
@@ -102,6 +104,13 @@ int main(int argc, char* argv[]) {
     t = walltime();
     
     auto g = G::create(tg);
+    
+    count = 0;
+    forall(masters(g), [](G::Vertex& v){
+      count++;
+    });
+    LOG(INFO) << "count: " << count;
+    CHECK_EQ(count, g->nv);
     
   });
   finalize();

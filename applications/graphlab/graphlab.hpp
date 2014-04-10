@@ -300,9 +300,43 @@ namespace Grappa {
       
       return g;
     }
+    
   } GRAPPA_BLOCK_ALIGNED;
-
-}
+  
+  template< typename G > struct MasterIterator { GlobalAddress<G> g; };
+  template< typename G > MasterIterator<G> masters(GlobalAddress<G> g) {
+    return MasterIterator<G>{g};
+  }
+  
+  namespace impl {
+  
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(MasterIterator<G> it, F body,
+                void (F::*mf)(typename G::Vertex&) const) {
+      on_all_cores([=]{
+        finish<C>([=]{
+          auto g = it.g;
+          forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>(0, g->l_verts.size(), [g,body](int64_t i){
+            auto& v = g->l_verts[i];
+            if (v.master.core() == mycore()) {
+              body(v);
+            }
+          });
+        });
+      });
+    }
+    
+  }
+  
+  template< GlobalCompletionEvent * C = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename G = nullptr_t,
+            typename F = nullptr_t >
+  void forall(MasterIterator<G> it, F body) {
+    impl::forall<C,Threshold>(it, body, &F::operator());
+  }
+  
+} // namespace Grappa
 
 template< typename G, typename GatherType >
 struct GraphlabVertexProgram {
