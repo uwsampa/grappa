@@ -122,7 +122,7 @@ Aggregator::Aggregator( )
 #endif
 }
 
-void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
+void Aggregator_deaggregate_am( void * buf, size_t size );
 
 /// Initialize aggregator
 void Aggregator::init() {
@@ -147,7 +147,7 @@ Aggregator::~Aggregator() {
 #endif
 }
 
-/// After GASNet deaggregate handler is called to buffer an aggregated
+/// After deaggregate handler is called to buffer an aggregated
 /// message bundle, this method unpacks the bundle and executes the
 /// Grappa-level active message handlers.
 void Aggregator::deaggregate( ) {
@@ -179,7 +179,7 @@ void Aggregator::deaggregate( ) {
       void * payload = reinterpret_cast< void * >( msg_base +
                                                    sizeof( AggregatorGenericCallHeader ) +
                                                    header->args_size );
-      if( header->destination == gasnet_mynode() ) { // for us?
+      if( header->destination == Grappa::mynode() ) { // for us?
           
 	stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
           // trace fine-grain communication
@@ -227,9 +227,9 @@ void Aggregator::finish() {
 #endif
 }
 
-/// Deaggration GASNet active message handler. This receives an
+/// Deaggration active message handler. This receives an
 /// aggregated message bundle and buffers it for later deaggregation.
-void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
+void Aggregator_deaggregate_am( void * buf, size_t size ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
   VT_TRACER("deaggregate AM");
