@@ -29,14 +29,49 @@ namespace Graphlab {
 
   template< typename V, typename E >
   class Graph {
+    
+    struct Edge {
+      VertexID src, dst;
+      E data;
+      Edge() = default;
+      Edge(const TupleGraph::Edge& e): src(e.v0), dst(e.v1) {}
+      
+      friend std::ostream& operator<<(std::ostream& o, const Edge& e) {
+        return o << "<" << e.src << "," << e.dst << ">";
+      }
+    };
+    
+    struct Vertex {
+      VertexID id;
+      V data;
+      Edge * l_out;
+      size_t l_nout;
+      
+      Vertex(VertexID id): id(id) {}
+    };
+    
     GlobalAddress<Graph> self;
+    
+    std::vector<Edge> l_edges;   ///< Local edges
+    std::vector<Vertex> l_verts; ///< Local vertices (indexes into l_edges)
+    size_t l_nsrc;             ///< Number of source vertices
+    
+    unordered_map<VertexID,Vertex*> l_vid;
+    
+    Graph(GlobalAddress<Graph> self)
+      : self(self) , l_edges() , l_verts() , l_nsrc(0) , l_vid()
+    { }
+    
   public:
+    Graph() = default;
+    
     static GlobalAddress<Graph> create(TupleGraph tg) {
       VLOG(1) << "Graphlab::Graph::create( undirected, greedy_oblivious )";
       auto g = symmetric_global_alloc<Graph>();
       
       on_all_cores([=]{
-        g->self = g;
+        // intialize graph
+        new (g.localize()) Graph(g);
         
         // vertex placements that this core knows about (array of cores, each with a set of vertices mapped to it)
         unordered_map<VertexID,CoreSet> vplace;
@@ -101,7 +136,89 @@ namespace Graphlab {
         if (mycore() == 0) {
           std::cerr << util::array_str("edge_cts", edge_cts, cores()) << "\n";
         }
-      });
+        
+        //////////////////////////
+        // actually scatter edges
+        auto& edges = g->l_edges;
+        
+        edges.reserve(edge_cts[mycore()]);
+        barrier();
+        
+        finish([&]{
+          for (auto& e : local_edges) {
+            auto e_copy = e;
+            call<async>(assignments[idx(e)], [e_copy,g]{
+              g->l_edges.emplace_back(e_copy);
+            });
+          }
+        });
+        
+        // if (mycore() == 0) global_free(tg.edges);        
+        std::sort(edges.begin(), edges.end(), [](const Edge& a, const Edge& b){
+          if (a.src == b.src) return a.dst < b.dst;
+          else return a.src < b.src;
+        });
+        
+        auto it = std::unique(edges.begin(), edges.end(), [](const Edge& a, const Edge& b){
+          return (a.src == b.src) && (a.dst == b.dst);
+        });
+        edges.resize(std::distance(edges.begin(), it));
+        
+        VLOG(0) << "l_edges: " << edges;
+        
+        auto& l_vid = g->l_vid;
+        auto& lvs = g->l_verts;
+        
+        // so we can pre-size l_verts and get all the hashtable allocs over with
+        for (auto& e : edges) {
+          for (auto v : {e.src, e.dst}) {
+            l_vid[v] = nullptr;
+          }
+        }
+        lvs.reserve(l_vid.size());
+        
+        VertexID src = -1;
+        Vertex* cv;
+        
+        for (Edge& e : edges) {
+          if (src != e.src) {
+            if (src >= 0) {
+              // finish previous one
+              cv->l_nout = &e - cv->l_out;
+            }
+            // start of new src
+            lvs.emplace_back(e.src);
+            cv = &lvs.back();
+            l_vid[e.src] = cv;
+            cv->l_out = &e;
+            src = e.src;
+          }
+        }
+        cv->l_nout = &*g->l_edges.end() - cv->l_out;
+        g->l_nsrc = lvs.size(); // vertices that have at least one outgoing edge are first
+        
+        // now go add all the ones that are destination-only (on this core)
+        for (auto& e : g->l_edges) {
+          if (l_vid[e.dst] == nullptr) {
+            lvs.emplace_back(e.dst);
+            cv = &lvs.back();
+            l_vid[e.dst] = cv;
+            cv->l_out = nullptr;
+            cv->l_nout = 0;
+          }
+        }
+        
+        
+        
+        // for (auto& v : lvs) {
+        //   VLOG(0) << "{id:" << v.id << ", l_out:" << v.l_out << ", l_nout:" << v.l_nout << "}";
+        // }
+        
+        // VLOG(0) << "vertices, edges => " << g->l_vid.size() << ", " << edge_cts[mycore()];
+        
+        size_t total_verts = allreduce<int64_t,collective_add>(g->l_vid.size());
+        if (mycore() == 0) VLOG(0) << "total_vert_ct => " << total_verts;
+      }); // on_all_cores
       
       // forall(tg.edges, tg.nedge, [](TupleGraph::Edge& e){
       //   
