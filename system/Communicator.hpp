@@ -47,9 +47,9 @@
 #include <glog/logging.h>
 
 #include "common.hpp"
-#include "Metrics.hpp"
+//#include "Metrics.hpp"
 
-#include "PerformanceTools.hpp"
+//#include "PerformanceTools.hpp"
 
 #include <mpi.h>
 #include <memory>
@@ -77,9 +77,26 @@ const static int16_t MAX_CORES_PER_LOCALE = 64;
 struct Context {
   MPI_Request request;
   void * buf;
-  void (*callback)( int source, int tag, void * buf, size_t size );
-  Context(): request(MPI_REQUEST_NULL), buf(NULL), callback(NULL) {}
+  size_t size;
+  int reference_count;
+  void (*callback)( Context * c, int source, int tag, size_t received_size );
+  Context(): request(MPI_REQUEST_NULL), buf(NULL), size(0), reference_count(0), callback(NULL) {}
 };
+
+namespace Grappa {
+namespace impl {
+
+/// generic deserializer type
+typedef void (*Deserializer)(char *);
+
+template < typename F >
+void deserializer( char * f ) {
+  F * obj = reinterpret_cast< F * >( f );
+  (*obj)();
+}
+
+}
+}
 
 
 /// Communication layer
@@ -108,14 +125,24 @@ private:
 
   std::unique_ptr< Context[] > receives;
   int receive_head;
+  int receive_dispatch;
   int receive_tail;
+  int receive_mask;
 
   std::unique_ptr< Context[] > sends;
-  std::stack< Context * > available_sends;
+  int send_head;
+  int send_tail;
+  int send_mask;
 
-    MPI_Request barrier_request;
+  MPI_Request barrier_request;
+  
+  void garbage_collect();
+  void repost_receive_buffers();
+  void process_received_buffers();
 
+  
 public:
+
 
   /// Construct communicator. Must call init() before
   /// most methods may be called.
@@ -146,17 +173,35 @@ public:
 
     const char * hostname();
 
-  Context * get_context();
+  Context * try_get_send_context();
 
-  void post_send( int dest,
-                  void * buf, size_t size,
-                  void (*callback)( int source, int tag, void * buf, size_t size ),
-                  int tag = 0 );
-  void post_receive( void * buf, size_t size,
-                     void (*callback)( int source, int tag, void * buf, size_t size ),
-                     int tag = MPI_ANY_TAG, int source = MPI_ANY_SOURCE );
-  void garbage_collect();
-  void poll( unsigned int max_receives = -1 );
+  void post_send( Context * c,
+                  int dest,
+                  size_t size,
+                  int tag = 1 );
+  
+  void post_receive( Context * c );
+  
+
+  template< typename F >
+  void send_immediate( int dest, F f ) {
+    Context * c = NULL;
+    while( NULL == (c = try_get_send_context()) ) {
+      garbage_collect();
+    }
+          
+    DVLOG(3) << "Sending immediate " << &f << " to " << dest << " with " << c;
+    c->callback = NULL;
+    char * buf = (char*) c->buf;
+
+    *((Grappa::impl::Deserializer*)buf) = Grappa::impl::deserializer<F>;
+    
+    memcpy( buf + sizeof(Grappa::impl::Deserializer), &f, sizeof(f) );
+
+    post_send( c, dest, sizeof(Grappa::impl::Deserializer) + sizeof(f) );
+  }
+  
+  void poll( unsigned int max_receives = 0 );
 
 
   
@@ -176,9 +221,6 @@ public:
     MPI_CHECK( MPI_Test( &barrier_request, &flag, MPI_STATUS_IGNORE ) );
     return flag;
   }
-
-  void post_receive( void * buf, size_t size, void (*callback)(void), int tag = MPI_ANY_TAG );
-
 
   
 //   /// Send no-argment active message with payload

@@ -30,53 +30,56 @@
  */
 #include <boost/test/unit_test.hpp>
 
+DECLARE_int64( log2_concurrent_receives );
+
 BOOST_AUTO_TEST_SUITE( Communicator_tests );
 
 bool success = false;
 bool sent = false;
 
-/// make sure we can send and receive a message locally
-void check_local_communication( ) {
+int send_count = 1 << 22;
+int receive_count = 0;
+
+
+void ping_test() {
   success = false;
-  sent = false;
 
-  auto receive_handler = [] ( int source, int tag, void * buf, size_t size ) {
-    LOG(INFO) << "Message received.";
-    success = true;
-  };
+  int target = (Grappa::mycore() + ( Grappa::cores() / 2 ) ) % Grappa::cores();
 
-  auto send_handler = [] ( int source, int tag, void * buf, size_t size ) {
-    LOG(INFO) << "Message sent.";
-    sent = true;
-  };
+  double start = MPI_Wtime();
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
-  //void (*callback)(int source, int tag, void * buf, size_t size ),
-
-  char recv_buf[1024] = {0};
-  LOG(INFO) << "Posting receive";
-  global_communicator.post_receive( &recv_buf[0], 1024, receive_handler );
-  global_communicator.poll();
-  BOOST_CHECK_EQUAL( success, false );
-  BOOST_CHECK_EQUAL( sent, false );
-
-  
-  char send_buf[1024] = {0};
-  LOG(INFO) << "Posting send";
-  global_communicator.post_send( 0, &send_buf[0], 1024, send_handler );
-  while( !success ) {
-    global_communicator.poll();
+  if( Grappa::mycore() < Grappa::cores() / 2 ) {
+    for( int i = 0; i < send_count; ++i ) {
+      global_communicator.send_immediate( target, [] {
+          receive_count++;
+          DVLOG(1) << "Receive count now " << receive_count;
+        });
+    }
+  } else {
+    while( receive_count != send_count ) {
+      global_communicator.poll();
+    }
   }
-  BOOST_CHECK_EQUAL( success, true );
-  BOOST_CHECK_EQUAL( sent, false );
 
-  global_communicator.garbage_collect();
-  BOOST_CHECK_EQUAL( success, true );
-  BOOST_CHECK_EQUAL( sent, true );
+  DVLOG(1) << "Done.";
+  
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  double end = MPI_Wtime();
 
-  global_communicator.poll();
-  BOOST_CHECK_EQUAL( success, true );
-  BOOST_CHECK_EQUAL( sent, true );
+  if( Grappa::mycore() >= Grappa::cores() / 2 ) {
+    BOOST_CHECK_EQUAL( send_count, receive_count );
+  }
+
+  if( Grappa::mycore() == 0 ) {
+    double time = end - start;
+    double rate = send_count * ( Grappa::cores() / 2 ) / time;
+    LOG(INFO) << send_count << " messages in "
+              << time << " seconds: "
+              << rate << " msgs/s";
+  }
 }
+
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   google::ParseCommandLineFlags( &(boost::unit_test::framework::master_test_suite().argc),
@@ -87,29 +90,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
              &(boost::unit_test::framework::master_test_suite().argv) );
   global_communicator.activate();
 
-  // // make sure we've registered the handler properly and gasnet can call it
-  // BOOST_CHECK_EQUAL( success, false );
-  // gasnet_AMRequestShort0( s.mycore(), foo_h );
-  // BOOST_CHECK_EQUAL( success, true );
+  ping_test();
 
-  //   // make sure we've registered the handler properly and we can call it
-  // success = false;
-  // s.send( s.mycore(), foo_h, NULL, 0 );
-  // BOOST_CHECK_EQUAL( success, true );
-
-
-  // // make sure we can pass data to a handler
-  // success = false;
-  // const size_t bardata_size = gasnet_AMMaxMedium();
-  // char bardata[ bardata_size ];
-  // memset( &bardata[0], 1, bardata_size );
-  // s.send( s.mycore(), bar_h, &bardata[0], bardata_size );
-  // BOOST_CHECK_EQUAL( success, true );
-
-  if( Grappa::mycore() == 0 ) {
-    check_local_communication( );
-  }
-  
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   
   BOOST_CHECK_EQUAL( true, true );
 

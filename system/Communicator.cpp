@@ -27,8 +27,6 @@
 
 #include <boost/interprocess/shared_memory_object.hpp>
 
-#include <mpi.h>
-
 #ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
 extern HeapLeakChecker * Grappa_heapchecker;
@@ -36,10 +34,12 @@ extern HeapLeakChecker * Grappa_heapchecker;
 
 #include "Communicator.hpp"
 
-DEFINE_int64( log2_concurrent_receives, 4, "How many receive requests do we keep active at a time?" );
-DEFINE_int64( log2_concurrent_collectives, 4, "How many collective requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_receives, 6, "How many receive requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_collectives, 6, "How many collective requests do we keep active at a time?" );
 
-DEFINE_int64( log2_concurrent_sends, 4, "How many send requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_sends, 6, "How many send requests do we keep active at a time?" );
+
+DEFINE_int64( log2_buffer_size, 21, "Size of Communicator buffers" );
 
 // // other metrics
 // GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);
@@ -69,9 +69,15 @@ Communicator::Communicator( )
 
   , receives()
   , receive_head(0)
+  , receive_dispatch(0)
   , receive_tail(0)
+  , receive_mask(0)
+    
   , sends()
-  , available_sends()
+  , send_head(0)
+  , send_tail(0)
+  , send_mask(0)
+
   , barrier_request( MPI_REQUEST_NULL )
     
   , mycore( mycore_ )
@@ -100,6 +106,10 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   }
 #endif
 
+  // initialize masks
+  receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
+  send_mask = (1 << FLAGS_log2_concurrent_sends) - 1;
+  
   // initialize job geometry
   int mycoreint, coresint;
   MPI_CHECK( MPI_Comm_rank( MPI_COMM_WORLD, &mycoreint ) );
@@ -180,17 +190,28 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   receives.reset( new Context[ 1 << FLAGS_log2_concurrent_receives ] );
 
   sends.reset( new Context[ 1 << FLAGS_log2_concurrent_sends ] );
-  for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
-    available_sends.push( &sends[i] ); 
-  }
   
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 }
 
-
-
+                             
 void Communicator::activate() {
-  // nothing!
+
+  for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
+    char * buf;
+    MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
+    sends[i].buf = buf;
+  }
+
+  for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
+    char * buf;
+    MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
+    receives[i].buf = buf;
+    receives[i].size = 1 << FLAGS_log2_buffer_size;
+  }
+
+  repost_receive_buffers();
+
   DVLOG(3) << "Entering activation barrier";
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   DVLOG(3) << "Leaving activation barrier";
@@ -210,124 +231,123 @@ const char * Communicator::hostname() {
 
 
 
-Context * Communicator::get_context() {
-  // first try
-  if( available_sends.empty() ) {
-    garbage_collect();
+Context * Communicator::try_get_send_context() {
+  Context * c = NULL;
+
+  if( ((send_head + 1) & send_mask) != send_tail ) {
+    c = &sends[send_head];
+    CHECK_EQ( c->reference_count, 0 ) << "Send context already in use!";
+    send_head = (send_head + 1) & send_mask;
   }
-
-  // second try: block
-  while( available_sends.empty() ) {
-    poll(128);
-    garbage_collect();
-  }
-
-  CHECK( !available_sends.empty() );
-
-  Context * c = available_sends.top();
-  available_sends.pop();
 
   return c;
 }
 
-
-void Communicator::post_send( int dest,
-                              void * buf, size_t size,
-                              void (*callback)( int source, int tag, void * buf, size_t size ),
+void Communicator::post_send( Context * c,
+                              int dest,
+                              size_t size,
                               int tag ) {
-  auto c = get_context();
-  c->buf = buf;
-  c->callback = callback;
-  MPI_CHECK( MPI_Isend( buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
-  DVLOG(6) << "Posted send " << c << " to " << dest << " with buf " << buf;
+  c->reference_count = 1; // mark as active
+  MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
+  DVLOG(6) << "Posted send " << c << " to " << dest << " with buf " << c->buf;
 }
 
-void Communicator::post_receive( void * buf, size_t size,
-                                 void (*callback)( int source, int tag, void * buf, size_t size ),
-                                 int tag, int source ) {
-  Context * c = &receives[receive_head];
-  CHECK_NULL( c->callback );
-
-  int receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
-  receive_head = (receive_head + 1) & receive_mask;
-
-  c->callback = callback;
-  c->buf = buf;
-  MPI_CHECK( MPI_Irecv( buf, size, MPI_BYTE, source, tag, MPI_COMM_WORLD, &c->request ) );
-  DVLOG(6) << "Posted receive " << c << " with buf " << buf;
+void Communicator::post_receive( Context * c ) {
+  MPI_CHECK( MPI_Irecv( c->buf, c->size, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &c->request ) );
+  DVLOG(6) << "Posted receive " << c << " with buf " << c->buf << " callback " << (void*) c->callback;
 }
 
 
 
 
 void Communicator::garbage_collect() {
+  int flag;
+  MPI_Status status;
+
   // check for completed sends and re-enable
-  for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
-    auto c = &sends[i];
-    DVLOG(7) << "Testing send context " << c;
-    if( NULL != c->callback ) {
-      int flag;
-      MPI_Status status;
-      DVLOG(6) << "Found active send context " << c;
+  while( send_tail != send_head ) {
+    auto c = &sends[send_tail];
+    if( c->reference_count > 0 ) {
       MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
       if( flag ) {
-        DVLOG(6) << "Completing send context " << c;
-        auto callback = c->callback;
-        auto buf = c->buf;
-        c->callback = NULL;
-        c->buf = NULL;
-        available_sends.push( &sends[i] );
-        if( callback ) {
-          callback( status.MPI_SOURCE, status.MPI_TAG, buf, 0 );
-        }
+        // if( c->callback ) {
+        //   callback( c, status.MPI_SOURCE, status.MPI_TAG, size );
+        // }
+        c->reference_count = 0;
+        send_tail = (send_tail + 1) & send_mask;
       }
-    }
-  }
-}
-
-
-void Communicator::poll( unsigned int max_receives ) {
-  for( int i = 0; i < max_receives && receives[receive_tail].callback != NULL; ++i ) {
-    int flag;
-    MPI_Status status;
-    
-    DVLOG(7) << "Testing receive context " << &receives[receive_tail];
-    MPI_CHECK( MPI_Test( &receives[receive_tail].request, &flag, &status ) );
-    
-    // if message has been received
-    if( flag ) {
-      Context * c = &receives[receive_tail];
-      int receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
-      receive_tail = (receive_tail + 1) & receive_mask;
-
-      DVLOG(6) << "Receiving " << c;
-      
-      auto callback = c->callback;
-      void * buf = c->buf;
-      
-      // disable message
-      c->callback = NULL;
-      c->buf = NULL;
-      
-      int size;
-      MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
-      // call the local callback bound to this receive request to process the received buffer.
-      // we assume the callback already has a pointer to the buffer and its size.
-      DVLOG(6) << "Receiving message " << c;
-      if( callback ) {
-        callback( status.MPI_SOURCE, status.MPI_TAG, buf, size );
-      }
-      
-      // move to next message
     } else {
       break;
     }
   }
-  //garbage_collect();
+
+}
+
+void Communicator::repost_receive_buffers() {
+
+  // consume buffers that are completely delivered
+  while( receive_tail != receive_dispatch ) {
+    auto c = &receives[receive_tail];
+    if( 0 == c->reference_count ) {
+      receive_tail = (receive_tail + 1) & receive_mask;
+    } else {
+      break;
+    }
+  }
+
+  // repost free buffers
+  while( ((receive_head + 1) & receive_mask) != receive_tail ) {
+    auto c = &receives[receive_head];
+    post_receive( c );
+    receive_head = (receive_head + 1) & receive_mask;
+  }
+  
 }
 
 
+static void receive_buffer( void * buf ) {
+  auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( buf );
+  (*fp)( (char*) buf );
+}
 
+static void receive( Context * c ) {
+  DVLOG(6) << "Receiving " << c;
+  c->reference_count = 1;
+  receive_buffer( c->buf );
+  c->reference_count = 0;
+}
+
+void Communicator::process_received_buffers() {
+  MPI_Status status;
+
+  while( receive_dispatch != receive_head ) {
+    int flag;
+    auto c = &receives[receive_dispatch];
+    
+    MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+    
+    // if message has been received
+    if( flag ) {
+      // start delivering received buffer
+      receive( c );
+      // if( c->callback ) {
+      //   callback( c, status.MPI_SOURCE, status.MPI_TAG, buf, size );
+      // }
+      receive_dispatch = (receive_dispatch + 1) & receive_mask;
+      // update if anything has finished delivery
+      repost_receive_buffers();
+    } else {
+      break;
+    }
+
+    // see if anything else finished delivery while we were busy
+    repost_receive_buffers();
+  }
+}
+
+void Communicator::poll( unsigned int max_receives ) {
+  process_received_buffers();
+}
 
 
 
