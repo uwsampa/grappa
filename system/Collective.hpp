@@ -393,7 +393,26 @@ namespace Grappa {
      }
     ce.wait();
     return total;
-   }
+  }
+  
+  
+  template< typename F = nullptr_t >
+  auto sum_all_cores(F func) -> decltype(func()) {
+    decltype(func()) total = func();
+    CompletionEvent _ce(cores()-1);
+    auto ce = make_global(&_ce);
+    for (Core c=0; c < cores(); c++) if (c != mycore()) {
+      send_heap_message(c, [ce,func,&total]{
+        auto r = func();
+        send_heap_message(ce.core(), [ce,r,&total]{
+          total += r;
+          ce->complete();
+        });
+      });
+    }
+    ce->wait();
+    return total;
+  }
   
   /// @}
 } // namespace Grappa
