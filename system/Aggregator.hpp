@@ -376,7 +376,7 @@ public:
     Core target = route_map_[ node ];
     stats.record_flush( buffers_[ target ].oldest_ts_, buffers_[ target ].newest_ts_ );
     size_t size = buffers_[ target ].current_position_;
-    global_communicator.send_immediate_with_payload( target, [size] (void * buf) {
+    global_communicator.send_immediate_with_payload( target, [] (void * buf, int size) {
         aggregator_deaggregate_am( buf, size );
       }, buffers_[ target ].buffer_, size );
     buffers_[ target ].flush();
@@ -541,7 +541,7 @@ public:
       memcpy( buf, args, args_size );
       buf += args_size;
       memcpy( buf, payload, payload_size );
-      global_communicator.send_immediate_with_payload( target, [total_call_size] (void * buf) {
+      global_communicator.send_immediate_with_payload( target, [] (void * buf, int size) {
           aggregator_deaggregate_am( buf, size );
         }, raw_send_buffer_, total_call_size );
     }
