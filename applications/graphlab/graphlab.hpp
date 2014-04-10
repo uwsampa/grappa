@@ -30,7 +30,7 @@ namespace Graphlab {
 
   template< typename V, typename E >
   class Graph {
-    
+  public:
     struct Edge {
       VertexID src, dst;
       E data;
@@ -65,13 +65,16 @@ namespace Graphlab {
     
     unordered_map<VertexID,Vertex*> l_vmap;
     unordered_map<VertexID,MasterInfo> l_masters;
-        
+    
+  private:
+    
     Graph(GlobalAddress<Graph> self)
       : self(self) , l_edges() , l_verts() , l_nsrc(0) , l_vmap()
     { }
     
   public:
     Graph() = default;
+    ~Graph() = default;
     
     static GlobalAddress<Graph> create(TupleGraph tg) {
       VLOG(1) << "Graphlab::Graph::create( undirected, greedy_oblivious )";
@@ -115,6 +118,11 @@ namespace Graphlab {
         auto cmp_load = [&](Core c0, Core c1) { return edge_cts[c0] < edge_cts[c1]; };
         
         for (auto& e : local_edges) {
+          if (e.v0 == e.v1) {
+            assignments[idx(e)] = CoreSet::INVALID;
+            continue;
+          }
+          
           auto &vs0 = vcores(e.v0), &vs1 = vcores(e.v1);
           
           auto common = intersect_choose_random(vs0, vs1);
@@ -141,7 +149,7 @@ namespace Graphlab {
         
         allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
         
-        if (mycore() == 0) {
+        if (mycore() == 0 && VLOG_IS_ON(2)) {
           std::cerr << util::array_str("edge_cts", edge_cts, cores()) << "\n";
         }
         
@@ -154,10 +162,13 @@ namespace Graphlab {
         
         finish([&]{
           for (auto& e : local_edges) {
-            auto e_copy = e;
-            call<async>(assignments[idx(e)], [e_copy,g]{
-              g->l_edges.emplace_back(e_copy);
-            });
+            auto target = assignments[idx(e)];
+            if (target != CoreSet::INVALID) {
+              auto e_copy = e;
+              call<async>(target, [e_copy,g]{
+                g->l_edges.emplace_back(e_copy);
+              });
+            }
           }
         });
         
@@ -172,7 +183,7 @@ namespace Graphlab {
         });
         edges.resize(std::distance(edges.begin(), it));
         
-        VLOG(0) << "l_edges: " << edges;
+        VLOG(3) << "l_edges: " << edges;
         
         auto& l_vmap = g->l_vmap;
         auto& lvs = g->l_verts;
@@ -218,8 +229,8 @@ namespace Graphlab {
         
         size_t nv_overestimate = allreduce<int64_t,collective_add>(g->l_vmap.size());
         g->nv_over = nv_overestimate; // (over-estimate, includes ghosts)
-        
-        if (mycore() == 0) VLOG(0) << "total_vert_ct => " << nv_overestimate;
+        g->nv = 0;
+        if (mycore() == 0) VLOG(2) << "total_vert_ct: " << nv_overestimate;
       }); // on_all_cores
       
       ///////////////////////////////////////////////////////////////////
@@ -274,13 +285,18 @@ namespace Graphlab {
           }
         });
         
-        if (VLOG_IS_ON(3)) {
+        if (VLOG_IS_ON(4)) {
           for (auto& v : g->l_verts) {
             std::cerr << "<" << std::setw(2) << v.id << "> master:" << v.master << "\n";
           }
         }
         
+        g->nv = allreduce<int64_t,collective_add>(g->l_masters.size());
+        
       });
+      
+      VLOG(0) << "num_vertices: " << g->nv;
+      VLOG(0) << "replication_factor: " << (double)g->nv_over / g->nv;
       
       return g;
     }
