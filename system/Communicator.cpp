@@ -106,7 +106,6 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   MPI_CHECK( MPI_Comm_size( MPI_COMM_WORLD, &coresint ) );
   mycore_ = mycoreint;
   cores_ = coresint;
-  LOG(INFO) << "Mycore " << mycore_ << " cores " << cores_;
   
   // try to compute locale geometry
   char * locale_rank_string = NULL;
@@ -166,7 +165,8 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
     locale_of_core_[i] = i / locale_cores_;
   }
 
-  DVLOG(2) << " mycore_ " << mycore_ 
+  DVLOG(2) << "hostname " << hostname()
+           << " mycore_ " << mycore_ 
            << " cores_ " << cores_
            << " mylocale_ " << mylocale_ 
            << " locales_ " << locales_ 
@@ -233,17 +233,17 @@ Context * Communicator::get_context() {
 
 void Communicator::post_send( int dest,
                               void * buf, size_t size,
-                              void (*callback)(int source, int tag, void * buf, size_t size ),
+                              void (*callback)( int source, int tag, void * buf, size_t size ),
                               int tag ) {
   auto c = get_context();
   c->buf = buf;
   c->callback = callback;
   MPI_CHECK( MPI_Isend( buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
-  
+  DVLOG(6) << "Posted send " << c << " to " << dest << " with buf " << buf;
 }
 
 void Communicator::post_receive( void * buf, size_t size,
-                                 void (*callback)(int source, int tag, void * buf, size_t size ),
+                                 void (*callback)( int source, int tag, void * buf, size_t size ),
                                  int tag, int source ) {
   Context * c = &receives[receive_head];
   CHECK_NULL( c->callback );
@@ -254,6 +254,7 @@ void Communicator::post_receive( void * buf, size_t size,
   c->callback = callback;
   c->buf = buf;
   MPI_CHECK( MPI_Irecv( buf, size, MPI_BYTE, source, tag, MPI_COMM_WORLD, &c->request ) );
+  DVLOG(6) << "Posted receive " << c << " with buf " << buf;
 }
 
 
@@ -262,24 +263,35 @@ void Communicator::post_receive( void * buf, size_t size,
 void Communicator::garbage_collect() {
   // check for completed sends and re-enable
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
-    if( NULL != sends[i].callback ) {
+    auto c = &sends[i];
+    DVLOG(7) << "Testing send context " << c;
+    if( NULL != c->callback ) {
       int flag;
-      MPI_CHECK( MPI_Test( &sends[i].request, &flag, MPI_STATUS_IGNORE ) );
+      MPI_Status status;
+      DVLOG(6) << "Found active send context " << c;
+      MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
       if( flag ) {
-        sends[i].callback = NULL;
+        DVLOG(6) << "Completing send context " << c;
+        auto callback = c->callback;
+        auto buf = c->buf;
+        c->callback = NULL;
+        c->buf = NULL;
         available_sends.push( &sends[i] );
+        if( callback ) {
+          callback( status.MPI_SOURCE, status.MPI_TAG, buf, 0 );
+        }
       }
     }
   }
 }
 
 
-void Communicator::poll( int max_receives ) {
+void Communicator::poll( unsigned int max_receives ) {
   for( int i = 0; i < max_receives && receives[receive_tail].callback != NULL; ++i ) {
     int flag;
     MPI_Status status;
     
-    DVLOG(5) << "Testing message " << &receives[receive_tail];
+    DVLOG(7) << "Testing receive context " << &receives[receive_tail];
     MPI_CHECK( MPI_Test( &receives[receive_tail].request, &flag, &status ) );
     
     // if message has been received
@@ -287,6 +299,8 @@ void Communicator::poll( int max_receives ) {
       Context * c = &receives[receive_tail];
       int receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
       receive_tail = (receive_tail + 1) & receive_mask;
+
+      DVLOG(6) << "Receiving " << c;
       
       auto callback = c->callback;
       void * buf = c->buf;
@@ -299,8 +313,10 @@ void Communicator::poll( int max_receives ) {
       MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
       // call the local callback bound to this receive request to process the received buffer.
       // we assume the callback already has a pointer to the buffer and its size.
-      DVLOG(5) << "Receiving message " << c;
-      callback( status.MPI_SOURCE, status.MPI_TAG, buf, size );
+      DVLOG(6) << "Receiving message " << c;
+      if( callback ) {
+        callback( status.MPI_SOURCE, status.MPI_TAG, buf, size );
+      }
       
       // move to next message
     } else {

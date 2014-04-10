@@ -33,53 +33,87 @@
 BOOST_AUTO_TEST_SUITE( Communicator_tests );
 
 bool success = false;
-void foo( gasnet_token_t token ){
-  success = true;
-}
+bool sent = false;
 
+/// make sure we can send and receive a message locally
+void check_local_communication( ) {
+  success = false;
+  sent = false;
 
-void bar( gasnet_token_t token, char * buf, size_t len ){
-  int64_t sum = 0;
-  for( int i = 0; i < len; ++i ) {
-    //printf("%d: %d\n", i, buf[ i ] );
-    sum += buf[ i ];
+  auto receive_handler = [] ( int source, int tag, void * buf, size_t size ) {
+    LOG(INFO) << "Message received.";
+    success = true;
+  };
+
+  auto send_handler = [] ( int source, int tag, void * buf, size_t size ) {
+    LOG(INFO) << "Message sent.";
+    sent = true;
+  };
+
+  //void (*callback)(int source, int tag, void * buf, size_t size ),
+
+  char recv_buf[1024] = {0};
+  LOG(INFO) << "Posting receive";
+  global_communicator.post_receive( &recv_buf[0], 1024, receive_handler );
+  global_communicator.poll();
+  BOOST_CHECK_EQUAL( success, false );
+  BOOST_CHECK_EQUAL( sent, false );
+
+  
+  char send_buf[1024] = {0};
+  LOG(INFO) << "Posting send";
+  global_communicator.post_send( 0, &send_buf[0], 1024, send_handler );
+  while( !success ) {
+    global_communicator.poll();
   }
-  BOOST_CHECK_EQUAL( len, gasnet_AMMaxMedium() );
-  BOOST_CHECK_EQUAL( sum, len );
-  success = (sum == len);
+  BOOST_CHECK_EQUAL( success, true );
+  BOOST_CHECK_EQUAL( sent, false );
+
+  global_communicator.garbage_collect();
+  BOOST_CHECK_EQUAL( success, true );
+  BOOST_CHECK_EQUAL( sent, true );
+
+  global_communicator.poll();
+  BOOST_CHECK_EQUAL( success, true );
+  BOOST_CHECK_EQUAL( sent, true );
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Communicator s;
-  s.init( &(boost::unit_test::framework::master_test_suite().argc),
-          &(boost::unit_test::framework::master_test_suite().argv) );
+  google::ParseCommandLineFlags( &(boost::unit_test::framework::master_test_suite().argc),
+                                 &(boost::unit_test::framework::master_test_suite().argv), true );
+  google::InitGoogleLogging( boost::unit_test::framework::master_test_suite().argv[0] );
+
+  global_communicator.init( &(boost::unit_test::framework::master_test_suite().argc),
+             &(boost::unit_test::framework::master_test_suite().argv) );
+  global_communicator.activate();
+
+  // // make sure we've registered the handler properly and gasnet can call it
+  // BOOST_CHECK_EQUAL( success, false );
+  // gasnet_AMRequestShort0( s.mycore(), foo_h );
+  // BOOST_CHECK_EQUAL( success, true );
+
+  //   // make sure we've registered the handler properly and we can call it
+  // success = false;
+  // s.send( s.mycore(), foo_h, NULL, 0 );
+  // BOOST_CHECK_EQUAL( success, true );
+
+
+  // // make sure we can pass data to a handler
+  // success = false;
+  // const size_t bardata_size = gasnet_AMMaxMedium();
+  // char bardata[ bardata_size ];
+  // memset( &bardata[0], 1, bardata_size );
+  // s.send( s.mycore(), bar_h, &bardata[0], bardata_size );
+  // BOOST_CHECK_EQUAL( success, true );
+
+  if( Grappa::mycore() == 0 ) {
+    check_local_communication( );
+  }
   
-  //  int foo_h = s.register_active_message( reinterpret_cast< HandlerPointer >( &foo ) );
-  int foo_h = s.register_active_message_handler( &foo );
-  int bar_h = s.register_active_message_handler( &bar );
-  s.activate();
+  
+  BOOST_CHECK_EQUAL( true, true );
 
-  // make sure we've registered the handler properly and gasnet can call it
-  BOOST_CHECK_EQUAL( success, false );
-  gasnet_AMRequestShort0( s.mycore(), foo_h );
-  BOOST_CHECK_EQUAL( success, true );
-
-    // make sure we've registered the handler properly and we can call it
-  success = false;
-  s.send( s.mycore(), foo_h, NULL, 0 );
-  BOOST_CHECK_EQUAL( success, true );
-
-
-  // make sure we can pass data to a handler
-  success = false;
-  const size_t bardata_size = gasnet_AMMaxMedium();
-  char bardata[ bardata_size ];
-  memset( &bardata[0], 1, bardata_size );
-  s.send( s.mycore(), bar_h, &bardata[0], bardata_size );
-  BOOST_CHECK_EQUAL( success, true );
-
-  s.finish();
-
+  global_communicator.finish();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

@@ -150,13 +150,13 @@ public:
 
   void post_send( int dest,
                   void * buf, size_t size,
-                  void (*callback)(int source, int tag, void * buf, size_t size ),
+                  void (*callback)( int source, int tag, void * buf, size_t size ),
                   int tag = 0 );
   void post_receive( void * buf, size_t size,
-                     void (*callback)(int source, int tag, void * buf, size_t size ),
+                     void (*callback)( int source, int tag, void * buf, size_t size ),
                      int tag = MPI_ANY_TAG, int source = MPI_ANY_SOURCE );
   void garbage_collect();
-  void poll( int max_receives = -1 );
+  void poll( unsigned int max_receives = -1 );
 
 
   
