@@ -90,7 +90,7 @@ void payload_test() {
 
   if( Grappa::mycore() == 0 ) {
     size_t size = sizeof(send_count);
-    global_communicator.send_immediate_with_payload( 1, [size] (void * buf) {
+    global_communicator.send_immediate_with_payload( 1, [size] (void * buf, int size) {
         int * ptr = (int*) buf;
         LOG(INFO) << "Got payload message with pointer " << ptr
                   << " size " << size

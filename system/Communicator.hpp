@@ -87,18 +87,19 @@ namespace Grappa {
 namespace impl {
 
 /// generic deserializer type
-typedef void (*Deserializer)(char *);
+typedef void (*Deserializer)(char *, int);
 
 template < typename F >
-void deserializer( char * f ) {
+void deserializer( char * f, int size ) {
   F * obj = reinterpret_cast< F * >( f );
   (*obj)();
 }
 
 template < typename F >
-void deserializer_with_payload( char * f ) {
+void deserializer_with_payload( char * f, int size ) {
   F * obj = reinterpret_cast< F * >( f );
-  (*obj)( (void*) (obj+1) );
+  char * buf = (char*) (obj+1);
+  (*obj)( (void*) buf, (f+size) - buf  );
 }
 
 }

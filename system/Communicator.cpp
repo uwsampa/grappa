@@ -305,15 +305,15 @@ void Communicator::repost_receive_buffers() {
 }
 
 
-static void receive_buffer( void * buf ) {
+static void receive_buffer( void * buf, int size ) {
   auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( buf );
-  (*fp)( (char*) (fp+1) );
+  (*fp)( (char*) (fp+1), size );
 }
 
-static void receive( Context * c ) {
+static void receive( Context * c, int size ) {
   DVLOG(6) << "Receiving " << c;
   c->reference_count = 1;
-  receive_buffer( c->buf );
+  receive_buffer( c->buf, size );
   c->reference_count = 0;
 }
 
@@ -328,11 +328,11 @@ void Communicator::process_received_buffers() {
     
     // if message has been received
     if( flag ) {
+      int size = 0;
+      MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
       // start delivering received buffer
-      receive( c );
+      receive( c, size );
       if( c->callback ) {
-        int size = 0;
-        MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
         (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, size );
       }
       receive_dispatch = (receive_dispatch + 1) & receive_mask;
