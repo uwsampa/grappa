@@ -33,15 +33,22 @@ namespace Grappa {
   template< typename V, typename E >
   class GraphlabGraph : public impl::GraphlabGraphBase {
   public:
+    struct Vertex;
+    
     struct Edge {
       VertexID src, dst;
       E data;
+      Vertex *srcv, *dstv;
+      
       Edge() = default;
       Edge(const TupleGraph::Edge& e): src(e.v0), dst(e.v1) {}
       
       friend std::ostream& operator<<(std::ostream& o, const Edge& e) {
         return o << "<" << e.src << "," << e.dst << ">";
       }
+      
+      Vertex& source() { return *srcv; }
+      Vertex& dest() { return *dstv; }
     };
     
     struct MasterInfo {
@@ -51,11 +58,19 @@ namespace Grappa {
     struct Vertex {
       VertexID id;
       V data;
+      GlobalAddress<Vertex> master;
+      size_t n_in, n_out;
+      
       Edge * l_out;
       size_t l_nout;
-      GlobalAddress<Vertex> master;
       
-      Vertex(VertexID id): id(id) {}
+      Vertex(VertexID id = -1): id(id), data(), n_in(), n_out(), l_out(nullptr), l_nout(0) {}
+      
+      V& operator->(){ return data; }
+      const V& operator->() const { return data; }
+      
+      size_t num_in_edges() const { return n_in; }
+      size_t num_out_edges() const { return n_out; }
     };
     
     GlobalAddress<GraphlabGraph> self;
@@ -288,6 +303,47 @@ namespace Grappa {
           }
         });
         
+        // have each mirror send its local n_in/n_out counts to master
+        finish([=]{
+          auto& vm = g->l_vmap;
+          for (auto& e : g->l_edges) {
+            e.srcv = vm[e.src];
+            e.dstv = vm[e.dst];
+            
+            e.srcv->n_out++;
+            e.dstv->n_in++;
+          }
+          
+          for (auto& v : g->l_verts) {
+            auto n_in = v.n_in, n_out = v.n_out;
+            if (v.master.core() != mycore()) {
+              call<async>(v.master, [=](Vertex& m){
+                m.n_in += n_in;
+                m.n_out += n_out;
+              });
+            }
+          }
+        });
+        
+        // send totals back out to each of the mirrors
+        finish([=]{
+          for (auto& v : g->l_verts) {
+            if (v.master.core() == mycore()) {
+              // from master:
+              auto vid = v.id;
+              auto n_in = v.n_in, n_out = v.n_out;
+              auto& master = g->l_masters[v.id];
+              // to all the other mirrors (excluding the master):
+              for (auto c : master.mirrors) if (c != mycore()) {
+                delegate::call<async>(c, [=]{
+                  g->l_vmap[vid]->n_in = n_in;
+                  g->l_vmap[vid]->n_out = n_out;
+                });
+              }
+            }
+          }
+        });
+        
         if (VLOG_IS_ON(4)) {
           for (auto& v : g->l_verts) {
             std::cerr << "<" << std::setw(2) << v.id << "> master:" << v.master << "\n";
@@ -297,7 +353,7 @@ namespace Grappa {
         g->nv = allreduce<int64_t,collective_add>(g->l_masters.size());
         
       });
-      
+            
       VLOG(0) << "num_vertices: " << g->nv;
       VLOG(0) << "replication_factor: " << (double)g->nv_over / g->nv;
       
