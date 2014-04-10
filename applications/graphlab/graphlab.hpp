@@ -428,6 +428,32 @@ void activate(GlobalAddress<V> v) {
   delegate::call(v, [](V& v){ v->activate(); });
 }
 
+enum class EdgeDirection { None, In, Out, All };
+
+template< typename G, typename VertexProg,
+  class = typename std::enable_if<std::is_base_of<impl::GraphlabGraphBase,G>::value>::type
+>
+struct GraphlabSyncronousEngine {
+  using Vertex = typename G::Vertex;
+  using Edge = typename G::Edge;
+  
+  void run(GlobalAddress<G> g) {
+    
+    ///////////////
+    // initialize
+    forall(ghosts(g), [=](Vertex& v){
+      v->prog = new VertexProg(v);
+    });
+    
+    ///////////
+    // gather
+    forall(g, [=](Edge& e){
+      
+    });
+  }
+};
+
+
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:
 /// - Delta caching enabled
