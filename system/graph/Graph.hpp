@@ -414,9 +414,9 @@ namespace Grappa {
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename G = nullptr_t,
+            typename V, typename E,
             typename F = nullptr_t >
-  void forall(GlobalAddress<G> g, F loop_body) {
+  void forall(GlobalAddress<Graph<V,E>> g, F loop_body) {
     impl::forall<C,Threshold>(g, loop_body, &F::operator());
   }
     

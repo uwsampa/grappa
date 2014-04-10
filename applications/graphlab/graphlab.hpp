@@ -432,7 +432,14 @@ namespace Grappa {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename E, typename F >
     void forall(GlobalAddress<GraphlabGraph<V,E>> g, F body,
                 void (F::*mf)(typename GraphlabGraph<V,E>::Edge&) const) {
-      
+      on_all_cores([=]{
+        finish<C>([=]{
+          forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
+          (0, g->l_edges.size(), [g,body](int64_t i){
+            body(g->l_edges[i]);
+          });
+        });
+      });
     }
     
   }

@@ -111,10 +111,19 @@ int main(int argc, char* argv[]) {
     });
     LOG(INFO) << "count: " << count;
     CHECK_EQ(count, g->nv);
-
+    
+    forall(g, [](G::Edge& e){
+      std::cerr << "<" << e.src << "," << e.dst << "> ";
+    });
+    on_all_cores([]{ std::cerr << "\n\n"; });
+    
     count = 0;
     forall(mirrors(g), [](G::Vertex& v){
       count++;
+      
+      if (VLOG_IS_ON(2)) {
+        std::cerr << "{id:" << v.id << ", n_in:" << v.n_in << ", n_out:" << v.n_out << "}\n";
+      }
     });
     LOG(INFO) << "count(all): " << count;
     CHECK_EQ(count, g->nv_over);
