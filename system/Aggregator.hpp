@@ -607,6 +607,8 @@ inline void Grappa_call_on( Core destination, void (* fn_p)(ArgsStruct *, size_t
                               const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                               const void * payload = NULL, const size_t payload_size = 0)
 {
+  LOG(ERROR) << "Do not call this function!";
+  exit(1);
   StateTimer::start_communication();
 #if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
   struct __attribute__((deprecated("Using old aggregator bypass"))) Warning {};
@@ -640,6 +642,8 @@ inline void Grappa_call_on_x( Core destination, void (* fn_p)(ArgsStruct *, size
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
+  LOG(ERROR) << "Do not call this function!";
+  exit(1);
   StateTimer::start_communication();
 #if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
   struct __attribute__((deprecated("Using old aggregator bypass, which adds additional blocking"))) Warning {};

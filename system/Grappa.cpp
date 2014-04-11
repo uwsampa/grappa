@@ -503,12 +503,12 @@ static void signal_task_termination_am( int * ignore, size_t isize, void * paylo
 void Grappa_end_tasks() {
   // send task termination signal
   CHECK( Grappa::mycore() == 0 );
-  for ( Core n = 1; n < Grappa::cores(); n++ ) {
-      int ignore = 0;
-      Grappa_call_on( n, &signal_task_termination_am, &ignore );
-      Grappa::flush( n );
+  // TODO: we should really flush the aggregator here.
+  for ( Core n = 0; n < Grappa::cores(); n++ ) {
+    global_communicator.send_immediate( n, [] {
+        global_task_manager.signal_termination();
+      } );
   }
-  signal_task_termination_am( NULL, 0, NULL, 0 );
 }
 
 
