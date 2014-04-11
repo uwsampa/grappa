@@ -552,7 +552,18 @@ struct GraphlabVertexProgram {
 
 template< typename Subclass >
 struct GraphlabVertexData {
+  static Reducer<int64_t,ReducerType::Add> total_active;
+
+  void* prog;
+  bool active, active_minor_step;
+  
+  GraphlabVertexData(): active(false) {}
+  void activate() { if (!active) { total_active++; active = true; } }
+  void deactivate() { if (active) { total_active--; active = false; } }
 };
+
+template< typename Subclass >
+Reducer<int64_t,ReducerType::Add> GraphlabVertexData<Subclass>::total_active;
 
 template< typename V, typename E >
 void activate_all(GlobalAddress<Graph<V,E>> g) {
@@ -752,9 +763,9 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   
   while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
       GRAPPA_TIME_REGION(iteration_time) {
+    VLOG(1) << "iteration " << std::setw(3) << iteration;
+    VLOG(1) << "  active: " << V::total_active;
     
-    VLOG(1) << "iteration " << std::setw(3) << iteration
-            << " -- active:" << V::total_active;
     double t = walltime();
     
     forall(g, [=](GVertex& v){
@@ -793,7 +804,7 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
     });
     
     iteration++;
-    VLOG(1) << "> time: " << walltime()-t;
+    VLOG(1) << "  time:   " << walltime()-t;
   }
   
   forall(g, [](GVertex& v){ delete static_cast<VertexProg*>(v->prog); });

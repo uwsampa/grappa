@@ -44,7 +44,7 @@ const double RESET_PROB = 0.15;
 DEFINE_double(tolerance, 1.0E-2, "tolerance");
 #define TOLERANCE FLAGS_tolerance
 
-struct PagerankVertexData : public GraphlabVertexData<PagerankVertexData> {
+struct PagerankVertexData {
   double rank;
   PagerankVertexData(double rank = 1.0): rank(rank) {}
 };
