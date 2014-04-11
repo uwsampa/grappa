@@ -33,6 +33,7 @@
 #include "Barrier.hpp"
 
 #include <functional>
+#include <algorithm>
 
 // TODO/FIXME: use actual max message size (have Communicator be able to tell us)
 const size_t MAX_MESSAGE_SIZE = 3192;
@@ -186,7 +187,7 @@ namespace Grappa {
         
         if (mycore() != HOME_CORE) {
           for (size_t k=0; k<nelem; k+=n_per_msg) {
-            size_t this_nelem = MIN(n_per_msg, nelem-k);
+            size_t this_nelem = std::min(n_per_msg, nelem-k);
             
             // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
             send_heap_message(HOME_CORE, [this,k](void * payload, size_t payload_size) {
@@ -221,7 +222,7 @@ namespace Grappa {
               // send totals back to all the other cores
               size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
               for (size_t k=0; k<nelem; k+=n_per_msg) {
-                size_t this_nelem = MIN(n_per_msg, nelem-k);
+                size_t this_nelem = std::min(n_per_msg, nelem-k);
                 pool.send_message(c, [this,k](void * payload, size_t psz){
                   auto total_k = static_cast<T*>(payload);
                   auto in_n = psz / sizeof(T);

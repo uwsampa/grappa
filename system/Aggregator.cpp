@@ -126,9 +126,9 @@ void Aggregator_deaggregate_am( void * buf, size_t size );
 
 /// Initialize aggregator
 void Aggregator::init() {
-  max_nodes_ = global_communicator.cores();
-  least_recently_sent_.resize( global_communicator.cores() );
-  aggregator_deaggregate_am_handle_ = global_communicator.register_active_message_handler( &Aggregator_deaggregate_am );
+  max_nodes_ = global_communicator.cores;
+  least_recently_sent_.resize( global_communicator.cores );
+
   buffers_.resize( max_nodes_ - buffers_.size() );
   route_map_.resize( max_nodes_ - route_map_.size() );
   // initialize route map
@@ -136,7 +136,7 @@ void Aggregator::init() {
     route_map_[i] = i;
   }
 #ifdef VTRACE_FULL
-  tag_ = global_communicator.mycore();
+  tag_ = global_communicator.mycore;
 #endif
 }
 
@@ -179,7 +179,7 @@ void Aggregator::deaggregate( ) {
       void * payload = reinterpret_cast< void * >( msg_base +
                                                    sizeof( AggregatorGenericCallHeader ) +
                                                    header->args_size );
-      if( header->destination == Grappa::mynode() ) { // for us?
+      if( header->destination == Grappa::mycore() ) { // for us?
           
 	stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
           // trace fine-grain communication

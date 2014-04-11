@@ -52,7 +52,7 @@ namespace Grappa {
       
       Grappa::impl::locale_shared_memory.validate_address( this );
 
-      if( !is_enqueued_ ) source_ = global_communicator.mycore();
+      if( !is_enqueued_ ) source_ = global_communicator.mycore;
       //bool mine = source_ == Grappa::mycore();
       bool mine = !is_delivered_;
       DCHECK_EQ( mine && is_enqueued_, false ) << "Why are we enqueuing a message that's already enqueued?";
@@ -81,7 +81,7 @@ namespace Grappa {
 
       Grappa::impl::locale_shared_memory.validate_address( this );
 
-      if( !is_enqueued_ ) source_ = global_communicator.mycore();
+      if( !is_enqueued_ ) source_ = global_communicator.mycore;
       //bool mine = source_ == Grappa::mycore();
       bool mine = !is_delivered_;
       DCHECK_EQ( mine && is_enqueued_, false ) << "Why are we enqueuing a message that's already enqueued?";
@@ -106,7 +106,7 @@ namespace Grappa {
     inline void Grappa::impl::MessageBase::send_immediate() {
       CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
                           << " Your compiler's return value optimization failed you here.";
-      if( !is_enqueued_ ) source_ = global_communicator.mycore();
+      if( !is_enqueued_ ) source_ = global_communicator.mycore;
       is_enqueued_ = true;
       is_delivered_ = true;
 #ifndef LEGACY_SEND

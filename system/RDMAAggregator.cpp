@@ -245,15 +245,15 @@ namespace Grappa {
 #warning RDMA Aggregator is bypassed!
 #endif
 #ifdef ENABLE_RDMA_AGGREGATOR
-      //cores_.resize( global_communicator.cores() );
-      mycore_ = global_communicator.mycore();
+      //cores_.resize( global_communicator.cores );
+      mycore_ = global_communicator.mycore;
       mynode_ = -1; // gasnet supernode
-      total_cores_ = global_communicator.cores();
+      total_cores_ = global_communicator.cores;
 
-      enqueue_counts_ = new uint64_t[ global_communicator.cores() ];
-      aggregate_counts_ = new uint64_t[ global_communicator.cores() ];
-      deaggregate_counts_ = new uint64_t[ global_communicator.cores() ];
-      for( int i = 0; i < global_communicator.cores(); ++i ) {
+      enqueue_counts_ = new uint64_t[ global_communicator.cores ];
+      aggregate_counts_ = new uint64_t[ global_communicator.cores ];
+      deaggregate_counts_ = new uint64_t[ global_communicator.cores ];
+      for( int i = 0; i < global_communicator.cores; ++i ) {
         enqueue_counts_[i] = 0;
         aggregate_counts_[i] = 0;
         deaggregate_counts_[i] = 0;
@@ -264,16 +264,16 @@ namespace Grappa {
     void RDMAAggregator::activate() {
 #ifdef ENABLE_RDMA_AGGREGATOR
       // one core on each locale initializes shared data
-      if( global_communicator.locale_mycore() == 0 ) {
+      if( global_communicator.locale_mycore == 0 ) {
         try {
           // allocate core message list structs
           // one for each core on this locale + one for communication within the locale.
-          cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores() * 
-                                                                                           (global_communicator.locale_cores() + 1 )]();
+          cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores * 
+                                                                                           (global_communicator.locale_cores + 1 )]();
           
           // allocate routing info
-          source_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("SourceCores")[global_communicator.locales()]();
-          dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales()]();
+          source_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("SourceCores")[global_communicator.locales]();
+          dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales]();
         }
         catch(...){
           failure_function();
@@ -286,21 +286,21 @@ namespace Grappa {
       global_communicator.barrier();
 
       // other cores attach to shared data
-      if( global_communicator.locale_mycore() != 0 ) {
+      if( global_communicator.locale_mycore != 0 ) {
         try{
           // attach to core message list structs
           std::pair< CoreData *, boost::interprocess::managed_shared_memory::size_type > p;
           p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
-          CHECK_EQ( p.second, global_communicator.cores() * (global_communicator.locale_cores() + 1) );
+          CHECK_EQ( p.second, global_communicator.cores * (global_communicator.locale_cores + 1) );
           cores_ = p.first;
           
           // attach to routing info
           std::pair< Core *, boost::interprocess::managed_shared_memory::size_type > q;
           q = Grappa::impl::locale_shared_memory.segment.find<Core>("SourceCores");
-          CHECK_EQ( q.second, global_communicator.locales() );
+          CHECK_EQ( q.second, global_communicator.locales );
           source_core_for_locale_ = q.first;
           q = Grappa::impl::locale_shared_memory.segment.find<Core>("DestCores");
-          CHECK_EQ( q.second, global_communicator.locales() );
+          CHECK_EQ( q.second, global_communicator.locales );
           dest_core_for_locale_ = q.first;
         }
         catch(...){
@@ -402,7 +402,7 @@ namespace Grappa {
     void RDMAAggregator::finish() {
 #ifdef ENABLE_RDMA_AGGREGATOR
       global_communicator.barrier();
-      if( global_communicator.locale_mycore() == 0 ) {
+      if( global_communicator.locale_mycore == 0 ) {
         Grappa::impl::locale_shared_memory.segment.destroy<CoreData>("Cores");
         Grappa::impl::locale_shared_memory.segment.destroy<Core>("SourceCores");
         Grappa::impl::locale_shared_memory.segment.destroy<Core>("DestCores");
@@ -741,9 +741,9 @@ void RDMAAggregator::draw_routing_graph() {
       // }
 
       // return buffer to communicator
-      Context * c = (Context*) buf->deserializer;
-      c->reference_count = 0;
-      global_communicator.repost_receive_buffers();
+      Context * context = (Context*) buf->deserializer;
+      context->reference_count = 0;
+      global_communicator.poll();
       
       active_receive_workers_--;
       rdma_receive_end++;
@@ -1284,8 +1284,13 @@ void RDMAAggregator::draw_routing_graph() {
         //global_communicator.send( dest_core, enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size(), dest_buf );
         b->deserializer = (void*) &enqueue_buffer_am;
         b->context.callback = [] ( Context * c, int source, int tag, int received_size ) {
-          global_rdma_aggregator.free_buffer_list_.push( c->buf );
+          LOG(INFO) << "Got callback for " << c;
+          c->reference_count = 1;
+          global_rdma_aggregator.free_buffer_list_.push( (RDMABuffer*) c->buf );
         };
+        b->context.buf = (void*) b;
+        b->context.size = b->get_max_size();
+        b->context.reference_count = 1;
         global_communicator.post_send( &b->context, dest_core,
                                        aggregated_size + b->get_base_size() );
 
@@ -1302,10 +1307,7 @@ void RDMAAggregator::draw_routing_graph() {
                  << " still to send, then check core " << current_dest_core << " of " << max_core;
       } else {
         DVLOG(4) << __func__ << "/" << sequence_number 
-                 << ": No message to send; returning dest buffer " << dest_buf << " to pool";
-        // return buffer to pool
-        localeCoreData( dest_core )->remote_buffers_.push( dest_buf );
-        rdma_buffers_inuse += remote_buffer_pool_size - localeCoreData( dest_core )->remote_buffers_.count();
+                 << ": No message to send";
       }
 
       sequence_number += Grappa::cores();

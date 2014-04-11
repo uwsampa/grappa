@@ -68,7 +68,7 @@ namespace impl {
 
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \
-  for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
+  for (size_t i=start, n=nbuf; i<end && (n = std::min(nbuf, end-i)); i+=nbuf)
 
 /// @addtogroup Utility
 /// @{

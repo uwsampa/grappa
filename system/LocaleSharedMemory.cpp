@@ -66,8 +66,8 @@ void LocaleSharedMemory::create() {
   region_size = FLAGS_locale_shared_size;
   VLOG(2) << "Creating LocaleSharedMemory region " << region_name 
           << " with " << region_size << " bytes"
-          << " on " << global_communicator.mycore() 
-          << " of " << global_communicator.cores();
+          << " on " << global_communicator.mycore 
+          << " of " << global_communicator.cores;
 
   // if possible, delete this user's old leftover share memory regions
   // if this returns false, either there was nothing to delete or
@@ -92,8 +92,8 @@ void LocaleSharedMemory::create() {
   }
   VLOG(2) << "Created LocaleSharedMemory region " << region_name 
           << " with " << region_size << " bytes"
-          << " on " << global_communicator.mycore() 
-          << " of " << global_communicator.cores();
+          << " on " << global_communicator.mycore 
+          << " of " << global_communicator.cores;
 }
 
 void LocaleSharedMemory::attach() {
@@ -104,8 +104,8 @@ void LocaleSharedMemory::attach() {
 
 
   VLOG(2) << "Attaching to LocaleSharedMemory region " << region_name 
-          << " on " << global_communicator.mycore() 
-          << " of " << global_communicator.cores();
+          << " on " << global_communicator.mycore 
+          << " of " << global_communicator.cores;
   try {
     segment = boost::interprocess::fixed_managed_shared_memory( boost::interprocess::open_only,
                                                                 region_name.c_str(),
@@ -118,18 +118,18 @@ void LocaleSharedMemory::attach() {
     throw;
   }
   VLOG(2) << "Attached to LocaleSharedMemory region " << region_name 
-          << " on " << global_communicator.mycore() 
-          << " of " << global_communicator.cores();
+          << " on " << global_communicator.mycore 
+          << " of " << global_communicator.cores;
 }
 
 void LocaleSharedMemory::destroy() {
   VLOG(2) << "Removing LocaleSharedMemory region " << region_name 
-          << " on " << global_communicator.mycore() 
-          << " of " << global_communicator.cores();
+          << " on " << global_communicator.mycore 
+          << " of " << global_communicator.cores;
   boost::interprocess::shared_memory_object::remove( region_name.c_str() );
   VLOG(2) << "Removed LocaleSharedMemory region " << region_name 
-          << " on " << global_communicator.mycore() 
-          << " of " << global_communicator.cores();
+          << " on " << global_communicator.mycore 
+          << " of " << global_communicator.cores;
 }
 
 

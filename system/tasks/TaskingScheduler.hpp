@@ -171,7 +171,7 @@ class TaskingScheduler : public Scheduler {
 #endif
         }
 
-        if( ( global_communicator.mycore() == 0 ) &&
+        if( ( global_communicator.mycore == 0 ) &&
             ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
           prev_stats_blob_ts = current_ts;
           
@@ -333,8 +333,8 @@ class TaskingScheduler : public Scheduler {
       if (n == -1) {
         max_allowed_active_workers = num_workers;
       } else {
-        //VLOG(1) << "mynode = " << global_communicator.mycore();
-        max_allowed_active_workers = n + ((global_communicator.mycore() == 0) ? 1 : 0);
+        //VLOG(1) << "mynode = " << global_communicator.mycore;
+        max_allowed_active_workers = n + ((global_communicator.mycore == 0) ? 1 : 0);
       }
     }
 

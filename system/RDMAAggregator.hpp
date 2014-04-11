@@ -250,7 +250,7 @@ namespace Grappa {
       int deserialize_first_handle_;
       
       /// Active message to enqueue a buffer to be received
-      static void enqueue_buffer_am( void * buf, size_t size );
+      static void enqueue_buffer_am( void * buf, int size, Context * c );
       int enqueue_buffer_handle_;
       
       /// Active message to enqueue a buffer to be received and send a reply to meet the spec
@@ -747,8 +747,8 @@ namespace Grappa {
           //global_communicator.send(  m->destination_, deserialize_first_handle_, buf, size );
 
           // TODO: eliminate copy
-          global_communicator.send_immediate( m->destination_, [size] (void * buf) {
-              deserialize_first_am( buf, size );
+          global_communicator.send_immediate_with_payload( m->destination_, [] (void * buf, int size) {
+              global_rdma_aggregator.deserialize_first_am( buf, size );
             }, buf, size );
 
         }

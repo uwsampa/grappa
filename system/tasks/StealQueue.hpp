@@ -364,7 +364,7 @@ static bool pendingGlobalPush = false;
 /// @return amount stolen
 template <typename T>
 int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
-  Core origin = global_communicator.mycore();
+  Core origin = global_communicator.mycore;
   CHECK( victim != origin ) << "Cannot steal from self";
   
   // if the bottom of the stack is not currently claimed
@@ -488,7 +488,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 /// template <typename T>
 /// int64_t StealQueue<T>::workShare( Core target, uint64_t amount ) {
 ///   CHECK( !pendingWorkShare ) << "Implementation allows only one pending workshare per node";
-///   CHECK( global_communicator.mycore() != target ) << "cannot workshare with self target: " << target;
+///   CHECK( global_communicator.mycore != target ) << "cannot workshare with self target: " << target;
 ///   CHECK( amount <= bufsize ) << "Only support single-packet transfers";
 /// 
 ///   uint64_t mySize = depth();
@@ -514,7 +514,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 /// 
 ///   DVLOG(5) << "Initiating work share: target=" << target << ", mySize=" << mySize << ", amount=" << amount << ", new bottom=" << bottom;
 /// 
-///   workShareRequest_args args = { mySize, amount, global_communicator.mycore() };
+///   workShareRequest_args args = { mySize, amount, global_communicator.mycore };
 ///   Grappa_call_on( target, StealQueue<T>::workShareRequest_am, &args, sizeof(args), xfer_start, amount * sizeof(T) ); // FIXME: call_on deprecated
 ///   size_t msg_size = Grappa_sizeof_message( &args, sizeof(args), xfer_start, amount * sizeof(T) );
 ///   StealMetrics::record_workshare_request( msg_size );

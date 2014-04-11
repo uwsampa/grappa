@@ -301,7 +301,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
   
-  CHECK( global_communicator.locale_cores() <= MAX_CORES_PER_LOCALE );
+  CHECK( global_communicator.locale_cores <= MAX_CORES_PER_LOCALE );
   
   //  initializes system_wide global_aggregator
   global_aggregator.init();
@@ -332,8 +332,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     double shmmax_fraction = static_cast< double >( SHMMAX ) * FLAGS_global_heap_fraction;
     int64_t shmmax_adjusted_floor = static_cast< int64_t >( shmmax_fraction );
 
-    int64_t nnode = global_communicator.locales();
-    int64_t ppn = global_communicator.locale_cores();
+    int64_t nnode = global_communicator.locales;
+    int64_t ppn = global_communicator.locale_cores;
     
     int64_t bytes_per_proc = shmmax_adjusted_floor / ppn;
     // round down to page size so we don't ask for too much?
@@ -417,8 +417,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 void Grappa_activate() 
 {
   DVLOG(1) << "Activating Grappa library....";
+  locale_shared_memory.activate(); // do this before communicator
   global_communicator.activate();
-  locale_shared_memory.activate();
   global_task_manager.activate();
   Grappa::comm_barrier();
 

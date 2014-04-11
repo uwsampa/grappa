@@ -191,7 +191,7 @@ void run(FP fp) {
   //Grappa_Grappa::impl::take_tracing_sample();
 #endif
 
-  if( global_communicator.mycore() == 0 ) {
+  if( global_communicator.mycore == 0 ) {
     CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
