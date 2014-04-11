@@ -87,19 +87,21 @@ namespace Grappa {
 namespace impl {
 
 /// generic deserializer type
-typedef void (*Deserializer)(char *, int);
+typedef void (*Deserializer)(char *, int, Context *);
 
 template < typename F >
-void deserializer( char * f, int size ) {
+void immediate_deserializer( char * f, int size, Context * c ) {
   F * obj = reinterpret_cast< F * >( f );
   (*obj)();
+  c->reference_count = 0;
 }
 
 template < typename F >
-void deserializer_with_payload( char * f, int size ) {
+void immediate_deserializer_with_payload( char * f, int size, Context * c ) {
   F * obj = reinterpret_cast< F * >( f );
   char * buf = (char*) (obj+1);
   (*obj)( (void*) buf, (f+size) - buf  );
+  c->reference_count = 0;
 }
 
 }
@@ -201,7 +203,7 @@ public:
     c->callback = NULL;
     char * buf = (char*) c->buf;
 
-    *((void**)buf) = (void*) Grappa::impl::deserializer<F>;
+    *((void**)buf) = (void*) Grappa::impl::immediate_deserializer<F>;
     buf += sizeof(Grappa::impl::Deserializer);
     
     memcpy( buf, &f, sizeof(f) );
@@ -221,7 +223,7 @@ public:
     c->callback = NULL;
     char * buf = (char*) c->buf;
 
-    *((void**)buf) = (void*) Grappa::impl::deserializer_with_payload<F>;
+    *((void**)buf) = (void*) Grappa::impl::immediate_deserializer_with_payload<F>;
     buf += sizeof(Grappa::impl::Deserializer);
     
     memcpy( buf, &f, sizeof(f) );

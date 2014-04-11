@@ -305,16 +305,15 @@ void Communicator::repost_receive_buffers() {
 }
 
 
-static void receive_buffer( void * buf, int size ) {
-  auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( buf );
-  (*fp)( (char*) (fp+1), size );
+static void receive_buffer( Context * c, int size ) {
+  auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( c->buf );
+  (*fp)( (char*) (fp+1), size, c );
 }
 
 static void receive( Context * c, int size ) {
   DVLOG(6) << "Receiving " << c;
   c->reference_count = 1;
-  receive_buffer( c->buf, size );
-  c->reference_count = 0;
+  receive_buffer( c, size );
 }
 
 void Communicator::process_received_buffers() {
