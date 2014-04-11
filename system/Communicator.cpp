@@ -80,6 +80,7 @@ Communicator::Communicator( )
   , send_mask(0)
 
   , barrier_request( MPI_REQUEST_NULL )
+  , external_sends()
     
   , mycore( mycore_ )
   , cores( cores_ )
@@ -188,9 +189,11 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
-  receives.reset( new Context[ 1 << FLAGS_log2_concurrent_receives ] );
+  //receives.reset( new Context[ 1 << FLAGS_log2_concurrent_receives ] );
+  receives = new Context[ 1 << FLAGS_log2_concurrent_receives ];
 
-  sends.reset( new Context[ 1 << FLAGS_log2_concurrent_sends ] );
+  //sends.reset( new Context[ 1 << FLAGS_log2_concurrent_sends ] );
+  sends = new Context[ 1 << FLAGS_log2_concurrent_sends ];
   
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 }
@@ -203,6 +206,7 @@ void Communicator::activate() {
     buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
     //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size) , MPI_INFO_NULL, &buf );
     sends[i].buf = buf;
+    sends[i].size = 1 << FLAGS_log2_buffer_size;
   }
 
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
@@ -250,11 +254,21 @@ void Communicator::post_send( Context * c,
                               int dest,
                               size_t size,
                               int tag ) {
+  DCHECK_GE( dest, 0 );
   c->reference_count = 1; // mark as active
   DVLOG(6) << "Posting send " << c << " to " << dest
            << " with buf " << c->buf
            << " callback " << (void*)c->callback;
   MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
+}
+
+void Communicator::post_external_send( Context * c,
+                                       int dest,
+                                       size_t size,
+                                       int tag ) {
+  DVLOG(6) << "Posting external send " << c;
+  post_send( c, dest, size, tag );
+  external_sends.push(c);
 }
 
 void Communicator::post_receive( Context * c ) {
@@ -286,6 +300,23 @@ void Communicator::garbage_collect() {
     }
   }
 
+  // check external send contexts too
+  while( !external_sends.empty() ) {
+    auto c = external_sends.top();
+    if( c->reference_count > 0 ) {
+      MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+      if( flag ) {
+        c->reference_count = 0;
+        if( c->callback ) {
+          (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
+        }
+        external_sends.pop();
+      }
+    } else {
+      break;
+    }
+  }
+  
 }
 
 void Communicator::repost_receive_buffers() {
@@ -312,6 +343,7 @@ void Communicator::repost_receive_buffers() {
 
 static void receive_buffer( Context * c, int size ) {
   auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( c->buf );
+  DVLOG(6) << "Calling deserializer " << (void*) (*fp) << " for " << c;
   (*fp)( (char*) (fp+1), size, c );
 }
 
@@ -345,10 +377,11 @@ void Communicator::process_received_buffers() {
     } else {
       break;
     }
-
-    // see if anything else finished delivery while we were busy
-    repost_receive_buffers();
   }
+  
+  // see if anything else finished delivery while we were busy
+  repost_receive_buffers();
+  garbage_collect();
 }
 
 void Communicator::poll( unsigned int max_receives ) {

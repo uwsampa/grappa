@@ -203,8 +203,19 @@ void failure_function() {
   }
   exit(1);
 }
+
+static void failure_sighandler( int signum ) {
+  google::FlushLogFiles(google::GLOG_INFO);
+  if( freeze_flag ) {
+    freeze_for_debugger();
+  }
+  google::DumpStackTrace();
+  exit(1);
+}
+
 }
 }
+
 
 DECLARE_bool( global_memory_use_hugepages );
 
@@ -271,17 +282,29 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   double start = Grappa::walltime();
   // now go do other stuff for a while
   
+  // initializes system_wide global_communicator
+  global_communicator.init( argc_p, argv_p );
+
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
+
   // set up stats dump signal handler
   struct sigaction stats_dump_sa;
   sigemptyset( &stats_dump_sa.sa_mask );
   stats_dump_sa.sa_flags = 0;
   stats_dump_sa.sa_handler = &stats_dump_sighandler;
   CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
+
   // struct sigaction sigabrt_sa;
   // sigemptyset( &sigabrt_sa.sa_mask );
   // sigabrt_sa.sa_flags = 0;
   // sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
   // CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+
+  struct sigaction sigsegv_sa;
+  sigemptyset( &sigsegv_sa.sa_mask );
+  sigsegv_sa.sa_flags = 0;
+  sigsegv_sa.sa_handler = &Grappa::impl::failure_sighandler;
+  CHECK_EQ( 0, sigaction( SIGSEGV, &sigsegv_sa, 0 ) ) << "SIGSEGV signal handler installation failed.";
 
   // Asynchronous IO
   // initialize completed stack
@@ -298,8 +321,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   }
 #endif
 
-  // initializes system_wide global_communicator
-  global_communicator.init( argc_p, argv_p );
   
   CHECK( global_communicator.locale_cores <= MAX_CORES_PER_LOCALE );
   

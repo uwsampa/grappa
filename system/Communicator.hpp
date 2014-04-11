@@ -129,13 +129,15 @@ private:
   unsigned send_ev_vt;
 #endif
 
-  std::unique_ptr< Context[] > receives;
+  //std::unique_ptr< Context[] > receives;
+  Context * receives;
   int receive_head;
   int receive_dispatch;
   int receive_tail;
   int receive_mask;
 
-  std::unique_ptr< Context[] > sends;
+  //std::unique_ptr< Context[] > sends;
+  Context * sends;
   int send_head;
   int send_tail;
   int send_mask;
@@ -143,12 +145,12 @@ private:
   MPI_Request barrier_request;
   
   void garbage_collect();
-  void repost_receive_buffers();
   void process_received_buffers();
 
-  friend class RDMAAggregator;
+  std::stack<Context*> external_sends;
   
 public:
+  void repost_receive_buffers();
 
 
   /// Construct communicator. Must call init() before
@@ -186,6 +188,11 @@ public:
                   int dest,
                   size_t size,
                   int tag = 1 );
+  
+  void post_external_send( Context * c,
+                           int dest,
+                           size_t size,
+                           int tag = 1 );
   
   void post_receive( Context * c );
   

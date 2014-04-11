@@ -241,25 +241,11 @@ namespace Grappa {
       CoreData * cores_;
 
 
-      /// Active message to walk a buffer of received deserializers/functors and call them.
-      static void deserialize_buffer_am( void * buf, size_t size );
-      int deserialize_buffer_handle_;
-      
       /// Active message to deserialize/call the first entry of a buffer of received deserializers/functors
-      static void deserialize_first_am( void * buf, size_t size );
-      int deserialize_first_handle_;
+      static void deserialize_first_am( void * buf, int size, Context * c );
       
       /// Active message to enqueue a buffer to be received
       static void enqueue_buffer_am( void * buf, int size, Context * c );
-      int enqueue_buffer_handle_;
-      
-      /// Active message to enqueue a buffer to be received and send a reply to meet the spec
-      static void enqueue_buffer_async_am( void * buf, size_t size );
-      int enqueue_buffer_async_handle_;
-
-      /// Active message to receive a medium message and enqueue a buffer to be received
-      static void copy_enqueue_buffer_am( void * buf, size_t size );
-      int copy_enqueue_buffer_handle_;
 
       /// buffers for message transmission
       RDMABuffer * rdma_buffers_;
@@ -425,7 +411,6 @@ namespace Grappa {
       /// available.
       void send_worker( Locale locale );
       void receive_worker();
-      void medium_receive_worker();
       void receive_buffer( RDMABuffer * b );
 
       /// Condition variable used to signal flushing task.
@@ -461,11 +446,6 @@ namespace Grappa {
         , received_buffer_list_()
         , free_buffer_list_()
         , cores_(NULL)
-        , deserialize_buffer_handle_( -1 )
-        , deserialize_first_handle_( -1 )
-        , enqueue_buffer_async_handle_( -1 )
-        , enqueue_buffer_handle_( -1 )
-        , copy_enqueue_buffer_handle_( -1 )
         , rdma_buffers_( NULL )
         , flush_cv_()
         , disable_flush_(false)
@@ -728,28 +708,41 @@ namespace Grappa {
       void send_immediate( Grappa::impl::MessageBase * m ) {
         app_messages_immediate++;
 
-        // create temporary buffer
         const size_t size = m->serialized_size();
-        char buf[ size ] __attribute__ ((aligned (16)));
 
+        Context * c = global_communicator.try_get_send_context();
+        while( !c ) {
+          c = global_communicator.try_get_send_context();
+          Grappa::yield();
+        }
+
+        char * buf = (char*) c->buf;
+        DCHECK_LE( size, c->size );
+
+        // write deserializer pointer
+        typedef decltype(&deserialize_first_am) Deserializer;
+        Deserializer * dbuf = (Deserializer*) buf;
+        *dbuf = &deserialize_first_am;
+        buf = (char*) (dbuf + 1);
+        
         // serialize to buffer
         Grappa::impl::MessageBase * tmp = m;
         while( tmp != nullptr ) {
           DVLOG(5) << __func__ << ": Serializing message from " << tmp;
-          char * end = aggregate_to_buffer( &buf[0], &tmp, size );
+          char * end = aggregate_to_buffer( buf, &tmp, size );
           DVLOG(5) << __func__ << ": After serializing, pointer was " << tmp;
           DCHECK_EQ( end - buf, size ) << __func__ << ": Whoops! Aggregated message was too long to send as immediate";
           
           DVLOG(5) << __func__ << ": Sending " << end - buf
                    << " bytes of aggregated messages to " << m->destination_;
 
+          c->callback = NULL;
+          global_communicator.post_send( c, m->destination_, end-((char*)c->buf) );
           // send
-          //global_communicator.send(  m->destination_, deserialize_first_handle_, buf, size );
-
           // TODO: eliminate copy
-          global_communicator.send_immediate_with_payload( m->destination_, [] (void * buf, int size) {
-              global_rdma_aggregator.deserialize_first_am( buf, size );
-            }, buf, size );
+          // global_communicator.send_immediate_with_payload( m->destination_, [] (void * buf, int size) {
+          //     global_rdma_aggregator.deserialize_first_am( buf, size );
+          //   }, buf, size );
 
         }
       }
