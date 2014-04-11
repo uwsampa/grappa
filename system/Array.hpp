@@ -195,18 +195,19 @@ namespace util {
   // template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
   template< typename ArrayT, int width = 10 >
   inline std::string array_str(const char * name, const ArrayT& array) {
+    bool multiline = array.size() > width;
     std::stringstream ss;
     if (name) {
-      ss << "\n" << name << ": ";
+      ss << name << ": ";
     }
     ss << "[";
     long i=0;
     for (auto e : array) {
-      if (i % width == 0) ss << "\n  ";
+      if (i % width == 0 && multiline) ss << "\n  ";
       ss << " " << e;
       i++;
     }
-    ss << "\n]";
+    ss << (multiline ? "\n" : " ") << "]";
     return ss.str();
   }  
   
