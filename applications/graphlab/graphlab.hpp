@@ -77,8 +77,18 @@ namespace Grappa {
       size_t num_in_edges() const { return n_in; }
       size_t num_out_edges() const { return n_out; }
         
-      void activate() { if (!active) { total_active++; active = true; } }
-      void deactivate() { if (active) { total_active--; active = false; } }
+      void activate() {
+        if (!active) {
+          if (is_master()) total_active++;
+          active = true;
+        }
+      }
+      void deactivate() {
+        if (active) {
+          if (is_master()) total_active--;
+          active = false;
+        }
+      }
       
       bool is_master() { return master.core() == mycore(); }
     };
