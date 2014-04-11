@@ -44,6 +44,7 @@
 #include <vector>
 #include <iostream>
 
+#include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "common.hpp"
@@ -79,7 +80,7 @@ struct Context {
   void * buf;
   int size;
   int reference_count;
-  void (*callback)( Context * c, int source, int tag, size_t received_size );
+  void (*callback)( Context * c, int source, int tag, int received_size );
   Context(): request(MPI_REQUEST_NULL), buf(NULL), size(0), reference_count(0), callback(NULL) {}
 };
 
@@ -113,10 +114,6 @@ class Communicator {
 private:
   DISALLOW_COPY_AND_ASSIGN( Communicator );
 
-
-
-  
-
   Core mycore_;
   Core cores_;
   Core mylocale_;
@@ -149,6 +146,7 @@ private:
   void repost_receive_buffers();
   void process_received_buffers();
 
+  friend class RDMAAggregator;
   
 public:
 

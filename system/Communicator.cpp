@@ -33,6 +33,7 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #endif
 
 #include "Communicator.hpp"
+#include "LocaleSharedMemory.hpp"
 
 DEFINE_int64( log2_concurrent_receives, 6, "How many receive requests do we keep active at a time?" );
 DEFINE_int64( log2_concurrent_collectives, 6, "How many collective requests do we keep active at a time?" );
@@ -198,14 +199,14 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 void Communicator::activate() {
 
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
-    char * buf;
-    MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
+    char * buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
+    //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size) , MPI_INFO_NULL, &buf );
     sends[i].buf = buf;
   }
 
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
-    char * buf;
-    MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
+    char * buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
+    //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
     receives[i].buf = buf;
     receives[i].size = 1 << FLAGS_log2_buffer_size;
   }

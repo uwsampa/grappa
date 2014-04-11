@@ -24,6 +24,7 @@
 /// Tests for communicator
 
 #include "Communicator.hpp"
+#include "LocaleSharedMemory.hpp"
 
 /*
  * tests
@@ -31,6 +32,48 @@
 #include <boost/test/unit_test.hpp>
 
 DECLARE_int64( log2_concurrent_receives );
+
+/// provide some things we'd normally get from other parts of the sysatem
+
+bool freeze_flag = false;
+
+// from google
+namespace google {
+extern void DumpStackTrace();
+}
+
+namespace Grappa {
+namespace impl {
+
+void freeze_for_debugger() {
+  LOG(INFO) << global_communicator.hostname() << " freezing for debugger. Set freeze_flag=false to continue.";
+  google::FlushLogFiles(google::GLOG_INFO);
+  fflush(stdout);
+  fflush(stderr);
+
+  while( freeze_flag ) {
+    sleep(1);
+  }
+}
+
+void failure_function() {
+  google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
+  if( freeze_flag ) {
+    freeze_for_debugger();
+  }
+  exit(1);
+}
+
+/// how much memory do we expect to allocate?
+int64_t global_memory_size_bytes = 1 << 24;
+int64_t global_bytes_per_core = 1 << 23;
+int64_t global_bytes_per_locale = 1 << 23;
+
+}
+}
+
+
 
 BOOST_AUTO_TEST_SUITE( Communicator_tests );
 
@@ -117,7 +160,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   global_communicator.init( &(boost::unit_test::framework::master_test_suite().argc),
              &(boost::unit_test::framework::master_test_suite().argv) );
+  Grappa::impl::locale_shared_memory.init();
+  Grappa::impl::locale_shared_memory.activate();
+
   global_communicator.activate();
+  
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
   ping_test();
 

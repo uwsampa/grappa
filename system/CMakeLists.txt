@@ -224,6 +224,7 @@ add_check( graph/Graph_tests.cpp             2 1  pass )
 
 add_library(Communicator
         Communicator.cpp
+        LocaleSharedMemory.cpp
 )
 # target_link_libraries(Communicator
 #     gflags
