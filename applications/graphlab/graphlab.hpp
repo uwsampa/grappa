@@ -64,13 +64,23 @@ namespace Grappa {
       Edge * l_out;
       size_t l_nout;
       
-      Vertex(VertexID id = -1): id(id), data(), n_in(), n_out(), l_out(nullptr), l_nout(0) {}
+      static Reducer<int64_t,ReducerType::Add> total_active;
+  
+      void* prog;
+      bool active, active_minor_step;
       
-      V& operator->(){ return data; }
-      const V& operator->() const { return data; }
+      Vertex(VertexID id = -1): id(id), data(), n_in(), n_out(), l_out(nullptr), l_nout(0), prog(nullptr), active(false), active_minor_step(false) {}
+      
+      V* operator->(){ return &data; }
+      const V* operator->() const { return &data; }
       
       size_t num_in_edges() const { return n_in; }
       size_t num_out_edges() const { return n_out; }
+        
+      void activate() { if (!active) { total_active++; active = true; } }
+      void deactivate() { if (active) { total_active--; active = false; } }
+      
+      bool is_master() { return master.core() == mycore(); }
     };
     
     GlobalAddress<GraphlabGraph> self;
@@ -359,9 +369,22 @@ namespace Grappa {
       
       return g;
     }
-        
+    
+    template< typename F >
+    void on_mirrors_async(Vertex& v, F work) {
+      auto g = self;
+      auto id = v.id;
+      for (auto c : g->l_masters[id].mirrors) if (c != mycore()) {
+        delegate::call<async>(c, [=]{
+          work(*g->l_vmap[id]);
+        });
+      }
+    }
+    
   } GRAPPA_BLOCK_ALIGNED;
   
+  template< typename V, typename E >
+  Reducer<int64_t,ReducerType::Add> GraphlabGraph<V,E>::Vertex::total_active;
   
   struct Iter {
     /// Iterator over master vertices in GraphlabGraph.
@@ -390,14 +413,14 @@ namespace Grappa {
     /// Iterate over just master vertices in GraphlabGraph.
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(Iter::Masters<G> it, F body,
-                void (F::*mf)(typename G::Vertex&) const) {
+        void (F::*mf)(typename G::Vertex&) const) {
       on_all_cores([=]{
         finish<C>([=]{
           auto g = it.g;
           forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
           (0, g->l_verts.size(), [g,body](int64_t i){
             auto& v = g->l_verts[i];
-            if (v.master.core() == mycore()) {
+            if (v.is_master()) {
               body(v);
             }
           });
@@ -405,6 +428,23 @@ namespace Grappa {
       });
     }
     
+    /// Iterate over just master vertices in GraphlabGraph.
+    template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
+    void forall(Iter::Masters<G> it, F body,
+        void (F::*mf)(typename G::Vertex&, typename G::MasterInfo&) const) {
+      on_all_cores([=]{
+        finish<C>([=]{
+          auto g = it.g;
+          forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
+          (0, g->l_verts.size(), [g,body](int64_t i){
+            auto& v = g->l_verts[i];
+            if (v.is_master()) {
+              body(v, g->l_masters[v.id]);
+            }
+          });
+        });
+      });
+    }    
     
     /// Iterate over all vertices including mirrors
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
@@ -464,27 +504,24 @@ struct GraphlabVertexProgram {
   
   GraphlabVertexProgram(): cache() {}
   
-  void post_delta(GatherType d){ cache += d; }
+  void post_delta(GatherType d) { cache += d; }
+  void reset() { cache = GatherType(); }
 };
 
 template< typename Subclass >
 struct GraphlabVertexData {
-  static Reducer<int64_t,ReducerType::Add> total_active;
-  
-  void* prog;
-  bool active, active_minor_step;
-  
-  GraphlabVertexData(): active(false) {}
-  void activate() { if (!active) { total_active++; active = true; } }
-  void deactivate() { if (active) { total_active--; active = false; } }
 };
-
-template< typename Subclass >
-Reducer<int64_t,ReducerType::Add> GraphlabVertexData<Subclass>::total_active;
 
 template< typename V, typename E >
 void activate_all(GlobalAddress<Graph<V,E>> g) {
   forall(g, [](typename Graph<V,E>::Vertex& v){ v->activate(); });
+}
+
+template< typename V, typename E >
+void activate_all(GlobalAddress<GraphlabGraph<V,E>> g) {
+  forall(mirrors(g), [](typename GraphlabGraph<V,E>::Vertex& v){
+    v.activate();
+  });
 }
 
 template< typename V >
@@ -495,25 +532,127 @@ void activate(GlobalAddress<V> v) {
 enum class EdgeDirection { None, In, Out, All };
 
 template< typename G, typename VertexProg,
-  class = typename std::enable_if<std::is_base_of<impl::GraphlabGraphBase,G>::value>::type
->
-struct GraphlabSyncronousEngine {
+  class = typename std::enable_if<
+    std::is_base_of<impl::GraphlabGraphBase,G>
+  // ::value>::type,
+  // class = typename std::enable_if<
+  //   std::is_base_of<GraphlabVertexProgram,VertexProg>
+  ::value>::type >
+struct GraphlabEngine {
   using Vertex = typename G::Vertex;
   using Edge = typename G::Edge;
+  using MasterInfo = typename G::MasterInfo;
   
-  void run(GlobalAddress<G> g) {
+  static VertexProg& prog(Vertex& v) { return *static_cast<VertexProg*>(v.prog); };
+  
+  /// 
+  /// Assuming: `gather_edges = EdgeDirection::In`
+  /// 
+  static void run_sync(GlobalAddress<G> g) {
+    
+    VLOG(1) << "GraphlabEngin::run_sync(active:" << Vertex::total_active << ")";
     
     ///////////////
     // initialize
     forall(mirrors(g), [=](Vertex& v){
-      v->prog = new VertexProg(v);
+      v.prog = new VertexProg(v);
     });
     
-    ///////////
-    // gather
-    forall(g, [=](Edge& e){
+    int iteration = 0;
+    while ( Vertex::total_active > 0 && iteration < FLAGS_max_iterations )
+        GRAPPA_TIME_REGION(iteration_time) {
+      VLOG(1) << "iteration " << iteration 
+              << " -- active: " << Vertex::total_active;
+      ////////////////////////////////////////////////////////////
+      // gather (TODO: do this in fewer 'forall's)
       
-    });
+      // reset cache
+      forall(mirrors(g), [=](Vertex& v){ prog(v).reset(); });
+      
+      // gather in_edges
+      forall(g, [=](Edge& e){
+        auto& dst = e.source();
+        if (dst.active) {
+          auto& p = prog(dst);
+          p.cache += p.gather(dst, e);
+        }
+      });
+    
+      // send accumulated gather to master to compute total
+      forall(mirrors(g), [=](Vertex& v){
+        if (v.active) {
+          auto& p = prog(v);
+          if (v.master.core() != mycore()) {
+            auto accum = p.cache;
+            call<async>(v.master, [=](Vertex& m){
+              prog(m).cache += accum;
+            });
+          }
+        }
+      });
+    
+      ////////////////////////////////////////////////////////////
+      // apply
+      forall(mirrors(g), [=](Vertex& v){
+        if (v.active) {
+          v.deactivate();
+          v.active_minor_step = true;
+        }
+      });
+      
+      forall(masters(g), [=](Vertex& v, MasterInfo& master){
+        if (!v.active_minor_step) return;
+        
+        auto& p = prog(v);
+        p.apply(v, p.cache);
+        
+        v.active_minor_step = p.scatter_edges(v);
+        
+        // broadcast out to mirrors
+        auto p_copy = p;
+        auto data = v.data;
+        auto id = v.id;
+        auto active = v.active_minor_step;
+        for (auto c : master.mirrors) if (c != mycore()) {
+          delegate::call<async>(c, [=]{
+            auto& v = *g->l_vmap[id];
+            v.data = data;
+            v.active_minor_step = active;
+            prog(v) = p_copy;
+          });
+        }
+      });
+      
+      ////////////////////////////////////////////////////////////
+      // scatter
+      forall(g, [=](Edge& e){
+        // scatter out_edges
+        auto& v = e.source();
+        if (v.active_minor_step) {
+          auto& p = prog(v);
+          p.scatter(e, e.dest());
+        }
+      });
+      
+      // only thing that should've been changed about vertices is activation,
+      // so make sure all mirrors know (send to master, then broadcast)
+      forall(mirrors(g), [=](Vertex& v){
+        if (v.active) {
+          delegate::call<async>(v.master, [=](Vertex& m){
+            m.activate();
+          });
+        }
+      });
+      forall(masters(g), [=](Vertex& v){
+        if (v.active) {
+          g->on_mirrors_async(v, [](Vertex& m){
+            m.activate();
+          });
+        }
+      });
+      
+      iteration++;
+    } // while
   }
 };
 

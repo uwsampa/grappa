@@ -51,6 +51,30 @@ struct PagerankVertexData : public GraphlabVertexData<PagerankVertexData> {
 
 using G = GraphlabGraph<PagerankVertexData,Empty>;
 
+struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
+  double delta;
+  
+  PagerankVertexProgram(Vertex& v) {}
+  
+  bool gather_edges(const Vertex& v) const { return true; }
+  
+  Gather gather(Vertex& src, Edge& e) const {
+    return src->rank / src.num_out_edges();
+  }
+  void apply(Vertex& v, const Gather& total) {
+    auto new_val = (1.0 - RESET_PROB) * total + RESET_PROB;
+    delta = (new_val - v->rank) / v.num_out_edges();
+    v->rank = new_val;
+  }
+  bool scatter_edges(const Vertex& v) const {
+    return std::fabs(delta * v.num_out_edges()) > TOLERANCE;
+  }
+  Gather scatter(const Edge& e, Vertex& target) const {
+    target.activate();
+    return delta;
+  }
+};
+
 Reducer<int64_t,ReducerType::Add> count;
 
 int main(int argc, char* argv[]) {
@@ -112,21 +136,32 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "count: " << count;
     CHECK_EQ(count, g->nv);
     
-    forall(g, [](G::Edge& e){
-      std::cerr << "<" << e.src << "," << e.dst << "> ";
-    });
-    on_all_cores([]{ std::cerr << "\n\n"; });
-    
+    if (VLOG_IS_ON(2)) {
+      forall(g, [](G::Edge& e){
+        std::cerr << "<" << e.src << "," << e.dst << "> ";
+      });
+      on_all_cores([]{ std::cerr << "\n"; });
+    }
+        
     count = 0;
     forall(mirrors(g), [](G::Vertex& v){
       count++;
       
-      if (VLOG_IS_ON(2)) {
+      if (VLOG_IS_ON(3)) {
         std::cerr << "{id:" << v.id << ", n_in:" << v.n_in << ", n_out:" << v.n_out << "}\n";
       }
     });
     LOG(INFO) << "count(all): " << count;
     CHECK_EQ(count, g->nv_over);
+    
+    if (VLOG_IS_ON(2)) {
+      forall(masters(g), [=](G::Vertex& v, G::MasterInfo& master){
+        std::cerr << v.id << ": " << util::array_str(nullptr, master.mirrors) << "\n";
+      });
+    }
+    
+    activate_all(g);
+    GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
     
   });
   finalize();
