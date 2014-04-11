@@ -242,23 +242,23 @@ namespace Grappa {
 
 
       /// Active message to walk a buffer of received deserializers/functors and call them.
-      static void deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size );
+      static void deserialize_buffer_am( void * buf, size_t size );
       int deserialize_buffer_handle_;
       
       /// Active message to deserialize/call the first entry of a buffer of received deserializers/functors
-      static void deserialize_first_am( gasnet_token_t token, void * buf, size_t size );
+      static void deserialize_first_am( void * buf, size_t size );
       int deserialize_first_handle_;
       
       /// Active message to enqueue a buffer to be received
-      static void enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
+      static void enqueue_buffer_am( void * buf, size_t size );
       int enqueue_buffer_handle_;
       
       /// Active message to enqueue a buffer to be received and send a reply to meet the spec
-      static void enqueue_buffer_async_am( gasnet_token_t token, void * buf, size_t size );
+      static void enqueue_buffer_async_am( void * buf, size_t size );
       int enqueue_buffer_async_handle_;
 
       /// Active message to receive a medium message and enqueue a buffer to be received
-      static void copy_enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
+      static void copy_enqueue_buffer_am( void * buf, size_t size );
       int copy_enqueue_buffer_handle_;
 
       /// buffers for message transmission
@@ -744,7 +744,13 @@ namespace Grappa {
                    << " bytes of aggregated messages to " << m->destination_;
 
           // send
-          global_communicator.send(  m->destination_, deserialize_first_handle_, buf, size );
+          //global_communicator.send(  m->destination_, deserialize_first_handle_, buf, size );
+
+          // TODO: eliminate copy
+          global_communicator.send_immediate( m->destination_, [size] (void * buf) {
+              deserialize_first_am( buf, size );
+            }, buf, size );
+
         }
       }
 

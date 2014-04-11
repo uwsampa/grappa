@@ -38,9 +38,13 @@ namespace Grappa {
   
 namespace impl {
 
+static void 
+
 /// Buffer for RDMA messaging. 
 class RDMABuffer {
-private:
+public:
+  void * deaggregator;
+
   union {
     struct {
       Core source_ : 16;
@@ -57,19 +61,25 @@ private:
     intptr_t raw2_;
   };
 
-  char data_[ BUFFER_SIZE - sizeof( raw_ ) - sizeof( raw2_ ) ];
+  char data_[ BUFFER_SIZE - sizeof(void*) - sizeof( raw_ ) - sizeof( raw2_ ) - sizeof(Context) ];
   
-public:
+  Context context;
+
+  
   RDMABuffer()
-    : dest_( -1 )
+    : deserializer(NULL)
+    , dest_( -1 )
     , next_( 0 )
     , source_( -1 )
     , ack_( 0 )
     , data_()
+    , context()
   { 
     static_assert( sizeof(*this) == BUFFER_SIZE, "RDMABuffer is not the size I expected for some reason." );
+    context.buf = (void*) this;
+    context.size = get_max_size();
   }
-  
+
   inline uint16_t * get_counts() { return reinterpret_cast< uint16_t* >( &data_[0] ); }
   inline char * get_payload() { 
     int payload_offset = Grappa::locale_cores() * sizeof( uint16_t );
@@ -84,7 +94,7 @@ public:
   }
 
   // assumes layout makes sense
-  inline size_t get_max_size() { return BUFFER_SIZE - get_base_size(); }
+  inline size_t get_max_size() { return BUFFER_SIZE - get_base_size() - sizeof(Context); }
 
   inline RDMABuffer * get_ack() { return reinterpret_cast< RDMABuffer * >( ack_ ); }
   inline void set_ack( RDMABuffer * ack ) { ack_ = reinterpret_cast< intptr_t >( ack ); }
