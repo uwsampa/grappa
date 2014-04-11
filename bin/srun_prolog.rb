@@ -6,7 +6,9 @@ end
 
 ## set up Google logging defaults
 ENV["GLOG_logtostderr"] = "1"
-ENV["GLOG_v"] = "0"
+ENV["GLOG_v"] = "1"
+
+ENV["GRAPPA_FREEZE_ON_ERROR"] = "1"
 
 ## set up GASNet debugging
 ENV["GASNET_BACKTRACE"] = "1"
