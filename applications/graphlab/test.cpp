@@ -60,11 +60,11 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   
   Gather gather(const Vertex& v, Edge& e) const {
     auto& src = e.source();
-    VLOG(0) << "gather(" << src.id << ", " << src->rank/src.n_out << ")";
+    VLOG(4) << "gather(" << v.id << ", " << src->rank/src.n_out << ")";
     return src->rank / src.num_out_edges();
   }
   void apply(Vertex& v, const Gather& total) {
-    VLOG(0) << "apply(" << v.id << ", total:" << total << ")";
+    VLOG(4) << "apply(" << v.id << ", total:" << total << ")";
     auto new_val = (1.0 - RESET_PROB) * total + RESET_PROB;
     delta = (new_val - v->rank) / v.num_out_edges();
     v->rank = new_val;
@@ -74,7 +74,7 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   }
   Gather scatter(const Edge& e, Vertex& target) const {
     target.activate();
-    VLOG(0) << "activating " << target.id;
+    VLOG(4) << "activating " << target.id;
     return delta;
   }
 };

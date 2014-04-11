@@ -592,7 +592,7 @@ struct GraphlabEngine {
   /// 
   static void run_sync(GlobalAddress<G> g) {
     
-    VLOG(1) << "GraphlabEngin::run_sync(active:" << Vertex::total_active << ")";
+    VLOG(1) << "GraphlabEngine::run_sync(active:" << Vertex::total_active << ")";
     
     ///////////////
     // initialize
@@ -699,6 +699,7 @@ struct GraphlabEngine {
       });
       
       iteration++;
+      VLOG(1) << "  time:   " << walltime()-t;
     } // while
   }
 };
