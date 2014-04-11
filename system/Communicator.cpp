@@ -199,13 +199,15 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 void Communicator::activate() {
 
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
-    char * buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
+    char * buf;
+    buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
     //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size) , MPI_INFO_NULL, &buf );
     sends[i].buf = buf;
   }
 
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
-    char * buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
+    char * buf;
+    buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
     //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
     receives[i].buf = buf;
     receives[i].size = 1 << FLAGS_log2_buffer_size;
@@ -249,8 +251,10 @@ void Communicator::post_send( Context * c,
                               size_t size,
                               int tag ) {
   c->reference_count = 1; // mark as active
+  DVLOG(6) << "Posting send " << c << " to " << dest
+           << " with buf " << c->buf
+           << " callback " << (void*)c->callback;
   MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
-  DVLOG(6) << "Posted send " << c << " to " << dest << " with buf " << c->buf;
 }
 
 void Communicator::post_receive( Context * c ) {
