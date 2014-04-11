@@ -167,8 +167,8 @@ int main(int argc, char* argv[]) {
       });
     }
     
-    // activate_all(g);
-    // GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
+    activate_all(g);
+    GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
     
   });
   finalize();

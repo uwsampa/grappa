@@ -390,8 +390,9 @@ namespace Grappa {
             }
           }
         }
-        phaser.wait();
-        
+      });
+      phaser.wait();
+      on_all_cores([=]{
         if (VLOG_IS_ON(4)) {
           for (auto& v : g->l_verts) {
             std::cerr << "<" << std::setw(2) << v.id << "> master:" << v.master << "\n";
@@ -602,13 +603,18 @@ struct GraphlabEngine {
     int iteration = 0;
     while ( Vertex::total_active > 0 && iteration < FLAGS_max_iterations )
         GRAPPA_TIME_REGION(iteration_time) {
-      VLOG(1) << "iteration " << iteration 
-              << " -- active: " << Vertex::total_active;
+      VLOG(1) << "iteration " << iteration;
+      VLOG(1) << "  active: " << Vertex::total_active;
+      double t = walltime();
+      
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
       
       // reset cache
-      forall(mirrors(g), [=](Vertex& v){ prog(v).reset(); });
+      forall(mirrors(g), [=](Vertex& v){
+        prog(v).reset();
+        v.active_minor_step = false;
+      });
       
       // gather in_edges
       forall(g, [=](Edge& e){
