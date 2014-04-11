@@ -343,7 +343,9 @@ namespace Grappa {
   template< GlobalCompletionEvent * C = &impl::local_gce,
             typename F = decltype(nullptr) >
   void finish(F f) {
+    C->enroll();
     f();
+    C->complete();
     C->wait();
   }
   

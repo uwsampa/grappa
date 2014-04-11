@@ -93,6 +93,8 @@ namespace Grappa {
     unordered_map<VertexID,Vertex*> l_vmap;
     unordered_map<VertexID,MasterInfo> l_masters;
     
+    static GlobalCompletionEvent phaser;
+    
   private:
     
     GraphlabGraph(GlobalAddress<GraphlabGraph> self)
@@ -104,10 +106,27 @@ namespace Grappa {
     ~GraphlabGraph() = default;
     
     static GlobalAddress<GraphlabGraph> create(TupleGraph tg) {
-      VLOG(1) << "Graphlab::Graph::create( undirected, greedy_oblivious )";
+      VLOG(1) << "GraphlabGraph::create( directed, greedy_oblivious )";
       auto g = symmetric_global_alloc<GraphlabGraph>();
       
+#define LOG_ALL_CORES(NAME, TYPE, WHAT) \
+      if (VLOG_IS_ON(2)) { \
+        barrier(); \
+        if (mycore() == 0) { \
+          std::vector<TYPE> lst; lst.resize(cores()); \
+          for (Core c = 0; c < cores(); c++) { \
+            lst[c] = delegate::call(c, [=]{ \
+              return (WHAT); \
+            }); \
+          } \
+          std::cerr << util::array_str(NAME, lst) << "\n"; \
+        } \
+        barrier(); \
+      }
+      
+      
       on_all_cores([=]{
+        srand(12345);
         // intialize graph
         new (g.localize()) GraphlabGraph(g);
         
@@ -187,17 +206,17 @@ namespace Grappa {
         edges.reserve(edge_cts[mycore()]);
         barrier();
         
-        finish([&]{
-          for (auto& e : local_edges) {
-            auto target = assignments[idx(e)];
-            if (target != CoreSet::INVALID) {
-              auto e_copy = e;
-              delegate::call<async>(target, [e_copy,g]{
-                g->l_edges.emplace_back(e_copy);
-              });
-            }
+        
+        for (auto& e : local_edges) {
+          auto target = assignments[idx(e)];
+          if (target != CoreSet::INVALID) {
+            auto e_copy = e;
+            delegate::call<async,&phaser>(target, [e_copy,g]{
+              g->l_edges.emplace_back(e_copy);
+            });
           }
-        });
+        }
+        phaser.wait();
         
         // if (mycore() == 0) global_free(tg.edges);        
         std::sort(edges.begin(), edges.end(), [](const Edge& a, const Edge& b){
@@ -223,6 +242,9 @@ namespace Grappa {
         }
         lvs.reserve(l_vmap.size());
         
+        LOG_ALL_CORES("edges", size_t, g->l_edges.size());
+        LOG_ALL_CORES("vertices", size_t, g->l_vmap.size());
+                
         VertexID src = -1;
         Vertex* cv;
         
@@ -266,15 +288,16 @@ namespace Grappa {
       auto mirror_map = GlobalHashMap<VertexID,CoreSet>::create(g->nv_over);
       
       on_all_cores([=]{
-        finish([=]{
-          for (auto& v : g->l_verts) {
-            auto c = mycore();
-            mirror_map->insert_async(v.id, [c](CoreSet& cs){ cs.insert(c); });
-          }
-        });
+        for (auto& v : g->l_verts) {
+          auto c = mycore();
+          insert<async,&phaser>(mirror_map, v.id, [c](CoreSet& cs){
+            cs.insert(c);
+          });
+        }
       });
+      phaser.wait();
       
-      forall(mirror_map, [g](const VertexID& k, CoreSet& cs){
+      forall<&phaser>(mirror_map, [g](const VertexID& k, CoreSet& cs){
         int rnd = rand() % cs.size();
         int i=0;
         Core master = -1;
@@ -289,70 +312,75 @@ namespace Grappa {
         
         // TODO: do in bulk?
         for (auto c : cs) {
-          delegate::call<async>(master, [=]{
+          delegate::call<async,&phaser>(master, [=]{
             g->l_masters[k].mirrors.push_back(c);
           });
         }
       });
       
+      
       on_all_cores([=]{
+        LOG_ALL_CORES("masters", size_t, g->l_masters.size());
+        
         // propagate 'master' info to all mirrors
-        finish([=]{
-          for (auto& p : g->l_masters) {
-            auto& vid = p.first;
-            auto& master = p.second;
+        for (auto& p : g->l_masters) {
+          auto& vid = p.first;
+          MasterInfo& master = p.second;
           
-            // VLOG(3) << "master<" << vid << ">: " << master.mirrors;
-          
-            auto ga = make_global(g->l_vmap[vid]);
-            for (auto c : master.mirrors) {
-              delegate::call<async>(c, [=]{
-                g->l_vmap[vid]->master = ga;
-              });
-            }
+          VLOG(4) << "master<" << vid << ">: "
+            << util::array_str(master.mirrors);
+        
+          auto ga = make_global(g->l_vmap[vid]);
+          for (auto c : master.mirrors) {
+            delegate::call<async,&phaser>(c, [=]{
+              g->l_vmap[vid]->master = ga;
+            });
           }
-        });
+        }
+      });
+      phaser.wait();
+      
+      on_all_cores([=]{
         
         // have each mirror send its local n_in/n_out counts to master
-        finish([=]{
-          auto& vm = g->l_vmap;
-          for (auto& e : g->l_edges) {
-            e.srcv = vm[e.src];
-            e.dstv = vm[e.dst];
-            
-            e.srcv->n_out++;
-            e.dstv->n_in++;
-          }
+        auto& vm = g->l_vmap;
+        for (auto& e : g->l_edges) {
+          e.srcv = vm[e.src];
+          e.dstv = vm[e.dst];
           
-          for (auto& v : g->l_verts) {
+          e.srcv->n_out++;
+          e.dstv->n_in++;
+        }
+        
+        for (auto& v : g->l_verts) {
+          auto n_in = v.n_in, n_out = v.n_out;
+          if (v.master.core() != mycore()) {
+            call<async,&phaser>(v.master, [=](Vertex& m){
+              m.n_in += n_in;
+              m.n_out += n_out;
+            });
+          }
+        }
+      });
+      phaser.wait();
+      on_all_cores([=]{ 
+        // send totals back out to each of the mirrors
+        for (auto& v : g->l_verts) {
+          if (v.master.core() == mycore()) {
+            // from master:
+            auto vid = v.id;
             auto n_in = v.n_in, n_out = v.n_out;
-            if (v.master.core() != mycore()) {
-              call<async>(v.master, [=](Vertex& m){
-                m.n_in += n_in;
-                m.n_out += n_out;
+            auto& master = g->l_masters[v.id];
+            // to all the other mirrors (excluding the master):
+            for (auto c : master.mirrors) if (c != mycore()) {
+              delegate::call<async,&phaser>(c, [=]{
+                g->l_vmap[vid]->n_in = n_in;
+                g->l_vmap[vid]->n_out = n_out;
               });
             }
           }
-        });
-        
-        // send totals back out to each of the mirrors
-        finish([=]{
-          for (auto& v : g->l_verts) {
-            if (v.master.core() == mycore()) {
-              // from master:
-              auto vid = v.id;
-              auto n_in = v.n_in, n_out = v.n_out;
-              auto& master = g->l_masters[v.id];
-              // to all the other mirrors (excluding the master):
-              for (auto c : master.mirrors) if (c != mycore()) {
-                delegate::call<async>(c, [=]{
-                  g->l_vmap[vid]->n_in = n_in;
-                  g->l_vmap[vid]->n_out = n_out;
-                });
-              }
-            }
-          }
-        });
+        }
+        phaser.wait();
         
         if (VLOG_IS_ON(4)) {
           for (auto& v : g->l_verts) {
@@ -361,30 +389,33 @@ namespace Grappa {
         }
         
         g->nv = allreduce<int64_t,collective_add>(g->l_masters.size());
-        
       });
             
       VLOG(0) << "num_vertices: " << g->nv;
       VLOG(0) << "replication_factor: " << (double)g->nv_over / g->nv;
-      
       return g;
-    }
-    
-    template< typename F >
-    void on_mirrors_async(Vertex& v, F work) {
-      auto g = self;
-      auto id = v.id;
-      for (auto c : g->l_masters[id].mirrors) if (c != mycore()) {
-        delegate::call<async>(c, [=]{
-          work(*g->l_vmap[id]);
-        });
-      }
     }
     
   } GRAPPA_BLOCK_ALIGNED;
   
+  template< SyncMode S = SyncMode::Blocking,
+            GlobalCompletionEvent * C = &impl::local_gce,
+            typename V = nullptr_t, typename E = nullptr_t,
+            typename F = nullptr_t >
+  void on_mirrors(GlobalAddress<GraphlabGraph<V,E>> g, typename GraphlabGraph<V,E>::Vertex& v, F work) {
+    auto id = v.id;
+    for (auto c : g->l_masters[id].mirrors) if (c != mycore()) {
+      delegate::call<S,C>(c, [=]{
+        work(*g->l_vmap[id]);
+      });
+    }
+  }
+  
   template< typename V, typename E >
   Reducer<int64_t,ReducerType::Add> GraphlabGraph<V,E>::Vertex::total_active;
+
+  template< typename V, typename E >
+  GlobalCompletionEvent GraphlabGraph<V,E>::phaser;
   
   struct Iter {
     /// Iterator over master vertices in GraphlabGraph.
@@ -414,8 +445,8 @@ namespace Grappa {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(Iter::Masters<G> it, F body,
         void (F::*mf)(typename G::Vertex&) const) {
-      on_all_cores([=]{
-        finish<C>([=]{
+      finish<C>([=]{
+        on_all_cores([=]{
           auto g = it.g;
           forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
           (0, g->l_verts.size(), [g,body](int64_t i){
@@ -432,8 +463,8 @@ namespace Grappa {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(Iter::Masters<G> it, F body,
         void (F::*mf)(typename G::Vertex&, typename G::MasterInfo&) const) {
-      on_all_cores([=]{
-        finish<C>([=]{
+      finish<C>([=]{
+        on_all_cores([=]{
           auto g = it.g;
           forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
           (0, g->l_verts.size(), [g,body](int64_t i){
@@ -450,8 +481,8 @@ namespace Grappa {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
     void forall(Iter::Mirrors<G> it, F body,
                 void (F::*mf)(typename G::Vertex&) const) {
-      on_all_cores([=]{
-        finish<C>([=]{
+      finish<C>([=]{
+        on_all_cores([=]{
           auto g = it.g;
           forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
           (0, g->l_verts.size(), [g,body](int64_t i){
@@ -472,8 +503,8 @@ namespace Grappa {
     template< GlobalCompletionEvent * C, int64_t Threshold, typename V, typename E, typename F >
     void forall(GlobalAddress<GraphlabGraph<V,E>> g, F body,
                 void (F::*mf)(typename GraphlabGraph<V,E>::Edge&) const) {
-      on_all_cores([=]{
-        finish<C>([=]{
+      finish<C>([=]{
+        on_all_cores([=]{
           forall_here<TaskMode::Bound,SyncMode::Async,C,Threshold>
           (0, g->l_edges.size(), [g,body](int64_t i){
             body(g->l_edges[i]);
@@ -571,10 +602,10 @@ struct GraphlabEngine {
       
       // gather in_edges
       forall(g, [=](Edge& e){
-        auto& dst = e.source();
-        if (dst.active) {
-          auto& p = prog(dst);
-          p.cache += p.gather(dst, e);
+        auto& v = e.dest();
+        if (v.active) {
+          auto& p = prog(v);
+          p.cache += p.gather(v, e);
         }
       });
     
@@ -645,7 +676,7 @@ struct GraphlabEngine {
       });
       forall(masters(g), [=](Vertex& v){
         if (v.active) {
-          g->on_mirrors_async(v, [](Vertex& m){
+          on_mirrors<async>(g, v, [](Vertex& m){
             m.activate();
           });
         }

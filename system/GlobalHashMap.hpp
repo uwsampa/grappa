@@ -41,7 +41,7 @@ namespace Grappa {
 
 template< typename K, typename V > 
 class GlobalHashMap {
-protected:
+public:
   struct Entry {
     K key;
     V val;
@@ -82,7 +82,7 @@ public:
       }
     }
   } GRAPPA_BLOCK_ALIGNED;
-protected:
+
   struct Proxy {
     static const size_t LOCAL_HASH_SIZE = 1<<10;
     
@@ -256,23 +256,27 @@ public:
       delegate::call(base+computeIndex(key), [key,val](Cell * c) { c->insert(key,val); });
     }
   }
-  
-  template< typename F = nullptr_t >
-  void insert_async(K key, F on_insert) {
-    ++hashmap_insert_msgs;
-    delegate::call<SyncMode::Async>(base+computeIndex(key), [=](Cell& c){
-      for (auto& e : c.entries) {
-        if (e.key == key) {
-          on_insert(e.val);
-          return;
-        }
-      }
-      c.entries.emplace_back(key);
-      on_insert(c.entries.back().val);
-    });
-  }
-  
+    
 } GRAPPA_BLOCK_ALIGNED;
+
+template< SyncMode S = SyncMode::Blocking,
+          GlobalCompletionEvent * C = &impl::local_gce,
+          typename K = nullptr_t, typename V = nullptr_t,
+          typename F = nullptr_t >
+void insert(GlobalAddress<GlobalHashMap<K,V>> self, K key, F on_insert) {
+  ++hashmap_insert_msgs;
+  delegate::call<S,C>(self->base+self->computeIndex(key),
+  [=](typename GlobalHashMap<K,V>::Cell& c){
+    for (auto& e : c.entries) {
+      if (e.key == key) {
+        on_insert(e.val);
+        return;
+      }
+    }
+    c.entries.emplace_back(key);
+    on_insert(c.entries.back().val);
+  });
+}
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,

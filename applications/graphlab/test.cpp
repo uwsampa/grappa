@@ -58,10 +58,13 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   
   bool gather_edges(const Vertex& v) const { return true; }
   
-  Gather gather(Vertex& src, Edge& e) const {
+  Gather gather(const Vertex& v, Edge& e) const {
+    auto& src = e.source();
+    VLOG(0) << "gather(" << src.id << ", " << src->rank/src.n_out << ")";
     return src->rank / src.num_out_edges();
   }
   void apply(Vertex& v, const Gather& total) {
+    VLOG(0) << "apply(" << v.id << ", total:" << total << ")";
     auto new_val = (1.0 - RESET_PROB) * total + RESET_PROB;
     delta = (new_val - v->rank) / v.num_out_edges();
     v->rank = new_val;
@@ -71,6 +74,7 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   }
   Gather scatter(const Edge& e, Vertex& target) const {
     target.activate();
+    VLOG(0) << "activating " << target.id;
     return delta;
   }
 };
@@ -129,6 +133,9 @@ int main(int argc, char* argv[]) {
     
     auto g = G::create(tg);
     
+    construction_time = walltime()-t;
+    LOG(INFO) << construction_time;
+    
     count = 0;
     forall(masters(g), [](G::Vertex& v){
       count++;
@@ -136,32 +143,32 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "count: " << count;
     CHECK_EQ(count, g->nv);
     
-    if (VLOG_IS_ON(2)) {
+    if (VLOG_IS_ON(3)) {
       forall(g, [](G::Edge& e){
         std::cerr << "<" << e.src << "," << e.dst << "> ";
       });
       on_all_cores([]{ std::cerr << "\n"; });
     }
-        
+    
     count = 0;
     forall(mirrors(g), [](G::Vertex& v){
       count++;
       
-      if (VLOG_IS_ON(3)) {
+      if (VLOG_IS_ON(4)) {
         std::cerr << "{id:" << v.id << ", n_in:" << v.n_in << ", n_out:" << v.n_out << "}\n";
       }
     });
     LOG(INFO) << "count(all): " << count;
     CHECK_EQ(count, g->nv_over);
     
-    if (VLOG_IS_ON(2)) {
+    if (VLOG_IS_ON(3)) {
       forall(masters(g), [=](G::Vertex& v, G::MasterInfo& master){
-        std::cerr << v.id << ": " << util::array_str(nullptr, master.mirrors) << "\n";
+        std::cerr << v.id << ": " << util::array_str(master.mirrors) << "\n";
       });
     }
     
-    activate_all(g);
-    GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
+    // activate_all(g);
+    // GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
     
   });
   finalize();
