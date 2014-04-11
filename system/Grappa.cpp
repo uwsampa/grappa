@@ -156,11 +156,6 @@ static void poller( Worker * me, void * args ) {
   // master will be scheduled upon exit of poller thread
 }
 
-/// handler to redirect SIGABRT override to activate a GASNet backtrace
-static void gasnet_pause_sighandler( int signum ) {
-  raise( SIGUSR1 );
-}
-
 // from google
 namespace google {
 typedef void (*override_handler_t)(int);
@@ -182,17 +177,33 @@ static void stats_dump_sighandler( int signum ) {
   LOG(INFO) << global_task_manager;
 }
 
-// function to call when google logging library detect a failure
+
+bool freeze_flag = false;
+
 namespace Grappa {
-  namespace impl {
-    /// called on failures to backtrace and pause for debugger
-    void failure_function() {
-      google::FlushLogFiles(google::GLOG_INFO);
-      google::DumpStackTrace();
-      gasnett_freezeForDebuggerErr();
-      gasnet_exit(1);
-    }
+namespace impl {
+
+void freeze_for_debugger() {
+  LOG(INFO) << global_communicator.hostname() << " freezing for debugger. Set freeze_flag=false to continue.";
+  google::FlushLogFiles(google::GLOG_INFO);
+  fflush(stdout);
+  fflush(stderr);
+
+  while( freeze_flag ) {
+    sleep(1);
   }
+}
+
+/// called on failures to backtrace and pause for debugger
+void failure_function() {
+  google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
+  if( freeze_flag ) {
+    freeze_for_debugger();
+  }
+  exit(1);
+}
+}
 }
 
 DECLARE_bool( global_memory_use_hugepages );
@@ -206,9 +217,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
   // }
 
-  // make sure gasnet is ready to backtrace
-  gasnett_backtrace_init( (*argv_p)[0] );
-
   // help generate unique profile filename
   Grappa::impl::set_exe_name( (*argv_p)[0] );
 
@@ -218,7 +226,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &Grappa::impl::failure_function );
-  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
@@ -230,6 +237,32 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   if (mem_reg_disabled && strncmp(mem_reg_disabled,"0",1) == 0) {
     VLOG(2) << "memory registration disabled";
   }
+
+  // check to see if we should freeze for the debugger on error
+  char * freeze_on_error = getenv("GRAPPA_FREEZE_ON_ERROR");
+  if( freeze_on_error && ( (strncmp(freeze_on_error,"1",1) == 0) ||
+                           (strncmp(freeze_on_error,"true",4) == 0) ||
+                           (strncmp(freeze_on_error,"True",4) == 0) ||
+                           (strncmp(freeze_on_error,"TRUE",4) == 0) ||
+                           (strncmp(freeze_on_error,"yes",3) == 0) ||
+                           (strncmp(freeze_on_error,"Yes",3) == 0) ||
+                           (strncmp(freeze_on_error,"YES",3) == 0) ) ) {
+    freeze_flag = true;
+  }
+
+  // check to see if we should freeze for the debugger now
+  char * freeze_now = getenv("GRAPPA_FREEZE");
+  if( freeze_now && ( (strncmp(freeze_on_error,"1",1) == 0) ||
+                           (strncmp(freeze_on_error,"true",4) == 0) ||
+                           (strncmp(freeze_on_error,"True",4) == 0) ||
+                           (strncmp(freeze_on_error,"TRUE",4) == 0) ||
+                           (strncmp(freeze_on_error,"yes",3) == 0) ||
+                           (strncmp(freeze_on_error,"Yes",3) == 0) ||
+                           (strncmp(freeze_on_error,"YES",3) == 0) ) ) {
+    freeze_flag = true;
+    freeze_for_debugger();
+  }
+
 
   // how fast do we tick?
   Grappa::force_tick();
@@ -244,11 +277,11 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   stats_dump_sa.sa_flags = 0;
   stats_dump_sa.sa_handler = &stats_dump_sighandler;
   CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
-  struct sigaction sigabrt_sa;
-  sigemptyset( &sigabrt_sa.sa_mask );
-  sigabrt_sa.sa_flags = 0;
-  sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
-  CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+  // struct sigaction sigabrt_sa;
+  // sigemptyset( &sigabrt_sa.sa_mask );
+  // sigabrt_sa.sa_flags = 0;
+  // sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
+  // CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
   // Asynchronous IO
   // initialize completed stack
