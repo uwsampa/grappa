@@ -54,7 +54,7 @@
 
 #include <mpi.h>
 #include <memory>
-#include <stack>
+#include <deque>
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -147,7 +147,7 @@ private:
   void garbage_collect();
   void process_received_buffers();
 
-  std::stack<Context*> external_sends;
+  std::deque<Context*> external_sends;
   
 public:
   void repost_receive_buffers();

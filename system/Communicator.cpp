@@ -35,8 +35,8 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #include "Communicator.hpp"
 #include "LocaleSharedMemory.hpp"
 
-DEFINE_int64( log2_concurrent_receives, 6, "How many receive requests do we keep active at a time?" );
-DEFINE_int64( log2_concurrent_collectives, 6, "How many collective requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_receives, 5, "How many receive requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_collectives, 5, "How many collective requests do we keep active at a time?" );
 
 DEFINE_int64( log2_concurrent_sends, 6, "How many send requests do we keep active at a time?" );
 
@@ -268,7 +268,7 @@ void Communicator::post_external_send( Context * c,
                                        int tag ) {
   DVLOG(6) << "Posting external send " << c;
   post_send( c, dest, size, tag );
-  external_sends.push(c);
+  external_sends.push_back(c);
 }
 
 void Communicator::post_receive( Context * c ) {
@@ -302,7 +302,7 @@ void Communicator::garbage_collect() {
 
   // check external send contexts too
   while( !external_sends.empty() ) {
-    auto c = external_sends.top();
+    auto c = external_sends.front();
     if( c->reference_count > 0 ) {
       MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
       if( flag ) {
@@ -310,7 +310,9 @@ void Communicator::garbage_collect() {
         if( c->callback ) {
           (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
         }
-        external_sends.pop();
+        external_sends.pop_front();
+      } else {
+        break;
       }
     } else {
       break;
