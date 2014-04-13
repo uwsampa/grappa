@@ -131,9 +131,9 @@ private:
 
   //std::unique_ptr< Context[] > receives;
   Context * receives;
-  int receive_head;
-  int receive_dispatch;
-  int receive_tail;
+  int receive_head;      //< pointer to next context that may be done delivering and ready to repost
+  int receive_dispatch;  //< pointer to next context that may be done receiving and ready to deliver
+  int receive_tail;      //< pointer to next context that may be done delivering and ready to repost
   int receive_mask;
 
   //std::unique_ptr< Context[] > sends;
