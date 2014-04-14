@@ -365,35 +365,35 @@ namespace Grappa {
                               });
 #endif
 
-      //
-      // precache buffers
-      //
+      // //
+      // // precache buffers
+      // //
 
-      // for now, give each core 1 buffer/token
-      size_t expected_buffers = core_partner_locale_count_; // * remote_buffer_pool_size;
+      // // for now, give each core 1 buffer/token
+      // size_t expected_buffers = core_partner_locale_count_; // * remote_buffer_pool_size;
 
-      for( int i = 0; i < core_partner_locale_count_; ++i ) {
-        Locale locale = core_partner_locales_[i];
-        Core dest = dest_core_for_locale_[ locale ];
-        Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
-        Core mycore = Grappa::mycore();
+      // for( int i = 0; i < core_partner_locale_count_; ++i ) {
+      //   Locale locale = core_partner_locales_[i];
+      //   Core dest = dest_core_for_locale_[ locale ];
+      //   Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
+      //   Core mycore = Grappa::mycore();
 
-        DVLOG(3) << __PRETTY_FUNCTION__ << ": sending " << expected_buffers << " buffers to core " << dest << " on locale " << locale;
+      //   DVLOG(3) << __PRETTY_FUNCTION__ << ": sending " << expected_buffers << " buffers to core " << dest << " on locale " << locale;
 
-        for( int j = 0; j < remote_buffer_pool_size; ++j ) {
-          RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
-          CHECK_NOTNULL( b );
+      //   for( int j = 0; j < remote_buffer_pool_size; ++j ) {
+      //     RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
+      //     CHECK_NOTNULL( b );
           
-          // (make heap message since we're not on a shared stack)
-          auto request = Grappa::message( dest, [mycore, b] {
-              auto p = global_rdma_aggregator.localeCoreData(mycore);
-              DVLOG(3) << __PRETTY_FUNCTION__ << " initializing by pushing buffer " << b << " into " << p << " for " << mycore;
-              p->remote_buffers_.push( b );
-              rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
-            });
-          request.send_immediate();
-        }
-      }
+      //     // (make heap message since we're not on a shared stack)
+      //     auto request = Grappa::message( dest, [mycore, b] {
+      //         auto p = global_rdma_aggregator.localeCoreData(mycore);
+      //         DVLOG(3) << __PRETTY_FUNCTION__ << " initializing by pushing buffer " << b << " into " << p << " for " << mycore;
+      //         p->remote_buffers_.push( b );
+      //         rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
+      //       });
+      //     request.send_immediate();
+      //   }
+      // }
 
 #endif
     }
@@ -739,7 +739,7 @@ void RDMAAggregator::draw_routing_graph() {
       // message to send
       struct ReceiveBuffer {
         char * buf;
-        uint16_t size;
+        uint32_t size;
         //uint64_t sequence_number;
         //Grappa::impl::RDMABuffer * buf_base;
         void operator()() {
@@ -757,7 +757,7 @@ void RDMAAggregator::draw_routing_graph() {
       Grappa::Message< ReceiveBuffer > msgs[ MAX_CORES_PER_LOCALE ];
       
       // index array from buffer
-      uint16_t * counts = buf->get_counts();
+      uint32_t * counts = buf->get_counts();
       char * current_buf = buf->get_payload();
       char * my_buf = NULL;
       int outstanding = 0;

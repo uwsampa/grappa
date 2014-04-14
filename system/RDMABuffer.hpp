@@ -28,7 +28,7 @@
 #include "Communicator.hpp"
 
 ///DECLARE_int64( buffer_size );
-#define BUFFER_SIZE (1 << 16)
+#define BUFFER_SIZE (1 << 20)
 
 
 namespace Grappa {
@@ -79,16 +79,16 @@ public:
     context.size = get_max_size();
   }
 
-  inline uint16_t * get_counts() { return reinterpret_cast< uint16_t* >( &data_[0] ); }
+  inline uint32_t * get_counts() { return reinterpret_cast< uint32_t* >( &data_[0] ); }
   inline char * get_payload() { 
-    int payload_offset = Grappa::locale_cores() * sizeof( uint16_t );
+    int payload_offset = Grappa::locale_cores() * sizeof( uint32_t );
     return &data_[payload_offset]; 
   }
 
 
   inline char * get_base() { return reinterpret_cast< char * >( this ); }
   inline size_t get_base_size() { 
-    int payload_offset = Grappa::locale_cores() * sizeof( uint16_t );
+    int payload_offset = Grappa::locale_cores() * sizeof( uint32_t );
     return &data_[payload_offset] - reinterpret_cast< char * >( this ); 
   }
 
