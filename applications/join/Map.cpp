@@ -1,6 +1,7 @@
 #include <Grappa.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <Addressing.hpp>
+#include <Collective.hpp>
 
 #include <functional>
 #include <cstdint>
@@ -9,7 +10,7 @@
 
 
 //extern GlobalCompletionEvent default_mr_gce;
-//TODO use cpp
+//TODO use .cpp
 Grappa::GlobalCompletionEvent default_mr_gce;
 
 
@@ -20,7 +21,6 @@ struct Reducer {
 
   Reducer() : groups(new std::unordered_map<K, std::vector<V>>()), result(new std::vector<OutType>()) {}
 
-  // FIXME: cannot rely on destructor due to possibility of early delete, so avoid memory leak with explicit freeing
 } GRAPPA_BLOCK_ALIGNED; // using pointers as members because of #157
 
 template <typename K, typename V, typename OutType, Grappa::GlobalCompletionEvent * GCE = &default_mr_gce>
@@ -86,10 +86,7 @@ GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<T> keyvals
   auto reducers = Grappa::global_alloc<Reducer<K, V, OutType>>( num_reducers );    // MALLOC NOT NEW!!!
   Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
       r = Reducer<K,V,OutType>();
-      for (int i=0; i<16; i++) {
-      VLOG(5) << (*(r.groups))[i].size();
-      }
-      });
+      }); 
   //TODO symmetric alloc of a MapReduceContext to allow concurrent jobs
 
   mapExecute<T,K,V,OutType,MapF>(MapperContext<K,V,OutType>(reducers, num_reducers), keyvals, num, mf);
@@ -120,24 +117,41 @@ void NumCountReduce( Reducer<int64_t,int64_t,WordCount>& ctx, int64_t word, std:
     emit( ctx, WordCount(word, sum) );
 }
 
+struct aligned_int64_t {
+  int64_t _x;
+} GRAPPA_BLOCK_ALIGNED;
+int64_t getX(GlobalAddress<aligned_int64_t> a) {
+  return a->_x;
+}
+
 int main(int argc, char** argv) {
   Grappa::init(&argc, &argv);
   Grappa::run([=] {
-    size_t numw = 20;
+    size_t numw = 1000;
+    size_t dictionary_size = 33;
     size_t numred = 2*Grappa::cores();
     GlobalAddress<int64_t> words = Grappa::global_alloc<int64_t>(numw);
     Grappa::forall(words, numw, [=](int64_t i, int64_t& w) {
-      w = i%numred;
+      w = (i*541) % dictionary_size;
     });
 
     GlobalAddress<Reducer<int64_t,int64_t,WordCount>> reds = MapReduceJobExecute<int64_t, int64_t, int64_t, WordCount, decltype(NumCountMap), decltype(NumCountReduce)>(words, numw, numred, &NumCountMap, &NumCountReduce); 
 
+    auto counter = Grappa::symmetric_global_alloc<aligned_int64_t>();
     Grappa::forall(reds, numred, [=](int64_t i, Reducer<int64_t, int64_t, WordCount>& r) {
       LOG(INFO) << "Reducer " << i << " has " << r.result->end() - r.result->begin() << " keys";
       for ( auto local_it = r.result->begin(); local_it!= r.result->end(); ++local_it ) {
-        LOG(INFO) << "Reducer " << i << " (" << local_it->word << ", " << local_it->count << ")";
+        if (local_it->count > 0) {
+          LOG(INFO) << "Reducer " << i << " (" << local_it->word << ", " << local_it->count << ")";
+        }
+        counter->_x += local_it->count;
       }
+      r.result->clear();
     });
+
+    int64_t total = Grappa::reduce<int64_t, aligned_int64_t, &collective_add, &getX>(counter);
+    LOG(INFO) << "total = " << total;
+    CHECK( total == numw );
   });
   Grappa::finalize();
 }
