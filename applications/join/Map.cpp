@@ -15,17 +15,19 @@ Grappa::GlobalCompletionEvent default_mr_gce;
 
 template <typename K, typename V, typename OutType>
 struct Reducer {
-  std::unordered_map<K, std::vector<V>> groups;
-  std::vector<OutType> result;
+  std::unordered_map<K, std::vector<V>> * groups;
+  std::vector<OutType> * result;
 
-  Reducer() : groups(), result() {}
-} GRAPPA_BLOCK_ALIGNED; // FIXME: blocksize < sizeof(T) should be asserted bug for loops
+  Reducer() : groups(new std::unordered_map<K, std::vector<V>>()), result(new std::vector<OutType>()) {}
+
+  // FIXME: cannot rely on destructor due to possibility of early delete, so avoid memory leak with explicit freeing
+} GRAPPA_BLOCK_ALIGNED; // using pointers as members because of #157
 
 template <typename K, typename V, typename OutType, Grappa::GlobalCompletionEvent * GCE = &default_mr_gce>
 void reducer_append( GlobalAddress<Reducer<K,V,OutType>> r, K key, V val ) {
   Grappa::delegate::call<async, GCE>(r.core(), [=] {
     VLOG(5) << "add (" << key << ", " << val << ") at " << r.pointer();
-    std::vector<V>& slot = r->groups[key];
+    std::vector<V>& slot = (*(r->groups))[key];
     slot.push_back(val);
   });
 }
@@ -56,7 +58,7 @@ struct MapperContext {
 
 template < typename K, typename V, typename OutType >
 void emit(Reducer<K,V,OutType>& ctx, OutType result) {
-  ctx.result.push_back(result);
+  ctx.result->push_back(result);
 }
 
 template < typename T, typename K, typename V, typename OutType, typename MapF, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
@@ -69,11 +71,11 @@ void mapExecute(MapperContext<K, V, OutType> ctx, GlobalAddress<T> keyvals, size
 template < typename K, typename V, typename OutType, typename ReduceF, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
 void reduceExecute(GlobalAddress<Reducer<K,V,OutType>> reducers, size_t num, ReduceF rf) {
   Grappa::forall<GCE>(reducers, num, [=]( int64_t i, Reducer<K,V,OutType>& reducer) {
-    for ( auto local_it = reducer.groups.begin(); local_it!= reducer.groups.end(); ++local_it ) {
+    for ( auto local_it = reducer.groups->begin(); local_it!= reducer.groups->end(); ++local_it ) {
       rf(reducer, local_it->first, local_it->second );
     }
     // deallocate the group
-    reducer.groups.clear();
+    reducer.groups->clear();
   });
 }
 
@@ -85,7 +87,7 @@ GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<T> keyvals
   Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
       r = Reducer<K,V,OutType>();
       for (int i=0; i<16; i++) {
-      VLOG(5) << r.groups[i].size();
+      VLOG(5) << (*(r.groups))[i].size();
       }
       });
   //TODO symmetric alloc of a MapReduceContext to allow concurrent jobs
@@ -131,8 +133,8 @@ int main(int argc, char** argv) {
     GlobalAddress<Reducer<int64_t,int64_t,WordCount>> reds = MapReduceJobExecute<int64_t, int64_t, int64_t, WordCount, decltype(NumCountMap), decltype(NumCountReduce)>(words, numw, numred, &NumCountMap, &NumCountReduce); 
 
     Grappa::forall(reds, numred, [=](int64_t i, Reducer<int64_t, int64_t, WordCount>& r) {
-      LOG(INFO) << "Reducer " << i << " has " << r.result.end() - r.result.begin() << " keys";
-      for ( auto local_it = r.result.begin(); local_it!= r.result.end(); ++local_it ) {
+      LOG(INFO) << "Reducer " << i << " has " << r.result->end() - r.result->begin() << " keys";
+      for ( auto local_it = r.result->begin(); local_it!= r.result->end(); ++local_it ) {
         LOG(INFO) << "Reducer " << i << " (" << local_it->word << ", " << local_it->count << ")";
       }
     });
