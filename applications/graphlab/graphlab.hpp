@@ -138,6 +138,8 @@ namespace Grappa {
 
       on_all_cores([=]{
         double t = walltime();
+        
+        /// MARK: assigning edges
         PHASE_BEGIN("  assigning edges");
 
         srand(12345);
