@@ -28,6 +28,8 @@ set(SOURCES
   stats.cpp
   strings.h
   strings.cc
+  MapReduce.cpp
+  MapReduce.hpp
 )
 set(INCLUDE_DIRS
   "${APP_GRAPH500}"
@@ -49,7 +51,7 @@ set(QUERIES_IND
   triangles_partition.cpp
   twohop.cpp
   DoubleDHT_test.cpp
-  Map.cpp
+  MapReduce_tests.cpp
 )
 
 set(QUERIES_SOURCES
