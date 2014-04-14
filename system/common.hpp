@@ -114,6 +114,11 @@ inline double walltime(void) {
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
          LOG(INFO) << name << ": " << (Grappa::walltime()-_tmpstart), _tmptime = 1)
 
+#define GRAPPA_TIME_VLOG(level, name, indent) \
+    VLOG(level) << indent << name << "..."; \
+    for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
+       VLOG(level) << indent << "  (" << (Grappa::walltime()-_tmpstart) << " s)", _tmptime = 1)
+
 #define GRAPPA_TIME_REGION(var) \
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
          var += (Grappa::walltime()-_tmpstart), _tmptime = 1)
