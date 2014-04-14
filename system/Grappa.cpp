@@ -268,11 +268,15 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
   
+  VLOG(2) << "Communicator initialized.";
+  
   CHECK( global_communicator.locale_cores() <= MAX_CORES_PER_LOCALE );
   
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
+  VLOG(2) << "Aggregator initialized.";
+  
   // set CPU affinity if requested
 #ifdef CPU_SET
   if( FLAGS_set_affinity ) {
@@ -362,8 +366,12 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   global_task_manager.init( Grappa::mycore(), node_neighbors, Grappa::cores() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   
+  VLOG(2) << "Scheduler initialized.";
+  
   // start RDMA Aggregator *after* threading layer
   global_rdma_aggregator.init();
+  
+  VLOG(2) << "RDMA aggregator initialized.";
   
   // collect some stats on this job
   Grappa::force_tick();
