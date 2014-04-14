@@ -35,12 +35,12 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #include "Communicator.hpp"
 #include "LocaleSharedMemory.hpp"
 
-DEFINE_int64( log2_concurrent_receives, 5, "How many receive requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_receives, 7, "How many receive requests do we keep active at a time?" );
 DEFINE_int64( log2_concurrent_collectives, 5, "How many collective requests do we keep active at a time?" );
 
-DEFINE_int64( log2_concurrent_sends, 5, "How many send requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_sends, 7, "How many send requests do we keep active at a time?" );
 
-DEFINE_int64( log2_buffer_size, 20, "Size of Communicator buffers" );
+DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
 
 // // other metrics
 // GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);

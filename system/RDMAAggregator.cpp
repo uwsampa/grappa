@@ -42,8 +42,8 @@ namespace Grappa {
 
 DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
 
-DEFINE_int64( rdma_workers_per_core, 1 << 4, "Number of RDMA deaggregation worker threads" );
-DEFINE_int64( rdma_buffers_per_core, 64, "Number of RDMA aggregated message buffers per core" );
+DEFINE_int64( rdma_workers_per_core, 1 << 6, "Number of RDMA deaggregation worker threads" );
+DEFINE_int64( rdma_buffers_per_core, 1 << 7, "Number of RDMA aggregated message buffers per core" );
 
 DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immediately instead of using RDMA" );
 

@@ -28,7 +28,7 @@
 #include "Communicator.hpp"
 
 ///DECLARE_int64( buffer_size );
-#define BUFFER_SIZE (1 << 20)
+#define BUFFER_SIZE (1 << 19)
 
 
 namespace Grappa {
