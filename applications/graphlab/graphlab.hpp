@@ -19,6 +19,8 @@ using CoreSet = SmallLocalSet<Core>;
 //using CoreSet = cuckoo_set_pow2<Core>;
 
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, iteration_time);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<int>, core_set_size);
+
 DECLARE_int32(max_iterations);
 
 using namespace Grappa;
@@ -141,7 +143,8 @@ namespace Grappa {
         
         /// MARK: assigning edges
         PHASE_BEGIN("  assigning edges");
-
+        PHASE_BEGIN("  - assign");
+        
         srand(12345);
         // intialize graph
         new (g.localize()) GraphlabGraph(g);
@@ -155,7 +158,7 @@ namespace Grappa {
         std::vector<Core> assignments; assignments.resize(local_edges.size());
         size_t* edge_cts = locale_alloc<size_t>(cores());
         Grappa::memset(edge_cts, 0, cores());
-
+        
         /// cores this vertex has been placed on
         auto vcores = [&](VertexID i) -> CoreSet& {
           if (vplace.count(i) == 0) {
@@ -208,14 +211,24 @@ namespace Grappa {
             assign(e, c);
           }
         }
-
+        
+        barrier();
+        PHASE_END(); PHASE_BEGIN("  - allreduce");
+        
         allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
-
+        
         if (mycore() == 0 && VLOG_IS_ON(2)) {
           std::cerr << util::array_str("edge_cts", edge_cts, cores()) << "\n";
         }
 
-        PHASE_END(); PHASE_BEGIN("  scattering");
+        PHASE_END();
+        
+        for (auto& p : vplace) {
+          auto& cs = p.second;
+          core_set_size += cs.size();
+        }
+        
+        PHASE_BEGIN("  scattering");
 
         //////////////////////////
         // actually scatter edges
