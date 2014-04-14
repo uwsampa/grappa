@@ -125,6 +125,50 @@ void test_forall_here() {
   
 }
 
+struct OneBlock {
+  int64_t x;
+} GRAPPA_BLOCK_ALIGNED;
+struct TwoBlocks {
+  char stuff[BLOCK_SIZE-1];  // test strange alignment
+  int64_t a,b,c,d;
+} GRAPPA_BLOCK_ALIGNED;
+
+void test_forall_large_data() {
+  BOOST_MESSAGE("Testing forall on array of large structs");
+  {
+    size_t c = 23;
+    auto arr = global_alloc<OneBlock>(c);
+    // initialize
+    forall(arr, c, [] (int64_t i, OneBlock& two) {
+        two.a = 10*i;
+        });
+
+    // check without forall
+    for (int i=0; i<c; i++) {
+      auto res = delegate::read( arr + i );
+      BOOST_CHECK_EQUAL( res.x, 10*i );
+    }
+  }
+  {
+    size_t c = 23;
+    auto arr = global_alloc<TwoBlocks>(c);
+    // initialize
+    forall(arr, c, [] (int64_t i, TwoBlocks& two) {
+        two.a = 10*i;
+        two.b = 1000*i;
+        });
+
+    // check without forall
+    for (int i=0; i<c; i++) {
+      auto res = delegate::read( arr + i );
+      BOOST_CHECK_EQUAL( res.a, 10*i );
+      BOOST_CHECK_EQUAL( res.b, 1000*i );
+    }
+  }
+}
+
+  
+
 void test_forall_global_private() {
   BOOST_MESSAGE("Testing forall_global...");
   const int64_t N = 1 << 8;
@@ -317,6 +361,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     test_forall_localized();
 
     test_forall_here_async();
+
+    test_forall_large_data();
     
     Metrics::merge_and_dump_to_file();
   });
