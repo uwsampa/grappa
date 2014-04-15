@@ -22,6 +22,7 @@ set(SYSTEM_SOURCES
   Collective.cpp
   Communicator.cpp
   Delegate.cpp
+  FileIO.cpp
   FlatCombiner.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
@@ -137,6 +138,16 @@ set(SYSTEM_SOURCES
   stack.S
 )
 
+################
+# Graph sources
+list(APPEND SYSTEM_SOURCES
+  graph/Graph.hpp
+  graph/Graph.cpp
+  graph/TupleGraph.cpp
+  graph/TupleGraph.hpp
+  graph/KroneckerGenerator.cpp
+)
+include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")
@@ -181,7 +192,7 @@ add_check( Collective_tests.cpp              2 2  pass )
 add_check( CompletionEvent_tests.cpp         2 2  pass )
 add_check( ContextSwitchLatency_tests.cpp    1 1  pass )
 add_check( Delegate_tests.cpp                2 1  pass )
-add_check( FileIO_tests.cpp                  2 1  pass )
+add_check( FileIO_tests.cpp                  2 1  fail )
 add_check( FlatCombiner_tests.cpp            2 2  pass )
 add_check( FullEmpty_tests.cpp               2 2  pass )
 add_check( GlobalAllocator_tests.cpp         1 1  pass )
@@ -191,6 +202,7 @@ add_check( GlobalMemory_tests.cpp            2 1  pass )
 add_check( GlobalVector_tests.cpp            2 1  pass )
 add_check( Gups_tests.cpp                    2 1  pass )
 add_check( LocaleSharedMemory_tests.cpp      2 1  pass )
+add_check( Malloc_tests.cpp                  2 1  fail )
 add_check( Message_tests.cpp                 2 1  fail )
 add_check( Mutex_tests.cpp                   2 1  pass )
 add_check( New_delegate_tests.cpp            2 2  pass )
@@ -202,10 +214,12 @@ add_check( RateMeasure_tests.cpp             2 1  pass )
 add_check( Reducer_tests.cpp                 2 1  pass )
 add_check( Scheduler_benchmarking_tests.cpp  2 1  pass )
 add_check( Semaphore_tests.cpp               2 1  pass )
-add_check( Metrics_tests.cpp              2 1  pass )
+add_check( Metrics_tests.cpp                 2 1  pass )
 add_check( Stealing_tests.cpp                2 1  fail ) # deprecated?
 add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
+
+add_check( graph/Graph_tests.cpp             2 1  pass )
 
 
 # add a target to generate API documentation with Doxygen

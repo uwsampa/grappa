@@ -9,6 +9,8 @@ set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 
 message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party dependencies (if needed).")
 
+add_subdirectory(graph500-generator)
+
 if(NOT Boost_FOUND)
 
   # check if we have built boost in third-party dir
@@ -37,6 +39,12 @@ if(NOT Boost_FOUND)
         ./b2 install --link=static --variant=release --threading=single --runtime-link=static
       INSTALL_COMMAND ""
     )
+    set(GRAPPA_LIBS
+      ${GRAPPA_LIBS}
+      boost_system
+      boost_filesystem
+      boost_unit_test_framework
+    PARENT_SCOPE)
     list(APPEND tool_list third-party-boost)
   else()
     message("     boost:  ${THIRD_PARTY_BOOST}")
@@ -155,4 +163,3 @@ add_custom_target(clean-third-party
   rm -rf ${THIRD_PARTY_ROOT}
 )
 set_property(TARGET clean-third-party PROPERTY FOLDER "Third Party")
-

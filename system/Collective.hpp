@@ -62,6 +62,11 @@ template< typename T >
 T collective_or(const T& a, const T& b) {
   return a || b;
 }
+template< typename T >
+T collective_and(const T& a, const T& b) {
+  return a && b;
+}
+
 
 namespace Grappa {
   
@@ -290,7 +295,7 @@ namespace Grappa {
   ///   }
   /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
-  T reduce(T * global_ptr) {
+  T reduce(const T * global_ptr) {
     //NOTE: this is written in a continuation passing
     //style to avoid the use of a GCE which async delegates only support
     CompletionEvent ce(cores()-1);
@@ -388,7 +393,26 @@ namespace Grappa {
      }
     ce.wait();
     return total;
-   }
+  }
+  
+  
+  template< typename F = nullptr_t >
+  auto sum_all_cores(F func) -> decltype(func()) {
+    decltype(func()) total = func();
+    CompletionEvent _ce(cores()-1);
+    auto ce = make_global(&_ce);
+    for (Core c=0; c < cores(); c++) if (c != mycore()) {
+      send_heap_message(c, [ce,func,&total]{
+        auto r = func();
+        send_heap_message(ce.core(), [ce,r,&total]{
+          total += r;
+          ce->complete();
+        });
+      });
+    }
+    ce->wait();
+    return total;
+  }
   
   /// @}
 } // namespace Grappa

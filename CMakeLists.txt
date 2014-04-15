@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
+option(GASNET_USE_UDP "Force Gasnet to use UDP (typically set by configure script)" OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -15,8 +16,8 @@ set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
 
 project(Grappa)
 
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
 
 set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
 set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
@@ -151,7 +152,7 @@ endif()
 ######################################
 # Gasnet
 ######################################
-if(DEFINED APPLE)
+if(DEFINED APPLE OR GASNET_USE_UDP)
   set(GASNET_CONDUIT "udp")
 else()
   set(GASNET_CONDUIT "ibv") # values: ibv,mpi
@@ -206,9 +207,12 @@ include_directories(${MPI_INCLUDE_PATH})
 macro(add_grappa_exe target exe )
   add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
-  target_link_libraries(${target} Grappa)
-  target_link_libraries(${target} ${MPI_CXX_LIBRARIES})
-  target_link_libraries(${target} ${Boost_LIBRARIES})  
+  target_link_libraries(${target} 
+    Grappa
+    graph500-generator
+    ${MPI_CXX_LIBRARIES}
+    ${Boost_LIBRARIES}
+  )
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)
@@ -262,9 +266,9 @@ include_directories(system/tasks)
 
 ####################################
 # subdirectories
+add_subdirectory(third-party)
+add_subdirectory(system)
 add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
-add_subdirectory(system)
-add_subdirectory(third-party)
 add_subdirectory(doc)
