@@ -26,7 +26,9 @@ namespace Grappa {
   /// Currently just an overload for int64, may someday be used for distinguishing parameters in forall().
   using VertexID = int64_t;
   
-
+  /// Empty struct, for specifying lack of either Vertex or Edge data in @ref Graph.
+  struct Empty {};
+  
   namespace impl {
     
     struct VertexBase {
@@ -386,7 +388,9 @@ namespace Grappa {
     
   }
   
-  /// Parallel iteration over a Graph. Specialization is performed
+  /// @brief Parallel iteration over a Graph.
+  /// 
+  /// Specialization is performed
   /// based on what arguments are asked for (and in what order).
   /// Available options are:
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

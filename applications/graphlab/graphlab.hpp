@@ -26,8 +26,6 @@ DECLARE_int32(max_iterations);
 using namespace Grappa;
 using delegate::call;
 
-using Empty = struct {};
-
 namespace Grappa {
 
   namespace impl { class GraphlabGraphBase {}; }
