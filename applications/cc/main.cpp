@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "constructing graph";
     t = walltime();
     
-    auto g = G::Directed(tg);
+    auto g = G::Undirected(tg);
     
     construction_time = walltime()-t;
     LOG(INFO) << construction_time;
@@ -90,6 +90,11 @@ int main(int argc, char* argv[]) {
     }
     LOG(INFO) << total_time;
     
+    if (FLAGS_scale <= 8) {
+      g->dump([](std::ostream& o, G::Vertex& v){
+        o << "{ label:" << v->color << " }";
+      });
+    }
     
     if (FLAGS_metrics) Metrics::merge_and_print();
     else {

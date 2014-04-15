@@ -52,8 +52,6 @@ struct CCData {
   }
 };
 
-struct Empty {};
-
 using G = Graph<CCData,Empty>;
 
 
