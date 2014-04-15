@@ -39,114 +39,67 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, bfs_nedge);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, graph_create_time);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, verify_time);
 
-//int64_t *frontier_base, *f_head, *f_tail, *f_level;
-
-struct Frontier {
-  int64_t *base, *head, *tail, *level;
-  int64_t sz;
-  
-  void init(size_t sz) {
-    this->sz = sz;
-    base = head = tail = level = locale_alloc<int64_t>(sz);
-  }
-  
-  void clear() {
-    head = tail = level = (base);
-  }
-  
-  void push(int64_t v) { *tail++ = v; assert(tail < base+sz); }
-  int64_t pop() { return *head++;     CHECK_LE(head, level); }
-  
-  int64_t next_size() { return tail - level; }
-  void next_level() { level = tail; }
-  bool level_empty() { return head >= level; }
-};
-
-Frontier frontier;
-
-GlobalCompletionEvent joiner;
-
 int64_t nedge_traversed;
 
 void bfs(GlobalAddress<G> g, int nbfs, TupleGraph tg) {
   bool verified = false;
-  
-  // initialize frontier on each core
-  call_on_all_cores([g]{
-    //      frontier.init(g->nv / cores() * 2);
-    frontier.init(g->nv / cores() * 8);
-  });
+  double t;
+      
+  auto frontier = GlobalVector<int64_t>::create(g->nv);
+  auto next     = GlobalVector<int64_t>::create(g->nv);
   
   // do BFS from multiple different roots and average their times
   for (int root_idx = 0; root_idx < nbfs; root_idx++) {
   
     // intialize parent to -1
     forall(g, [](G::Vertex& v){ v->init(); });
-    call_on_all_cores([]{ frontier.clear(); });
     
     int64_t root = choose_root(g);
     VLOG(1) << "root => " << root;
-
+    
     // setup 'root' as the parent of itself
     delegate::call(g->vs+root, [=](G::Vertex& v){ v->parent = root; });
     
-    // intialize frontier with root
-    frontier.push(root);
+    // reset frontier queues
+    next->clear();
+    frontier->clear();
     
-    double t = walltime();
+    // start with root as only thing in frontier
+    frontier->push(root);
     
-    // use 'SPMD' mode, this matches the style of the MPI reference code
-    // (but of course the asynchronous message passing is implicit)
-    on_all_cores([=]{
-      int64_t level = 0;
-              
-      auto vs = g->vs;
-      
-      int64_t next_level_total;
-      
-      do {
-        if (mycore() == 0) VLOG(1) << "level " << level;
-        // setup frontier to pop from the next level
-        frontier.next_level();
-        
-        // enroll one 'task' on each core to make sure no one falls through
-        joiner.enroll();
-        barrier();
-        
-        // process all the vertices in the frontier on this core
-        while ( !frontier.level_empty() ) {
-          auto i = frontier.pop();
-          
-          // visit all the adjacencies of the vertex
-          forall<async,&joiner>(adj(g,vs+i), [i,vs](G::Edge& e){
-            auto j = e.id;
-            // at the core where the vertex is...
-            delegate::call<async,&joiner>(e.ga, [i,j](G::Vertex& v){
-              // note: no synchronization needed because 'call' is 
-              // guaranteed to be executed atomically because it 
-              // does no blocking operations
-              if (v->parent == -1) {
-                // claim parenthood
-                v->parent = i;
-                // add this vertex to the frontier for the next level
-                frontier.push(j);
-              }
-            });
+    t = walltime();
+    
+    while (!frontier->empty()) {
+      // iterate over vertices in this level of the frontier
+      forall(frontier, [g,next](int64_t& i){
+        // visit all the adjacencies of the vertex
+        // note: this has to be 'async' to prevent deadlock from
+        //       running out of available workers
+        forall<async>(adj(g,g->vs+i), [i,next](G::Edge& e) {
+          auto j = e.id;
+          // at the core where the vertex is...
+          bool claimed = delegate::call(e.ga, [i](G::Vertex& v){
+            // note: no synchronization needed because 'call' is 
+            // guaranteed to be executed atomically because it 
+            // does no blocking operations
+            if (v->parent == -1) {
+              // claim parenthood
+              v->parent = i;
+              return true;
+            }
+            return false;
           });
-        }
-        
-        joiner.complete();
-        joiner.wait();
-        
-        // find the total number of vertices in the next level of frontier
-        // (MPI-style 'allreduce' shares the total with all cores)
-        next_level_total = allreduce<int64_t, collective_add>(frontier.next_size());
-        level++;
-        
-        // keep going until nothing was added to the frontier
-      } while (next_level_total > 0); 
-
-    }); // end of 'SPMD' region
+          if (claimed) {
+            // add this vertex to the frontier for the next level
+            // note: we (currently) can't do this 'push' inside the delegate because it may block
+            next->push(j);
+          }
+        });
+      });
+      // switch to next frontier level
+      std::swap(frontier, next);
+      next->clear();
+    }
     
     double this_bfs_time = walltime() - t;
     LOG(INFO) << "(root=" << root << ", time=" << this_bfs_time << ")";

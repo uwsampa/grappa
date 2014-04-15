@@ -17,29 +17,30 @@ struct BFSData {
   }
 };
 
-using BFSVertex = Vertex<BFSData>;
-
+using G = Graph<BFSData,Empty>;
 
 extern int64_t nedge_traversed;
 
-inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<BFSVertex>> g, int64_t root) {
+void bfs(GlobalAddress<G> g, int nbfs, TupleGraph tg);
+
+inline int64_t verify(TupleGraph tg, GlobalAddress<G> g, int64_t root) {
   
   auto get_level = [g](int64_t j){
-    return delegate::call(g->vs+j, [](BFSVertex& v){ return v->level; });
+    return delegate::call(g->vs+j, [](G::Vertex& v){ return v->level; });
   };
   auto get_parent = [g](int64_t j){
-    return delegate::call(g->vs+j, [](BFSVertex& v){ return v->parent; });
+    return delegate::call(g->vs+j, [](G::Vertex& v){ return v->parent; });
   };
   
   // check root
-  delegate::call(g->vs+root, [=](BFSVertex& v){
+  delegate::call(g->vs+root, [=](G::Vertex& v){
     CHECK_EQ(v->parent, root);
   });
   
   // compute levels
-  delegate::call(g->vs+root, [](BFSVertex& v){ v->level = 0; });
+  delegate::call(g->vs+root, [](G::Vertex& v){ v->level = 0; });
   
-  forall(g->vs, g->nv, [=](int64_t i, BFSVertex& v){
+  forall(g->vs, g->nv, [=](int64_t i, G::Vertex& v){
     if (v->level >= 0) return;
     
     if (v->parent >= 0 && i != root) {
@@ -62,7 +63,7 @@ inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<BFSVertex>> g, int64_t 
       parent = i;
       while (get_level(parent) < 0) {
         CHECK_GT(nhop, 0);
-        parent = delegate::call(g->vs+parent, [=](BFSVertex& v){
+        parent = delegate::call(g->vs+parent, [=](G::Vertex& v){
           v->level = nhop;
           return v->parent;
         });
@@ -102,7 +103,7 @@ inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<BFSVertex>> g, int64_t 
     nedge_traversed++;
     
     auto mark_seen = [g](int64_t i){
-      delegate::call(g->vs+i, [](BFSVertex& v){ v->seen = true; });
+      delegate::call(g->vs+i, [](G::Vertex& v){ v->seen = true; });
     };
     
     // Mark seen tree edges.
@@ -120,7 +121,7 @@ inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<BFSVertex>> g, int64_t 
   nedge_traversed = Grappa::reduce<int64_t,collective_add>(&nedge_traversed);
   
   // check that every BFS edge was seen & that there's only one root
-  forall(g->vs, g->nv, [=](int64_t i, BFSVertex& v){
+  forall(g->vs, g->nv, [=](int64_t i, G::Vertex& v){
     if (i != root) {
       CHECK(!(v->parent >= 0 && !v->seen)) << "Error!";
       CHECK_NE(v->parent, i);
@@ -133,12 +134,12 @@ inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<BFSVertex>> g, int64_t 
 }
 
 
-template< typename T >
-inline int64_t choose_root(GlobalAddress<Graph<T>> g) {
+template< typename V, typename E >
+inline int64_t choose_root(GlobalAddress<Graph<V,E>> g) {
   int64_t root;
   do {
     root = random() % g->nv;
-  } while (delegate::call(g->vs+root,[](BFSVertex& v){ return v.nadj; }) == 0);
+  } while (delegate::call(g->vs+root,[](typename G::Vertex& v){ return v.nadj; }) == 0);
   return root;
 }
 
