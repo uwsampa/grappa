@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "constructing graph";
     t = walltime();
     
-    auto g = G::create(tg);
+    auto g = G::Directed(tg);
     
     construction_time = walltime()-t;
     LOG(INFO) << construction_time;

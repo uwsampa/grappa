@@ -219,6 +219,9 @@ namespace Grappa {
     
     // Constructor
     static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false);
+    
+    static GlobalAddress<Graph> Undirected(const TupleGraph& tg) { return create(tg, false); }
+    static GlobalAddress<Graph> Directed(const TupleGraph& tg) { return create(tg, true); }
       
   } GRAPPA_BLOCK_ALIGNED;
   
