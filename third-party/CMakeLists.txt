@@ -52,25 +52,6 @@ if(NOT Boost_FOUND)
   
 endif()
 
-find_library(THIRD_PARTY_GASNET "gasnet_tools-seq" "${THIRD_PARTY_ROOT}/lib")
-if( NOT THIRD_PARTY_GASNET )
-  message("     gasnet: <building>")
-  ExternalProject_Add( third-party-gasnet
-    PREFIX             ${EXTERN_BUILD_DIR}/gasnet
-    STAMP_DIR          ${EXTERN_STAMP_DIR}/gasnet
-    BINARY_DIR         ${EXTERN_BUILD_DIR}/gasnet
-    SOURCE_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/GASNet-1.18.2
-    INSTALL_DIR        ${THIRD_PARTY_ROOT}
-    CONFIGURE_COMMAND  
-      CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-segment-everything --disable-par --disable-parsync
-    BUILD_COMMAND      make -j
-    INSTALL_COMMAND    make install
-  )
-  list(APPEND tool_list third-party-gasnet)
-else()
-  message("     gasnet: ${THIRD_PARTY_GASNET}")
-endif()
-
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
 # URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
 

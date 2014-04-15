@@ -121,7 +121,6 @@ set(SYSTEM_SOURCES
   ThreadQueue.hpp
   Timestamp.hpp
   Worker.hpp
-  gasnet_helpers.h
   stack.h
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
@@ -228,11 +227,7 @@ add_library(Communicator
         Communicator.cpp
         LocaleSharedMemory.cpp
 )
-# target_link_libraries(Communicator
-#     gflags
-#     glog
-#     rt
-# )  
+add_dependencies(Communicator all-third-party)
 
 macro(add_commtest_exe target exe )
   add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
