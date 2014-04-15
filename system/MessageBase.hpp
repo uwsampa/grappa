@@ -41,6 +41,9 @@ namespace Grappa {
   /// Internal messaging functions
   namespace impl {
 
+  class MessageBase;
+  void _shared_pool_free(MessageBase * m, size_t sz);
+
     /// @addtogroup Communication
     /// @{
 
@@ -58,12 +61,13 @@ namespace Grappa {
 
       union {
         struct {
+          bool delete_after_send_ : 1; ///< Is this a heap message? Should it be deleted after it's sent?
           bool is_enqueued_ : 1;       ///< Have we been added to the send queue?
           bool is_sent_ : 1;           ///< Is our payload no longer needed?
           bool is_delivered_ : 1;      ///< Are we waiting to mark the message sent?
-          bool is_moved_ : 1;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
-          Core source_ : 16;            ///< What core is this message coming from? (TODO: probably unneccesary)
-          Core destination_ : 16;       ///< What core is this message aimed at?
+          bool is_moved_ : 1;          ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+          Core source_ : 16;           ///< What core is this message coming from? (TODO: probably unneccesary)
+          Core destination_ : 16;      ///< What core is this message aimed at?
         };
         uint64_t raw_;
       };
@@ -103,8 +107,9 @@ namespace Grappa {
           }
 
           if( delete_after_send_ ) {
+            size_t sz = this->size();
             this->~MessageBase();
-            Grappa::impl::locale_shared_memory.deallocate( this );
+            _shared_pool_free(this, sz);
           }
         }
       }
@@ -164,9 +169,6 @@ namespace Grappa {
 
         return buffer;
       }
-
-    protected:
-      bool delete_after_send_;  ///< Is this a heap message? Should it be deleted after it's sent?
 
     public:
       MessageBase( )

@@ -18,6 +18,7 @@ set(SYSTEM_SOURCES
   AsyncDelegate.cpp
   Barrier.cpp
   Cache.cpp
+  ChunkAllocator.cpp
   CallbackMetric.cpp
   Collective.cpp
   Communicator.cpp
@@ -57,6 +58,7 @@ set(SYSTEM_SOURCES
   Barrier.hpp
   boost_helpers.hpp
   Cache.hpp
+  ChunkAllocator.hpp
   CallbackMetric.hpp
   CallbackMetricImpl.hpp
   Collective.hpp
