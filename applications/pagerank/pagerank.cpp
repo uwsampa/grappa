@@ -20,8 +20,8 @@
 using namespace Grappa;
 
 // file input
-DEFINE_string( path, "", "Path to input" );
-DEFINE_string( format, "bintsv4", "Input format" );
+DECLARE_string( path );
+DECLARE_string( format );
 
 // input size
 DEFINE_uint64( nnz_factor, 16, "Approximate number of non-zeros per matrix row" );
