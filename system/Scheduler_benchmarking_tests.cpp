@@ -31,7 +31,9 @@
 // Currently calculates average context switch time when there are no other user threads.
 //
 
+#ifndef BILLION
 #define BILLION 1000000000
+#endif
 
 BOOST_AUTO_TEST_SUITE( Scheduler_benchmarking_tests );
 

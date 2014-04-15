@@ -458,11 +458,9 @@ void Grappa_activate()
     size_t stack_sz = FLAGS_stack_size * FLAGS_num_starting_workers;
     double stack_sz_gb = static_cast<double>(stack_sz) / (1L<<30);
     double gheap_sz_gb = static_cast<double>(global_bytes_per_core) / (1L<<30);
-    size_t shpool_sz = FLAGS_shared_pool_max * FLAGS_shared_pool_size;
-    double shpool_sz_gb = static_cast<double>(shpool_sz) / (1L<<30);
     size_t free_sz = Grappa::impl::locale_shared_memory.get_free_memory() / Grappa::locale_cores();
     double free_sz_gb = static_cast<double>(free_sz) / (1L<<30);
-    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  rdma_aggregator: ??\n  shared_message_pool: " << shpool_sz << " (" << shpool_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
+    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
   }
   
   Grappa::comm_barrier();

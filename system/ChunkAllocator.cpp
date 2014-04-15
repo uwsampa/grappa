@@ -24,6 +24,8 @@
 #include "ChunkAllocator.hpp"
 #include "LocaleSharedMemory.hpp"
 
+#include "Metrics.hpp"
+
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, chunkallocator_append, 0 );
 
 
