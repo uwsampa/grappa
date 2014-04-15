@@ -81,6 +81,7 @@ namespace Grappa {
       ~Vertex() {}
     
       T* operator->() { return &data; }
+      const T* operator->() const { return &data; }
     
     } GRAPPA_BLOCK_ALIGNED;
   
@@ -186,7 +187,7 @@ namespace Grappa {
           ss << "<" << std::setw(2) << i << ">";
           print_vertex(ss, v);
           for (int64_t i=0; i<v.nadj; i++) ss << " " << v.local_adj[i];
-          VLOG(LEVEL) << ss.str();
+          if (VLOG_IS_ON(LEVEL)) std::cerr << ss.str() << "\n";
         });
       }
     }
