@@ -1,4 +1,5 @@
 #include "MapReduce.hpp"
+#include <GlobalAllocator.hpp>
 
 struct WordCount {
   int64_t word;
@@ -27,9 +28,7 @@ int64_t getX(GlobalAddress<aligned_int64_t> a) {
   return a->_x;
 }
 
-int main(int argc, char** argv) {
-  Grappa::init(&argc, &argv);
-  Grappa::run([=] {
+void test_map_on_array() {
     size_t numw = 1000;
     size_t dictionary_size = 33;
     size_t numred = 2*Grappa::cores();
@@ -55,6 +54,52 @@ int main(int argc, char** argv) {
     int64_t total = Grappa::reduce<int64_t, aligned_int64_t, &collective_add, &getX>(counter);
     LOG(INFO) << "total = " << total;
     CHECK( total == numw );
+}
+
+template <typename T>
+struct AlignedVec {
+  std::vector<T> data;
+} GRAPPA_BLOCK_ALIGNED;
+
+void test_map_on_symmetric_randomAccess() {
+    size_t numw_per_core = 100;
+    size_t numw = numw_per_core*Grappa::cores();
+    size_t dictionary_size = 33;
+    size_t numred = 2*Grappa::cores();
+    auto words = Grappa::symmetric_global_alloc<AlignedVec<int64_t>>();
+    // initialize
+    Grappa::on_all_cores([=] {
+        words->data = std::vector<int64_t>();
+        for (int i=0; i<numw_per_core; i++) {
+          words->data.push_back((Grappa::mycore()*numw_per_core + i*541) % dictionary_size);
+        }
+    });
+
+    GlobalAddress<Reducer<int64_t,int64_t,WordCount>> reds = MapReduceJobExecute<int64_t, int64_t, int64_t, WordCount, decltype(NumCountMap), decltype(NumCountReduce)>(words, numred, &NumCountMap, &NumCountReduce); 
+
+    auto counter = Grappa::symmetric_global_alloc<aligned_int64_t>();
+    Grappa::forall(reds, numred, [=](int64_t i, Reducer<int64_t, int64_t, WordCount>& r) {
+      LOG(INFO) << "Reducer " << i << " has " << r.result->end() - r.result->begin() << " keys";
+      for ( auto local_it = r.result->begin(); local_it!= r.result->end(); ++local_it ) {
+        if (local_it->count > 0) {
+          LOG(INFO) << "Reducer " << i << " (" << local_it->word << ", " << local_it->count << ")";
+        }
+        counter->_x += local_it->count;
+      }
+      r.result->clear();
+    });
+
+    int64_t total = Grappa::reduce<int64_t, aligned_int64_t, &collective_add, &getX>(counter);
+    LOG(INFO) << "total = " << total;
+    CHECK( total == numw );
+}
+
+
+int main(int argc, char** argv) {
+  Grappa::init(&argc, &argv);
+  Grappa::run([=] {
+    test_map_on_array();
+    test_map_on_symmetric_randomAccess();
   });
   Grappa::finalize();
 }

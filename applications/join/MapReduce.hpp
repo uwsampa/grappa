@@ -13,6 +13,19 @@
 
 extern Grappa::GlobalCompletionEvent default_mr_gce;
 
+template <Grappa::GlobalCompletionEvent * GCE, typename RandomAccess, typename CF>
+void forall_symmetric(GlobalAddress<RandomAccess> vs, CF f ) { 
+
+  Grappa::on_all_cores([=] {
+      Grappa::forall_here<async,GCE>(0, vs->data.size(), [=](int64_t start, int64_t iters) {
+        for (int i=start; i<start+iters; i++) {
+           auto e = vs->data[i];
+           f(e);
+        }
+      }); // local task blocks for all iterations
+     });
+  GCE->wait(); // block until all tasks are done
+}
 
 template <typename K, typename V, typename OutType>
 struct Reducer {
@@ -63,7 +76,15 @@ void emit(Reducer<K,V,OutType>& ctx, OutType result) {
 
 template < typename T, typename K, typename V, typename OutType, typename MapF, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
 void mapExecute(MapperContext<K, V, OutType> ctx, GlobalAddress<T> keyvals, size_t num, MapF mf) {
-  Grappa::forall<GCE>(keyvals, num, [=]( int64_t i, T& kv ) {
+  Grappa::forall<GCE>(keyvals, num, [=]( T& kv ) {
+     mf(ctx, kv);
+  });
+}  
+
+// takes a symmetric global address
+template < typename T, typename K, typename V, typename OutType, typename MapF, typename RA, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
+void mapExecute(MapperContext<K, V, OutType> ctx, GlobalAddress<RA> keyvals_sym, MapF mf) {
+  forall_symmetric<GCE>(keyvals_sym, [=]( T& kv ) { 
      mf(ctx, kv);
   });
 }  
@@ -90,6 +111,21 @@ GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<T> keyvals
   //TODO symmetric alloc of a MapReduceContext GCE to allow concurrent jobs
 
   mapExecute<T,K,V,OutType,MapF>(MapperContext<K,V,OutType>(reducers, num_reducers), keyvals, num, mf);
+
+  reduceExecute<K,V,OutType,ReduceF>(reducers, num_reducers, rf);
+
+  return reducers;
+}
+
+template < typename T, typename K, typename V, typename OutType, typename MapF, typename ReduceF, typename RA>
+GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<RA> keyvals, size_t num_reducers/*Grappa::cores()*/, MapF mf, ReduceF rf) {
+  auto reducers = Grappa::global_alloc<Reducer<K, V, OutType>>( num_reducers );    
+  Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
+      r = Reducer<K,V,OutType>();
+      }); 
+  //TODO symmetric alloc of a MapReduceContext GCE to allow concurrent jobs
+
+  mapExecute<T,K,V,OutType,MapF>(MapperContext<K,V,OutType>(reducers, num_reducers), keyvals, mf);
 
   reduceExecute<K,V,OutType,ReduceF>(reducers, num_reducers, rf);
 
