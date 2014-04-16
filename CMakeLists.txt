@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
+option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -35,6 +36,11 @@ if(TRACING)
 
   include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   
+endif()
+
+if(PROFILING)
+  set(GOOGLE_PROFILER ON)
+  add_definitions(-DGOOGLE_PROFILER)
 endif()
 
 # global C++ flags
@@ -80,6 +86,10 @@ if(TRACING)
   if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${VAMPIR_ROOT}/lib")
   endif()
+endif()
+
+if(PROFILING)
+  message("-- Profiling enabled.")
 endif()
 
 ##### </RUNPATH> ########
