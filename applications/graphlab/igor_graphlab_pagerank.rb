@@ -5,7 +5,7 @@ require_relative_to_symlink '../../util/igor_common.rb'
 Igor do
   include Isolatable
   
-  database '~/exp/osdi.sqlite', :pagerank
+  database '~/osdi.sqlite', :pagerank
   
   params { version 'grappa' }
   
@@ -37,6 +37,9 @@ Igor do
   }
   
   expect :total_time
+  
+  @cols << :total_time
+  @order = :total_time
   
   interact # enter interactive mode
 end

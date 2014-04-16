@@ -147,8 +147,7 @@ Igor do
                     target_size 2**12
           rdma_buffers_per_core 16
                  rdma_threshold 64
-               shared_pool_size 2**16
-                shared_pool_max 2**14
+         shared_pool_chunk_size 2**20
                      stack_size 2**19
              locale_shared_size SHMMAX
            global_heap_fraction 0.5
@@ -234,5 +233,19 @@ Igor do
 
     h # return hash
   }
-
+  
+  @cols = [:nnode,
+           :loop_threshold,
+           :num_starting_workers,
+           :aggregator_autoflush_ticks,
+           :periodic_poll_ticks]
+  
+  @order = :id
+  
+  def selected
+    c = @cols
+    o = @order
+    results{select *c}.order(o)
+  end
+  
 end

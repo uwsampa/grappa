@@ -14,13 +14,14 @@ Igor do
   
   GFLAGS.merge!({
     path: '/pic/projects/grappa/twitter/bintsv4/twitter-all.bintsv4',
+    format: 'bintsv4'
   })
   GFLAGS.delete :flat_combining
   
   params.merge!(GFLAGS)
   
   @c = ->{ %Q[ %{tdir}/grappa_srun --no-freeze-on-error
-    -- %{tdir}/cc.exe --vmodule graphlab=1
+    -- %{tdir}/cc.exe --metrics --vmodule graphlab=1
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
   command @c[]
@@ -34,6 +35,8 @@ Igor do
   }
   
   expect :total_time
-      
+  @cols << :total_time
+  @order = :total_time
+  
   interact # enter interactive mode
 end
