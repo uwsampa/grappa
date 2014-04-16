@@ -136,8 +136,8 @@ namespace Grappa {
         //*(reinterpret_cast< intptr_t* >(p)) = gfp;
         // p += sizeof( fp );
 
-        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
-        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        MessageFPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< MessageFPAddr* >(p)) = gfp;
         static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
         p += sizeof( gfp );
 
@@ -292,8 +292,8 @@ namespace Grappa {
         // *(reinterpret_cast< intptr_t* >(p)) = gfp;
         // p += sizeof( fp );
 
-        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
-        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        MessageFPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< MessageFPAddr* >(p)) = gfp;
         static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
         p += sizeof( gfp );
 

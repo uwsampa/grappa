@@ -25,7 +25,6 @@
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "CompletionEvent.hpp"
 #include "ConditionVariable.hpp"
 #include "Delegate.hpp"

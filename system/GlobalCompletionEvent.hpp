@@ -27,7 +27,6 @@
 #include "CompletionEvent.hpp"
 #include "Tasking.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "DelegateBase.hpp"
 #include "Collective.hpp"
 #include "Timestamp.hpp"

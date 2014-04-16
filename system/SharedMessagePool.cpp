@@ -28,23 +28,12 @@
 #include "ChunkAllocator.hpp"
 #include <stack>
 
-DEFINE_int64(shared_pool_size, 1L << 18, "Size (in bytes) of global SharedMessagePool (on each Core)");
+DEFINE_int64( shared_pool_chunk_size, 1 * MEGA, "Number of bytes to allocate when shared message pool is empty" );
 
-/// Note: max is enforced only for blockable callers, and is enforced early to avoid callers
-/// that cannot block (callers from message handlers) to have a greater chance of proceeding.
-/// In 'init_shared_pool()', 'emergency_alloc' margin is set, currently, to 1/4 of the max.
-///
-/// Currently setting this max to cap shared_pool usage at ~1GB, though this may be too much
-/// for some apps & machines, as it is allocated out of the locale-shared heap. It's also
-/// worth noting that under current settings, most apps don't reach this point at steady state.
-DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
-DEFINE_double(shared_pool_memory_fraction, 0.5, "Fraction of remaining memory to use for shared pool (after taking out global_heap and stacks)");
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, shared_message_pools_allocated, 0);
 
-
-#define MESSAGE_POOL_ALLOCATION_COUNT (4 * KILO)
-
+/// record counts of messages allocated by cache line count
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_1cl, 0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_2cl, 0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_3cl, 0 );
@@ -55,11 +44,13 @@ namespace Grappa {
 
 namespace impl {
 
-/// multiple of cacheline size
-#define MAX_POOL_MESSAGE_SIZE (1024)
+/// messages larger than this size will be malloced directly.
+/// this should be a multiple of the cacheline size.
+#define MAX_POOL_MESSAGE_SIZE (1 << 10)
 
-/// max size to preallocate; higher sizes will allocate as needed
-#define MAX_POOL_MESSAGE_SIZE_PREALLOCATED_CUTOFF (256)
+/// We will preallocate pools of messages up to this size (in cachelines).
+/// Higher sizes will allocate as needed.
+#define MAX_POOL_MESSAGE_SIZE_PREALLOCATED_CUTOFF (1 << 8)
 
 /// number of cachelines in largest pool message
 #define MAX_POOL_CACHELINE_COUNT (MAX_POOL_MESSAGE_SIZE / CACHE_LINE_SIZE)
@@ -70,12 +61,18 @@ struct aligned_pool_allocator message_pool[ MAX_POOL_CACHELINE_COUNT ];
 /// set up shared pool for basic message sizes
 void init_shared_pool() {
   for( int i = 0; i < MAX_POOL_CACHELINE_COUNT; ++i ) {
+    auto message_size = (i+1) * CACHE_LINE_SIZE;
+    auto chunk_count = FLAGS_shared_pool_chunk_size / message_size;
+
+    // only make big chunks for frequently-used message sizes
+    if( i >= (MAX_POOL_MESSAGE_SIZE_PREALLOCATED_CUTOFF / CACHE_LINE_SIZE) ) {
+      chunk_count = 1;
+    }
+
     aligned_pool_allocator_init( &message_pool[i],
-                                 CACHE_LINE_SIZE,     // cacheline alignment
-                                 i * CACHE_LINE_SIZE, // size of messages in this bucket
-                                 ( i < (MAX_POOL_MESSAGE_SIZE_PREALLOCATED_CUTOFF / CACHE_LINE_SIZE)
-                                   ? MESSAGE_POOL_ALLOCATION_COUNT
-                                   : 1 ) );
+                                 CACHE_LINE_SIZE, // alignment
+                                 message_size,
+                                 chunk_count );
   }
 }
 
@@ -88,6 +85,7 @@ void* _shared_pool_alloc(size_t sz) {
     shared_pool_alloc_toobig++;
     return locale_alloc_aligned<char>(CACHE_LINE_SIZE, sz);
   } else {
+    // record the pool allocation (bucketed by number of cachelines)
     switch( cacheline_count ) {
     case 1: shared_pool_alloc_1cl++; break;
     case 2: shared_pool_alloc_2cl++; break;

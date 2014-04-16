@@ -26,7 +26,6 @@
 #include "Message.hpp"
 #include "FullEmptyLocal.hpp"
 #include "ConditionVariable.hpp"
-#include "MessagePool.hpp"
 #include "DelegateBase.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "AsyncDelegate.hpp"

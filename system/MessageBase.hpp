@@ -44,6 +44,15 @@ namespace Grappa {
   class MessageBase;
   void _shared_pool_free(MessageBase * m, size_t sz);
 
+  
+  union MessageFPAddr {
+    struct {
+      Core dest : 16;
+      intptr_t fp : 48;
+    };
+    intptr_t raw;
+  };
+
     /// @addtogroup Communication
     /// @{
 
@@ -70,11 +79,6 @@ namespace Grappa {
           Core destination_ : 16;      ///< What core is this message aimed at?
         };
         uint64_t raw_;
-      };
-      
-      union {
-        void* pool;
-        intptr_t extra;
       };
       
       //uint64_t reset_count_;    ///< How many times have we been reset? (for debugging only)
@@ -124,14 +128,6 @@ namespace Grappa {
 
 
 
-      union FPAddr {
-        struct {
-          Core dest : 16;
-          intptr_t fp : 48;
-        };
-        intptr_t raw;
-      };
-
       /// Interface for message serialization.
       ///  @param p Address in buffer at which to write:
       ///    -# A 2D global address of a function that knows how to
@@ -158,14 +154,14 @@ namespace Grappa {
 
         // buffer = fp( buffer + sizeof( Deserializer ) );
 
-        FPAddr gfp = *(reinterpret_cast< FPAddr* >(buffer));
+        MessageFPAddr gfp = *(reinterpret_cast< MessageFPAddr* >(buffer));
         Deserializer fp = reinterpret_cast< Deserializer >( gfp.fp );
 
         DVLOG(5) << "Receiving message from " << gfp.dest << " with deserializer " << (void*) fp;
 
         CHECK_EQ( gfp.dest, Grappa::mycore() ) << "Delivered to wrong core! buffer=" << (void*) buffer;
 
-        buffer = fp( buffer + sizeof( FPAddr ) );
+        buffer = fp( buffer + sizeof( MessageFPAddr ) );
 
         return buffer;
       }
