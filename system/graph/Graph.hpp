@@ -221,7 +221,7 @@ namespace Grappa {
     }
     
     // Constructor
-    static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false);
+    static GlobalAddress<Graph> create(const TupleGraph& tg, bool directed = false, bool solo_invalid = true);
     
     static GlobalAddress<Graph> Undirected(const TupleGraph& tg) { return create(tg, false); }
     static GlobalAddress<Graph> Directed(const TupleGraph& tg) { return create(tg, true); }
@@ -468,7 +468,8 @@ namespace Grappa {
   //
   
   template< typename V, typename E >
-  GlobalAddress<Graph<V,E>> Graph<V,E>::create(const TupleGraph& tg, bool directed) {
+  GlobalAddress<Graph<V,E>> Graph<V,E>::create(const TupleGraph& tg,
+      bool directed, bool solo_invalid) {
     VLOG(1) << "Graph: " << (directed ? "directed" : "undirected");
     double t;
     auto g = symmetric_global_alloc<Graph>();
@@ -617,12 +618,13 @@ namespace Grappa {
       CHECK_EQ(offset, g->nadj_local);
     });
     
-    // (note: this isn't necessary if we don't create vertices for those with no edges)
-    // find which are actually active (first, those with outgoing edges)
-    forall(g, [](Vertex& v){ v.valid = (v.nadj > 0); });
-    // then those with only incoming edges (reachable from at least one active vertex)
-    forall(g, [](Edge& e, Vertex& ve){ ve.valid = true; });
-    
+    if (solo_invalid) {
+      // (note: this isn't necessary if we don't create vertices for those with no edges)
+      // find which are actually active (first, those with outgoing edges)
+      forall(g, [](Vertex& v){ v.valid = (v.nadj > 0); });
+      // then those with only incoming edges (reachable from at least one active vertex)
+      forall(g, [](Edge& e, Vertex& ve){ ve.valid = true; });
+    }    
     VLOG(1) << "-- vertices: " << g->nv;
     return g;
   }
