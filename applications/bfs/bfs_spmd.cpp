@@ -118,7 +118,7 @@ void bfs(GlobalAddress<G> g, int nbfs, TupleGraph tg) {
           auto i = frontier.pop();
           
           // visit all the adjacencies of the vertex
-          forall<async,&joiner>(adj(g,vs+i), [i,vs](G::Edge& e){
+          forall<async,&joiner>(adj(g,vs+i), [i](G::Edge& e){
             auto j = e.id;
             // at the core where the vertex is...
             delegate::call<async,&joiner>(e.ga, [i,j](G::Vertex& v){

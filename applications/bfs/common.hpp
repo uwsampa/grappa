@@ -121,7 +121,7 @@ inline int64_t verify(TupleGraph tg, GlobalAddress<G> g, int64_t root) {
   nedge_traversed = Grappa::reduce<int64_t,collective_add>(&nedge_traversed);
   
   // check that every BFS edge was seen & that there's only one root
-  forall(g->vs, g->nv, [=](int64_t i, G::Vertex& v){
+  forall(g, [=](VertexID i, G::Vertex& v){
     if (i != root) {
       CHECK(!(v->parent >= 0 && !v->seen)) << "Error!";
       CHECK_NE(v->parent, i);
