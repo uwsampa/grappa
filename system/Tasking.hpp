@@ -191,7 +191,7 @@ void run(FP fp) {
   //Grappa_Grappa::impl::take_tracing_sample();
 #endif
 
-  if( global_communicator.mycore() == 0 ) {
+  if( global_communicator.mycore == 0 ) {
     CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
@@ -399,8 +399,11 @@ void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
 
-  remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
-  Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
+  //remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
+  //Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
+  send_heap_message( target, [fn_p,arg0,arg1,arg2] {
+      Grappa::impl::global_task_manager.spawnRemotePrivate(fn_p, arg0, arg1, arg2 );
+    } );
   DVLOG(5) << "Sent AM to spawn private task on Core " << target;
 }
 

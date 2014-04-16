@@ -103,6 +103,15 @@ inline void* locale_alloc(size_t n = 1) {
   return impl::locale_shared_memory.allocate(n);
 }
 
+template<typename T>
+inline T* locale_alloc_aligned(size_t alignment, size_t n = 1) {
+  return reinterpret_cast<T*>(impl::locale_shared_memory.allocate_aligned(sizeof(T)*n, alignment));
+}
+
+inline void* locale_alloc_aligned(size_t alignment, size_t n = 1) {
+  return impl::locale_shared_memory.allocate_aligned(n, alignment);
+}
+
 
 template< typename T, typename... Args >
 inline T* locale_new(Args&&... args) {
