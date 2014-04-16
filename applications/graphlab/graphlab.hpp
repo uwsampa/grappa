@@ -12,19 +12,66 @@ using std::unordered_set;
 using std::unordered_map;
 using std::vector;
 
+#include "dense_bitset.hpp"
+#define MAX_CORES 256
+using CoreBitset = graphlab::fixed_dense_bitset<MAX_CORES>;
+
 using CoreSet = SmallLocalSet<Core>;
+
+using namespace Grappa;
+using delegate::call;
 
 // #include "cuckoo_set_pow2.hpp"
 // using graphlab::cuckoo_set_pow2;
 //using CoreSet = cuckoo_set_pow2<Core>;
 
+static const Core INVALID = -1;
+
+// Jenkin's 32 bit integer mix from
+// http://burtleburtle.net/bob/hash/integer.html
+inline uint32_t integer_mix(uint32_t a) {
+  a -= (a<<6);
+  a ^= (a>>17);
+  a -= (a<<9);
+  a ^= (a<<4);
+  a -= (a<<3);
+  a ^= (a<<10);
+  a ^= (a>>15);
+  return a;
+}
+
+/** \brief Returns the hashed value of an edge. */
+inline static size_t hash_edge(const std::pair<VertexID, VertexID>& e, const uint32_t seed = 5) {
+  // a bunch of random numbers
+#if (__SIZEOF_PTRDIFF_T__ == 8)
+  static const size_t a[8] = {0x6306AA9DFC13C8E7,
+    0xA8CD7FBCA2A9FFD4,
+    0x40D341EB597ECDDC,
+    0x99CFA1168AF8DA7E,
+    0x7C55BCC3AF531D42,
+    0x1BC49DB0842A21DD,
+    0x2181F03B1DEE299F,
+    0xD524D92CBFEC63E9};
+#else
+  static const size_t a[8] = {0xFC13C8E7,
+    0xA2A9FFD4,
+    0x597ECDDC,
+    0x8AF8DA7E,
+    0xAF531D42,
+    0x842A21DD,
+    0x1DEE299F,
+    0xBFEC63E9};
+#endif
+  VertexID src = e.first;
+  VertexID dst = e.second;
+  return (integer_mix(src^a[seed%8]))^(integer_mix(dst^a[(seed+1)%8]));
+}
+
+
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, iteration_time);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<int>, core_set_size);
 
 DECLARE_int32(max_iterations);
-
-using namespace Grappa;
-using delegate::call;
 
 namespace Grappa {
 
@@ -104,7 +151,9 @@ namespace Grappa {
     unordered_map<VertexID,MasterInfo> l_masters;
 
     static GlobalCompletionEvent phaser;
-
+    
+    size_t tmp;
+    
   private:
 
     GraphlabGraph(GlobalAddress<GraphlabGraph> self)
@@ -114,10 +163,6 @@ namespace Grappa {
   public:
     GraphlabGraph() = default;
     ~GraphlabGraph() = default;
-
-    static GlobalAddress<GraphlabGraph> create(TupleGraph tg) {
-      VLOG(1) << "GraphlabGraph::create( directed, greedy_oblivious )";
-      auto g = symmetric_global_alloc<GraphlabGraph>();
 
 #define LOG_ALL_CORES(NAME, TYPE, WHAT) \
       if (VLOG_IS_ON(2)) { \
@@ -135,7 +180,63 @@ namespace Grappa {
       }
 #define PHASE_BEGIN(TITLE) if (mycore() == 0) { VLOG(1) << TITLE; t = walltime(); }
 #define PHASE_END() if (mycore() == 0) VLOG(1) << "    (" << walltime()-t << " s)"
+    
+   /** Greedy assign (source, target) to a machine using: 
+    *  bitset<MAX_MACHINE> src_degree : the degree presence of source over machines
+    *  bitset<MAX_MACHINE> dst_degree : the degree presence of target over machines
+    *  vector<size_t>      edge_cts : the edge counts over machines
+    * */
+    static Core edge_to_core_greedy (const VertexID source, 
+       const VertexID target,
+       CoreBitset& src_degree,
+       CoreBitset& dst_degree,
+       size_t* edge_cts,
+       bool usehash = true,
+       bool userecent = false)
+    {
+       
+      // Compute the score of each proc.
+      Core best_proc = -1; 
+      double maxscore = 0.0;
+      double epsilon = 1.0; 
+      std::vector<double> proc_score(cores()); 
+      size_t minedges = *std::min_element(edge_cts, edge_cts+cores());
+      size_t maxedges = *std::max_element(edge_cts, edge_cts+cores());
+      
+      for (size_t i = 0; i < cores(); ++i) {
+        size_t sd = src_degree.get(i) + (usehash && (source % cores() == i));
+        size_t td = dst_degree.get(i) + (usehash && (target % cores() == i));
+        double bal = (maxedges - edge_cts[i])/(epsilon + maxedges - minedges);
+        proc_score[i] = bal + ((sd > 0) + (td > 0));
+      }
+      maxscore = *std::max_element(proc_score.begin(), proc_score.end());
+   
+      std::vector<Core> top_procs; 
+      for (size_t i = 0; i < cores(); ++i)
+        if (std::fabs(proc_score[i] - maxscore) < 1e-5)
+          top_procs.push_back(i);
 
+      // Hash the edge to one of the best procs.
+      typedef std::pair<VertexID, VertexID> edge_pair_type;
+      const edge_pair_type edge_pair(std::min(source, target), 
+                                     std::max(source, target));
+      best_proc = top_procs[hash_edge(edge_pair) % top_procs.size()];
+      
+      CHECK_LT(best_proc, cores());
+      if (userecent) {
+        src_degree.clear();
+        dst_degree.clear();
+      }
+      src_degree.set_bit(best_proc);
+      dst_degree.set_bit(best_proc);
+      edge_cts[best_proc]++;
+      return best_proc;
+    }
+    
+    static GlobalAddress<GraphlabGraph> create(TupleGraph tg) {
+      VLOG(1) << "GraphlabGraph::create( directed, greedy_oblivious )";
+      auto g = symmetric_global_alloc<GraphlabGraph>();
+      
       on_all_cores([=]{
         double t = walltime();
         
@@ -148,70 +249,42 @@ namespace Grappa {
         new (g.localize()) GraphlabGraph(g);
 
         // vertex placements that this core knows about (array of cores, each with a set of vertices mapped to it)
-        unordered_map<VertexID,CoreSet> vplace;
+        unordered_map<VertexID,CoreBitset> vplace;
         auto local_edges = iterate_local(tg.edges, tg.nedge);
         auto nlocal = local_edges.size();
         auto idx = [&](TupleGraph::Edge& e){ return &e - local_edges.begin(); };
-
+        
         std::vector<Core> assignments; assignments.resize(local_edges.size());
         size_t* edge_cts = locale_alloc<size_t>(cores());
         Grappa::memset(edge_cts, 0, cores());
         
         /// cores this vertex has been placed on
-        auto vcores = [&](VertexID i) -> CoreSet& {
+        auto vcores = [&](VertexID i) -> CoreBitset& {
           if (vplace.count(i) == 0) {
             vplace[i];
           }
           return vplace[i];
         };
-
-        auto assign = [&](TupleGraph::Edge& e, Core c) {
-          CHECK_LT(c, cores());
-          CHECK_LT(idx(e), nlocal);
-          assignments[idx(e)] = c;
-          edge_cts[c]++;
-          for (auto v : {e.v0, e.v1}) {
-            if (vplace[v].count(c) == 0) {
-              CHECK_GE(c, 0);
-              vplace[v].insert(c);
-            }
-          }
-        };
-
+        
         auto cmp_load = [&](Core c0, Core c1) { return edge_cts[c0] < edge_cts[c1]; };
 
         for (auto& e : local_edges) {
+          auto i = idx(e);
           if (e.v0 == e.v1) {
-            assignments[idx(e)] = CoreSet::INVALID;
-            continue;
-          }
-
-          auto &vs0 = vcores(e.v0), &vs1 = vcores(e.v1);
-
-          auto common = intersect_choose_random(vs0, vs1);
-          if (common != CoreSet::INVALID) {
-            // place this edge on 'common' because both vertices are already there
-            assign(e, common);
-          } else if (!vs0.empty() && !vs1.empty()) {
-            // both assigned but no intersect, choose the least-loaded machine
-            assign(e, min_element(vs0, vs1, cmp_load));
-          } else if (!vs0.empty()) {
-            // only v0 assigned, choose one of its cores
-            assign(e, min_element(vs0, cmp_load));
-          } else if (!vs1.empty()) {
-            // only v1 assigned, choose one of its cores
-            assign(e, min_element(vs1, cmp_load));
+            assignments[i] = INVALID;
           } else {
-            // neither assigned, so pick overall least-loaded core
-            auto c = min_element(Range<Core>{0,cores()}, cmp_load);
-            // prefer spreading out over all cores
-            if (edge_cts[mycore()] <= edge_cts[c]) c = mycore();
-            assign(e, c);
+            auto &vs0 = vcores(e.v0), &vs1 = vcores(e.v1);
+            assignments[i] = edge_to_core_greedy(e.v0, e.v1, vs0, vs1, edge_cts);
           }
         }
         
         barrier();
-        PHASE_END(); PHASE_BEGIN("  - allreduce");
+        PHASE_END();
+        
+        g->tmp = vplace.size();
+        LOG_ALL_CORES("bitset_fraction_verts", double, (double)g->tmp / g->nv);
+        
+        PHASE_BEGIN("  - allreduce");
         
         allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
         
@@ -221,10 +294,10 @@ namespace Grappa {
 
         PHASE_END();
         
-        for (auto& p : vplace) {
-          auto& cs = p.second;
-          core_set_size += cs.size();
-        }
+        // for (auto& p : vplace) {
+        //   auto& cs = p.second;
+        //   core_set_size += cs.size();
+        // }
         
         PHASE_BEGIN("  scattering");
 
@@ -237,7 +310,7 @@ namespace Grappa {
 
         for (auto& e : local_edges) {
           auto target = assignments[idx(e)];
-          if (target != CoreSet::INVALID) {
+          if (target != INVALID) {
             auto e_copy = e;
             delegate::call<async,&phaser>(target, [e_copy,g]{
               g->l_edges.emplace_back(e_copy);
@@ -274,7 +347,7 @@ namespace Grappa {
         }
         PHASE_END(); PHASE_BEGIN("  - creating mirror vertices");
         lvs.reserve(l_vmap.size());
-
+        
         LOG_ALL_CORES("edges", size_t, g->l_edges.size());
         LOG_ALL_CORES("vertices", size_t, g->l_vmap.size());
 
