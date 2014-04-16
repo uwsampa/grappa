@@ -119,8 +119,12 @@ link_directories("${THIRD_PARTY_ROOT}/lib")
 list(APPEND GRAPPA_LIBS
   gflags
   glog
-  pmi
 )
+
+# TODO: actually check if PMI is available for this platform, possibly build it
+if(NOT APPLE)
+  list(APPEND GRAPPA_LIBS pmi)
+endif()
 
 #####################################
 # Boost
