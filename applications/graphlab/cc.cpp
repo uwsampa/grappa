@@ -76,9 +76,13 @@ struct LabelPropagation : public GraphlabVertexProgram<G,MinLabel> {
     if (v->label > min_label) {
       v->label = tmp_label = min_label;
       do_scatter = true;
+    } else {
+      do_scatter = false;
     }
   }
+  
   bool scatter_edges(const Vertex& v) const { return do_scatter; }
+  
   Gather scatter(const Edge& e, Vertex& target) const {
     if (target->label > tmp_label) {
       target->activate();
