@@ -144,7 +144,9 @@ void aligned_pool_allocator_clean(struct aligned_pool_allocator *apa) {
 
 void *aligned_pool_allocator_alloc(struct aligned_pool_allocator *apa) {
     struct link_object *ret;
-    
+    prefetchnta(apa);
+    prefetchnta(&apa->firsts[0]);
+
     if (!apa->firsts[apa->first_index]) {
         int index = 0;
         while (index < ALLOCATOR_PREFETCH_DISTANCE)
@@ -159,7 +161,8 @@ void *aligned_pool_allocator_alloc(struct aligned_pool_allocator *apa) {
             return aligned_allocator_alloc(apa->aa, apa->object_size);
         }
     }
-    
+    prefetchnta(apa->firsts[apa->first_index]);
+
     ++apa->allocated_objects;
     ret = apa->firsts[apa->first_index];
     apa->firsts[apa->first_index] = ret->next;
