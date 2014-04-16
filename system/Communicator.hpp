@@ -202,6 +202,11 @@ public:
     c->callback = NULL;
     char * buf = (char*) c->buf;
 
+    CHECK_LE( sizeof(Grappa::impl::Deserializer) + sizeof(f), c->size )
+      << "Immediate buffer size to small to contain "
+      << sizeof(Grappa::impl::Deserializer) << "-byte deserializer + "
+      << sizeof(f) << "-byte lambda";
+
     *((void**)buf) = (void*) Grappa::impl::immediate_deserializer<F>;
     buf += sizeof(Grappa::impl::Deserializer);
     
@@ -221,6 +226,12 @@ public:
     DVLOG(3) << "Sending immediate " << &f << " to " << dest << " with " << c;
     c->callback = NULL;
     char * buf = (char*) c->buf;
+
+    CHECK_LE( sizeof(Grappa::impl::Deserializer) + sizeof(f) + payload_size, c->size )
+      << "Immediate buffer size to small to contain "
+      << sizeof(Grappa::impl::Deserializer) << "-byte deserializer + "
+      << sizeof(f) << "-byte lambda + "
+      << payload_size << " payload";
 
     *((void**)buf) = (void*) Grappa::impl::immediate_deserializer_with_payload<F>;
     buf += sizeof(Grappa::impl::Deserializer);
