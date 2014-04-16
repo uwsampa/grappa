@@ -184,7 +184,8 @@ namespace Grappa {
 namespace impl {
 
 void freeze_for_debugger() {
-  LOG(INFO) << global_communicator.hostname() << " freezing for debugger. Set freeze_flag=false to continue.";
+  auto pid = getpid();
+  LOG(INFO) << global_communicator.hostname() << ":" << pid << " freezing for debugger. Set freeze_flag=false to continue.";
   google::FlushLogFiles(google::GLOG_INFO);
   fflush(stdout);
   fflush(stderr);
