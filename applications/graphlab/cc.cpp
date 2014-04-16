@@ -138,6 +138,10 @@ int main(int argc, char* argv[]) {
     nc = 0;
     forall(g, [](VertexID i, G::Vertex& v){ if (v->label == i) nc++; });
     LOG(INFO) << "ncomponents: " << nc;
+    
+    if (FLAGS_metrics) Metrics::merge_and_print();
+    else { std::cerr << total_time << "\n" << iteration_time << "\n"; }
+    Metrics::merge_and_dump_to_file();
   });
   finalize();
 }
