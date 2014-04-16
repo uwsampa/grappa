@@ -63,12 +63,6 @@
 // GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_messages);
 // GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_bytes);
 
-#define MPI_CHECK( block )                              \
-  do {                                                  \
-    PCHECK( (block) == 0 ) << "MPI call failed";        \
-  } while(0)
-
-
 /// Type for Core and Locale IDs. 
 typedef int16_t Core;
 typedef int16_t Locale;

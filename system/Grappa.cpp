@@ -237,7 +237,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &Grappa::impl::failure_function );
-  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
   
   DVLOG(2) << "Initializing Grappa library....";
 

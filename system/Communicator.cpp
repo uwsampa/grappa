@@ -123,7 +123,7 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   char * locale_rank_string = NULL;
 
   // are we using Slurm?
-  if( locale_rank_string = getenv("SLURM_LOCALID") ) {
+  if( (locale_rank_string = getenv("SLURM_LOCALID")) ) {
     locale_mycore_ = atoi(locale_rank_string);
 
     char * locale_size_string = getenv("SLURM_TASKS_PER_NODE");
@@ -132,7 +132,7 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
     locale_cores_ = atoi(locale_size_string);
 
     // are we using OpenMPI?
-  } else if( locale_rank_string = getenv("OMPI_COMM_WORLD_LOCAL_RANK") ) {
+  } else if( (locale_rank_string = getenv("OMPI_COMM_WORLD_LOCAL_RANK")) ) {
     locale_mycore_ = atoi(locale_rank_string);
 
     char * locale_size_string = getenv("OMPI_COMM_WORLD_LOCAL_SIZE");
@@ -140,7 +140,7 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
     locale_cores_ = atoi(locale_size_string);
 
     // are we using MVAPICH2?
-  } else if( locale_rank_string = getenv("MV2_COMM_WORLD_LOCAL_RANK") ){
+  } else if( (locale_rank_string = getenv("MV2_COMM_WORLD_LOCAL_RANK")) ){
     locale_mycore_ = atoi(locale_rank_string);
 
     char * locale_size_string = getenv("MV2_COMM_WORLD_LOCAL_SIZE");
