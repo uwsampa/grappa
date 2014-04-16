@@ -467,6 +467,16 @@ namespace Grappa {
   // });
   //
   
+  /// @brief Construct a distributed adjacency-list Graph.
+  /// 
+  /// @return The symmetric address to the 'proxy' allocated on each core,
+  ///         which has the size information and a portion of the graph.
+  /// 
+  /// @param tg            input edges
+  /// @param directed      create additional edges to make it undirected
+  /// @param solo_invalid  mark vertices with no in- or out-edges as 
+  ///                      invalid (not to be visited when iterating 
+  ///                      over vertices)
   template< typename V, typename E >
   GlobalAddress<Graph<V,E>> Graph<V,E>::create(const TupleGraph& tg,
       bool directed, bool solo_invalid) {
