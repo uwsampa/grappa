@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include "PoolAllocator.hpp"
 #include "MessageBase.hpp"
 #include "MessageBaseImpl.hpp"
 #include "Message.hpp"
