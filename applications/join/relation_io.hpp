@@ -119,6 +119,48 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
   return tg;
 }
 
+
+
+template <typename T>
+Relation<T> readTuplesUnordered( std::string fn ) {
+  /*
+  std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
+  std::ifstream metadata_file(metadata_path, std::ifstream::in);
+  CHECK( metadata_file.is_open() ) << metadata_path << " failed to open";
+  int64_t numcols;
+  metadata_file >> numcols;  
+  */
+
+  // binary; TODO: factor out to allow other formats like fixed-line length ascii
+  std::string data_path = FLAGS_relations+"/"+fn;
+  size_t file_size = fs::file_size( path );
+  size_t ntuples = file_size / row_size_bytes; 
+  CHECK( ntuples * row_size_bytes == file_size ) << "File is ill-formatted; perhaps not all rows have " << numcols << " columns?";
+  
+  auto tuples = Grappa::global_alloc<T>(numTuples);
+  
+  size_t offset_counter;
+  auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
+  on_all_cores( [=] {
+    // find my array split
+    auto local_start = tuples.localize();
+    auto local_end = (tuples+numTuples).localize();
+    size_t local_count = local_end - local_start;
+
+    // reserve a file split
+    int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count )
+
+    std::ifstream data_file(data_path, std::ifstream::in | std::ios_base::binary);
+    CHECK( data_file.is_open() ) << data_path << " failed to open";
+    infile.seekg( offset * sizeof(T) );
+    infile.read( (char*) local_start, local_count * sizeof(T) ) 
+    data_file.close();
+  });
+
+  Relation<T> r = { tuples, ntuples };
+  return r;
+}
+
 template <typename T>
 GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
   std::string path = FLAGS_relations+"/"+fn;
