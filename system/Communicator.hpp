@@ -246,7 +246,7 @@ public:
   void poll( unsigned int max_receives = 0 );
   
   template< typename F >
-  void with_context_do_blocking( F f );
+  void with_request_do_blocking( F f );
 
   
   
