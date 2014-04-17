@@ -245,6 +245,18 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     VLOG(2) << "memory registration disabled";
   }
 
+  // how fast do we tick?
+  Grappa::force_tick();
+  Grappa::force_tick();
+  Grappa::Timestamp start_ts = Grappa::timestamp();
+  double start = Grappa::walltime();
+  // now go do other stuff for a while
+  
+  // initializes system_wide global_communicator
+  global_communicator.init( argc_p, argv_p );
+
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
+
   // check to see if we should freeze for the debugger on error
   char * freeze_on_error = getenv("GRAPPA_FREEZE_ON_ERROR");
   if( freeze_on_error && ( (strncmp(freeze_on_error,"1",1) == 0) ||
@@ -259,29 +271,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // check to see if we should freeze for the debugger now
   char * freeze_now = getenv("GRAPPA_FREEZE");
-  if( freeze_now && ( (strncmp(freeze_on_error,"1",1) == 0) ||
-                           (strncmp(freeze_on_error,"true",4) == 0) ||
-                           (strncmp(freeze_on_error,"True",4) == 0) ||
-                           (strncmp(freeze_on_error,"TRUE",4) == 0) ||
-                           (strncmp(freeze_on_error,"yes",3) == 0) ||
-                           (strncmp(freeze_on_error,"Yes",3) == 0) ||
-                           (strncmp(freeze_on_error,"YES",3) == 0) ) ) {
+  if( freeze_now && ( (strncmp(freeze_now,"1",1) == 0) ||
+                           (strncmp(freeze_now,"true",4) == 0) ||
+                           (strncmp(freeze_now,"True",4) == 0) ||
+                           (strncmp(freeze_now,"TRUE",4) == 0) ||
+                           (strncmp(freeze_now,"yes",3) == 0) ||
+                           (strncmp(freeze_now,"Yes",3) == 0) ||
+                           (strncmp(freeze_now,"YES",3) == 0) ) ) {
     freeze_flag = true;
     freeze_for_debugger();
   }
 
-
-  // how fast do we tick?
-  Grappa::force_tick();
-  Grappa::force_tick();
-  Grappa::Timestamp start_ts = Grappa::timestamp();
-  double start = Grappa::walltime();
-  // now go do other stuff for a while
-  
-  // initializes system_wide global_communicator
-  global_communicator.init( argc_p, argv_p );
-
-  google::InstallFailureFunction( &Grappa::impl::failure_function );
 
   // set up stats dump signal handler
   struct sigaction stats_dump_sa;
