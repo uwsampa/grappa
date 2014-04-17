@@ -283,21 +283,23 @@ namespace Grappa {
         
           barrier();
           PHASE_END();
-        
+          
           g->tmp = vplace.size();
           LOG_ALL_CORES("bitset_fraction_verts", size_t, g->tmp);
         }
         
-        /// MARK: allreduce
-        PHASE_BEGIN("  - allreduce");
+        // std::cerr << util::array_str<16>("edge_cts", edge_cts, cores()) << "\n";
         
-        allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
-        
-        if (mycore() == 0 && VLOG_IS_ON(2)) {
-          std::cerr << util::array_str<16>("edge_cts", edge_cts, cores()) << "\n";
-        }
-
-        PHASE_END();
+        // /// MARK: allreduce
+        // PHASE_BEGIN("  - allreduce");
+        // 
+        // allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
+        // 
+        // if (mycore() == 0 && VLOG_IS_ON(2)) {
+        //   std::cerr << util::array_str<16>("edge_cts", edge_cts, cores()) << "\n";
+        // }
+        // 
+        // PHASE_END();
         
         // for (auto& p : vplace) {
         //   auto& cs = p.second;
@@ -309,48 +311,73 @@ namespace Grappa {
 
         //////////////////////////
         // actually scatter edges
-        auto& edges = g->l_edges;
-
-        edges.reserve(edge_cts[mycore()]);
         barrier();
         
         PHASE_BEGIN("  - pre-sorting");
+        // std::cerr << util::array_str("assignments", assignments) << std::endl;
         std::vector<int> counts(cores()), offsets(cores()), scan(cores());
-        for (auto c : assignments) counts[c]++;
+        // std::cerr << util::array_str("counts", counts) << std::endl;
+        for (auto c : assignments) if (c != INVALID) counts[c]++;
+        // std::cerr << util::array_str("counts", counts) << std::endl;
         std::partial_sum(counts.begin(), counts.end(), scan.begin());
         offsets[0] = 0; for (size_t i=1; i<cores(); i++) offsets[i] = scan[i-1];
+        
+        // std::cerr << util::array_str("counts", counts) << std::endl;
+        // std::cerr << util::array_str("offsets", offsets) << std::endl;
         
         std::vector<TupleGraph::Edge> sorted(scan.back());
         for (auto& e : local_edges) {
           auto a = assignments[idx(e)];
-          sorted[ offsets[a]++ ] = e;
+          if (a != INVALID) sorted[ offsets[a]++ ] = e;
         }
+        offsets[0] = 0; for (size_t i=1; i<cores(); i++) offsets[i] = scan[i-1];
         
         // get receive count from other cores
         std::vector<int> rcounts(cores()), roffsets(cores());
-
-        MPI_Request r; int done;
-        MPI_Ialltoall(&counts[0], 1, MPI_INT64_T,
-                     &rcounts[0], 1, MPI_INT64_T,
-                     MPI_COMM_WORLD, &r);
-        do {
-          MPI_Test( &r, &done, MPI_STATUS_IGNORE );
-          if (!done) { Grappa::yield(); }
-        } while (!done);
+        
+        PHASE_END(); PHASE_BEGIN("- MPI_Alltoall");
+        auto counts_ptr = &counts[0];
+        auto rcounts_ptr = &rcounts[0];
+        global_communicator.with_request_do_blocking([=](MPI_Request* request) {
+          MPI_CHECK(
+            MPI_Ialltoall(counts_ptr, 1, MPI_INT,
+                          rcounts_ptr, 1, MPI_INT,
+                          MPI_COMM_WORLD, request)
+          );
+        });
         
         std::partial_sum(rcounts.begin(), rcounts.end(), scan.begin());
         roffsets[0] = 0; for (size_t i=1; i<cores(); i++) roffsets[i] = scan[i-1];
         
+        // VLOG(0) << "edges.size => " << edges.capacity();
+        // VLOG(0) << "scan counts => " << scan.back();
+        
+        // std::cerr << util::array_str("rcounts", rcounts) << std::endl;
+        // std::cerr << util::array_str("roffsets", roffsets) << std::endl;
+        
         MPI_Datatype mpi_edge_type;
         MPI_Type_contiguous(2, MPI_INT64_T, &mpi_edge_type);
         
-        MPI_Ialltoallv(&sorted[0], &counts[0], &offsets[0], mpi_edge_type,
-                       &edges[0], &rcounts[0], &roffsets[0], mpi_edge_type,
-                       MPI_COMM_WORLD, &r);
-        do {
-          MPI_Test( &r, &done, MPI_STATUS_IGNORE );
-          if (!done) { Grappa::yield(); }
-        } while(!done);
+        PHASE_END();
+        
+        auto& edges = g->l_edges;
+        
+        auto nrecv = scan.back();
+        edges.reserve(nrecv);
+        auto buf = new TupleGraph::Edge[edges.capacity()];
+        
+        PHASE_BEGIN("  - MPI_Alltoallv");
+        global_communicator.with_request_do_blocking([&](MPI_Request* request) {
+          MPI_CHECK(
+            MPI_Ialltoallv(&sorted[0], &counts[0], &offsets[0], mpi_edge_type,
+                           buf, &rcounts[0], &roffsets[0], mpi_edge_type,
+                           MPI_COMM_WORLD, request)
+          );
+        });
+        PHASE_END(); PHASE_BEGIN("  - copying");
+        
+        for (size_t i = 0; i < nrecv; i++) { edges.emplace_back(buf[i]); }
+        delete[] buf;
         
         // std::vector<std::vector<TupleGraph::Edge>> bs; bs.resize(cores());
         // for (size_t i = 0; i<cores(); i++) bs[i].reserve(offsets[i]);
