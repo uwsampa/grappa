@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include <numeric>
 using std::unordered_set;
 using std::unordered_map;
 using std::vector;
@@ -174,7 +175,7 @@ namespace Grappa {
               return (WHAT); \
             }); \
           } \
-          std::cerr << util::array_str(NAME, lst) << "\n"; \
+          std::cerr << util::array_str<16>(NAME, lst) << "\n"; \
         } \
         barrier(); \
       }
@@ -232,7 +233,7 @@ namespace Grappa {
       edge_cts[best_proc]++;
       return best_proc;
     }
-    
+        
     static GlobalAddress<GraphlabGraph> create(TupleGraph tg) {
       VLOG(1) << "GraphlabGraph::create( directed, greedy_oblivious )";
       auto g = symmetric_global_alloc<GraphlabGraph>();
@@ -249,7 +250,6 @@ namespace Grappa {
         new (g.localize()) GraphlabGraph(g);
 
         // vertex placements that this core knows about (array of cores, each with a set of vertices mapped to it)
-        unordered_map<VertexID,CoreBitset> vplace;
         auto local_edges = iterate_local(tg.edges, tg.nedge);
         auto nlocal = local_edges.size();
         auto idx = [&](TupleGraph::Edge& e){ return &e - local_edges.begin(); };
@@ -258,38 +258,43 @@ namespace Grappa {
         size_t* edge_cts = locale_alloc<size_t>(cores());
         Grappa::memset(edge_cts, 0, cores());
         
-        /// cores this vertex has been placed on
-        auto vcores = [&](VertexID i) -> CoreBitset& {
-          if (vplace.count(i) == 0) {
-            vplace[i];
-          }
-          return vplace[i];
-        };
+        {
+          unordered_map<VertexID,CoreBitset> vplace;
         
-        auto cmp_load = [&](Core c0, Core c1) { return edge_cts[c0] < edge_cts[c1]; };
+          /// cores this vertex has been placed on
+          auto vcores = [&](VertexID i) -> CoreBitset& {
+            if (vplace.count(i) == 0) {
+              vplace[i];
+            }
+            return vplace[i];
+          };
+        
+          auto cmp_load = [&](Core c0, Core c1) { return edge_cts[c0] < edge_cts[c1]; };
 
-        for (auto& e : local_edges) {
-          auto i = idx(e);
-          if (e.v0 == e.v1) {
-            assignments[i] = INVALID;
-          } else {
-            auto &vs0 = vcores(e.v0), &vs1 = vcores(e.v1);
-            assignments[i] = edge_to_core_greedy(e.v0, e.v1, vs0, vs1, edge_cts);
+          for (auto& e : local_edges) {
+            auto i = idx(e);
+            if (e.v0 == e.v1) {
+              assignments[i] = INVALID;
+            } else {
+              auto &vs0 = vcores(e.v0), &vs1 = vcores(e.v1);
+              assignments[i] = edge_to_core_greedy(e.v0, e.v1, vs0, vs1, edge_cts);
+            }
           }
+        
+          barrier();
+          PHASE_END();
+        
+          g->tmp = vplace.size();
+          LOG_ALL_CORES("bitset_fraction_verts", size_t, g->tmp);
         }
         
-        barrier();
-        PHASE_END();
-        
-        g->tmp = vplace.size();
-        LOG_ALL_CORES("bitset_fraction_verts", double, (double)g->tmp / g->nv);
-        
+        /// MARK: allreduce
         PHASE_BEGIN("  - allreduce");
         
         allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
         
         if (mycore() == 0 && VLOG_IS_ON(2)) {
-          std::cerr << util::array_str("edge_cts", edge_cts, cores()) << "\n";
+          std::cerr << util::array_str<16>("edge_cts", edge_cts, cores()) << "\n";
         }
 
         PHASE_END();
@@ -299,6 +304,7 @@ namespace Grappa {
         //   core_set_size += cs.size();
         // }
         
+        /// MARK: scattering
         PHASE_BEGIN("  scattering");
 
         //////////////////////////
@@ -307,33 +313,117 @@ namespace Grappa {
 
         edges.reserve(edge_cts[mycore()]);
         barrier();
-
+        
+        PHASE_BEGIN("  - pre-sorting");
+        std::vector<int> counts(cores()), offsets(cores()), scan(cores());
+        for (auto c : assignments) counts[c]++;
+        std::partial_sum(counts.begin(), counts.end(), scan.begin());
+        offsets[0] = 0; for (size_t i=1; i<cores(); i++) offsets[i] = scan[i-1];
+        
+        std::vector<TupleGraph::Edge> sorted(scan.back());
         for (auto& e : local_edges) {
-          auto target = assignments[idx(e)];
-          if (target != INVALID) {
-            auto e_copy = e;
-            delegate::call<async,&phaser>(target, [e_copy,g]{
-              g->l_edges.emplace_back(e_copy);
-            });
-          }
+          auto a = assignments[idx(e)];
+          sorted[ offsets[a]++ ] = e;
         }
-        phaser.wait();
+        
+        // get receive count from other cores
+        std::vector<int> rcounts(cores()), roffsets(cores());
 
-        PHASE_END(); PHASE_BEGIN("  sorting");
-
+        MPI_Request r; int done;
+        MPI_Ialltoall(&counts[0], 1, MPI_INT64_T,
+                     &rcounts[0], 1, MPI_INT64_T,
+                     MPI_COMM_WORLD, &r);
+        do {
+          MPI_Test( &r, &done, MPI_STATUS_IGNORE );
+          if (!done) { Grappa::yield(); }
+        } while (!done);
+        
+        std::partial_sum(rcounts.begin(), rcounts.end(), scan.begin());
+        roffsets[0] = 0; for (size_t i=1; i<cores(); i++) roffsets[i] = scan[i-1];
+        
+        MPI_Datatype mpi_edge_type;
+        MPI_Type_contiguous(2, MPI_INT64_T, &mpi_edge_type);
+        
+        MPI_Ialltoallv(&sorted[0], &counts[0], &offsets[0], mpi_edge_type,
+                       &edges[0], &rcounts[0], &roffsets[0], mpi_edge_type,
+                       MPI_COMM_WORLD, &r);
+        do {
+          MPI_Test( &r, &done, MPI_STATUS_IGNORE );
+          if (!done) { Grappa::yield(); }
+        } while(!done);
+        
+        // std::vector<std::vector<TupleGraph::Edge>> bs; bs.resize(cores());
+        // for (size_t i = 0; i<cores(); i++) bs[i].reserve(offsets[i]);
+        // for (auto& e : local_edges) {
+        //   auto target = assignments[idx(e)];
+        //   bs[target].emplace_back(e);
+        // }
+        // PHASE_END();
+        // /// MARK: transmitting
+        // PHASE_BEGIN("  - transmitting");
+        // 
+        // auto origin = mycore();
+        // for (auto& e : bs[origin]) g->l_edges.emplace_back(e);
+        // 
+        // // phaser.enroll(cores()-1);
+        // CountingSemaphore _sem(2);
+        // auto sem = make_global(&_sem);
+        // 
+        // for (Core i = 1; i < cores(); i++) {
+        //   Core c = (origin+i) % cores();
+        //   sem->decrement();
+        //   global_communicator.send_immediate_with_payload(c, [=](void* p, int sz){
+        //     auto* in_edges = static_cast<TupleGraph::Edge*>(p);
+        //     auto n = sz / sizeof(TupleGraph::Edge);
+        //     for (int i=0; i<n; i++) {
+        //       g->l_edges.emplace_back(in_edges[i]);
+        //     }
+        //     // VLOG(0) << "<" << std::setw(3) << origin << "> " << i << " / " << cores()-1;
+        //     // phaser.send_completion(origin);
+        //     send_heap_message(sem.core(), [sem]{ sem->increment(); });
+        //   }, &bs[c][0], bs[c].size()*sizeof(TupleGraph::Edge));
+        // }
+        // sem->decrement();
+        
+        // for (auto& e : local_edges) {
+        //   auto target = assignments[idx(e)];
+        //   if (target != INVALID) {
+        //     auto e_copy = e;
+        //     delegate::call<async,&phaser>(target, [e_copy,g]{
+        //       g->l_edges.emplace_back(e_copy);
+        //       VLOG_EVERY_N(1,100000) << g->l_edges.size() << " / " << g->l_edges.capacity();
+        //     });
+        //   }
+        // }
+        // phaser.wait();
+        PHASE_END();
+      });
+      
+      on_all_cores([=]{
+        double t;
+        auto& edges = g->l_edges;
+        
+        /// MARK: sorting
+        PHASE_BEGIN("  sorting");
+        
+        size_t before = edges.size();
+        
         // if (mycore() == 0) global_free(tg.edges);
         std::sort(edges.begin(), edges.end(), [](const Edge& a, const Edge& b){
           if (a.src == b.src) return a.dst < b.dst;
           else return a.src < b.src;
         });
-
+        
         auto it = std::unique(edges.begin(), edges.end(), [](const Edge& a, const Edge& b){
           return (a.src == b.src) && (a.dst == b.dst);
         });
         edges.resize(std::distance(edges.begin(), it));
-
+        
+        size_t after = edges.size();
+        // VLOG(1) << "fraction_edges_elim: " << (double)(before-after)/before;
+        
         PHASE_END(); PHASE_BEGIN("  creating mirror vertices");
-
+        
         auto& l_vmap = g->l_vmap;
         auto& lvs = g->l_verts;
 
