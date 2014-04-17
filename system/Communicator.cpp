@@ -81,6 +81,7 @@ Communicator::Communicator( )
 
   , barrier_request( MPI_REQUEST_NULL )
   , external_sends()
+  , collective_context(NULL)
 
   , mycore( mycore_ )
   , cores( cores_ )
@@ -316,7 +317,6 @@ void Communicator::garbage_collect() {
       break;
     }
   }
-  
 }
 
 void Communicator::repost_receive_buffers() {
@@ -383,8 +383,25 @@ void Communicator::process_received_buffers() {
   repost_receive_buffers();
 }
 
+void Communicator::process_collectives() {
+  if( collective_context ) {
+    auto c = collective_context;
+    int flag;
+    MPI_Status status;
+    MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+    if( flag ) {
+      c->reference_count = 0;
+      if( c->callback ) {
+        (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
+      }
+      collective_context = NULL;
+    }
+  }
+}
+
 void Communicator::poll( unsigned int max_receives ) {
   process_received_buffers();
+  process_collectives();
   garbage_collect();
 }
 

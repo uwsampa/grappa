@@ -138,8 +138,10 @@ private:
   
   void garbage_collect();
   void process_received_buffers();
+  void process_collectives();
 
   std::deque<CommunicatorContext*> external_sends;
+  CommunicatorContext * collective_context;
   
 public:
   void repost_receive_buffers();

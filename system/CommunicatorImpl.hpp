@@ -29,22 +29,28 @@
 template< typename F >
 void Communicator::with_request_do_blocking( F f ) {
   CommunicatorContext c;
+  if( global_communicator.collective_context ) {
+    LOG(ERROR) << "Only one outstanding collective operation allowed.";
+    CHECK_NULL( global_communicator.collective_context );
+  }
+
+  // record that context has been issued
+  global_communicator.collective_context = &c;
+  
+
   Grappa::CompletionEvent ce(1); // register ourselves
   
   // wake calling thread when done
   c.buf = (void*) &ce;   // this is a hack since the callback type is not templated
-  c.reference_count = 1; // will be set to 0 after request is done
   c.callback = [] ( CommunicatorContext * c, int source, int tag, int received_size ) {
     c->reference_count = 0;
     auto ce = (Grappa::CompletionEvent*) c->buf;
     ce->complete();
   };
+  c.reference_count = 1; // will be set to 0 after request is done
   
   // let caller do stuff with context's request
   f(&c.request);
-  
-  // record that context has been issued
-  external_sends.push_back(&c);
   
   // suspend thread until context is done
   ce.wait();
