@@ -28,7 +28,7 @@
 #include "ChunkAllocator.hpp"
 #include <stack>
 
-DEFINE_int64( shared_pool_chunk_size, 1 * MEGA, "Number of bytes to allocate when shared message pool is empty" );
+DEFINE_int64( shared_pool_chunk_size, 1 << 13, "Number of bytes to allocate when shared message pool is empty" );
 
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, shared_message_pools_allocated, 0);

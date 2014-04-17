@@ -51,6 +51,7 @@ ENV["MV2_NUM_RDMA_BUFFER"] = "4"
 
 ## set MVAPICH2 options to avoid keeping around malloced memory
 ENV["OMPI_MCA_mpi_leave_pinned"] = "0"
+ENV["OMPI_MCA_mpi_yield_when_idle"] = "0"
 
 ## Clean up any leftover shared memory regions
 s = `ipcs -m | grep $USER | awk '{print $2}' | xargs -n1 -r ipcrm -m`

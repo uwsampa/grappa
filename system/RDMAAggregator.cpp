@@ -416,7 +416,7 @@ namespace Grappa {
 #endif
     }
 
-  void RDMAAggregator::deserialize_first_am( void * buf, int size, Context * c ) {
+  void RDMAAggregator::deserialize_first_am( void * buf, int size, CommunicatorContext * c ) {
       app_messages_deserialized++;
       Grappa::impl::global_scheduler.set_no_switch_region( true );
       Grappa::impl::MessageBase::deserialize_and_call( static_cast< char * >( buf ) );
@@ -425,7 +425,7 @@ namespace Grappa {
       c->reference_count = 0;
     }
 
-  void RDMAAggregator::enqueue_buffer_am( void * buf, int size, Context * c ) {
+  void RDMAAggregator::enqueue_buffer_am( void * buf, int size, CommunicatorContext * c ) {
     ++rdma_enqueue_buffer_am;
 
     DVLOG(2) << "Receiving buffer with deserializer " << (void*) (*((int64_t*)c->buf));
@@ -699,7 +699,7 @@ void RDMAAggregator::draw_routing_graph() {
 
 
       // return buffer to communicator
-      Context * context = (Context*) buf->deserializer;
+      CommunicatorContext * context = (CommunicatorContext*) buf->deserializer;
       context->reference_count = 0;
       global_communicator.repost_receive_buffers();
       
@@ -1189,7 +1189,7 @@ void RDMAAggregator::draw_routing_graph() {
         // we have a buffer. send.
         //global_communicator.send( dest_core, enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size(), dest_buf );
         b->deserializer = (void*) &enqueue_buffer_am;
-        b->context.callback = [] ( Context * c, int source, int tag, int received_size ) {
+        b->context.callback = [] ( CommunicatorContext * c, int source, int tag, int received_size ) {
           DVLOG(4) << "Got callback for " << c;
           global_rdma_aggregator.free_buffer_list_.push( (RDMABuffer*) c->buf );
         };

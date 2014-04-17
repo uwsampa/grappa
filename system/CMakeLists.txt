@@ -65,6 +65,7 @@ set(SYSTEM_SOURCES
   Collective.hpp
   common.hpp
   Communicator.hpp
+  CommunicatorImpl.hpp
   CompletionEvent.hpp
   ConditionVariable.hpp
   ConditionVariableLocal.hpp

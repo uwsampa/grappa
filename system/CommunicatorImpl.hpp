@@ -23,21 +23,35 @@
 
 #pragma once
 
-#include "ConditionVariable.hpp"
 #include "Communicator.hpp"
-#include "CommunicatorImpl.hpp"
+#include "CompletionEvent.hpp"
 
-namespace Grappa {
-  /// @addtogroup Synchronization
-  /// @{
-  
-  /// Blocking SPMD barrier (must be called once on all cores to continue)
-  inline void barrier() {
-    DVLOG(5) << "entering barrier";
-    global_communicator.with_request_do_blocking( [] ( MPI_Request * request ) {
-        MPI_CHECK( MPI_Ibarrier( MPI_COMM_WORLD, request ) );
-      } );
+template< typename F >
+void Communicator::with_request_do_blocking( F f ) {
+  CommunicatorContext c;
+  if( global_communicator.collective_context ) {
+    LOG(ERROR) << "Only one outstanding collective operation allowed.";
+    CHECK_NULL( global_communicator.collective_context );
   }
+
+  // record that context has been issued
+  global_communicator.collective_context = &c;
   
-  /// @}
+
+  Grappa::CompletionEvent ce(1); // register ourselves
+  
+  // wake calling thread when done
+  c.buf = (void*) &ce;   // this is a hack since the callback type is not templated
+  c.callback = [] ( CommunicatorContext * c, int source, int tag, int received_size ) {
+    c->reference_count = 0;
+    auto ce = (Grappa::CompletionEvent*) c->buf;
+    ce->complete();
+  };
+  c.reference_count = 1; // will be set to 0 after request is done
+  
+  // let caller do stuff with context's request
+  f(&c.request);
+  
+  // suspend thread until context is done
+  ce.wait();
 }

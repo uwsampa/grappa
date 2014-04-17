@@ -242,10 +242,10 @@ namespace Grappa {
 
 
       /// Active message to deserialize/call the first entry of a buffer of received deserializers/functors
-      static void deserialize_first_am( void * buf, int size, Context * c );
+      static void deserialize_first_am( void * buf, int size, CommunicatorContext * c );
       
       /// Active message to enqueue a buffer to be received
-      static void enqueue_buffer_am( void * buf, int size, Context * c );
+      static void enqueue_buffer_am( void * buf, int size, CommunicatorContext * c );
 
       /// buffers for message transmission
       RDMABuffer * rdma_buffers_;
@@ -710,7 +710,7 @@ namespace Grappa {
 
         const size_t size = m->serialized_size();
 
-        Context * c = global_communicator.try_get_send_context();
+        CommunicatorContext * c = global_communicator.try_get_send_context();
         while( !c ) {
           c = global_communicator.try_get_send_context();
           Grappa::yield();
