@@ -9,6 +9,7 @@ ENV["GLOG_logtostderr"] = "1"
 ENV["GLOG_v"] = "1"
 
 ENV["GRAPPA_FREEZE_ON_ERROR"] = "0"
+ENV["GRAPPA_FREEZE"] = "0"
 
 ## set up GASNet debugging
 ENV["GASNET_BACKTRACE"] = "1"
