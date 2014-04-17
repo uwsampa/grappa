@@ -69,30 +69,30 @@ typedef int16_t Locale;
 
 const static int16_t MAX_CORES_PER_LOCALE = 64;
 
-struct Context {
+struct CommunicatorContext {
   MPI_Request request;
   void * buf;
   int size;
   int reference_count;
-  void (*callback)( Context * c, int source, int tag, int received_size );
-  Context(): request(MPI_REQUEST_NULL), buf(NULL), size(0), reference_count(0), callback(NULL) {}
+  void (*callback)( CommunicatorContext * c, int source, int tag, int received_size );
+  CommunicatorContext(): request(MPI_REQUEST_NULL), buf(NULL), size(0), reference_count(0), callback(NULL) {}
 };
 
 namespace Grappa {
 namespace impl {
 
 /// generic deserializer type
-typedef void (*Deserializer)(char *, int, Context *);
+typedef void (*Deserializer)(char *, int, CommunicatorContext *);
 
 template < typename F >
-void immediate_deserializer( char * f, int size, Context * c ) {
+void immediate_deserializer( char * f, int size, CommunicatorContext * c ) {
   F * obj = reinterpret_cast< F * >( f );
   (*obj)();
   c->reference_count = 0;
 }
 
 template < typename F >
-void immediate_deserializer_with_payload( char * f, int size, Context * c ) {
+void immediate_deserializer_with_payload( char * f, int size, CommunicatorContext * c ) {
   F * obj = reinterpret_cast< F * >( f );
   char * buf = (char*) (obj+1);
   (*obj)( (void*) buf, (f+size) - buf  );
@@ -123,15 +123,13 @@ private:
   unsigned send_ev_vt;
 #endif
 
-  //std::unique_ptr< Context[] > receives;
-  Context * receives;
+  CommunicatorContext * receives;
   int receive_head;      //< pointer to next context that may be done delivering and ready to repost
   int receive_dispatch;  //< pointer to next context that may be done receiving and ready to deliver
   int receive_tail;      //< pointer to next context that may be done delivering and ready to repost
   int receive_mask;
 
-  //std::unique_ptr< Context[] > sends;
-  Context * sends;
+  CommunicatorContext * sends;
   int send_head;
   int send_tail;
   int send_mask;
@@ -141,7 +139,7 @@ private:
   void garbage_collect();
   void process_received_buffers();
 
-  std::deque<Context*> external_sends;
+  std::deque<CommunicatorContext*> external_sends;
   
 public:
   void repost_receive_buffers();
@@ -176,24 +174,24 @@ public:
 
   const char * hostname();
 
-  Context * try_get_send_context();
+  CommunicatorContext * try_get_send_context();
 
-  void post_send( Context * c,
+  void post_send( CommunicatorContext * c,
                   int dest,
                   size_t size,
                   int tag = 1 );
   
-  void post_external_send( Context * c,
+  void post_external_send( CommunicatorContext * c,
                            int dest,
                            size_t size,
                            int tag = 1 );
   
-  void post_receive( Context * c );
+  void post_receive( CommunicatorContext * c );
   
 
   template< typename F >
   void send_immediate( int dest, F f ) {
-    Context * c = NULL;
+    CommunicatorContext * c = NULL;
     while( NULL == (c = try_get_send_context()) ) {
       garbage_collect();
     }
@@ -218,7 +216,7 @@ public:
 
   template< typename F >
   void send_immediate_with_payload( int dest, F f, void * payload, size_t payload_size ) {
-    Context * c = NULL;
+    CommunicatorContext * c = NULL;
     while( NULL == (c = try_get_send_context()) ) {
       garbage_collect();
     }
@@ -247,6 +245,10 @@ public:
 
   void poll( unsigned int max_receives = 0 );
   
+  template< typename F >
+  void with_context_do_blocking( F f );
+
+  
   
   
   /// Global (anonymous) barrier (ALLNODES)
@@ -265,41 +267,6 @@ public:
     MPI_CHECK( MPI_Test( &barrier_request, &flag, MPI_STATUS_IGNORE ) );
     return flag;
   }
-
-  
-//   /// Send no-argment active message with payload
-//   inline void send( Core node, int handler, void * buf, size_t size ) { 
-//     assert( communication_is_allowed_ );
-//     assert( size < maximum_message_payload_size ); // make sure payload isn't too big
-//     stats.record_message( size );
-// #ifdef VTRACE_FULL
-//     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
-// #endif
-//     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
-//   }
-
-//   /// Send no-argment active message with payload. This only allows
-//   /// messages will be immediately copied to the HCA.
-//   /// TODO: can we avoid the copy onto gasnet's buffer? This is so small it probably doesn't matter.
-//   inline void send_immediate( Core node, int handler, void * buf, size_t size ) { 
-//     DCHECK_EQ( communication_is_allowed_, true );
-//     CHECK_LT( size, gasnetc_inline_limit ); // make sure payload isn't too big
-//     stats.record_message( size );
-// #ifdef VTRACE_FULL
-//     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
-// #endif
-//     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
-//   }
-
-//   /// Send no-argment active message with payload via RDMA, blocking until sent.
-//   inline void send( Core node, int handler, void * buf, size_t size, void * dest_buf ) { 
-//     DCHECK_EQ( communication_is_allowed_, true );
-//     stats.record_message( size );
-// #ifdef VTRACE_FULL
-//     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
-// #endif
-//     GASNET_CHECK( gasnet_AMRequestLong0( node, handler, buf, size, dest_buf ) );
-//   }
 
 };
 

@@ -81,7 +81,7 @@ Communicator::Communicator( )
 
   , barrier_request( MPI_REQUEST_NULL )
   , external_sends()
-    
+
   , mycore( mycore_ )
   , cores( cores_ )
   , mylocale( mylocale_ )
@@ -189,11 +189,9 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
-  //receives.reset( new Context[ 1 << FLAGS_log2_concurrent_receives ] );
-  receives = new Context[ 1 << FLAGS_log2_concurrent_receives ];
+  receives = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_receives ];
 
-  //sends.reset( new Context[ 1 << FLAGS_log2_concurrent_sends ] );
-  sends = new Context[ 1 << FLAGS_log2_concurrent_sends ];
+  sends = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_sends ];
   
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 }
@@ -238,8 +236,8 @@ const char * Communicator::hostname() {
 
 
 
-Context * Communicator::try_get_send_context() {
-  Context * c = NULL;
+CommunicatorContext * Communicator::try_get_send_context() {
+  CommunicatorContext * c = NULL;
 
   if( ((send_head + 1) & send_mask) != send_tail ) {
     c = &sends[send_head];
@@ -250,7 +248,7 @@ Context * Communicator::try_get_send_context() {
   return c;
 }
 
-void Communicator::post_send( Context * c,
+void Communicator::post_send( CommunicatorContext * c,
                               int dest,
                               size_t size,
                               int tag ) {
@@ -262,7 +260,7 @@ void Communicator::post_send( Context * c,
   MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
 }
 
-void Communicator::post_external_send( Context * c,
+void Communicator::post_external_send( CommunicatorContext * c,
                                        int dest,
                                        size_t size,
                                        int tag ) {
@@ -271,7 +269,7 @@ void Communicator::post_external_send( Context * c,
   external_sends.push_back(c);
 }
 
-void Communicator::post_receive( Context * c ) {
+void Communicator::post_receive( CommunicatorContext * c ) {
   MPI_CHECK( MPI_Irecv( c->buf, c->size, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &c->request ) );
   DVLOG(6) << "Posted receive " << c << " with buf " << c->buf << " callback " << (void*) c->callback;
 }
@@ -343,13 +341,13 @@ void Communicator::repost_receive_buffers() {
 }
 
 
-static void receive_buffer( Context * c, int size ) {
+static void receive_buffer( CommunicatorContext * c, int size ) {
   auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( c->buf );
   DVLOG(6) << "Calling deserializer " << (void*) (*fp) << " for " << c;
   (*fp)( (char*) (fp+1), size, c );
 }
 
-static void receive( Context * c, int size ) {
+static void receive( CommunicatorContext * c, int size ) {
   DVLOG(6) << "Receiving " << c;
   c->reference_count = 1;
   receive_buffer( c, size );
@@ -383,11 +381,11 @@ void Communicator::process_received_buffers() {
   
   // see if anything else finished delivery while we were busy
   repost_receive_buffers();
-  garbage_collect();
 }
 
 void Communicator::poll( unsigned int max_receives ) {
   process_received_buffers();
+  garbage_collect();
 }
 
 

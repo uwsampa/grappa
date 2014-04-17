@@ -59,9 +59,9 @@ public:
     intptr_t raw2_;
   };
 
-  char data_[ BUFFER_SIZE - sizeof(void*) - sizeof( raw_ ) - sizeof( raw2_ ) - sizeof(Context) ];
+  char data_[ BUFFER_SIZE - sizeof(void*) - sizeof( raw_ ) - sizeof( raw2_ ) - sizeof(CommunicatorContext) ];
   
-  Context context;
+  CommunicatorContext context;
 
   
   RDMABuffer()
@@ -93,7 +93,7 @@ public:
   }
 
   // assumes layout makes sense
-  inline size_t get_max_size() { return BUFFER_SIZE - get_base_size() - sizeof(Context); }
+  inline size_t get_max_size() { return BUFFER_SIZE - get_base_size() - sizeof(CommunicatorContext); }
 
   inline RDMABuffer * get_ack() { return reinterpret_cast< RDMABuffer * >( ack_ ); }
   inline void set_ack( RDMABuffer * ack ) { ack_ = reinterpret_cast< intptr_t >( ack ); }
