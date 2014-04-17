@@ -83,9 +83,11 @@ void try_global_ce() {
   
   BOOST_MESSAGE("  block on user_main only");
 //  gce.reset_all(); (don't need to call `reset` anymore)
+  gce.enroll(cores());
   on_all_cores([xa]{
     Core origin = mycore();
     gce.enroll(N+1);
+    complete(make_global(&gce,0));
     for (int i=0; i<N; i++) {
       spawn<unbound>([xa,origin]{
         delegate::fetch_and_add(xa, 1);
@@ -104,12 +106,17 @@ void try_global_ce() {
   
   x = 0;
 //  gce.reset_all(); (don't need this anymore)
+
+  gce.enroll(cores());
+
   on_all_cores([xa,N]{
     int y = 0;
     auto ya = make_global(&y);
     
     Core origin = mycore();
     gce.enroll(N);
+    complete(make_global(&gce,0));
+
     for (int i=0; i<N; i++) {
       spawn<unbound>([xa,ya,origin]{
         delegate::fetch_and_add(xa, 1);
@@ -144,8 +151,12 @@ void try_global_ce_recursive() {
   
   BOOST_MESSAGE("  block on user_main only");
 //  gce.reset_all();
+  gce.enroll(cores());
+
   on_all_cores([xa]{
     gce.enroll();
+    complete(make_global(&gce,0));
+
     Core origin = mycore();
     for (int i=0; i<N; i++) {
       gce.enroll();
@@ -169,12 +180,16 @@ void try_global_ce_recursive() {
   
   x = 0;
 //  gce.reset_all();
+  gce.enroll(cores());
+
   on_all_cores([xa,N]{
     int y = 0;
     auto ya = make_global(&y);
     
     Core origin = mycore();
     gce.enroll(N);
+    complete(make_global(&gce,0));
+
     for (int i=0; i<N; i++) {
       spawn<unbound>([xa,ya,origin]{
         delegate::fetch_and_add(xa, 1);
