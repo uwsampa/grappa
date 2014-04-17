@@ -36,7 +36,8 @@ namespace std {
     typedef size_t result_type;
     typedef Edge argument_type;
     size_t operator()(Edge const & e) const noexcept {
-      return static_cast<size_t>(e.start ^ e.end);
+      size_t seed = e.end;
+      return e.start + 0x9e3779b9 + (seed<<6) + (seed>>2);
     }
   };
 }
@@ -66,6 +67,8 @@ void color(GlobalAddress<G::Vertex> v, color_t c) {
 GlobalAddress<GlobalHashSet<Edge>> comp_set;
 GlobalAddress<G> g;
 
+std::unordered_set<Edge> local_set;
+
 bool changed;
 
 int64_t nc;
@@ -80,7 +83,7 @@ void pram_cc() {
     
     // Hook
     DVLOG(2) << "hook";
-    comp_set->forall_keys([](Edge& e){      
+    comp_set->forall_keys([](Edge& e){
       long i = e.start, j = e.end;
       CHECK_LT(i, g->nv);
       CHECK_LT(j, g->nv);
@@ -160,7 +163,8 @@ void explore(int64_t root_index, color_t mycolor, GlobalAddress<CompletionEvent>
         });
       } else if (v->color != mycolor) {
         Edge edge{ std::min(v->color,mycolor), std::max(v->color,mycolor) };
-        comp_set->insert_async(edge, [=]{ complete(ce); });
+        local_set.insert(edge);
+        complete(ce);
       } else {
         complete(ce);
       }
@@ -208,7 +212,7 @@ size_t connected_components(GlobalAddress<G> _g) {
     comp_set = _set;
     g = _g;
   });
-  
+    
   GRAPPA_TIME_REGION(set_insert_time) {
     // create component edge set (do a bunch of traversals)
     CountingSemaphore _sem(FLAGS_concurrent_roots);
@@ -235,13 +239,29 @@ size_t connected_components(GlobalAddress<G> _g) {
         }
       });
     }
-    comp_set->sync_all_cores();
+    sem->decrement(); // (after filling, blocks until an exploration finishes)
   }
+  
   LOG(INFO) << set_insert_time;
+    
+  GRAPPA_TIME_LOG("fill_global_set_time") {
+    // auto ct = sum_all_cores([]{ return local_set.size(); });
+    // VLOG(0) << "total set size: " << ct;
+    // phaser.enroll(ct);
+    on_all_cores([=]{
+      for (const Edge& e : local_set) {
+        // comp_set->insert_async(e, []{ phaser.send_completion(0); });
+        comp_set->insert(e);
+      }
+    });
+    // comp_set->sync_all_cores();
+    // phaser.wait();
+  }
+  
   set_size = comp_set->size();
   LOG(INFO) << set_size;
   
-  if (VLOG_IS_ON(1)) {
+  if (VLOG_IS_ON(2)) {
     VLOG(0) << "components set: {";
     comp_set->forall_keys([](Edge& e){ VLOG(0) << "  " << e; });
     VLOG(0) << "}";
