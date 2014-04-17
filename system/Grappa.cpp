@@ -41,7 +41,6 @@
 #include "FileIO.hpp"
 
 #include "RDMAAggregator.hpp"
-#include "Barrier.hpp"
 #include "LocaleSharedMemory.hpp"
 #include "SharedMessagePool.hpp"
 #include "Metrics.hpp"
@@ -90,8 +89,6 @@ namespace Grappa {
   
   double tick_rate = 0.0;
   
-  static Worker * barrier_thread = NULL;
-
   Worker * master_thread;
   static Worker * user_main_thr;
   
@@ -129,9 +126,6 @@ static void poller( Worker * me, void * args ) {
 
     Grappa::impl::poll();
     
-    // poll global barrier
-    Grappa::impl::barrier_poll();
-
     // check async. io completions
     if (aio_completed_stack) {
       // atomically grab the stack, replacing it with an empty stack again
@@ -452,7 +446,7 @@ void Grappa_activate()
   locale_shared_memory.activate(); // do this before communicator
   global_communicator.activate();
   global_task_manager.activate();
-  Grappa::comm_barrier();
+  global_communicator.barrier();
 
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
@@ -474,7 +468,7 @@ void Grappa_activate()
     VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
   }
   
-  Grappa::comm_barrier();
+  global_communicator.barrier();
 }
 
 
@@ -537,7 +531,7 @@ int Grappa_finish( int retval )
   Grappa::impl::signal_done(); // this may be overkill (just set done bit?)
 
   //TAU_PROFILE_EXIT("Tau_profile_exit called");
-  Grappa::comm_barrier();
+  global_communicator.barrier();
 
   DVLOG(1) << "Cleaning up Grappa library....";
 
