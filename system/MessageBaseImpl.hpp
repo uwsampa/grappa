@@ -87,11 +87,7 @@ namespace Grappa {
       is_enqueued_ = true;
       DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread() << ": " << this->typestr()
                << " enqueuing to " << destination_ << " with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
-      if( FLAGS_enable_aggregation ) {
-        Grappa::impl::global_rdma_aggregator.enqueue( this, true );
-      } else {
-        send_immediate();
-      }
+      Grappa::impl::global_rdma_aggregator.enqueue( this, true );
     }
 
     inline void Grappa::impl::MessageBase::locale_enqueue( Core c ) {

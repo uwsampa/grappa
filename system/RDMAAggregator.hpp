@@ -716,6 +716,7 @@ namespace Grappa {
           Grappa::yield();
         }
 
+        Core dest = m->destination_;
         char * buf = (char*) c->buf;
         DCHECK_LE( size, c->size );
 
@@ -724,26 +725,22 @@ namespace Grappa {
         Deserializer * dbuf = (Deserializer*) buf;
         *dbuf = &deserialize_first_am;
         buf = (char*) (dbuf + 1);
-        
+
+        size_t remaining = c->size - (buf - ((char*)c->buf));
+
         // serialize to buffer
         Grappa::impl::MessageBase * tmp = m;
         while( tmp != nullptr ) {
           DVLOG(5) << __func__ << ": Serializing message from " << tmp;
-          char * end = aggregate_to_buffer( buf, &tmp, size );
+          char * end = aggregate_to_buffer( buf, &tmp, remaining );
           DVLOG(5) << __func__ << ": After serializing, pointer was " << tmp;
           DCHECK_EQ( end - buf, size ) << __func__ << ": Whoops! Aggregated message was too long to send as immediate";
           
           DVLOG(5) << __func__ << ": Sending " << end - buf
-                   << " bytes of aggregated messages to " << m->destination_;
+                   << " bytes of aggregated messages to " << dest;
 
           c->callback = NULL;
-          global_communicator.post_send( c, m->destination_, end-((char*)c->buf) );
-          // send
-          // TODO: eliminate copy
-          // global_communicator.send_immediate_with_payload( m->destination_, [] (void * buf, int size) {
-          //     global_rdma_aggregator.deserialize_first_am( buf, size );
-          //   }, buf, size );
-
+          global_communicator.post_send( c, dest, end-((char*)c->buf) );
         }
       }
 
