@@ -32,6 +32,7 @@ Igor do
     nnode       16
     ppn         16
     loop_threshold 512
+    num_starting_workers 512
   }
   
   expect :total_time

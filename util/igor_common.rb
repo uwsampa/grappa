@@ -147,7 +147,7 @@ Igor do
                     target_size 2**12
           rdma_buffers_per_core 16
                  rdma_threshold 64
-         shared_pool_chunk_size 2**20
+         shared_pool_chunk_size 2**13
                      stack_size 2**19
              locale_shared_size SHMMAX
            global_heap_fraction 0.5

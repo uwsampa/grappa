@@ -288,24 +288,6 @@ namespace Grappa {
           LOG_ALL_CORES("bitset_fraction_verts", size_t, g->tmp);
         }
         
-        // std::cerr << util::array_str<16>("edge_cts", edge_cts, cores()) << "\n";
-        
-        // /// MARK: allreduce
-        // PHASE_BEGIN("  - allreduce");
-        // 
-        // allreduce_inplace<size_t,collective_add>(&edge_cts[0], cores());
-        // 
-        // if (mycore() == 0 && VLOG_IS_ON(2)) {
-        //   std::cerr << util::array_str<16>("edge_cts", edge_cts, cores()) << "\n";
-        // }
-        // 
-        // PHASE_END();
-        
-        // for (auto& p : vplace) {
-        //   auto& cs = p.second;
-        //   core_set_size += cs.size();
-        // }
-        
         /// MARK: scattering
         PHASE_BEGIN("  scattering");
 
@@ -379,50 +361,6 @@ namespace Grappa {
         for (size_t i = 0; i < nrecv; i++) { edges.emplace_back(buf[i]); }
         delete[] buf;
         
-        // std::vector<std::vector<TupleGraph::Edge>> bs; bs.resize(cores());
-        // for (size_t i = 0; i<cores(); i++) bs[i].reserve(offsets[i]);
-        // for (auto& e : local_edges) {
-        //   auto target = assignments[idx(e)];
-        //   bs[target].emplace_back(e);
-        // }
-        // PHASE_END();
-        // /// MARK: transmitting
-        // PHASE_BEGIN("  - transmitting");
-        // 
-        // auto origin = mycore();
-        // for (auto& e : bs[origin]) g->l_edges.emplace_back(e);
-        // 
-        // // phaser.enroll(cores()-1);
-        // CountingSemaphore _sem(2);
-        // auto sem = make_global(&_sem);
-        // 
-        // for (Core i = 1; i < cores(); i++) {
-        //   Core c = (origin+i) % cores();
-        //   sem->decrement();
-        //   global_communicator.send_immediate_with_payload(c, [=](void* p, int sz){
-        //     auto* in_edges = static_cast<TupleGraph::Edge*>(p);
-        //     auto n = sz / sizeof(TupleGraph::Edge);
-        //     for (int i=0; i<n; i++) {
-        //       g->l_edges.emplace_back(in_edges[i]);
-        //     }
-        //     // VLOG(0) << "<" << std::setw(3) << origin << "> " << i << " / " << cores()-1;
-        //     // phaser.send_completion(origin);
-        //     send_heap_message(sem.core(), [sem]{ sem->increment(); });
-        //   }, &bs[c][0], bs[c].size()*sizeof(TupleGraph::Edge));
-        // }
-        // sem->decrement();
-        
-        // for (auto& e : local_edges) {
-        //   auto target = assignments[idx(e)];
-        //   if (target != INVALID) {
-        //     auto e_copy = e;
-        //     delegate::call<async,&phaser>(target, [e_copy,g]{
-        //       g->l_edges.emplace_back(e_copy);
-        //       VLOG_EVERY_N(1,100000) << g->l_edges.size() << " / " << g->l_edges.capacity();
-        //     });
-        //   }
-        // }
-        // phaser.wait();
         PHASE_END();
       });
       
