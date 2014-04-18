@@ -315,6 +315,19 @@ namespace Grappa {
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG );
 #undef OVERLOAD
   
+  template< typename G = nullptr_t, typename F = nullptr_t >
+  void serial_for(AdjIterator<G> a, F body) {
+    auto vs = a.g->vs;
+    auto v = (vs+a.i).pointer();
+    CHECK((vs+a.i).core() == mycore());
+    for (int64_t i = 0; i < v->nadj; i++) {
+      auto j = v->local_adj[i];
+      typename G::Edge e = { j, vs+j, v->local_edge_state[i] };
+      body(e);
+    }
+  }
+  
+  
   ////////////////////////////////////////////////////
   // Graph iterators
   
