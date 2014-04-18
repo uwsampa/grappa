@@ -31,7 +31,7 @@ Igor do
   params {
     nnode       16
     ppn         16
-    loop_threshold 512
+    loop_threshold 1024
     num_starting_workers 512
   }
   

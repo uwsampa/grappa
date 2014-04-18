@@ -14,7 +14,8 @@ Igor do
   GFLAGS.merge!({
     path: '/pic/projects/grappa/twitter/bintsv4/twitter-all.bintsv4',
     format: 'bintsv4',
-    max_iterations: 1024
+    max_iterations: 1024,
+    trials: 3
   })
   GFLAGS.delete :flat_combining
   
