@@ -36,8 +36,6 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #include "LocaleSharedMemory.hpp"
 
 DEFINE_int64( log2_concurrent_receives, 7, "How many receive requests do we keep active at a time?" );
-DEFINE_int64( log2_concurrent_collectives, 5, "How many collective requests do we keep active at a time?" );
-
 DEFINE_int64( log2_concurrent_sends, 7, "How many send requests do we keep active at a time?" );
 
 DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
@@ -293,6 +291,8 @@ void Communicator::garbage_collect() {
         }
         c->reference_count = 0;
         send_tail = (send_tail + 1) & send_mask;
+      } else {
+        break;
       }
     } else {
       break;
@@ -349,7 +349,6 @@ static void receive_buffer( CommunicatorContext * c, int size ) {
 
 static void receive( CommunicatorContext * c, int size ) {
   DVLOG(6) << "Receiving " << c;
-  c->reference_count = 1;
   receive_buffer( c, size );
 }
 
@@ -366,6 +365,7 @@ void Communicator::process_received_buffers() {
     if( flag ) {
       int size = 0;
       MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
+      c->reference_count = 1;
       // start delivering received buffer
       receive( c, size );
       if( c->callback ) {
