@@ -800,6 +800,7 @@ struct GraphlabEngine {
   using Vertex = typename G::Vertex;
   using Edge = typename G::Edge;
   using MasterInfo = typename G::MasterInfo;
+  using Gather = typename VertexProg::Gather;
 
   static VertexProg& prog(Vertex& v) { return *static_cast<VertexProg*>(v.prog); };
 
@@ -827,34 +828,34 @@ struct GraphlabEngine {
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
       
+      forall(g, [](Vertex& v){ prog(v).reset(); });
+      
       // gather in_edges
       forall(g, [=](Edge& e){
         auto& v = e.dest();
         if (v.active) {
           auto& p = prog(v);
-          p.cache += p.gather(v, e);
+          p.post_delta( p.gather(v, e) );
         }
       });
 
       // send accumulated gather to master to compute total
       forall(mirrors(g), [=](Vertex& v){
         if (v.active) {
+          v.deactivate();
           auto& p = prog(v);
           auto accum = p.cache;
           // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
           call<async>(v.master, [=](Vertex& m){
             prog(m).cache += accum;
           });
-          
-          v.deactivate();
-          // v.active_minor_step = true;
         }
       });
 
       ////////////////////////////////////////////////////////////
       // apply
       forall(masters(g), [=](Vertex& v, MasterInfo& master){
-        // if (!v.active_minor_step) return;
+        if (!v.active) return;
         v.deactivate();
         
         auto& p = prog(v);
@@ -890,6 +891,7 @@ struct GraphlabEngine {
       // only thing that should've been changed about vertices is activation,
       // so make sure all mirrors know (send to master, then broadcast)
       forall(mirrors(g), [=](Vertex& v){
+        v.active_minor_step = false;
         if (v.active) {
           delegate::call<async>(v.master, [=](Vertex& m){
             m.activate();
@@ -901,6 +903,7 @@ struct GraphlabEngine {
           // activate all mirrors for next phase
           on_mirrors<async>(g, m, [](Vertex& v){
             v.activate();
+            prog(v).reset();
           });
         }
       });          
