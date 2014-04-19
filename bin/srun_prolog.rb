@@ -8,27 +8,6 @@ end
 ENV["GLOG_logtostderr"] = "1"
 ENV["GLOG_v"] = "1"
 
-ENV["GRAPPA_FREEZE_ON_ERROR"] = "0"
-ENV["GRAPPA_FREEZE"] = "0"
-
-## set up GASNet debugging
-ENV["GASNET_BACKTRACE"] = "1"
-ENV["GASNET_FREEZE_SIGNAL"] = "SIGUSR1"
-ENV["GASNET_FREEZE_ON_ERROR"] = "1"
-ENV["GASNET_FREEZE"] = "0"
-# ENV["GASNET_VERBOSEENV"] = "1"
-
-case `hostname`
-when /n\d+/ #(sampa)
-  # workaround for 1G huge pages
-  ENV["GASNET_PHYSMEM_MAX"] = "1024M"
-end
-
-## these will ensure we use RDMA rather than copying data to a bounce buffer
-ENV["GASNET_PACKEDLONG_LIMIT"] = "0"
-ENV["GASNET_NONBULKPUT_BOUNCE_LIMIT"] = "0"
-ENV["GASNET_PUTINMOVE_LIMIT"] = "0"
-
 ## set Google profiler sample rate
 ENV["CPUPROFILE_FREQUENCY"] = "50"
 
