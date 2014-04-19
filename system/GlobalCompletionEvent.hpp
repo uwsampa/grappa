@@ -116,9 +116,10 @@ class GlobalCompletionEvent : public CompletionEvent {
           DVLOG(5) << "re-sending -- " << completes_to_send << " to Core[" << dest << "] " << PRINT_MSG(*this);
           (*this)->dec = completes_to_send;
           completes_to_send = 0;
-          if( FLAGS_enable_aggregation ) {
-            this->enqueue(target);
-          }
+          auto prev = Grappa::impl::global_scheduler.in_no_switch_region();
+          Grappa::impl::global_scheduler.set_no_switch_region( true );
+          this->enqueue(target);
+          Grappa::impl::global_scheduler.set_no_switch_region( prev );
         }
       }
     }
