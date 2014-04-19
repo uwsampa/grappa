@@ -27,7 +27,6 @@
 //#include "common.hpp"
 #include "CompletionEvent.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "CountingSemaphoreLocal.hpp"
 #include "Barrier.hpp"
@@ -87,10 +86,9 @@ namespace Grappa {
     CompletionEvent ce(cores()-1);
     
     auto lsz = [&ce,origin,work]{};
-    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) if (c != mycore()) {
-      pool.send_message(c, [&ce, origin, work] {
+      send_heap_message(c, [&ce, origin, work] {
         work();
         send_heap_message(origin, [&ce]{ ce.complete(); });
       });
@@ -118,10 +116,9 @@ namespace Grappa {
     auto ce_addr = make_global(&ce);
     
     auto lsz = [ce_addr,work]{};
-    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
-      pool.send_message(c, [ce_addr, work] {
+      send_heap_message(c, [ce_addr, work] {
         spawn([ce_addr, work] {
           work();
           complete(ce_addr);
@@ -221,14 +218,13 @@ namespace Grappa {
           
           // send total to everyone else and wake them
           char msg_buf[(cores()-1)*sizeof(PayloadMessage<std::function<void(decltype(this),size_t)>>)];
-          MessagePool pool(msg_buf, sizeof(msg_buf));
           for (Core c = 0; c < cores(); c++) {
             if (c != HOME_CORE) {
               // send totals back to all the other cores
               size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
               for (size_t k=0; k<nelem; k+=n_per_msg) {
                 size_t this_nelem = std::min(n_per_msg, nelem-k);
-                pool.send_message(c, [this,k](void * payload, size_t psz){
+                send_heap_message(c, [this,k](void * payload, size_t psz){
                   auto total_k = static_cast<T*>(payload);
                   auto in_n = psz / sizeof(T);
                   for (size_t i=0; i<in_n; i++) {
@@ -300,15 +296,13 @@ namespace Grappa {
     //NOTE: this is written in a continuation passing
     //style to avoid the use of a GCE which async delegates only support
     CompletionEvent ce(cores()-1);
-    // TODO: look into optionally stack-allocating pool storage like in IncoherentAcquirer.
-    MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
   
     T total = *global_ptr;
     Core origin = mycore();
     
     for (Core c=0; c<cores(); c++) {
       if (c != origin) {
-        pool.send_message(c, [global_ptr, &ce, &total, origin]{
+        send_heap_message(c, [global_ptr, &ce, &total, origin]{
           T val = *global_ptr;
           send_heap_message(origin, [val,&ce,&total] {
             total = ReduceOp(total, val);
