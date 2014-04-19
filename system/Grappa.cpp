@@ -47,6 +47,8 @@
 
 #include <fstream>
 
+#include <mpi.h>
+
 #include "Grappa.hpp"
 
 #ifndef SHMMAX
@@ -196,16 +198,28 @@ void failure_function() {
   if( freeze_flag ) {
     freeze_for_debugger();
   }
+  LOG(INFO) << "Exiting via failure function";
+  google::FlushLogFiles(google::GLOG_INFO);
   exit(1);
 }
 
 static void failure_sighandler( int signum ) {
   google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
   if( freeze_flag ) {
     freeze_for_debugger();
   }
-  google::DumpStackTrace();
+  LOG(INFO) << "Exiting due to signal " << signum;
+  google::FlushLogFiles(google::GLOG_INFO);
   exit(1);
+}
+
+static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
+  char error_string[MPI_MAX_ERROR_STRING];
+  int length;
+  MPI_Error_string( *error_code, error_string, &length);
+  LOG(FATAL) << "MPI call failed: " << error_string;
+  failure_function();
 }
 
 }
@@ -254,6 +268,11 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
+  
+  MPI_Errhandler mpi_error_handler;
+  MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
+  MPI_Comm_set_errhandler( MPI_COMM_WORLD, mpi_error_handler );
+
 
   google::InstallFailureFunction( &Grappa::impl::failure_function );
 

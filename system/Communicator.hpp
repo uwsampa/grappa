@@ -136,7 +136,6 @@ private:
 
   MPI_Request barrier_request;
   
-  void garbage_collect();
   void process_received_buffers();
   void process_collectives();
 
@@ -144,6 +143,7 @@ private:
   CommunicatorContext * collective_context;
   
 public:
+  void garbage_collect();
   void repost_receive_buffers();
 
 

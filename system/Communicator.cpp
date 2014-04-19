@@ -107,6 +107,9 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   }
 #endif
 
+  // this will let our error wrapper actually fire.
+  MPI_CHECK( MPI_Comm_set_errhandler( MPI_COMM_WORLD, MPI_ERRORS_RETURN ) );
+
   // initialize masks
   receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
   send_mask = (1 << FLAGS_log2_concurrent_sends) - 1;
@@ -291,10 +294,10 @@ void Communicator::garbage_collect() {
         }
         c->reference_count = 0;
         send_tail = (send_tail + 1) & send_mask;
-      } else {
+      } else { // not sent yet
         break;
       }
-    } else {
+    } else { // not reference count > 0
       break;
     }
   }
@@ -310,10 +313,10 @@ void Communicator::garbage_collect() {
           (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
         }
         external_sends.pop_front();
-      } else {
+      } else { // not sent yet
         break;
       }
-    } else {
+    } else { // not reference_count > 0
       break;
     }
   }
