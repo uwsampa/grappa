@@ -44,6 +44,9 @@ DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
 DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
 
+DECLARE_int64( log2_concurrent_receives );
+DECLARE_int64( log2_concurrent_sends );
+
 DEFINE_int64( rdma_workers_per_core, 1 << 6, "Number of RDMA deaggregation worker threads" );
 DEFINE_int64( rdma_buffers_per_core, 1 << 7, "Number of RDMA aggregated message buffers per core" );
 
@@ -261,6 +264,14 @@ namespace Grappa {
         deaggregate_counts_[i] = 0;
       }
 #endif
+
+      if( global_communicator.mycore == 0 ) {
+        if( !FLAGS_enable_aggregation ) {
+          if( FLAGS_log2_concurrent_receives - FLAGS_log2_concurrent_sends < 4 ) { // arbitrary
+            LOG(WARNING) << "Your buffer settings may lead to starvation without aggregation; we suggest sends=3 and receives=7";
+          }
+        }
+      }
     }
 
     void RDMAAggregator::activate() {
