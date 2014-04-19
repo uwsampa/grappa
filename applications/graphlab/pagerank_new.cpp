@@ -77,6 +77,7 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
 };
 
 Reducer<double,ReducerType::Add> total_rank;
+Reducer<int64_t,ReducerType::Add> count;
 
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
@@ -103,6 +104,12 @@ int main(int argc, char* argv[]) {
     
     construction_time = walltime()-t;
     LOG(INFO) << construction_time;
+    
+    count = 0;
+    forall(masters(g), [](G::Vertex& v){
+      count += v.n_out;
+    });
+    CHECK_EQ(count, g->ne);
     
     GRAPPA_TIME_REGION(total_time) {
       activate_all(g);
