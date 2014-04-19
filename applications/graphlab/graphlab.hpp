@@ -800,21 +800,37 @@ struct GraphlabEngine {
   using Vertex = typename G::Vertex;
   using Edge = typename G::Edge;
   using MasterInfo = typename G::MasterInfo;
+  using Gather = typename VertexProg::Gather;
 
   static VertexProg& prog(Vertex& v) { return *static_cast<VertexProg*>(v.prog); };
-
+  
+  static GlobalAddress<G> g;
+  static VertexProg* prog_storage;
+  
   ///
   /// Assuming: `gather_edges = EdgeDirection::In`
   ///
-  static void run_sync(GlobalAddress<G> g) {
-
+  static void run_sync(GlobalAddress<G> g_in) {
+    
     VLOG(1) << "GraphlabEngine::run_sync(active:" << Vertex::total_active << ")";
 
     ///////////////
     // initialize
-    forall(g, [=](Vertex& v){
-      v.prog = new VertexProg(v);
-      v.active_minor_step = false;
+    on_all_cores([=]{
+      g = g_in;
+      
+      auto n = g->l_verts.size() + g->l_master_verts.size();
+      prog_storage = new VertexProg[n];
+      
+      size_t i=0;
+      auto init = [&i](Vertex& v){
+        v.prog = new (prog_storage+i) VertexProg(v);
+        v.active_minor_step = false;
+        i++;
+      };
+      
+      for (auto& v : g->l_master_verts) init(v);
+      for (auto& v : g->l_verts)        init(v);
     });
     
     int iteration = 0;
@@ -826,31 +842,35 @@ struct GraphlabEngine {
 
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
-      
-      // gather in_edges
-      forall(g, [=](Edge& e){
-        auto& v = e.dest();
-        if (v.active) {
-          auto& p = prog(v);
-          p.cache += p.gather(v, e);
-        }
-      });
-
-      // send accumulated gather to master to compute total
-      forall(mirrors(g), [=](Vertex& v){
-        if (v.active) {
-          auto& p = prog(v);
-          auto accum = p.cache;
-          // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
-          call<async>(v.master, [=](Vertex& m){
-            prog(m).cache += accum;
-          });
+      finish([=]{
+        on_all_cores([=]{
           
-          v.deactivate();
-          // v.active_minor_step = true;
-        }
+          // gather in_edges
+          for (Edge& e : g->l_edges) {
+            auto& v = e.dest();
+            if (v.active) {
+              auto& p = prog(v);
+              p.cache += p.gather(v, e);
+            }
+          }
+          
+          // send accumulated gather to master to compute total
+          for (Vertex& v : g->l_verts) {
+            if (v.active) {
+              auto& p = prog(v);
+              auto accum = p.cache;
+              // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
+              call<async>(v.master, [=](Vertex& m){
+                prog(m).cache += accum;
+              });
+          
+              v.deactivate();
+              // v.active_minor_step = true;
+            }
+          }
+        });
       });
-
+      
       ////////////////////////////////////////////////////////////
       // apply
       forall(masters(g), [=](Vertex& v, MasterInfo& master){
@@ -878,29 +898,35 @@ struct GraphlabEngine {
 
       ////////////////////////////////////////////////////////////
       // scatter
-      forall(g, [=](Edge& e){
-        // scatter out_edges
-        auto& v = e.source();
-        if (v.active_minor_step) {
-          auto& p = prog(v);
-          p.scatter(e, e.dest());
-        }
-      });
+      finish([]{
+        on_all_cores([]{
+          for (Edge& e : g->l_edges) {
+            // scatter out_edges
+            auto& v = e.source();
+            if (v.active_minor_step) {
+              auto& p = prog(v);
+              p.scatter(e, e.dest());
+            }
+          }
 
-      // only thing that should've been changed about vertices is activation,
-      // so make sure all mirrors know (send to master, then broadcast)
-      forall(mirrors(g), [=](Vertex& v){
-        if (v.active) {
-          delegate::call<async>(v.master, [=](Vertex& m){
-            m.activate();
-          });
-        }
+          // only thing that should've been changed about vertices is activation,
+          // so make sure all mirrors know (send to master, then broadcast)
+          for (Vertex& v : g->l_verts) {
+            if (v.active) {
+              delegate::call<async>(v.master, [](Vertex& m){
+                m.activate();
+              });
+            }
+          }
+        });
       });
-      forall(masters(g), [=](Vertex& m){
+      
+      forall(masters(g), [](Vertex& m){
         if (m.active) {
           // activate all mirrors for next phase
           on_mirrors<async>(g, m, [](Vertex& v){
             v.activate();
+            prog(v).cache = Gather();
           });
         }
       });          
@@ -911,6 +937,11 @@ struct GraphlabEngine {
   }
 };
 
+template< typename G, typename VertexProg, class C >
+GlobalAddress<G> GraphlabEngine<G,VertexProg,C>::g;
+
+template< typename G, typename VertexProg, class C >
+VertexProg* GraphlabEngine<G,VertexProg,C>::prog_storage;
 
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:

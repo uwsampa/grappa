@@ -54,7 +54,8 @@ using G = GraphlabGraph<PagerankVertexData,Empty>;
 struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   double delta;
   
-  PagerankVertexProgram(Vertex& v) {}
+  PagerankVertexProgram() = default;
+  PagerankVertexProgram(const Vertex& v) {}
   
   bool gather_edges(const Vertex& v) const { return true; }
   
