@@ -842,33 +842,29 @@ struct GraphlabEngine {
       
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
-      finish([=]{
-        on_all_cores([=]{
-          
-          // gather in_edges
-          for (Edge& e : g->l_edges) {
-            auto& v = e.dest();
-            if (v.active) {
-              auto& p = prog(v);
-              p.post_delta( p.gather(v, e) );
-            }
-          }
-          
-          // send accumulated gather to master to compute total
-          for (Vertex& v : g->l_verts) {
-            if (v.active) {
-              auto& p = prog(v);
-              auto accum = p.cache;
-              // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
-              call<async>(v.master, [=](Vertex& m){
-                prog(m).cache += accum;
-              });
-          
-              v.deactivate();
-              // v.active_minor_step = true;
-            }
-          }
-        });
+      
+      forall(g, [](Vertex& v){ prog(v).reset(); });
+      
+      // gather in_edges
+      forall(g, [=](Edge& e){
+        auto& v = e.dest();
+        if (v.active) {
+          auto& p = prog(v);
+          p.post_delta( p.gather(v, e) );
+        }
+      });
+
+      // send accumulated gather to master to compute total
+      forall(mirrors(g), [=](Vertex& v){
+        if (v.active) {
+          v.deactivate();
+          auto& p = prog(v);
+          auto accum = p.cache;
+          // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
+          call<async>(v.master, [=](Vertex& m){
+            prog(m).cache += accum;
+          });
+        }
       });
       
       ////////////////////////////////////////////////////////////
@@ -898,32 +894,26 @@ struct GraphlabEngine {
 
       ////////////////////////////////////////////////////////////
       // scatter
-      finish([]{
-        on_all_cores([]{
-          for (Edge& e : g->l_edges) {
-            // scatter out_edges
-            auto& v = e.source();
-            if (v.active_minor_step) {
-              auto& p = prog(v);
-              p.scatter(e, e.dest());
-            }
-          }
-
-          // only thing that should've been changed about vertices is activation,
-          // so make sure all mirrors know (send to master, then broadcast)
-          for (Vertex& v : g->l_verts) {
-            v.active_minor_step = false;
-            if (v.active) {
-              delegate::call<async>(v.master, [](Vertex& m){
-                m.activate();
-                prog(m).reset();
-              });
-            }
-          }
-        });
+      forall(g, [=](Edge& e){
+        // scatter out_edges
+        auto& v = e.source();
+        if (v.active_minor_step) {
+          auto& p = prog(v);
+          p.scatter(e, e.dest());
+        }
       });
-      
-      forall(masters(g), [](Vertex& m){
+
+      // only thing that should've been changed about vertices is activation,
+      // so make sure all mirrors know (send to master, then broadcast)
+      forall(mirrors(g), [=](Vertex& v){
+        v.active_minor_step = false;
+        if (v.active) {
+          delegate::call<async>(v.master, [=](Vertex& m){
+            m.activate();
+          });
+        }
+      });
+      forall(masters(g), [=](Vertex& m){
         if (m.active) {
           // activate all mirrors for next phase
           on_mirrors<async>(g, m, [](Vertex& v){
