@@ -176,7 +176,9 @@ public:
 
   const char * hostname();
 
+  inline bool send_context_available() const { return ((send_head + 1) & send_mask) != send_tail; }
   CommunicatorContext * try_get_send_context();
+
 
   void post_send( CommunicatorContext * c,
                   int dest,

@@ -40,6 +40,8 @@ namespace Grappa {
 // prefetch two cache lines per message
 #define DOUBLE_LINE_PREFETCH
 
+DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
+
 DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
 
 DEFINE_int64( rdma_workers_per_core, 1 << 6, "Number of RDMA deaggregation worker threads" );

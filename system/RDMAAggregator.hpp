@@ -53,6 +53,7 @@
 
 DECLARE_int64( target_size );
 DECLARE_int64( aggregator_autoflush_ticks );
+DECLARE_bool( enable_aggregation );
 
 /// stats for application messages
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue );
@@ -583,6 +584,15 @@ namespace Grappa {
         //CoreData * sender = &cores_[ dest->representative_core_ ];
         CoreData * locale_core = localeCoreData( Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() );
 
+        // possibly short circuit out of here when aggregation is disabled
+        if( !FLAGS_enable_aggregation &&
+            !global_scheduler.in_no_switch_region() &&
+            Grappa::locale_of( m->destination_ ) != Grappa::mylocale() &&
+            global_communicator.send_context_available() ) {
+          return send_immediate( m );
+        }
+
+
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
         Grappa::impl::MessageList old_ml, new_ml, swap_ml;
@@ -711,9 +721,18 @@ namespace Grappa {
         const size_t size = m->serialized_size();
 
         CommunicatorContext * c = global_communicator.try_get_send_context();
-        while( !c ) {
+        if( !c ) {
+          global_communicator.garbage_collect();
           c = global_communicator.try_get_send_context();
-          Grappa::yield();
+        }
+        while( !c ) {
+          if( global_scheduler.in_no_switch_region() ) {
+            global_communicator.poll();
+          } else {
+            Grappa::yield();
+          }
+          global_communicator.garbage_collect();
+          c = global_communicator.try_get_send_context();
         }
 
         Core dest = m->destination_;
