@@ -30,6 +30,7 @@
 #include "Tasking.hpp"
 #include "CountingSemaphoreLocal.hpp"
 #include "Barrier.hpp"
+#include "MessagePool.hpp"
 
 #include <functional>
 #include <algorithm>
@@ -218,13 +219,14 @@ namespace Grappa {
           
           // send total to everyone else and wake them
           char msg_buf[(cores()-1)*sizeof(PayloadMessage<std::function<void(decltype(this),size_t)>>)];
+          MessagePool pool(msg_buf, sizeof(msg_buf));
           for (Core c = 0; c < cores(); c++) {
             if (c != HOME_CORE) {
               // send totals back to all the other cores
               size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
               for (size_t k=0; k<nelem; k+=n_per_msg) {
                 size_t this_nelem = std::min(n_per_msg, nelem-k);
-                send_heap_message(c, [this,k](void * payload, size_t psz){
+                pool.send_message(c, [this,k](void * payload, size_t psz){
                   auto total_k = static_cast<T*>(payload);
                   auto in_n = psz / sizeof(T);
                   for (size_t i=0; i<in_n; i++) {
