@@ -98,13 +98,15 @@ namespace Grappa {
       Vertex& source() { return *srcv; }
       Vertex& dest() { return *dstv; }
     };
-
+    
+    struct MasterInfo;
+    
     struct Vertex {
       VertexID id;
       V data;
       GlobalAddress<Vertex> master;
       size_t n_in, n_out;
-
+      
       Edge * l_out;
       size_t l_nout;
 
@@ -112,6 +114,8 @@ namespace Grappa {
 
       void* prog;
       bool active, active_minor_step;
+      
+      MasterInfo* master_info;
 
       Vertex(VertexID id = -1): id(id), data(), n_in(), n_out(), l_out(nullptr), l_nout(0), prog(nullptr), active(false), active_minor_step(false) {}
 
@@ -144,10 +148,9 @@ namespace Grappa {
       }
     };
     
-
     struct MasterInfo {
       std::vector<Core> mirrors;
-      Vertex vertex;
+      std::vector<GlobalAddress<Vertex>> mirror_verts;
     };
 
     GlobalAddress<GraphlabGraph> self;
@@ -515,9 +518,12 @@ namespace Grappa {
             << util::array_str(master.mirrors);
           
           g->l_master_verts.emplace_back(vid);
-          auto ga = make_global(&g->l_master_verts.back());
+          Vertex& master_v = g->l_master_verts.back();
+          master_v.master_info = &master;
+          auto ga = make_global(&master_v);
           // std::cerr << "[" << std::setw(2) << vid << "] master: " << ga << ", mirrors: " << util::array_str(master.mirrors) << "\n";
           ga->master = ga;
+          master.mirror_verts.reserve(master.mirrors.size());
           
           for (auto c : master.mirrors) {
             delegate::call<async,&phaser>(c, [=]{
@@ -551,9 +557,11 @@ namespace Grappa {
           // std::cerr << "[" << std::setw(2) << v.id << "] n_out:" << v.n_out << "\n";
           auto n_in = v.n_in, n_out = v.n_out;
           // std::cerr << "[" << std::setw(2) << v.id << "] master on " << v.master.core() << ", @ " << v.master.pointer() << "\n";
+          auto ga = make_global(&v);
           delegate::call<async,&phaser>(v.master, [=](Vertex& m){
             m.n_in += n_in;
             m.n_out += n_out;
+            m.master_info->mirror_verts.push_back(ga);
           });
         }
         phaser.send_completion(0);
@@ -613,9 +621,9 @@ namespace Grappa {
   void on_mirrors(GlobalAddress<GraphlabGraph<V,E>> g, typename GraphlabGraph<V,E>::Vertex& v, F work) {
     auto id = v.id;
     CHECK( g->l_masters.count(id) );
-    for (auto c : g->l_masters[id].mirrors) {
-      delegate::call<S,C>(c, [=]{
-        work(*g->l_vmap[id]);
+    for (auto gv : v.master_info->mirror_verts) {
+      delegate::call<S,C>(gv, [=](typename GraphlabGraph<V,E>::Vertex& v){
+        work(v);
       });
     }
   }
