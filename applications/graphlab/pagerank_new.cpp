@@ -112,10 +112,15 @@ int main(int argc, char* argv[]) {
     });
     CHECK_EQ(count, g->ne);
     
+    Metrics::start_tracing();
+    
     GRAPPA_TIME_REGION(total_time) {
       activate_all(g);
       GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
     }
+    
+    Metrics::stop_tracing();
+    
     LOG(INFO) << total_time;
     
     total_rank = 0;
