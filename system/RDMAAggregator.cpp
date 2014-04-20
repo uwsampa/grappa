@@ -42,7 +42,7 @@ namespace Grappa {
 
 DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
-DEFINE_int64( target_size, 1 << 16, "Target size for aggregated messages" );
+DEFINE_int64( target_size, 0, "Target size for aggregated messages capacity flushes; disabled by default" );
 
 DECLARE_int64( log2_concurrent_receives );
 DECLARE_int64( log2_concurrent_sends );
