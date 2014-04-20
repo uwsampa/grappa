@@ -199,6 +199,7 @@ void run(FP fp) {
     Grappa::spawn( [&fp] {
         Grappa_global_queue_initialize();
         fp();
+        Metrics::dump_stats_blob();
         Grappa_end_tasks();
       } );
 

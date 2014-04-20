@@ -47,6 +47,8 @@
 
 #include <fstream>
 
+#include <mpi.h>
+
 #include "Grappa.hpp"
 
 #ifndef SHMMAX
@@ -60,8 +62,6 @@
 // command line arguments
 DEFINE_uint64( num_starting_workers, 512, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
-DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
-DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
@@ -196,16 +196,28 @@ void failure_function() {
   if( freeze_flag ) {
     freeze_for_debugger();
   }
+  LOG(INFO) << "Exiting via failure function";
+  google::FlushLogFiles(google::GLOG_INFO);
   exit(1);
 }
 
 static void failure_sighandler( int signum ) {
   google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
   if( freeze_flag ) {
     freeze_for_debugger();
   }
-  google::DumpStackTrace();
+  LOG(INFO) << "Exiting due to signal " << signum;
+  google::FlushLogFiles(google::GLOG_INFO);
   exit(1);
+}
+
+static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
+  char error_string[MPI_MAX_ERROR_STRING];
+  int length;
+  MPI_Error_string( *error_code, error_string, &length);
+  LOG(FATAL) << "MPI call failed: " << error_string;
+  failure_function();
 }
 
 }
@@ -245,6 +257,23 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     VLOG(2) << "memory registration disabled";
   }
 
+  // how fast do we tick?
+  Grappa::force_tick();
+  Grappa::force_tick();
+  Grappa::Timestamp start_ts = Grappa::timestamp();
+  double start = Grappa::walltime();
+  // now go do other stuff for a while
+  
+  // initializes system_wide global_communicator
+  global_communicator.init( argc_p, argv_p );
+  
+  MPI_Errhandler mpi_error_handler;
+  MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
+  MPI_Comm_set_errhandler( MPI_COMM_WORLD, mpi_error_handler );
+
+
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
+
   // check to see if we should freeze for the debugger on error
   char * freeze_on_error = getenv("GRAPPA_FREEZE_ON_ERROR");
   if( freeze_on_error && ( (strncmp(freeze_on_error,"1",1) == 0) ||
@@ -259,29 +288,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // check to see if we should freeze for the debugger now
   char * freeze_now = getenv("GRAPPA_FREEZE");
-  if( freeze_now && ( (strncmp(freeze_on_error,"1",1) == 0) ||
-                           (strncmp(freeze_on_error,"true",4) == 0) ||
-                           (strncmp(freeze_on_error,"True",4) == 0) ||
-                           (strncmp(freeze_on_error,"TRUE",4) == 0) ||
-                           (strncmp(freeze_on_error,"yes",3) == 0) ||
-                           (strncmp(freeze_on_error,"Yes",3) == 0) ||
-                           (strncmp(freeze_on_error,"YES",3) == 0) ) ) {
+  if( freeze_now && ( (strncmp(freeze_now,"1",1) == 0) ||
+                           (strncmp(freeze_now,"true",4) == 0) ||
+                           (strncmp(freeze_now,"True",4) == 0) ||
+                           (strncmp(freeze_now,"TRUE",4) == 0) ||
+                           (strncmp(freeze_now,"yes",3) == 0) ||
+                           (strncmp(freeze_now,"Yes",3) == 0) ||
+                           (strncmp(freeze_now,"YES",3) == 0) ) ) {
     freeze_flag = true;
     freeze_for_debugger();
   }
 
-
-  // how fast do we tick?
-  Grappa::force_tick();
-  Grappa::force_tick();
-  Grappa::Timestamp start_ts = Grappa::timestamp();
-  double start = Grappa::walltime();
-  // now go do other stuff for a while
-  
-  // initializes system_wide global_communicator
-  global_communicator.init( argc_p, argv_p );
-
-  google::InstallFailureFunction( &Grappa::impl::failure_function );
 
   // set up stats dump signal handler
   struct sigaction stats_dump_sa;

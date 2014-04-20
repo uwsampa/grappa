@@ -27,10 +27,10 @@
 //#include "common.hpp"
 #include "CompletionEvent.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "CountingSemaphoreLocal.hpp"
 #include "Barrier.hpp"
+#include "MessagePool.hpp"
 
 #include <functional>
 #include <algorithm>
@@ -87,10 +87,9 @@ namespace Grappa {
     CompletionEvent ce(cores()-1);
     
     auto lsz = [&ce,origin,work]{};
-    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) if (c != mycore()) {
-      pool.send_message(c, [&ce, origin, work] {
+      send_heap_message(c, [&ce, origin, work] {
         work();
         send_heap_message(origin, [&ce]{ ce.complete(); });
       });
@@ -118,10 +117,9 @@ namespace Grappa {
     auto ce_addr = make_global(&ce);
     
     auto lsz = [ce_addr,work]{};
-    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
-      pool.send_message(c, [ce_addr, work] {
+      send_heap_message(c, [ce_addr, work] {
         spawn([ce_addr, work] {
           work();
           complete(ce_addr);
@@ -300,15 +298,13 @@ namespace Grappa {
     //NOTE: this is written in a continuation passing
     //style to avoid the use of a GCE which async delegates only support
     CompletionEvent ce(cores()-1);
-    // TODO: look into optionally stack-allocating pool storage like in IncoherentAcquirer.
-    MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
   
     T total = *global_ptr;
     Core origin = mycore();
     
     for (Core c=0; c<cores(); c++) {
       if (c != origin) {
-        pool.send_message(c, [global_ptr, &ce, &total, origin]{
+        send_heap_message(c, [global_ptr, &ce, &total, origin]{
           T val = *global_ptr;
           send_heap_message(origin, [val,&ce,&total] {
             total = ReduceOp(total, val);
