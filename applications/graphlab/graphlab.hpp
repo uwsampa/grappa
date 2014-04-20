@@ -843,8 +843,6 @@ struct GraphlabEngine {
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
       
-      forall(g, [](Vertex& v){ prog(v).reset(); });
-      
       // gather in_edges
       forall(g, [=](Edge& e){
         auto& v = e.dest();
@@ -858,6 +856,7 @@ struct GraphlabEngine {
       forall(mirrors(g), [=](Vertex& v){
         if (v.active) {
           v.deactivate();
+          
           auto& p = prog(v);
           auto accum = p.cache;
           // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
@@ -910,6 +909,7 @@ struct GraphlabEngine {
         if (v.active) {
           delegate::call<async>(v.master, [=](Vertex& m){
             m.activate();
+            prog(m).reset();
           });
         }
       });
