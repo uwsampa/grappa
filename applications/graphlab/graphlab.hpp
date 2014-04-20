@@ -810,7 +810,7 @@ struct GraphlabEngine {
   ///
   /// Assuming: `gather_edges = EdgeDirection::In`
   ///
-  static void run_sync(GlobalAddress<G> g_in) {
+  static void run_sync(GlobalAddress<G> g_in, bool delta_caching = true) {
     
     VLOG(1) << "GraphlabEngine::run_sync(active:" << Vertex::total_active << ")";
 
@@ -843,85 +843,99 @@ struct GraphlabEngine {
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
       
-      // gather in_edges
-      forall(g, [=](Edge& e){
-        auto& v = e.dest();
-        if (v.active) {
-          auto& p = prog(v);
-          p.post_delta( p.gather(v, e) );
-        }
-      });
-
-      // send accumulated gather to master to compute total
-      forall(mirrors(g), [=](Vertex& v){
-        if (v.active) {
-          v.deactivate();
-          
-          auto& p = prog(v);
-          auto accum = p.cache;
-          // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
-          call<async>(v.master, [=](Vertex& m){
-            prog(m).cache += accum;
-          });
-        }
-      });
-      
+      if (!delta_caching || iteration == 0) {
+        // gather in_edges
+        forall(g, [=](Edge& e){
+          auto& v = e.dest();
+          if (v.active) {
+            auto& p = prog(v);
+            p.post_delta( p.gather(v, e) );
+          }
+        });
+        
+        // send accumulated gather to master to compute total
+        forall(mirrors(g), [=](Vertex& v){
+          if (v.active) {
+            v.deactivate();
+            
+            auto& p = prog(v);
+            auto accum = p.cache;
+            call<async>(v.master, [=](Vertex& m){
+              prog(m).post_delta( accum );
+            });
+            p.reset();
+          }
+        });
+      }
+            
       ////////////////////////////////////////////////////////////
       // apply
-      forall(masters(g), [=](Vertex& v, MasterInfo& master){
-        if (!v.active) return;
-        v.deactivate();
+      forall(masters(g), [=](Vertex& m){
+        if (!m.active) return;
+        m.deactivate();
         
-        auto& p = prog(v);
-        p.apply(v, p.cache);
+        auto& p = prog(m);
+        p.apply(m, p.cache);
         
-        auto do_scatter = p.scatter_edges(v);
+        auto do_scatter = p.scatter_edges(m);
         
         // broadcast out to mirrors
         auto p_copy = p;
-        auto data = v.data;
-        auto id = v.id;
-        for (auto c : master.mirrors) {
-          delegate::call<async>(c, [=]{
-            auto& v = *g->l_vmap[id];
-            v.data = data;
-            v.active_minor_step = do_scatter;
-            prog(v) = p_copy;
-          });
-        }
+        auto data = m.data;
+        auto id = m.id;
+        on_mirrors<async>(g, m, [=](Vertex& v){
+          v.data = data;
+          v.active_minor_step = do_scatter;
+          prog(v) = p_copy;
+          prog(v).reset();
+        });
       });
-
+      
       ////////////////////////////////////////////////////////////
       // scatter
-      forall(g, [=](Edge& e){
-        // scatter out_edges
-        auto& v = e.source();
-        if (v.active_minor_step) {
-          auto& p = prog(v);
-          p.scatter(e, e.dest());
-        }
-      });
-
-      // only thing that should've been changed about vertices is activation,
-      // so make sure all mirrors know (send to master, then broadcast)
+      // (only works for out_edges)
       forall(mirrors(g), [=](Vertex& v){
-        v.active_minor_step = false;
-        if (v.active) {
-          delegate::call<async>(v.master, [=](Vertex& m){
-            m.activate();
-            prog(m).reset();
-          });
+        if (v.active_minor_step) {
+          v.active_minor_step = false;
+          
+          auto& p = prog(v);
+          for (Edge& e : util::iterate(v.l_out, v.l_nout)) {
+            auto delta = p.scatter(e, e.dest());
+            if (delta_caching) {
+              prog(e.dest()).post_delta( delta );
+            }
+          }
         }
       });
-      forall(masters(g), [=](Vertex& m){
-        if (m.active) {
-          // activate all mirrors for next phase
-          on_mirrors<async>(g, m, [](Vertex& v){
-            v.activate();
-            prog(v).reset();
-          });
+      
+      forall(mirrors(g), [=](Vertex& v){
+        if (v.active) {
+          if (delta_caching) {
+            v.deactivate();
+            auto delta = prog(v).cache;
+            delegate::call<async>(v.master, [=](Vertex& m){
+              m.activate();
+              prog(m).post_delta(delta);
+            });
+          } else {
+            delegate::call<async>(v.master, [=](Vertex& m){
+              m.activate();
+              prog(m).reset();
+            });
+          }
         }
-      });          
+      });
+      
+      if (!delta_caching) {
+        forall(masters(g), [=](Vertex& m){
+          if (m.active) {
+            // activate all mirrors for next phase
+            on_mirrors<async>(g, m, [](Vertex& v){
+              v.activate();
+            });
+          }
+        });          
+      }
       
       iteration++;
       VLOG(1) << "  time:   " << walltime()-t;
