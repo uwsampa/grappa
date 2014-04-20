@@ -42,7 +42,7 @@ namespace Grappa {
 
 DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
-DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
+DEFINE_int64( target_size, 1 << 16, "Target size for aggregated messages" );
 
 DECLARE_int64( log2_concurrent_receives );
 DECLARE_int64( log2_concurrent_sends );
@@ -428,6 +428,13 @@ namespace Grappa {
       Grappa::impl::locale_shared_memory.deallocate( rdma_buffers_ );
 #endif
     }
+
+  void RDMAAggregator::deserialize_buffer_am( void * buf, int size, CommunicatorContext * c ) {
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
+      deaggregate_buffer( static_cast< char * >( buf ), size );
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
+      c->reference_count = 0;
+  }
 
   void RDMAAggregator::deserialize_first_am( void * buf, int size, CommunicatorContext * c ) {
       app_messages_deserialized++;
