@@ -30,8 +30,10 @@
 
 DEFINE_int64( shared_pool_chunk_size, 1 << 13, "Number of bytes to allocate when shared message pool is empty" );
 
+DECLARE_int64( locale_shared_size );
+
 DEFINE_int64(shared_pool_max_size, 0, "Soft maximum size (in bytes) of shared message pool storage (on each Core) (0 sets automatically base on memory fraction)");
-DEFINE_double(shared_pool_memory_fraction, 0.05, "Fraction of remaining memory to use for shared pool");
+DEFINE_double(shared_pool_memory_fraction, 0.25, "Fraction of locale shared heap to use for shared pool");
 
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, shared_message_pools_allocated, 0);
@@ -64,11 +66,10 @@ struct aligned_pool_allocator message_pool[ MAX_POOL_CACHELINE_COUNT ];
 /// set up shared pool for basic message sizes
 void init_shared_pool() {
   if( 0 == FLAGS_shared_pool_max_size ) {
-    auto freemem = Grappa::impl::locale_shared_memory.get_free_memory();
-    freemem /= Grappa::locale_cores();
-    auto frac = FLAGS_shared_pool_memory_fraction * freemem;
-    FLAGS_shared_pool_max_size = frac;
-    if( Grappa::mycore() == 0 ) LOG(INFO) << "Shared pool max is " << FLAGS_shared_pool_max_size;
+    double size = FLAGS_locale_shared_size;
+    size /= Grappa::locale_cores();
+    size *= FLAGS_shared_pool_memory_fraction;
+    FLAGS_shared_pool_max_size = size;
   }
 
   for( int i = 0; i < MAX_POOL_CACHELINE_COUNT; ++i ) {
