@@ -64,7 +64,6 @@ LocaleSharedMemory locale_shared_memory;
 
 
 void LocaleSharedMemory::create() {
-  region_size = FLAGS_locale_shared_size;
   VLOG(2) << "Creating LocaleSharedMemory region " << region_name 
           << " with " << region_size << " bytes"
           << " on " << global_communicator.mycore 
