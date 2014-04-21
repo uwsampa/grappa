@@ -28,8 +28,6 @@
 
 #include "ConditionVariable.hpp"
 
-DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
-
 namespace Grappa {
 
   /// Internal messaging functions

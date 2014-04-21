@@ -23,11 +23,20 @@
 
 #include "ChunkAllocator.hpp"
 #include "LocaleSharedMemory.hpp"
+#include "TaskingScheduler.hpp"
+#include "Communicator.hpp"
 
 #include "Metrics.hpp"
 
-GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, chunkallocator_append, 0 );
+DECLARE_int64( shared_pool_max_size );
+DECLARE_double( shared_pool_memory_fraction );
 
+GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, chunkallocator_append, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, chunkallocator_allocated, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, chunkallocator_yielded, 0 );
+
+static int64_t shared_pool_total_allocated = 0;
+static bool shared_pool_max_exceeded = false;
 
 namespace Grappa {
 namespace impl {
@@ -72,13 +81,19 @@ static void _aligned_allocator_append_chunk(struct aligned_allocator *aa,
     chunkallocator_append++;
     
     new_chunk = Grappa::locale_alloc_aligned<struct memory_chunk>(CACHE_LINE_SIZE);
-
     CHECK_NOTNULL(new_chunk);
+
+    auto chunk_struct_size = sizeof( struct memory_chunk );
+    shared_pool_total_allocated += std::max( chunk_struct_size, (decltype(chunk_struct_size)) CACHE_LINE_SIZE );
+    chunkallocator_allocated += std::max( chunk_struct_size, (decltype(chunk_struct_size)) CACHE_LINE_SIZE );
     
     new_chunk->next = NULL;
     new_chunk->chunk_size = MAX(min_size, aa->chunk_size) + aa->align_on;
     new_chunk->chunk = Grappa::locale_alloc_aligned<char>(CACHE_LINE_SIZE, new_chunk->chunk_size);
     CHECK_NOTNULL(new_chunk->chunk);
+
+    auto chunk_size = sizeof(new_chunk->chunk_size);
+    shared_pool_total_allocated += std::max( new_chunk->chunk_size, (decltype(chunk_size)) CACHE_LINE_SIZE );
     
     // for timing only
     memset(new_chunk->chunk, new_chunk->chunk_size, 0);
@@ -114,6 +129,8 @@ void aligned_allocator_free(struct aligned_allocator *aa, void *obj) {
 }
 
 struct aligned_pool_allocator   *aligned_pool_allocator_create(void) {
+  auto allocator_size = sizeof(struct aligned_pool_allocator);
+  shared_pool_total_allocated += std::max( allocator_size, (decltype(allocator_size)) CACHE_LINE_SIZE );
   return locale_alloc_aligned<struct aligned_pool_allocator>(CACHE_LINE_SIZE);
 }
 
@@ -146,21 +163,77 @@ void *aligned_pool_allocator_alloc(struct aligned_pool_allocator *apa) {
     struct link_object *ret;
     prefetchnta(apa);
     prefetchnta(&apa->firsts[0]);
+    bool yielded = false;
 
-    if (!apa->firsts[apa->first_index]) {
+    do {
+      // try allocating from the default list
+      ret = apa->firsts[apa->first_index];
+      
+      // if that didn't work, search for a list with something available
+      if( !ret ) {
         int index = 0;
-        while (index < ALLOCATOR_PREFETCH_DISTANCE)
-            if (apa->firsts[index])
-                break;
-            else
-                ++index;
-        if (index < ALLOCATOR_PREFETCH_DISTANCE)
-            apa->first_index = index;
-        else {
-            ++apa->newly_allocated_objects;
-            return aligned_allocator_alloc(apa->aa, apa->object_size);
+        
+        while (index < ALLOCATOR_PREFETCH_DISTANCE) {
+          if (apa->firsts[index]) {
+            break;
+          } else {
+            ++index;
+          }
         }
-    }
+        
+        if (index < ALLOCATOR_PREFETCH_DISTANCE) {
+          apa->first_index = index;
+          ret = apa->firsts[apa->first_index];
+        }
+      }
+      
+      // if that didn't work, either make a new one or block
+      if( !ret ) {
+        if( (shared_pool_total_allocated < FLAGS_shared_pool_max_size) ||
+            Grappa::impl::global_scheduler.in_no_switch_region() ) {
+
+          ++apa->newly_allocated_objects;
+          ret = (struct link_object*) aligned_allocator_alloc(apa->aa, apa->object_size);
+
+          if( (shared_pool_total_allocated > FLAGS_shared_pool_max_size) &&
+              (shared_pool_max_exceeded == false) ) {
+            shared_pool_max_exceeded = true;
+            LOG(WARNING) << "Shared pool size " << shared_pool_total_allocated
+                         << " exceeded max size " << FLAGS_shared_pool_max_size;
+          }
+
+          return ret;
+          
+        } else {
+          
+          if( yielded == false ) {
+            chunkallocator_yielded++;
+            yielded = true;
+          }
+
+          global_communicator.poll();
+          Grappa::yield();
+        
+        }
+      }
+
+    } while( !ret );
+
+//    while( (!aa->last) ||
+//            ((aa->last->chunk_size - aa->last->offset) < size) ) {
+//       if(  (shared_pool_total_allocated < FLAGS_shared_pool_max_size) ||
+//            Grappa::impl::global_scheduler.in_no_switch_region() ) {
+//         _aligned_allocator_append_chunk(aa, size);
+//       } else {
+//         if( yielded == false ) {
+//           chunkallocator_yielded++;
+//           yielded = true;
+//         }
+//         global_communicator.poll();
+//         Grappa::yield();
+//       }
+//     }
+
     prefetchnta(apa->firsts[apa->first_index]);
 
     ++apa->allocated_objects;

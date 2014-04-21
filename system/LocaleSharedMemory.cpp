@@ -27,9 +27,10 @@
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
 #endif
 
-DEFINE_int64( locale_shared_size, SHMMAX, "Total shared memory between cores on node" );
+DEFINE_int64( locale_shared_size, 0, "Total shared memory between cores on node (when 0, defaults to locale_heap_fraction * SHMMAX)" );
 
-DEFINE_double( global_heap_fraction, 0.5, "Fraction of locale shared memory to use for global shared heap" );
+DEFINE_double( locale_heap_fraction, 1.0, "Fraction of SHMMAX to use for locale shared heap" );
+DEFINE_double( global_heap_fraction, 0.25, "Fraction of locale shared memory to use for global shared heap" );
 
 DECLARE_bool( global_memory_use_hugepages );
 
@@ -63,7 +64,6 @@ LocaleSharedMemory locale_shared_memory;
 
 
 void LocaleSharedMemory::create() {
-  region_size = FLAGS_locale_shared_size;
   VLOG(2) << "Creating LocaleSharedMemory region " << region_name 
           << " with " << region_size << " bytes"
           << " on " << global_communicator.mycore 
@@ -134,10 +134,11 @@ void LocaleSharedMemory::destroy() {
 
 
 LocaleSharedMemory::LocaleSharedMemory()
-  : region_size( FLAGS_locale_shared_size )
+  : region_size()
   , region_name( "GrappaLocaleSharedMemory" )
   , base_address( reinterpret_cast<void*>( 0x400000000000L ) )
   , segment() // default constructor; initialize later
+  , allocated(0)
 { 
   boost::interprocess::shared_memory_object::remove( region_name.c_str() );
 
@@ -151,6 +152,11 @@ LocaleSharedMemory::~LocaleSharedMemory() {
 }
 
 void LocaleSharedMemory::init() {
+  if( 0 == FLAGS_locale_shared_size ) {
+    double locale_shared_size = FLAGS_locale_heap_fraction * static_cast< double >( SHMMAX );
+    region_size = static_cast< int64_t >( locale_shared_size );
+    FLAGS_locale_shared_size = region_size;
+  }
 }
 
 void LocaleSharedMemory::activate() {
@@ -158,6 +164,7 @@ void LocaleSharedMemory::activate() {
   global_communicator.barrier();
   if( Grappa::locale_mycore() != 0 ) { attach(); }
   global_communicator.barrier();
+  //available = global_bytes_per_core;
 }
 
 void LocaleSharedMemory::finish() {
@@ -169,10 +176,12 @@ void * LocaleSharedMemory::allocate( size_t size ) {
   void * p = NULL;
   try {
     p = segment.allocate( size );
+    allocated += size;
   }
   catch(...){
     LOG(ERROR) << "Allocation of " << size << " bytes failed with " 
-               << get_free_memory() << " free.";
+               << get_free_memory() << " free and "
+               << allocated << " allocated locally";
     failure_function();
     throw;
   }
@@ -183,10 +192,12 @@ void * LocaleSharedMemory::allocate_aligned( size_t size, size_t alignment ) {
   void * p = NULL;
   try {
     p = segment.allocate_aligned( size, alignment );
+    allocated += size;
   }
   catch(...){
     LOG(ERROR) << "Allocation of " << size << " bytes with alignment " << alignment 
-               << " failed with " << get_free_memory() << " free.";
+               << " failed with " << get_free_memory() << " free and "
+               << allocated << " allocated locally";
     failure_function();
     throw;
   }
