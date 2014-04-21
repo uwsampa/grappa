@@ -651,21 +651,21 @@ namespace Grappa {
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
 
-        // possibly flush if we've passed target size
-        if( FLAGS_target_size > 0 &&
-            size > FLAGS_target_size &&
-            !locale_enqueue &&
-            !global_scheduler.in_no_switch_region() &&
-            Grappa::locale_of( m->destination_ ) != Grappa::mylocale() &&
-            global_communicator.send_context_available() ) {
-          dest = coreData(core);
-          auto ml = grab_messages( dest );
-          auto mp = get_pointer( &ml );
-          rdma_capacity_flushes++;
-          if( mp ) {
-            return send_list_immediate( mp );
-          }
-        }
+//         // possibly flush if we've passed target size
+//         if( FLAGS_target_size > 0 &&
+//             size > FLAGS_target_size &&
+//             !locale_enqueue &&
+//             !global_scheduler.in_no_switch_region() &&
+//             Grappa::locale_of( m->destination_ ) != Grappa::mylocale() &&
+//             global_communicator.send_context_available() ) {
+//           dest = coreData(core);
+//           auto ml = grab_messages( dest );
+//           auto mp = get_pointer( &ml );
+//           rdma_capacity_flushes++;
+//           if( mp ) {
+//             return send_list_immediate( mp );
+//           }
+//         }
       }
 
 
