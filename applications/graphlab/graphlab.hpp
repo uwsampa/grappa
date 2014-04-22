@@ -98,13 +98,15 @@ namespace Grappa {
       Vertex& source() { return *srcv; }
       Vertex& dest() { return *dstv; }
     };
-
+    
+    struct MasterInfo;
+    
     struct Vertex {
       VertexID id;
       V data;
       GlobalAddress<Vertex> master;
       size_t n_in, n_out;
-
+      
       Edge * l_out;
       size_t l_nout;
 
@@ -112,6 +114,8 @@ namespace Grappa {
 
       void* prog;
       bool active, active_minor_step;
+      
+      MasterInfo* master_info;
 
       Vertex(VertexID id = -1): id(id), data(), n_in(), n_out(), l_out(nullptr), l_nout(0), prog(nullptr), active(false), active_minor_step(false) {}
 
@@ -144,10 +148,9 @@ namespace Grappa {
       }
     };
     
-
     struct MasterInfo {
       std::vector<Core> mirrors;
-      Vertex vertex;
+      std::vector<GlobalAddress<Vertex>> mirror_verts;
     };
 
     GlobalAddress<GraphlabGraph> self;
@@ -515,9 +518,12 @@ namespace Grappa {
             << util::array_str(master.mirrors);
           
           g->l_master_verts.emplace_back(vid);
-          auto ga = make_global(&g->l_master_verts.back());
+          Vertex& master_v = g->l_master_verts.back();
+          master_v.master_info = &master;
+          auto ga = make_global(&master_v);
           // std::cerr << "[" << std::setw(2) << vid << "] master: " << ga << ", mirrors: " << util::array_str(master.mirrors) << "\n";
           ga->master = ga;
+          master.mirror_verts.reserve(master.mirrors.size());
           
           for (auto c : master.mirrors) {
             delegate::call<async,&phaser>(c, [=]{
@@ -551,9 +557,11 @@ namespace Grappa {
           // std::cerr << "[" << std::setw(2) << v.id << "] n_out:" << v.n_out << "\n";
           auto n_in = v.n_in, n_out = v.n_out;
           // std::cerr << "[" << std::setw(2) << v.id << "] master on " << v.master.core() << ", @ " << v.master.pointer() << "\n";
+          auto ga = make_global(&v);
           delegate::call<async,&phaser>(v.master, [=](Vertex& m){
             m.n_in += n_in;
             m.n_out += n_out;
+            m.master_info->mirror_verts.push_back(ga);
           });
         }
         phaser.send_completion(0);
@@ -613,9 +621,9 @@ namespace Grappa {
   void on_mirrors(GlobalAddress<GraphlabGraph<V,E>> g, typename GraphlabGraph<V,E>::Vertex& v, F work) {
     auto id = v.id;
     CHECK( g->l_masters.count(id) );
-    for (auto c : g->l_masters[id].mirrors) {
-      delegate::call<S,C>(c, [=]{
-        work(*g->l_vmap[id]);
+    for (auto gv : v.master_info->mirror_verts) {
+      delegate::call<S,C>(gv, [=](typename GraphlabGraph<V,E>::Vertex& v){
+        work(v);
       });
     }
   }
@@ -803,19 +811,34 @@ struct GraphlabEngine {
   using Gather = typename VertexProg::Gather;
 
   static VertexProg& prog(Vertex& v) { return *static_cast<VertexProg*>(v.prog); };
-
+  
+  static GlobalAddress<G> g;
+  static VertexProg* prog_storage;
+  
   ///
   /// Assuming: `gather_edges = EdgeDirection::In`
   ///
-  static void run_sync(GlobalAddress<G> g) {
-
+  static void run_sync(GlobalAddress<G> g_in, bool delta_caching = true) {
+    
     VLOG(1) << "GraphlabEngine::run_sync(active:" << Vertex::total_active << ")";
 
     ///////////////
     // initialize
-    forall(g, [=](Vertex& v){
-      v.prog = new VertexProg(v);
-      v.active_minor_step = false;
+    on_all_cores([=]{
+      g = g_in;
+      
+      auto n = g->l_verts.size() + g->l_master_verts.size();
+      prog_storage = new VertexProg[n];
+      
+      size_t i=0;
+      auto init_prog = [&i](Vertex& v){
+        v.prog = new (prog_storage+i) VertexProg(v);
+        v.active_minor_step = false;
+        i++;
+      };
+      
+      for (auto& v : g->l_master_verts) init_prog(v);
+      for (auto& v : g->l_verts)        init_prog(v);
     });
     
     int iteration = 0;
@@ -824,89 +847,104 @@ struct GraphlabEngine {
       VLOG(1) << "iteration " << iteration;
       VLOG(1) << "  active: " << Vertex::total_active;
       double t = walltime();
-
+      
       ////////////////////////////////////////////////////////////
       // gather (TODO: do this in fewer 'forall's)
       
-      forall(g, [](Vertex& v){ prog(v).reset(); });
-      
-      // gather in_edges
-      forall(g, [=](Edge& e){
-        auto& v = e.dest();
-        if (v.active) {
-          auto& p = prog(v);
-          p.post_delta( p.gather(v, e) );
-        }
-      });
-
-      // send accumulated gather to master to compute total
-      forall(mirrors(g), [=](Vertex& v){
-        if (v.active) {
-          v.deactivate();
-          auto& p = prog(v);
-          auto accum = p.cache;
-          // std::cerr << "[" << std::setw(2) << v.id << "] master: " << v.master << "\n";
-          call<async>(v.master, [=](Vertex& m){
-            prog(m).cache += accum;
-          });
-        }
-      });
-
+      if (!delta_caching || iteration == 0) {
+        // gather in_edges
+        forall(g, [=](Edge& e){
+          auto& v = e.dest();
+          if (v.active) {
+            auto& p = prog(v);
+            p.post_delta( p.gather(v, e) );
+          }
+        });
+        
+        // send accumulated gather to master to compute total
+        forall(mirrors(g), [=](Vertex& v){
+          if (v.active) {
+            v.deactivate();
+            
+            auto& p = prog(v);
+            auto accum = p.cache;
+            call<async>(v.master, [=](Vertex& m){
+              prog(m).post_delta( accum );
+            });
+            p.reset();
+          }
+        });
+      }
+            
       ////////////////////////////////////////////////////////////
       // apply
-      forall(masters(g), [=](Vertex& v, MasterInfo& master){
-        if (!v.active) return;
-        v.deactivate();
+      forall(masters(g), [=](Vertex& m){
+        if (!m.active) return;
+        m.deactivate();
         
-        auto& p = prog(v);
-        p.apply(v, p.cache);
+        auto& p = prog(m);
+        p.apply(m, p.cache);
         
-        auto do_scatter = p.scatter_edges(v);
+        auto do_scatter = p.scatter_edges(m);
         
         // broadcast out to mirrors
         auto p_copy = p;
-        auto data = v.data;
-        auto id = v.id;
-        for (auto c : master.mirrors) {
-          delegate::call<async>(c, [=]{
-            auto& v = *g->l_vmap[id];
-            v.data = data;
-            v.active_minor_step = do_scatter;
-            prog(v) = p_copy;
-          });
-        }
+        auto data = m.data;
+        auto id = m.id;
+        on_mirrors<async>(g, m, [=](Vertex& v){
+          v.data = data;
+          v.active_minor_step = do_scatter;
+          prog(v) = p_copy;
+          prog(v).reset();
+        });
       });
-
+      
       ////////////////////////////////////////////////////////////
       // scatter
-      forall(g, [=](Edge& e){
-        // scatter out_edges
-        auto& v = e.source();
+      // (only works for out_edges)
+      forall(mirrors(g), [=](Vertex& v){
         if (v.active_minor_step) {
+          v.active_minor_step = false;
+          
           auto& p = prog(v);
-          p.scatter(e, e.dest());
+          for (Edge& e : util::iterate(v.l_out, v.l_nout)) {
+            auto delta = p.scatter(e, e.dest());
+            if (delta_caching) {
+              prog(e.dest()).post_delta( delta );
+            }
+          }
         }
       });
-
-      // only thing that should've been changed about vertices is activation,
-      // so make sure all mirrors know (send to master, then broadcast)
+      
       forall(mirrors(g), [=](Vertex& v){
         v.active_minor_step = false;
         if (v.active) {
-          delegate::call<async>(v.master, [=](Vertex& m){
-            m.activate();
-          });
+          if (delta_caching) {
+            v.deactivate();
+            auto delta = prog(v).cache;
+            delegate::call<async>(v.master, [=](Vertex& m){
+              m.activate();
+              prog(m).post_delta(delta);
+            });
+          } else {
+            delegate::call<async>(v.master, [=](Vertex& m){
+              m.activate();
+              prog(m).reset();
+            });
+          }
         }
       });
-      forall(masters(g), [=](Vertex& m){
-        if (m.active) {
-          // activate all mirrors for next phase
-          on_mirrors<async>(g, m, [](Vertex& v){
-            v.activate();
-            prog(v).reset();
-          });
-        }
-      });          
+      
+      if (!delta_caching) {
+        forall(masters(g), [=](Vertex& m){
+          if (m.active) {
+            // activate all mirrors for next phase
+            on_mirrors<async>(g, m, [](Vertex& v){
+              v.activate();
+            });
+          }
+        });          
+      }
       
       iteration++;
       VLOG(1) << "  time:   " << walltime()-t;
@@ -914,6 +952,11 @@ struct GraphlabEngine {
   }
 };
 
+template< typename G, typename VertexProg, class C >
+GlobalAddress<G> GraphlabEngine<G,VertexProg,C>::g;
+
+template< typename G, typename VertexProg, class C >
+VertexProg* GraphlabEngine<G,VertexProg,C>::prog_storage;
 
 ////////////////////////////////////////////////////////
 /// Synchronous GraphLab engine, assumes:
@@ -928,22 +971,7 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   auto prog = [](GVertex& v) -> VertexProg& {
     return *static_cast<VertexProg*>(v->prog);
   };
-
-  // // tack the VertexProg data onto the existing vertex data
-  // struct VPlus : public V {
-  //   VertexProg prog;
-  //   VPlus(typename Graph<V,E>::Vertex& v): V(v.data), prog(v) {}
-  // };
-  // auto g = g->template transform<VPlus>([](typename Graph<V,E>::Vertex& v, VPlus& d){
-  //   new (&d) VPlus(v);
-  // });
-  // using GPVertex = typename Graph<VPlus,E>::Vertex;
-  // using GPEdge = typename Graph<VPlus,E>::Edge;
-
-  // "gather" once to initialize cache (doing with a scatter)
-
-  // TODO: find efficient way to skip 'gather' if 'gather_edges' is always false
-
+  
   // initialize GraphlabVertexProgram
   forall(g, [=](GVertex& v){ v->prog = new VertexProg(v); });
 
@@ -1001,7 +1029,7 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
         });
       }
     });
-
+    
     iteration++;
     VLOG(1) << "  time:   " << walltime()-t;
   }

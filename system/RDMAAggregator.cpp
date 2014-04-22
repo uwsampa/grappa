@@ -40,7 +40,12 @@ namespace Grappa {
 // prefetch two cache lines per message
 #define DOUBLE_LINE_PREFETCH
 
-DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
+DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
+
+DEFINE_int64( target_size, 0, "Target size for aggregated messages capacity flushes; disabled by default" );
+
+DECLARE_int64( log2_concurrent_receives );
+DECLARE_int64( log2_concurrent_sends );
 
 DEFINE_int64( rdma_workers_per_core, 1 << 6, "Number of RDMA deaggregation worker threads" );
 DEFINE_int64( rdma_buffers_per_core, 1 << 7, "Number of RDMA aggregated message buffers per core" );
@@ -259,6 +264,14 @@ namespace Grappa {
         deaggregate_counts_[i] = 0;
       }
 #endif
+
+      if( global_communicator.mycore == 0 ) {
+        if( !FLAGS_enable_aggregation ) {
+          if( FLAGS_log2_concurrent_receives - FLAGS_log2_concurrent_sends < 4 ) { // arbitrary
+            LOG(WARNING) << "Your buffer settings may lead to starvation without aggregation; we suggest sends=3 and receives=7";
+          }
+        }
+      }
     }
 
     void RDMAAggregator::activate() {
@@ -415,6 +428,13 @@ namespace Grappa {
       Grappa::impl::locale_shared_memory.deallocate( rdma_buffers_ );
 #endif
     }
+
+  void RDMAAggregator::deserialize_buffer_am( void * buf, int size, CommunicatorContext * c ) {
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
+      deaggregate_buffer( static_cast< char * >( buf ), size );
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
+      c->reference_count = 0;
+  }
 
   void RDMAAggregator::deserialize_first_am( void * buf, int size, CommunicatorContext * c ) {
       app_messages_deserialized++;

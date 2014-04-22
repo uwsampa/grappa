@@ -32,13 +32,15 @@ DEFINE_bool( metrics, false, "Dump metrics");
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 
+DEFINE_int32(trials, 3, "Number of timed trials to run and average over.");
+
 DEFINE_string(path, "", "Path to graph source file.");
 DEFINE_string(format, "bintsv4", "Format of graph source file.");
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, init_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuple_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, total_time, 0);
 
 const double RESET_PROB = 0.15;
 DEFINE_double(tolerance, 1.0E-2, "tolerance");
@@ -54,7 +56,8 @@ using G = GraphlabGraph<PagerankVertexData,Empty>;
 struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   double delta;
   
-  PagerankVertexProgram(Vertex& v) {}
+  PagerankVertexProgram() = default;
+  PagerankVertexProgram(const Vertex& v) {}
   
   bool gather_edges(const Vertex& v) const { return true; }
   
@@ -111,10 +114,28 @@ int main(int argc, char* argv[]) {
     });
     CHECK_EQ(count, g->ne);
     
-    GRAPPA_TIME_REGION(total_time) {
-      activate_all(g);
-      GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
+    Metrics::start_tracing();
+    
+    for (int i = 0; i < FLAGS_trials; i++) {
+      if (FLAGS_trials > 1) LOG(INFO) << "trial " << i;
+      
+      forall(g, [](G::Vertex& v){ v->rank = 1.0; });
+      
+      GRAPPA_TIME_REGION(total_time) {
+        activate_all(g);
+        GraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
+      }
+      
+      if (i == 0) {
+        total_time.reset(); // don't count the first one
+        total_rank = 0;
+        forall(g, [](G::Vertex& v){ total_rank += v->rank; });
+        std::cerr << "total_rank: " << total_rank << "\n";
+      }      
     }
+    
+    Metrics::stop_tracing();
+    
     LOG(INFO) << total_time;
     
     total_rank = 0;

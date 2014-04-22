@@ -47,6 +47,8 @@
 
 #include <fstream>
 
+#include <mpi.h>
+
 #include "Grappa.hpp"
 
 #ifndef SHMMAX
@@ -60,14 +62,14 @@
 // command line arguments
 DEFINE_uint64( num_starting_workers, 512, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
-DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
-DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
 DECLARE_int64( locale_shared_size );
+DECLARE_double( locale_heap_fraction );
 DECLARE_double( global_heap_fraction );
+DECLARE_int64( shared_pool_max_size );
 
 using namespace Grappa::impl;
 using namespace Grappa::Metrics;
@@ -196,16 +198,28 @@ void failure_function() {
   if( freeze_flag ) {
     freeze_for_debugger();
   }
+  LOG(INFO) << "Exiting via failure function";
+  google::FlushLogFiles(google::GLOG_INFO);
   exit(1);
 }
 
 static void failure_sighandler( int signum ) {
   google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
   if( freeze_flag ) {
     freeze_for_debugger();
   }
-  google::DumpStackTrace();
+  LOG(INFO) << "Exiting due to signal " << signum;
+  google::FlushLogFiles(google::GLOG_INFO);
   exit(1);
+}
+
+static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
+  char error_string[MPI_MAX_ERROR_STRING];
+  int length;
+  MPI_Error_string( *error_code, error_string, &length);
+  LOG(FATAL) << "MPI call failed: " << error_string;
+  failure_function();
 }
 
 }
@@ -245,6 +259,23 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     VLOG(2) << "memory registration disabled";
   }
 
+  // how fast do we tick?
+  Grappa::force_tick();
+  Grappa::force_tick();
+  Grappa::Timestamp start_ts = Grappa::timestamp();
+  double start = Grappa::walltime();
+  // now go do other stuff for a while
+  
+  // initializes system_wide global_communicator
+  global_communicator.init( argc_p, argv_p );
+  
+  MPI_Errhandler mpi_error_handler;
+  MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
+  MPI_Comm_set_errhandler( MPI_COMM_WORLD, mpi_error_handler );
+
+
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
+
   // check to see if we should freeze for the debugger on error
   char * freeze_on_error = getenv("GRAPPA_FREEZE_ON_ERROR");
   if( freeze_on_error && ( (strncmp(freeze_on_error,"1",1) == 0) ||
@@ -259,29 +290,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // check to see if we should freeze for the debugger now
   char * freeze_now = getenv("GRAPPA_FREEZE");
-  if( freeze_now && ( (strncmp(freeze_on_error,"1",1) == 0) ||
-                           (strncmp(freeze_on_error,"true",4) == 0) ||
-                           (strncmp(freeze_on_error,"True",4) == 0) ||
-                           (strncmp(freeze_on_error,"TRUE",4) == 0) ||
-                           (strncmp(freeze_on_error,"yes",3) == 0) ||
-                           (strncmp(freeze_on_error,"Yes",3) == 0) ||
-                           (strncmp(freeze_on_error,"YES",3) == 0) ) ) {
+  if( freeze_now && ( (strncmp(freeze_now,"1",1) == 0) ||
+                           (strncmp(freeze_now,"true",4) == 0) ||
+                           (strncmp(freeze_now,"True",4) == 0) ||
+                           (strncmp(freeze_now,"TRUE",4) == 0) ||
+                           (strncmp(freeze_now,"yes",3) == 0) ||
+                           (strncmp(freeze_now,"Yes",3) == 0) ||
+                           (strncmp(freeze_now,"YES",3) == 0) ) ) {
     freeze_flag = true;
     freeze_for_debugger();
   }
 
-
-  // how fast do we tick?
-  Grappa::force_tick();
-  Grappa::force_tick();
-  Grappa::Timestamp start_ts = Grappa::timestamp();
-  double start = Grappa::walltime();
-  // now go do other stuff for a while
-  
-  // initializes system_wide global_communicator
-  global_communicator.init( argc_p, argv_p );
-
-  google::InstallFailureFunction( &Grappa::impl::failure_function );
 
   // set up stats dump signal handler
   struct sigaction stats_dump_sa;
@@ -349,41 +368,41 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   if (global_memory_size_bytes == -1) {
 
     // Decide how much memory we should allocate for global shared heap.
-    // TODO: this should be a long literal
-    double shmmax_fraction = static_cast< double >( SHMMAX ) * FLAGS_global_heap_fraction;
+    // this uses the locale shared size calculated in LocaleSharedMemory.cpp
+    double shmmax_fraction = static_cast< double >( FLAGS_locale_shared_size ) * FLAGS_global_heap_fraction;
     int64_t shmmax_adjusted_floor = static_cast< int64_t >( shmmax_fraction );
 
     int64_t nnode = global_communicator.locales;
     int64_t ppn = global_communicator.locale_cores;
     
-    int64_t bytes_per_proc = shmmax_adjusted_floor / ppn;
-    // round down to page size so we don't ask for too much?
-    bytes_per_proc &= ~( (1L << 12) - 1 );
+    int64_t bytes_per_core = shmmax_adjusted_floor / ppn;
+    // round down to page size so we don't ask for too much
+    bytes_per_core &= ~( (1L << 12) - 1 );
     
     // be aware of hugepages
     // Each core should ask for a multiple of 1GB hugepages
     // and the whole node should ask for no more than the total pages available
     if ( FLAGS_global_memory_use_hugepages ) {
-      int64_t pages_per_proc = bytes_per_proc / (1L << 30);
-      int64_t new_bpp = pages_per_proc * (1L << 30);
+      int64_t pages_per_core = bytes_per_core / (1L << 30);
+      int64_t new_bpp = pages_per_core * (1L << 30);
       if (new_bpp == 0) {
         VLOG(1) << "Allocating 1GB per core anyway.";
         new_bpp = 1L << 30;
       }
-      VLOG_IF(1, bytes_per_proc != new_bpp) << "With ppn=" << ppn << ", can only allocate " 
-                                            << pages_per_proc*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
-      bytes_per_proc = new_bpp;
+      VLOG_IF(1, bytes_per_core != new_bpp) << "With ppn=" << ppn << ", can only allocate " 
+                                            << pages_per_core*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
+      bytes_per_core = new_bpp;
     }
 
-    int64_t bytes = nnode * ppn * bytes_per_proc;
-    int64_t bytes_per_node = ppn * bytes_per_proc;
-    DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
+    int64_t bytes = nnode * ppn * bytes_per_core;
+    int64_t bytes_per_node = ppn * bytes_per_core;
+    DVLOG(2) << "bpp = " << bytes_per_core << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
              << ", SHMMAX = " << SHMMAX << ", shmmax_adjusted_floor = " << shmmax_adjusted_floor;
     VLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     global_memory_size_bytes = bytes;
 
     Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
-    Grappa::impl::global_bytes_per_core = bytes_per_proc;
+    Grappa::impl::global_bytes_per_core = bytes_per_core;
     Grappa::impl::global_bytes_per_locale = bytes_per_node;
   } else {
     Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
@@ -444,28 +463,59 @@ void Grappa_activate()
   DVLOG(2) << "Activating Grappa library....";
   
   locale_shared_memory.activate(); // do this before communicator
+  auto base_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
+
   global_communicator.activate();
+  auto communicator_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
+
   global_task_manager.activate();
+  auto tasks_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
+
   global_communicator.barrier();
 
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
+  auto heap_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
 
   // fire up polling thread
   global_scheduler.periodic( impl::worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
-
+  auto polling_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
 
   global_rdma_aggregator.activate();
+  auto aggregator_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
-  Grappa::init_shared_pool(); // (must be after locale-heap is initialized in RDMAAggregator)
+  Grappa::init_shared_pool();
+  auto shared_pool_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
   if (Grappa::mycore() == 0) {
-    size_t stack_sz = FLAGS_stack_size * FLAGS_num_starting_workers;
-    double stack_sz_gb = static_cast<double>(stack_sz) / (1L<<30);
-    double gheap_sz_gb = static_cast<double>(global_bytes_per_core) / (1L<<30);
-    size_t free_sz = Grappa::impl::locale_shared_memory.get_free_memory() / Grappa::locale_cores();
+    double locale_sz_gb = static_cast<double>(FLAGS_locale_shared_size) / (1L<<30);
+    double locale_core_sz_gb = static_cast<double>(FLAGS_locale_shared_size) / Grappa::locale_cores() / (1L<<30);
+    double communicator_sz_gb = static_cast<double>( communicator_locale_shared_memory_allocated - base_locale_shared_memory_allocated ) / (1L<<30);
+    double tasks_sz_gb = static_cast<double>( tasks_locale_shared_memory_allocated - communicator_locale_shared_memory_allocated ) / (1L<<30);
+    double heap_sz_gb = static_cast<double>( heap_locale_shared_memory_allocated - tasks_locale_shared_memory_allocated ) / (1L<<30);
+    tasks_sz_gb += static_cast<double>( polling_locale_shared_memory_allocated - heap_locale_shared_memory_allocated ) / (1L<<30);
+    double aggregator_sz_gb = static_cast<double>( aggregator_locale_shared_memory_allocated - polling_locale_shared_memory_allocated ) / (1L<<30);
+    double shared_pool_sz_gb = static_cast<double>( shared_pool_locale_shared_memory_allocated - aggregator_locale_shared_memory_allocated ) / (1L<<30);
+    double shared_pool_max_sz_gb = static_cast<double>( FLAGS_shared_pool_max_size ) / (1L<<30);
+    
+    size_t free_sz = static_cast<double>(Grappa::impl::locale_shared_memory.get_free_memory());
     double free_sz_gb = static_cast<double>(free_sz) / (1L<<30);
-    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
+    double free_core_sz_gb = static_cast<double>(free_sz) / Grappa::locale_cores() / (1L<<30);
+    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n"
+            << "  locale shared heap total: " << locale_sz_gb << " GB\n"
+            << "  locale shared heap per core: " << locale_core_sz_gb << " GB\n"
+            << "  communicator per core: " << communicator_sz_gb << " GB\n"
+            << "  tasks per core: " << tasks_sz_gb << " GB\n"
+            << "  global heap per core: " << heap_sz_gb << " GB\n"
+            << "  aggregator per core: " << aggregator_sz_gb << " GB\n"
+            << "  shared_pool current per core: " << shared_pool_sz_gb << " GB\n"
+            << "  shared_pool max per core: " << shared_pool_max_sz_gb << " GB\n"
+            << "  free per locale:  " << free_sz_gb << " GB\n"
+            << "  free per core:  " << free_core_sz_gb << " GB\n"
+            << "-------------------------";
+
+    CHECK_GT( free_core_sz_gb, shared_pool_max_sz_gb ) 
+      << "Not enough free locale shared heap for fully-allocated shared message pool";
   }
   
   global_communicator.barrier();

@@ -231,12 +231,12 @@ define suspended_coroutines
   printf "Suspended non-idle coroutines:\n"
   set $grappa_suspended_coros_elem = Grappa::impl::all_coros
   while $grappa_suspended_coros_elem != 0
-    if $grappa_suspended_coros_elem->suspended
-      if !($grappa_suspended_coros_elem->idle)
+    if $grappa_suspended_coros_elem->suspended != 0
+      if $grappa_suspended_coros_elem->idle == 0
         grappa_coroutine_print $grappa_suspended_coros_elem
       end
     end
-    set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->next
+    set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->tracking_next
   end
 end
 document suspended_coroutines

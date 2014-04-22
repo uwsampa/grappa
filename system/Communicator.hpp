@@ -136,7 +136,6 @@ private:
 
   MPI_Request barrier_request;
   
-  void garbage_collect();
   void process_received_buffers();
   void process_collectives();
 
@@ -144,6 +143,7 @@ private:
   CommunicatorContext * collective_context;
   
 public:
+  void garbage_collect();
   void repost_receive_buffers();
 
 
@@ -176,7 +176,9 @@ public:
 
   const char * hostname();
 
+  inline bool send_context_available() const { return ((send_head + 1) & send_mask) != send_tail; }
   CommunicatorContext * try_get_send_context();
+
 
   void post_send( CommunicatorContext * c,
                   int dest,

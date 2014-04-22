@@ -53,6 +53,7 @@
 
 DECLARE_int64( target_size );
 DECLARE_int64( aggregator_autoflush_ticks );
+DECLARE_bool( enable_aggregation );
 
 /// stats for application messages
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue );
@@ -241,6 +242,9 @@ namespace Grappa {
       CoreData * cores_;
 
 
+      /// Active message to deserialize/call all the entries in a buffer of received deserializers/functors
+      static void deserialize_buffer_am( void * buf, int size, CommunicatorContext * c );
+
       /// Active message to deserialize/call the first entry of a buffer of received deserializers/functors
       static void deserialize_first_am( void * buf, int size, CommunicatorContext * c );
       
@@ -294,6 +298,9 @@ namespace Grappa {
           // insert current message
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
 
+        // reset size (racily)
+        coreData( c, sender )->prefetch_queue_[ 0 ].raw_ = 0;
+
         return old_ml;
       }
 
@@ -308,6 +315,9 @@ namespace Grappa {
           // insert current message
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
 
+        // reset size (racily)
+        localeCoreData(c)->prefetch_queue_[ 0 ].raw_ = 0;
+
         return old_ml;
       }
 
@@ -321,6 +331,9 @@ namespace Grappa {
           new_ml.raw_ = 0;
           // insert current message
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+        
+        // reset size (racily)
+        cd->prefetch_queue_[ 0 ].raw_ = 0;
 
         return old_ml;
       }
@@ -583,78 +596,28 @@ namespace Grappa {
         //CoreData * sender = &cores_[ dest->representative_core_ ];
         CoreData * locale_core = localeCoreData( Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() );
 
+        // possibly short circuit out of here when aggregation is disabled
+        if( !FLAGS_enable_aggregation &&
+            !global_scheduler.in_no_switch_region() &&
+            Grappa::locale_of( m->destination_ ) != Grappa::mylocale() &&
+            global_communicator.send_context_available() ) {
+          return send_immediate( m );
+        }
+
+
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
         Grappa::impl::MessageList old_ml, new_ml, swap_ml;
 
         // new values computed from previous totals
         int count = 0;
-        size_t size = 0;
+        size_t size =  m->serialized_size();
         swap_ml.raw_ = 0;
 
         bool spawn_send = false;
 
         // prepare to stitch in message
         set_pointer( &new_ml, m );
-
-        // // read previous value
-        // old_ml = *dest_ptr;
-
-        // // stitch in message
-        // do {
-        //   // add previous count/estimated size
-        //   count = 1 + old_ml.count_;
-        //   new_ml.count_ = count; 
-
-        //   // now try to insert current message (and count attempt)
-        //   app_messages_enqueue_cas++;
-        // } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
-
-        // // append previous list to current message
-        // m->next_ = get_pointer( &old_ml );
-        
-        // // set prefetch to the oldest pointer we remember
-        // // index prefetch queue by count since we haven't overwritten it in yet.
-        // m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
-
-        // size = m->serialized_size();
-        // if( count > 1 ) {
-        //   size += dest->prefetch_queue_[ ( old_ml.count_ ) % prefetch_dist ].size_;
-        // }
-
-
-        // do {
-        //   // read previous value
-        //   old_ml = *dest_ptr;
-
-        //   // add previous count/estimated size
-        //   count = 1 + old_ml.count_;
-        //   size = m->serialized_size();
-        //   if( count > 1 ) {
-        //     size += dest->prefetch_queue_[ ( old_ml.count_ ) % prefetch_dist ].size_;
-        //   }
-
-        //   new_ml.count_ = count; 
-
-        //   // append previous list to current message
-        //   m->next_ = get_pointer( &old_ml );
-        //   // set prefetch to the oldest pointer we remember
-        //   // index prefetch queue by count since we haven't overwritten it in yet.
-        //   m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
-
-        //   spawn_send = false && size > FLAGS_target_size;
-
-        //   // if it looks like we should send
-        //   if( spawn_send && !disable_flush_ ) {
-        //     swap_ml.raw_ = 0; // leave the list empty
-        //   } else {
-        //     // stitch in this message
-        //     swap_ml = new_ml;
-        //   }
-
-        //   // now try to insert current message (and count attempt)
-        //   app_messages_enqueue_cas++;
-        // } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, swap_ml.raw_ ) );
 
         int cas_count = 0;
         do {
@@ -672,6 +635,8 @@ namespace Grappa {
           m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
           //m->prefetch_ = NULL;
 
+          size += dest->prefetch_queue_[ count % prefetch_dist ].size_;
+
           // now try to insert current message (and count attempt)
           cas_count++;
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
@@ -686,23 +651,72 @@ namespace Grappa {
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
 
-        // /// is it time to flush?
-        // if( disable_flush_ || !spawn_send ) { // no
-        //   // now fill in prefetch pointer and size (and make sure size doesn't overflow)
-        //   dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
-        //   set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
-        // } else {            // yes
-        //   // rdma_capacity_flushes++;
-        //   // if( disable_flush_ && send_would_block( core ) ) {
-        //   //   Grappa::spawn( [core, new_ml, size] {
-        //   //     global_rdma_aggregator.send_rdma( core, new_ml, size );
-        //   //     });
-        //   // } else {
-        //   //   global_rdma_aggregator.send_rdma( core, new_ml, size );
-        //   // }
-        // }
+//         // possibly flush if we've passed target size
+//         if( FLAGS_target_size > 0 &&
+//             size > FLAGS_target_size &&
+//             !locale_enqueue &&
+//             !global_scheduler.in_no_switch_region() &&
+//             Grappa::locale_of( m->destination_ ) != Grappa::mylocale() &&
+//             global_communicator.send_context_available() ) {
+//           dest = coreData(core);
+//           auto ml = grab_messages( dest );
+//           auto mp = get_pointer( &ml );
+//           rdma_capacity_flushes++;
+//           if( mp ) {
+//             return send_list_immediate( mp );
+//           }
+//         }
       }
 
+
+      /// send a message that will be run in active message context. This requires very limited messages.
+      void send_list_immediate( Grappa::impl::MessageBase * m ) {
+        app_messages_immediate++;
+
+        const size_t size = m->serialized_size();
+
+        CommunicatorContext * c = global_communicator.try_get_send_context();
+        if( !c ) {
+          global_communicator.garbage_collect();
+          c = global_communicator.try_get_send_context();
+        }
+        while( !c ) {
+          if( global_scheduler.in_no_switch_region() ) {
+            global_communicator.poll();
+          } else {
+            Grappa::yield();
+          }
+          global_communicator.garbage_collect();
+          c = global_communicator.try_get_send_context();
+        }
+
+        Core dest = m->destination_;
+        char * buf = (char*) c->buf;
+        DCHECK_LE( size, c->size );
+
+        // write deserializer pointer
+        typedef decltype(&deserialize_first_am) Deserializer;
+        Deserializer * dbuf = (Deserializer*) buf;
+        *dbuf = &deserialize_buffer_am;
+        buf = (char*) (dbuf + 1);
+
+        size_t remaining = c->size - (buf - ((char*)c->buf));
+
+        // serialize to buffer
+        Grappa::impl::MessageBase * tmp = m;
+        while( tmp != nullptr ) {
+          DVLOG(5) << __func__ << ": Serializing message from " << tmp;
+          char * end = aggregate_to_buffer( buf, &tmp, remaining );
+          DVLOG(5) << __func__ << ": After serializing, pointer was " << tmp;
+          DCHECK_EQ( end - buf, size ) << __func__ << ": Whoops! Aggregated message was too long to send as immediate";
+          
+          DVLOG(5) << __func__ << ": Sending " << end - buf
+                   << " bytes of aggregated messages to " << dest;
+
+          c->callback = NULL;
+          global_communicator.post_send( c, dest, end-((char*)c->buf) );
+        }
+      }
 
       /// send a message that will be run in active message context. This requires very limited messages.
       void send_immediate( Grappa::impl::MessageBase * m ) {
@@ -710,12 +724,23 @@ namespace Grappa {
 
         const size_t size = m->serialized_size();
 
+        global_communicator.garbage_collect();
         CommunicatorContext * c = global_communicator.try_get_send_context();
-        while( !c ) {
+        if( !c ) {
+          global_communicator.garbage_collect();
           c = global_communicator.try_get_send_context();
-          Grappa::yield();
+        }
+        while( !c ) {
+          if( global_scheduler.in_no_switch_region() ) {
+            global_communicator.poll();
+          } else {
+            Grappa::yield();
+          }
+          global_communicator.garbage_collect();
+          c = global_communicator.try_get_send_context();
         }
 
+        Core dest = m->destination_;
         char * buf = (char*) c->buf;
         DCHECK_LE( size, c->size );
 
@@ -724,26 +749,22 @@ namespace Grappa {
         Deserializer * dbuf = (Deserializer*) buf;
         *dbuf = &deserialize_first_am;
         buf = (char*) (dbuf + 1);
-        
+
+        size_t remaining = c->size - (buf - ((char*)c->buf));
+
         // serialize to buffer
         Grappa::impl::MessageBase * tmp = m;
         while( tmp != nullptr ) {
           DVLOG(5) << __func__ << ": Serializing message from " << tmp;
-          char * end = aggregate_to_buffer( buf, &tmp, size );
+          char * end = aggregate_to_buffer( buf, &tmp, remaining );
           DVLOG(5) << __func__ << ": After serializing, pointer was " << tmp;
           DCHECK_EQ( end - buf, size ) << __func__ << ": Whoops! Aggregated message was too long to send as immediate";
           
           DVLOG(5) << __func__ << ": Sending " << end - buf
-                   << " bytes of aggregated messages to " << m->destination_;
+                   << " bytes of aggregated messages to " << dest;
 
           c->callback = NULL;
-          global_communicator.post_send( c, m->destination_, end-((char*)c->buf) );
-          // send
-          // TODO: eliminate copy
-          // global_communicator.send_immediate_with_payload( m->destination_, [] (void * buf, int size) {
-          //     global_rdma_aggregator.deserialize_first_am( buf, size );
-          //   }, buf, size );
-
+          global_communicator.post_send( c, dest, end-((char*)c->buf) );
         }
       }
 

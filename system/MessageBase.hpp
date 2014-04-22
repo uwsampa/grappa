@@ -158,7 +158,8 @@ namespace Grappa {
         Deserializer fp = reinterpret_cast< Deserializer >( gfp.fp );
 
         DVLOG(5) << "Receiving message from " << gfp.dest << " with deserializer " << (void*) fp;
-
+        
+        CHECK_NOTNULL( fp );
         CHECK_EQ( gfp.dest, Grappa::mycore() ) << "Delivered to wrong core! buffer=" << (void*) buffer;
 
         buffer = fp( buffer + sizeof( MessageFPAddr ) );

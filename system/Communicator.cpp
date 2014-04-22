@@ -34,10 +34,9 @@ extern HeapLeakChecker * Grappa_heapchecker;
 
 #include "Communicator.hpp"
 #include "LocaleSharedMemory.hpp"
+#include "Metrics.hpp"
 
 DEFINE_int64( log2_concurrent_receives, 7, "How many receive requests do we keep active at a time?" );
-DEFINE_int64( log2_concurrent_collectives, 5, "How many collective requests do we keep active at a time?" );
-
 DEFINE_int64( log2_concurrent_sends, 7, "How many send requests do we keep active at a time?" );
 
 DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
@@ -45,6 +44,9 @@ DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
 // // other metrics
 // GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);
 // GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_bytes, 0);
+
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, communicator_message_bytes, 0 );
+
 // GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_start_time, []() {
 //     // initialization value
 //     return Grappa::walltime();
@@ -108,6 +110,9 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 #ifdef HEAPCHECK_ENABLE
   }
 #endif
+
+  // this will let our error wrapper actually fire.
+  MPI_CHECK( MPI_Comm_set_errhandler( MPI_COMM_WORLD, MPI_ERRORS_RETURN ) );
 
   // initialize masks
   receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
@@ -259,6 +264,7 @@ void Communicator::post_send( CommunicatorContext * c,
            << " with buf " << c->buf
            << " callback " << (void*)c->callback;
   MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
+  communicator_message_bytes += size;
 }
 
 void Communicator::post_external_send( CommunicatorContext * c,
@@ -268,6 +274,7 @@ void Communicator::post_external_send( CommunicatorContext * c,
   DVLOG(6) << "Posting external send " << c;
   post_send( c, dest, size, tag );
   external_sends.push_back(c);
+  communicator_message_bytes += size;
 }
 
 void Communicator::post_receive( CommunicatorContext * c ) {
@@ -293,8 +300,10 @@ void Communicator::garbage_collect() {
         }
         c->reference_count = 0;
         send_tail = (send_tail + 1) & send_mask;
+      } else { // not sent yet
+        break;
       }
-    } else {
+    } else { // not reference count > 0
       break;
     }
   }
@@ -310,10 +319,10 @@ void Communicator::garbage_collect() {
           (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
         }
         external_sends.pop_front();
-      } else {
+      } else { // not sent yet
         break;
       }
-    } else {
+    } else { // not reference_count > 0
       break;
     }
   }
@@ -344,12 +353,11 @@ void Communicator::repost_receive_buffers() {
 static void receive_buffer( CommunicatorContext * c, int size ) {
   auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( c->buf );
   DVLOG(6) << "Calling deserializer " << (void*) (*fp) << " for " << c;
-  (*fp)( (char*) (fp+1), size, c );
+  (*fp)( (char*) (fp+1), (size - sizeof(Grappa::impl::Deserializer)), c );
 }
 
 static void receive( CommunicatorContext * c, int size ) {
   DVLOG(6) << "Receiving " << c;
-  c->reference_count = 1;
   receive_buffer( c, size );
 }
 
@@ -366,6 +374,7 @@ void Communicator::process_received_buffers() {
     if( flag ) {
       int size = 0;
       MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
+      c->reference_count = 1;
       // start delivering received buffer
       receive( c, size );
       if( c->callback ) {
