@@ -161,10 +161,6 @@ int main(int argc, char* argv[]) {
       if (i == 0) total_time.reset(); // don't count the first one
     }
     
-    GRAPPA_TIME_REGION(total_time) {
-      activate(g->vs+root);
-      run_synchronous< SSSPVertexProgram >(g);
-    }
     LOG(INFO) << "-- SSSP done";
     
     if (FLAGS_metrics) Metrics::merge_and_print();
