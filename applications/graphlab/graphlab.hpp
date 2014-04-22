@@ -970,27 +970,11 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
   auto prog = [](GVertex& v) -> VertexProg& {
     return *static_cast<VertexProg*>(v->prog);
   };
-
-  // // tack the VertexProg data onto the existing vertex data
-  // struct VPlus : public V {
-  //   VertexProg prog;
-  //   VPlus(typename Graph<V,E>::Vertex& v): V(v.data), prog(v) {}
-  // };
-  // auto g = g->template transform<VPlus>([](typename Graph<V,E>::Vertex& v, VPlus& d){
-  //   new (&d) VPlus(v);
-  // });
-  // using GPVertex = typename Graph<VPlus,E>::Vertex;
-  // using GPEdge = typename Graph<VPlus,E>::Edge;
-
-  // "gather" once to initialize cache (doing with a scatter)
-
-  // TODO: find efficient way to skip 'gather' if 'gather_edges' is always false
-
+  
   // initialize GraphlabVertexProgram
   forall(g, [=](GVertex& v){ v->prog = new VertexProg(v); });
 
   forall(g, [=](GVertex& v){
-    // serial_for(adj(g,v), [=,&v](GEdge& e){
     forall<async>(adj(g,v), [=,&v](GEdge& e){
       // gather
       auto delta = prog(v).gather(v, e);
@@ -1033,7 +1017,6 @@ void run_synchronous(GlobalAddress<Graph<V,E>> g) {
         auto prog_copy = prog(v);
         // scatter
         forall<async>(adj(g,v), [=](GEdge& e){
-        // serial_for(adj(g,v), [=](GEdge& e){
           auto e_id = e.id;
           auto e_data = e.data;
           call<async>(e.ga, [=](GVertex& ve){
