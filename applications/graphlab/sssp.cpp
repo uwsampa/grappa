@@ -33,21 +33,25 @@ DEFINE_bool( max_degree_source, false, "Start from maximum degree vertex");
 DEFINE_int32(scale, 10, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 16, "Average number of edges per vertex.");
 
+DEFINE_int32(trials, 3, "Number of timed trials to run and average over.");
+
 DEFINE_string(path, "", "Path to graph source file.");
 DEFINE_string(format, "bintsv4", "Format of graph source file.");
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuple_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, total_time, 0);
 
-const double MAX_DIST = std::numeric_limits<double>::max();
+using distance_t = float;
 
-struct SSSPVertexData : public GraphlabVertexData<double> {
-  double dist, new_dist;
+const distance_t MAX_DIST = std::numeric_limits<distance_t>::max();
+
+struct SSSPVertexData : public GraphlabVertexData< SSSPVertexData > {
+  distance_t dist, new_dist;
   SSSPVertexData(): dist(MAX_DIST), new_dist(0.0) {}
 };
 struct EdgeDistance {
-  double dist;
+  distance_t dist;
 };
 
 using G = Graph<SSSPVertexData,EdgeDistance>;
@@ -62,15 +66,17 @@ inline VertexID choose_root(GlobalAddress<G> g) {
   return root;
 }
 
-struct SSSPVertexProgram {
+struct SSSPVertexProgram : public GraphlabVertexProgram<G,bool> {
   bool changed;
   double min_dist;
   
-  bool gather_edges(G::Vertex& v) const { return false; }
+  SSSPVertexProgram(const Vertex& v) {}
   
-  double gather(G::Vertex& src, G::Edge& e) const { return 0; }
+  bool gather_edges(Vertex& v) const { return false; }
   
-  void apply(G::Vertex& v, double ignore) {
+  bool gather(Vertex& src, Edge& e) const { return 0; }
+  
+  void apply(Vertex& v, bool ignore) {
     changed = false;
     if (v->dist > v->new_dist) {
       changed = true;
@@ -79,14 +85,15 @@ struct SSSPVertexProgram {
     min_dist = v->dist; // so we can use it in 'scatter'
   }
   
-  bool scatter_edges(G::Vertex& v) const { return changed; }
+  bool scatter_edges(Vertex& v) const { return changed; }
   
-  void scatter(const G::Edge& e, G::Vertex& target) const {
+  bool scatter(const Edge& e, Vertex& target) const {
     auto new_dist = min_dist + e->dist;
     if (new_dist < target->dist) {
       target->new_dist = new_dist;
       target->activate();
     }
+    return false;
   }
 };
 
@@ -119,7 +126,7 @@ int main(int argc, char* argv[]) {
     forall(g, [=](G::Vertex& v){
       new (&v.data) SSSPVertexData();
       forall<async>(adj(g,v), [](G::Edge& e){
-        e->dist = 0.1;
+        e->dist = 1.0;
       });
     });
     
@@ -130,13 +137,30 @@ int main(int argc, char* argv[]) {
     
     VertexID root;
     if (FLAGS_max_degree_source) {
-      forall(g, [](VertexID i, G::Vertex& v){ max_degree << MaxDegree(i, v.nadj); });
+      forall(g, [](VertexID i, G::Vertex& v){
+        max_degree << MaxDegree(i, v.nadj);
+      });
       root = static_cast<MaxDegree>(max_degree).idx();
     } else {
       root = choose_root(g);
     }
     
-    LOG(INFO) << "starting SSSP on root:" << root;
+    LOG(INFO) << "SSSP on root:" << root;
+    
+    for (int i = 0; i < FLAGS_trials; i++) {
+      if (FLAGS_trials > 1) LOG(INFO) << "trial " << i;
+      
+      // re-initialize
+      forall(g, [](G::Vertex& v){ new (&v.data) SSSPVertexData(); });
+      
+      GRAPPA_TIME_REGION(total_time) {
+        activate(g->vs+root);
+        run_synchronous< SSSPVertexProgram >(g);
+      }
+      
+      if (i == 0) total_time.reset(); // don't count the first one
+    }
+    
     GRAPPA_TIME_REGION(total_time) {
       activate(g->vs+root);
       run_synchronous< SSSPVertexProgram >(g);

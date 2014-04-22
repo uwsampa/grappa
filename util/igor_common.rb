@@ -149,8 +149,9 @@ Igor do
                  rdma_threshold 64
          shared_pool_chunk_size 2**13
                      stack_size 2**19
-             locale_shared_size SHMMAX
+             # locale_shared_size SHMMAX
            global_heap_fraction 0.5
+    shared_pool_memory_fraction 0.25
             flatten_completions 1
                  flat_combining 1
   }
