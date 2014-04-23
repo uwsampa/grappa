@@ -226,7 +226,11 @@ namespace Grappa {
     static GlobalAddress<Graph> Undirected(const TupleGraph& tg) { return create(tg, false); }
     static GlobalAddress<Graph> Directed(const TupleGraph& tg) { return create(tg, true); }
       
-  } GRAPPA_BLOCK_ALIGNED;
+    VertexID id(Vertex& v) {
+      return make_linear(&v) - vs;
+    }
+    
+  } GRAPPA_BLOCK_ALIGNED;  
   
   ////////////////////////////////////////////////////
   // Vertex iterators

@@ -43,6 +43,8 @@ namespace Grappa {
       });
     }
     
+    size_t local_size() { return l_size; }
+    
     size_t size() {
       auto b = self;
       return sum_all_cores([=]{ return b->l_size; });
