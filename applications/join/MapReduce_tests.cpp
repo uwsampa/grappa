@@ -1,6 +1,9 @@
 #include "MapReduce.hpp"
 #include <GlobalAllocator.hpp>
 
+//////////////////////////////////////
+// Word Count
+/////////////////////////////////////
 struct WordCount {
   int64_t word;
   int64_t count;
@@ -10,6 +13,16 @@ struct WordCount {
 void NumCountMap( const MapperContext<int64_t,int64_t,WordCount>& ctx, int64_t word ) {
   ctx.emitIntermediate( word, 1 );
 }
+
+typedef int32_t TableId;
+struct TupleA {
+  int64_t fields[3];
+};
+struct TupleB {
+  int64_t fields[2];
+};
+
+void joinMap( const MapperContext<TableId,
 
 //template < class IntIterable >
 //void NumCountReduce( const Reducer<int64_t,int64_t,WordCount>& ctx, int64_t word, IntIterable counts ) {
