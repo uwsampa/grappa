@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
       
       GRAPPA_TIME_REGION(total_time) {
         activate_all(g);
-        run_synchronous< PagerankVertexProgram >(g);
+        NaiveGraphlabEngine<G,PagerankVertexProgram>::run_sync(g);
       }
       
       if (i == 0) {

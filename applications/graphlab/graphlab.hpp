@@ -958,85 +958,97 @@ GlobalAddress<G> GraphlabEngine<G,VertexProg,C>::g;
 template< typename G, typename VertexProg, class C >
 VertexProg* GraphlabEngine<G,VertexProg,C>::prog_storage;
 
-////////////////////////////////////////////////////////
-/// Synchronous GraphLab engine, assumes:
-/// - Delta caching enabled
-/// - (currently) gather_edges:IN_EDGES, scatter_edges:(OUT_EDGES || NONE)
-///
-/// Also requires that the Graph already contains the GraphlabVertexProgram
-template< typename VertexProg, typename V, typename E >
-void run_synchronous(GlobalAddress<Graph<V,E>> g) {
-#define GVertex typename Graph<V,E>::Vertex
-#define GEdge typename Graph<V,E>::Edge
-  auto prog = [](GVertex& v) -> VertexProg& {
-    return *static_cast<VertexProg*>(v->prog);
-  };
+/// 
+/// @brief Graphlab engine implemented over the naive Grappa graph structure.
+/// 
+template< typename G, typename VertexProg >
+struct NaiveGraphlabEngine {
+  using Vertex = typename G::Vertex;
+  using Edge = typename G::Edge;
+  using Gather = typename VertexProg::Gather;
   
-  // initialize GraphlabVertexProgram
-  forall(g, [=](GVertex& v){ v->prog = new VertexProg(v); });
+  static GlobalAddress<G> g;
 
-  forall(g, [=](GVertex& v){
-    forall<async>(adj(g,v), [=,&v](GEdge& e){
-      // gather
-      auto delta = prog(v).gather(v, e);
-
-      call<async>(e.ga, [=](GVertex& ve){
-        prog(ve).post_delta(delta);
-      });
-    });
-  });
-
-  int iteration = 0;
-
-  while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
-      GRAPPA_TIME_REGION(iteration_time) {
-    VLOG(1) << "iteration " << std::setw(3) << iteration;
-    VLOG(1) << "  active: " << V::total_active;
-
-    double t = walltime();
-
-    forall(g, [=](GVertex& v){
-      if (v->active) {
-        v->active_minor_step = true;
-        v->deactivate();
-      }
-    });
-
-    forall(g, [=](GVertex& v){
-      if (!v->active_minor_step) return;
-
-      auto& p = prog(v);
-
-      // apply
-      p.apply(v, p.cache);
-
-      v->active_minor_step = p.scatter_edges(v);
-    });
-
-    forall(g, [=](GVertex& v){
-      if (v->active_minor_step) {
-        auto prog_copy = prog(v);
-        // scatter
-        forall<async>(adj(g,v), [=](GEdge& e){
-          auto e_id = e.id;
-          auto e_data = e.data;
-          call<async>(e.ga, [=](GVertex& ve){
-            auto local_e_data = e_data;
-            GEdge e = { e_id, g->vs+e_id, local_e_data };
-            auto gather_delta = prog_copy.scatter(e, ve);
-            prog(ve).post_delta(gather_delta);
-          });
-        });
-      }
-    });
-    
-    iteration++;
-    VLOG(1) << "  time:   " << walltime()-t;
+  static VertexProg& prog(Vertex& v) {
+    return *static_cast<VertexProg*>(v->prog);
   }
 
-  forall(g, [](GVertex& v){ delete static_cast<VertexProg*>(v->prog); });
-}
+  /// Run synchronous engine, assumes:
+  /// - Delta caching enabled
+  /// - gather_edges:IN_EDGES, scatter_edges:(OUT_EDGES || NONE)
+  template< typename V, typename E >
+  static void run_sync(GlobalAddress<Graph<V,E>> _g) {
+    
+    call_on_all_cores([=]{ g = _g; });
+    
+    // initialize GraphlabVertexProgram
+    forall(g, [=](Vertex& v){ v->prog = new VertexProg(v); });
+    
+    forall(g, [=](Vertex& v){
+      forall<async>(adj(g,v), [=,&v](Edge& e){
+        // gather
+        auto delta = prog(v).gather(v, e);
 
+        call<async>(e.ga, [=](Vertex& ve){
+          prog(ve).post_delta(delta);
+        });
+      });
+    });
+
+    int iteration = 0;
+
+    while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
+        GRAPPA_TIME_REGION(iteration_time) {
+      VLOG(1) << "iteration " << std::setw(3) << iteration;
+      VLOG(1) << "  active: " << V::total_active;
+
+      double t = walltime();
+
+      forall(g, [=](Vertex& v){
+        if (v->active) {
+          v->active_minor_step = true;
+          v->deactivate();
+        }
+      });
+      
+      forall(g, [=](Vertex& v){
+        if (!v->active_minor_step) return;
+
+        auto& p = prog(v);
+
+        // apply
+        p.apply(v, p.cache);
+
+        v->active_minor_step = p.scatter_edges(v);
+      });
+
+      forall(g, [=](Vertex& v){
+        if (v->active_minor_step) {
+          auto prog_copy = prog(v);
+          // scatter
+          forall<async>(adj(g,v), [=](Edge& e){
+            auto e_id = e.id;
+            auto e_data = e.data;
+            call<async>(e.ga, [=](Vertex& ve){
+              auto local_e_data = e_data;
+              Edge e = { e_id, g->vs+e_id, local_e_data };
+              auto gather_delta = prog_copy.scatter(e, ve);
+              prog(ve).post_delta(gather_delta);
+            });
+          });
+        }
+      });
+    
+      iteration++;
+      VLOG(1) << "  time:   " << walltime()-t;
+    }
+
+    forall(g, [](Vertex& v){ delete static_cast<VertexProg*>(v->prog); });
+  }
+};
+
+template< typename G, typename VertexProg >
+GlobalAddress<G> NaiveGraphlabEngine<G,VertexProg>::g;
 
 #undef PHASE_BEGIN
 #undef PHASE_END
