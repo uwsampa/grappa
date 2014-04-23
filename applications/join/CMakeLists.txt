@@ -52,6 +52,7 @@ set(QUERIES_IND
   twohop.cpp
   DoubleDHT_test.cpp
   MapReduce_tests.cpp
+  KMeansMR.cpp
 )
 
 set(QUERIES_SOURCES
