@@ -31,7 +31,7 @@ module Igor
     when /pal/
       puts `squeue -ppal -o '%.7i %.4P %.17j %.8u %.2t %.10M %.6D %R'`
     else
-      puts `squeue`
+      puts `squeue -o '%.7i %.9P %.17j %.8u %.2t %.10M %.6D %R'`
     end
   end
 end
@@ -43,7 +43,9 @@ module Isolatable
     base.extend(self) # add all of this module's definitions to base module
   end
   
-  def isolate(exes, shared_dir=nil)
+  def isolate(exes_in, shared_dir=nil)
+    exes = exes_in.clone
+    
     puts "########## Isolating ##########"
     @isolate_called = true
 
@@ -154,7 +156,7 @@ Igor do
                  flat_combining 1
   }
   
-  params { grappa_version 'asplos14' }
+  params { grappa_version 'osdi14' }
   
   class << GFLAGS
     def expand

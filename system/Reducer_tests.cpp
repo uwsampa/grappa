@@ -80,6 +80,14 @@ TEST(int_max) {
   });
 }
   
+SimpleSymmetric<bool> s_active;
+SimpleSymmetric<int> s_count;
+
+Reducer<int,ReducerType::Add> count;
+Reducer<bool,ReducerType::Or> active;
+
+using C = CmpElement<int,double>;
+Reducer<C,ReducerType::Max> best;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -89,6 +97,47 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     RUNTEST(int_add);
     RUNTEST(int_add_more);
     RUNTEST(int_max);
+    
+    BOOST_MESSAGE("== Test SimpleSymmetric<T> ==");
+    set(s_active, false);
+    BOOST_CHECK_EQUAL(any(s_active), false);
+    
+    s_active |= true;
+    BOOST_CHECK_EQUAL(any(s_active), true);
+    BOOST_CHECK_EQUAL(all(s_active), false);
+    
+    set(s_count, 0);
+    BOOST_CHECK_EQUAL(sum(s_count), 0);
+    
+    s_count += 1;
+    BOOST_CHECK_EQUAL(sum(s_count), 1);
+    
+    call_on_all_cores([]{ s_count += 1; });
+    BOOST_CHECK_EQUAL(sum(s_count), cores()+1);
+    
+    BOOST_MESSAGE("# Test Reducer<T>");
+    BOOST_MESSAGE("## Test Reducer<T,Add>");
+    
+    BOOST_CHECK_EQUAL(count, 0);
+    
+    count++;
+    BOOST_CHECK_EQUAL(count, 1);
+    
+    on_all_cores([]{ count++; });
+    BOOST_CHECK_EQUAL(count, cores()+1);
+    
+    BOOST_MESSAGE("## Test Reducer<T,Or>");
+    BOOST_CHECK(!active);
+    
+    active |= true;
+    BOOST_CHECK(active);
+    
+    active = false;
+    BOOST_CHECK(!active);
+
+    BOOST_MESSAGE("## Test Reducer<T,Max>");
+    on_all_cores([]{ best << C(mycore(), 3.0*mycore()); });
+    BOOST_CHECK_EQUAL(static_cast<C>(best).idx(), cores()-1);
   });
   Grappa::finalize();
 }
