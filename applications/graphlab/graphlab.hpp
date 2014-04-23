@@ -1011,15 +1011,9 @@ struct NaiveGraphlabEngine {
       double t = walltime();
       
       forall(g, [=](Vertex& v){
-        if (v->active) {
-          v->active_minor_step = true;
-          v->deactivate();
-        }
-      });
-      
-      forall(g, [=](Vertex& v){
-        if (!v->active_minor_step) return;
-
+        if (!v->active) return;
+        v->deactivate();
+        
         auto& p = prog(v);
 
         // apply
@@ -1030,6 +1024,7 @@ struct NaiveGraphlabEngine {
 
       forall(g, [=](Vertex& v){
         if (v->active_minor_step) {
+          v->active_minor_step = false;
           auto prog_copy = prog(v);
           // scatter
           forall<async>(adj(g,v), [=](Edge& e){
