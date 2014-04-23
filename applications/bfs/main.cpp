@@ -47,6 +47,8 @@ GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, bfs_nedge, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 
+int64_t nedge_traversed;
+
 int main(int argc, char* argv[]) {
   init(&argc, &argv);
   run([]{

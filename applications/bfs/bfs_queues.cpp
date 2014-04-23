@@ -39,8 +39,6 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, bfs_nedge);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, graph_create_time);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, verify_time);
 
-int64_t nedge_traversed;
-
 void bfs(GlobalAddress<G> g, int nbfs, TupleGraph tg) {
   bool verified = false;
   double t;
