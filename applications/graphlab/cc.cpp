@@ -130,7 +130,7 @@ int main(int argc, char* argv[]) {
           v->label = i;
           v->activate();
         });
-        run_synchronous<LabelPropagation>(g);
+        NaiveGraphlabEngine<G,LabelPropagation>::run_sync(g);
       }
       
       if (i == 0) total_time.reset(); // don't count the first one

@@ -968,7 +968,8 @@ struct NaiveGraphlabEngine {
   using Gather = typename VertexProg::Gather;
   
   static GlobalAddress<G> g;
-
+  static Reducer<int64_t,ReducerType::Add> ct;
+  
   static VertexProg& prog(Vertex& v) {
     return *static_cast<VertexProg*>(v->prog);
   }
@@ -981,20 +982,25 @@ struct NaiveGraphlabEngine {
     
     call_on_all_cores([=]{ g = _g; });
     
+    ct = 0;
     // initialize GraphlabVertexProgram
-    forall(g, [=](Vertex& v){ v->prog = new VertexProg(v); });
-    
     forall(g, [=](Vertex& v){
-      forall<async>(adj(g,v), [=,&v](Edge& e){
-        // gather
-        auto delta = prog(v).gather(v, e);
+      v->prog = new VertexProg(v);
+      if (prog(v).gather_edges(v)) ct++;
+    });
+    
+    if (ct > 0) {
+      forall(g, [=](Vertex& v){
+        forall<async>(adj(g,v), [=,&v](Edge& e){
+          // gather
+          auto delta = prog(v).gather(v, e);
 
-        call<async>(e.ga, [=](Vertex& ve){
-          prog(ve).post_delta(delta);
+          call<async>(e.ga, [=](Vertex& ve){
+            prog(ve).post_delta(delta);
+          });
         });
       });
-    });
-
+    }
     int iteration = 0;
 
     while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
@@ -1003,7 +1009,7 @@ struct NaiveGraphlabEngine {
       VLOG(1) << "  active: " << V::total_active;
 
       double t = walltime();
-
+      
       forall(g, [=](Vertex& v){
         if (v->active) {
           v->active_minor_step = true;
@@ -1049,6 +1055,9 @@ struct NaiveGraphlabEngine {
 
 template< typename G, typename VertexProg >
 GlobalAddress<G> NaiveGraphlabEngine<G,VertexProg>::g;
+
+template< typename G, typename VertexProg >
+Reducer<int64_t,ReducerType::Add> NaiveGraphlabEngine<G,VertexProg>::ct;
 
 #undef PHASE_BEGIN
 #undef PHASE_END

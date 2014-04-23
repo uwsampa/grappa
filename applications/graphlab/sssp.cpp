@@ -66,11 +66,11 @@ inline VertexID choose_root(GlobalAddress<G> g) {
   return root;
 }
 
-struct SSSPVertexProgram : public GraphlabVertexProgram<G,bool> {
+struct SSSP : public GraphlabVertexProgram<G,bool> {
   bool changed;
   double min_dist;
   
-  SSSPVertexProgram(const Vertex& v) {}
+  SSSP(const Vertex& v) {}
   
   bool gather_edges(Vertex& v) const { return false; }
   
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
       
       GRAPPA_TIME_REGION(total_time) {
         activate(g->vs+root);
-        run_synchronous< SSSPVertexProgram >(g);
+        NaiveGraphlabEngine<G,SSSP>::run_sync(g);
       }
       
       if (i == 0) total_time.reset(); // don't count the first one
