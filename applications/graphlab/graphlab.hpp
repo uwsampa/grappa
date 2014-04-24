@@ -1002,11 +1002,11 @@ struct NaiveGraphlabEngine {
       });
     }
     int iteration = 0;
-
-    while ( V::total_active > 0 && iteration < FLAGS_max_iterations )
+    size_t active = V::total_active;
+    while ( active > 0 && iteration < FLAGS_max_iterations )
         GRAPPA_TIME_REGION(iteration_time) {
       VLOG(1) << "iteration " << std::setw(3) << iteration;
-      VLOG(1) << "  active: " << V::total_active;
+      VLOG(1) << "  active: " << active;
 
       double t = walltime();
       
@@ -1042,6 +1042,7 @@ struct NaiveGraphlabEngine {
     
       iteration++;
       VLOG(1) << "  time:   " << walltime()-t;
+      active = V::total_active;
     }
 
     forall(g, [](Vertex& v){ delete static_cast<VertexProg*>(v->prog); });
