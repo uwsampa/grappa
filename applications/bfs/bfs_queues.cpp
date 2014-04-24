@@ -34,7 +34,7 @@
 #include "common.hpp"
 
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, bfs_mteps);
-GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, bfs_time);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, total_time);
 GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, bfs_nedge);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, graph_create_time);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, verify_time);
@@ -99,9 +99,9 @@ void bfs(GlobalAddress<G> g, int nbfs, TupleGraph tg) {
       next->clear();
     }
     
-    double this_bfs_time = walltime() - t;
-    LOG(INFO) << "(root=" << root << ", time=" << this_bfs_time << ")";
-    bfs_time += this_bfs_time;
+    double this_total_time = walltime() - t;
+    LOG(INFO) << "(root=" << root << ", time=" << this_total_time << ")";
+    total_time += this_total_time;
     
     if (!verified) {
       // only verify the first one to save time
@@ -112,6 +112,6 @@ void bfs(GlobalAddress<G> g, int nbfs, TupleGraph tg) {
       verified = true;
     }
     
-    bfs_mteps += bfs_nedge / this_bfs_time / 1.0e6;
+    bfs_mteps += bfs_nedge / this_total_time / 1.0e6;
   }
 }

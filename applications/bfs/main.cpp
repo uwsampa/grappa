@@ -40,10 +40,9 @@ DEFINE_string(format, "bintsv4", "Format of graph source file.");
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, init_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, tuple_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, construction_time, 0);
-GRAPPA_DEFINE_METRIC(SimpleMetric<double>, total_time, 0);
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_mteps, 0);
-GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, bfs_time, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, total_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, bfs_nedge, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 
@@ -75,11 +74,9 @@ int main(int argc, char* argv[]) {
     construction_time = (walltime()-t);
     LOG(INFO) << construction_time;
     
-    GRAPPA_TIME_REGION(total_time) {
-      bfs(g, FLAGS_nbfs, tg);
-    }
+    bfs(g, FLAGS_nbfs, tg);
     
-    LOG(INFO) << "\n" << bfs_nedge << "\n" << bfs_time << "\n" << bfs_mteps;
+    LOG(INFO) << "\n" << bfs_nedge << "\n" << total_time << "\n" << bfs_mteps;
     if (FLAGS_metrics) Metrics::merge_and_print();
     Metrics::merge_and_dump_to_file();
   });

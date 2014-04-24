@@ -31,13 +31,13 @@ Igor do
   
   params {
     nnode 16
-    ppn   16
+    ppn   32
     num_starting_workers 512
     aggregator_autoflush_ticks 3e6.to_i
     periodic_poll_ticks 2e5.to_i
     loop_threshold 1024
-    trial 1
-    max_iterations 10
+    shared_pool_chunk_size 2**15
+    # max_iterations 10
   }
   
   expect :total_time

@@ -156,7 +156,7 @@ Igor do
                  flat_combining 1
   }
   
-  params { grappa_version 'osdi14' }
+  params { grappa_version 'osdi14'; version 'grappa' }
   
   class << GFLAGS
     def expand
@@ -235,11 +235,12 @@ Igor do
     h # return hash
   }
   
-  @cols = [:nnode,
-           :loop_threshold,
-           :num_starting_workers,
-           :aggregator_autoflush_ticks,
-           :periodic_poll_ticks]
+  @cols = [
+    :id,
+    :nnode,
+    :loop_threshold,
+    :num_starting_workers,
+  ]
   
   @order = :id
   

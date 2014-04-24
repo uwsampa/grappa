@@ -41,7 +41,7 @@ DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-
 DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
 
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, bfs_mteps);
-GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, bfs_time);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, total_time);
 GRAPPA_DECLARE_METRIC(SimpleMetric<int64_t>, bfs_nedge);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, graph_create_time);
 GRAPPA_DECLARE_METRIC(SimpleMetric<double>, verify_time);
@@ -184,7 +184,7 @@ void bfs(GlobalAddress<G> _g, int nbfs, TupleGraph tg) {
     
     double this_bfs_time = walltime() - t;
     LOG(INFO) << "(root=" << root << ", time=" << this_bfs_time << ")";
-    bfs_time += this_bfs_time;
+    total_time += this_bfs_time;
     
     if (!verified) {
       // only verify the first one to save time
