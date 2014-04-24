@@ -71,7 +71,7 @@ struct PagerankVertexProgram : public GraphlabVertexProgram<G,double> {
   bool scatter_edges(const Vertex& v) const {
     return std::fabs(delta * v.nadj) > TOLERANCE;
   }
-  Gather scatter(const Edge& e, Vertex& target) const {
+  Gather scatter(Vertex& target) const {
     target->activate();
     return delta;
   }

@@ -973,7 +973,27 @@ struct NaiveGraphlabEngine {
   static VertexProg& prog(Vertex& v) {
     return *static_cast<VertexProg*>(v->prog);
   }
-
+  
+  static void _do_scatter(const VertexProg& prog_copy, Edge& e,
+                  Gather (VertexProg::*f)(Vertex&) const) {
+    call<async>(e.ga, [=](Vertex& ve){
+      auto gather_delta = prog_copy.scatter(ve);
+      prog(ve).post_delta(gather_delta);
+    });
+  }
+  
+  static void _do_scatter(const VertexProg& prog_copy, Edge& e,
+                  Gather (VertexProg::*f)(const Edge&, Vertex&) const) {
+    auto e_id = e.id;
+    auto e_data = e.data;
+    call<async>(e.ga, [=](Vertex& ve){
+      auto local_e_data = e_data;
+      Edge e = { e_id, g->vs+e_id, local_e_data };
+      auto gather_delta = prog_copy.scatter(e, ve);
+      prog(ve).post_delta(gather_delta);
+    });
+  }
+  
   /// Run synchronous engine, assumes:
   /// - Delta caching enabled
   /// - gather_edges:IN_EDGES, scatter_edges:(OUT_EDGES || NONE)
@@ -1028,14 +1048,7 @@ struct NaiveGraphlabEngine {
           auto prog_copy = prog(v);
           // scatter
           forall<async>(adj(g,v), [=](Edge& e){
-            auto e_id = e.id;
-            auto e_data = e.data;
-            call<async>(e.ga, [=](Vertex& ve){
-              auto local_e_data = e_data;
-              Edge e = { e_id, g->vs+e_id, local_e_data };
-              auto gather_delta = prog_copy.scatter(e, ve);
-              prog(ve).post_delta(gather_delta);
-            });
+            _do_scatter(prog_copy, e, &VertexProg::scatter);
           });
         }
       });
