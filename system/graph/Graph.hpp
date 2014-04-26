@@ -82,7 +82,12 @@ namespace Grappa {
     
       T* operator->() { return &data; }
       const T* operator->() const { return &data; }
-    
+      
+      static constexpr size_t global_heap_size() { return sizeof(Vertex); }
+      static constexpr size_t locale_heap_size() { return 0; }
+      static constexpr size_t size() { return locale_heap_size() + global_heap_size(); }
+      
+      
     } GRAPPA_BLOCK_ALIGNED;
   
     template< typename T, typename E >
@@ -96,7 +101,11 @@ namespace Grappa {
       ~Vertex() { locale_free(&data); }
     
       T* operator->() { return &data; }
-    
+      
+      static constexpr size_t global_heap_size() { return sizeof(Vertex); }
+      static constexpr size_t locale_heap_size() { return sizeof(T); }
+      static constexpr size_t size() { return locale_heap_size() + global_heap_size(); }
+      
     } GRAPPA_BLOCK_ALIGNED;
   
   }
@@ -653,6 +662,15 @@ namespace Grappa {
       forall(g, [](Edge& e, Vertex& ve){ ve.valid = true; });
     }    
     VLOG(1) << "-- vertices: " << g->nv;
+    
+    auto gsz = Vertex::global_heap_size()*g->nv
+                          + sizeof(Graph) * cores();
+    auto lsz = Vertex::locale_heap_size()*g->nv
+                          + (sizeof(VertexID)+sizeof(EdgeState))*g->nadj;
+    auto GB = [](size_t v){ return static_cast<double>(v) / (1L<<30); };
+    LOG(INFO) << "\nlocale_heap_size: " << GB(lsz) << " GB"
+              << "\nglobal_heap_size: " << GB(gsz) << " GB"
+              << "\ngraph_total_size: " << GB(lsz+gsz) << " GB";
     return g;
   }
   

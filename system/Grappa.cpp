@@ -502,16 +502,16 @@ void Grappa_activate()
     double free_sz_gb = static_cast<double>(free_sz) / (1L<<30);
     double free_core_sz_gb = static_cast<double>(free_sz) / Grappa::locale_cores() / (1L<<30);
     VLOG(1) << "\n-------------------------\nShared memory breakdown:\n"
-            << "  locale shared heap total: " << locale_sz_gb << " GB\n"
-            << "  locale shared heap per core: " << locale_core_sz_gb << " GB\n"
-            << "  communicator per core: " << communicator_sz_gb << " GB\n"
-            << "  tasks per core: " << tasks_sz_gb << " GB\n"
-            << "  global heap per core: " << heap_sz_gb << " GB\n"
-            << "  aggregator per core: " << aggregator_sz_gb << " GB\n"
+            << "  locale shared heap total:     " << locale_sz_gb << " GB\n"
+            << "  locale shared heap per core:  " << locale_core_sz_gb << " GB\n"
+            << "  communicator per core:        " << communicator_sz_gb << " GB\n"
+            << "  tasks per core:               " << tasks_sz_gb << " GB\n"
+            << "  global heap per core:         " << heap_sz_gb << " GB\n"
+            << "  aggregator per core:          " << aggregator_sz_gb << " GB\n"
             << "  shared_pool current per core: " << shared_pool_sz_gb << " GB\n"
-            << "  shared_pool max per core: " << shared_pool_max_sz_gb << " GB\n"
-            << "  free per locale:  " << free_sz_gb << " GB\n"
-            << "  free per core:  " << free_core_sz_gb << " GB\n"
+            << "  shared_pool max per core:     " << shared_pool_max_sz_gb << " GB\n"
+            << "  free per locale:              " << free_sz_gb << " GB\n"
+            << "  free per core:                " << free_core_sz_gb << " GB\n"
             << "-------------------------";
 
     CHECK_GT( free_core_sz_gb, shared_pool_max_sz_gb ) 
