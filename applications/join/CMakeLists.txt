@@ -8,6 +8,7 @@ set(SOURCES
   Tuple.cpp
   relation_io.hpp
   relation_io.cpp
+  relation.hpp
   utils.h
   MatchesDHT.hpp
   MatchesDHT.cpp
@@ -53,6 +54,7 @@ set(QUERIES_IND
   DoubleDHT_test.cpp
   MapReduce_tests.cpp
   KMeansMR.cpp
+  convert2bin.cpp
 )
 
 set(QUERIES_SOURCES
