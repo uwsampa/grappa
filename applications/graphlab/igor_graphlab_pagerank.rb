@@ -15,7 +15,8 @@ Igor do
     path: '/pic/projects/grappa/twitter/bintsv4/twitter-all.bintsv4',
     format: 'bintsv4',
     max_iterations: 1024,
-    trials: 3
+    trials: 3,
+    scale: 10
   })
   GFLAGS.delete :flat_combining
   
@@ -37,13 +38,23 @@ Igor do
     periodic_poll_ticks 2e5.to_i
     loop_threshold 1024
     shared_pool_chunk_size 2**15
+    global_heap_fraction 0.2
     # max_iterations 10
   }
   
   expect :total_time
   
-  @cols << :total_time
-  @order = :total_time
+  @cols << :aggregator_autoflush_ticks  
+  @cols << :total_time_mean
+  @order = :total_time_mean
+  
+  # scaling
+  p = {
+     16 => {scale:28},
+     32 => {scale:29},
+     64 => {scale:30},
+    128 => {scale:31},
+  }
   
   interact # enter interactive mode
 end
