@@ -8,6 +8,7 @@ set(SOURCES
   Tuple.cpp
   relation_io.hpp
   relation_io.cpp
+  relation.hpp
   utils.h
   MatchesDHT.hpp
   MatchesDHT.cpp
