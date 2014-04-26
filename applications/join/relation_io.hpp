@@ -7,14 +7,19 @@
 #include <vector>
 //#include <regex>
 
+#include <boost/filesystem.hpp>
+namespace fs = boost::filesystem;
+
 #include <Grappa.hpp>
 #include <Cache.hpp>
 #include <ParallelLoop.hpp>
 #include "Tuple.hpp"
+#include "relation.hpp"
 
 #include "grappa/graph.hpp"
 
 DECLARE_string(relations);
+DECLARE_bool(bin);
 
 
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
@@ -132,34 +137,105 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   */
 
   // binary; TODO: factor out to allow other formats like fixed-line length ascii
+  T sample;
+  CHECK( reinterpret_cast<char*>(&sample._fields) == reinterpret_cast<char*>(&sample) ) << "IO assumes _fields is the first field, but it is not for T";
+  size_t row_size_bytes = sizeof(sample._fields); // get just the size of the fields (since T is a padded data type)
+  VLOG(2) << "row_size_bytes=" << row_size_bytes;
   std::string data_path = FLAGS_relations+"/"+fn;
-  size_t file_size = fs::file_size( path );
+  size_t file_size = fs::file_size( data_path );
   size_t ntuples = file_size / row_size_bytes; 
-  CHECK( ntuples * row_size_bytes == file_size ) << "File is ill-formatted; perhaps not all rows have " << numcols << " columns?";
+  CHECK( ntuples * row_size_bytes == file_size ) << "File is ill-formatted; perhaps not all rows have same columns?";
+  VLOG(1) << fn << " has " << ntuples << " rows"; 
   
-  auto tuples = Grappa::global_alloc<T>(numTuples);
+  auto tuples = Grappa::global_alloc<T>(ntuples);
   
   size_t offset_counter;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
+
+  // we will broadcast the file name as bytes
+  CHECK( data_path.size() <= 2040 );
+  char data_path_char[2048];
+  sprintf(data_path_char, "%s", data_path.c_str());
+
   on_all_cores( [=] {
+    VLOG(5) << "opening addr next";
+    VLOG(5) << "opening addr " << &data_path_char; 
+    VLOG(5) << "opening " << data_path_char; 
+
     // find my array split
     auto local_start = tuples.localize();
-    auto local_end = (tuples+numTuples).localize();
+    auto local_end = (tuples+ntuples).localize();
     size_t local_count = local_end - local_start;
 
     // reserve a file split
-    int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count )
-
-    std::ifstream data_file(data_path, std::ifstream::in | std::ios_base::binary);
-    CHECK( data_file.is_open() ) << data_path << " failed to open";
-    infile.seekg( offset * sizeof(T) );
-    infile.read( (char*) local_start, local_count * sizeof(T) ) 
+    int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
+    VLOG(2) << "file offset " << offset;
+  
+    std::ifstream data_file(data_path_char, std::ios_base::in | std::ios_base::binary);
+    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+    VLOG(5) << "seeking";
+    data_file.seekg( offset * row_size_bytes );
+    VLOG(5) << "reading";
+    data_file.read( (char*) local_start, local_count * row_size_bytes );
     data_file.close();
+  
+    // expand packed data into T's
+    char * byte_ptr = reinterpret_cast<char*>(local_start);
+    for( int64_t i = local_count - 1; i >= 0; --i ) {
+      char * data = byte_ptr + i * row_size_bytes;
+      memcpy(&local_start[i], data, row_size_bytes);
+    }
   });
 
   Relation<T> r = { tuples, ntuples };
   return r;
 }
+
+void convert2bin( std::string fn ) {
+  std::ifstream infile(fn, std::ifstream::in);
+  CHECK( infile.is_open() ) << fn << " failed to open";
+  
+  std::string outpath = fn+".bin";
+  std::ofstream outfile(outpath, std::ios_base::out | std::ios_base::binary );
+  CHECK( outfile.is_open() ) << outpath << " failed to open";
+    
+  std::string line;
+  int64_t expected_numcols = -1;
+  uint64_t linenum = 0;
+  while( infile.good() ) {
+    std::getline( infile, line );
+
+    std::vector<int64_t> readFields;
+
+    std::stringstream ss(line);
+    while (true) {
+      std::string buf;
+      ss >> buf; 
+      if (buf.compare("") == 0) break;
+
+      auto f = std::stoi(buf);
+      readFields.push_back(f);
+    }
+    CHECK(expected_numcols > 0 || readFields.size() > 0) << "first line had 0 columns";
+    if (readFields.size() == 0) break; // takes care of EOF
+
+    if (expected_numcols < 0) expected_numcols = readFields.size();
+    CHECK (expected_numcols == readFields.size()) << "line " << linenum 
+                                                  << " does not have " << expected_numcols << " columns";
+
+
+    outfile.write((char*) &readFields[0], sizeof(int64_t)*readFields.size()); 
+    ++linenum;
+  }
+
+  infile.close();
+  outfile.close();
+  std::cout << "binary: " << outpath << std::endl;
+  std::cout << "rows: " << linenum << std::endl;
+
+}
+  
+  
 
 template <typename T>
 GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
