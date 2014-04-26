@@ -174,6 +174,10 @@ class MatchesDHT {
         }
       });
     }
+    template< Grappa::GlobalCompletionEvent * GCE, typename CF >
+    void lookup_iter ( K key, CF f ) {
+      lookup_iter<CF, GCE>(key, f);
+    }
 
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
@@ -237,7 +241,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async
+      Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
 
