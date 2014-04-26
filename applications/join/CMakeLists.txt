@@ -54,6 +54,7 @@ set(QUERIES_IND
   DoubleDHT_test.cpp
   MapReduce_tests.cpp
   KMeansMR.cpp
+  convert2bin.cpp
 )
 
 set(QUERIES_SOURCES
