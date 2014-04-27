@@ -114,14 +114,14 @@ struct RDMA_WR {
 class RDMASharedMemory {
 private:
   void * buf;
-  size_t size;
+  size_t size_;
   struct ibv_mr * mr;
   std::unique_ptr< uint32_t[] > rkeys;
   Verbs & ib;
 public:
   RDMASharedMemory( Verbs & ib )
     : buf( NULL )
-    , size( 0 )
+    , size_( 0 )
     , mr( NULL )
     , rkeys()
     , ib( ib )
@@ -136,6 +136,7 @@ public:
   void finalize();
 
   inline void * base() const { return buf; }
+  inline size_t size() const { return size_; }
   inline int32_t rkey( Core c ) const { return rkeys[c]; }
   inline int32_t lkey() const { return mr->lkey; }
 };

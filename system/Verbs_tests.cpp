@@ -32,6 +32,7 @@ BOOST_AUTO_TEST_SUITE( Verbs_tests );
 using namespace Grappa;
 
 DEFINE_int64( message_count, 1L << 20 , "Number of messages sent per node" );
+DEFINE_int64( sizeA, 1L << 30 , "Size of GUPS increment array" );
 DEFINE_int64( batch_size, 128, "Number of concurrent sent messages" );
 DEFINE_int64( dest_batch_size, 8, "Number of concurrent sent messages per node for gups" );
 DEFINE_int64( seed, 1 , "Seed for random addresses" );
@@ -41,7 +42,8 @@ DEFINE_string( test, "gups", "Which test should we run?" );
 double start_time = 0.0;
 double end_time = 0.0;
 
-uint64_t message_count_per_core =0;
+uint64_t message_count_per_core = 0;
+uint64_t sizeA_per_core = 0;
 
 const uint64_t lcgM = 6364136223846793005UL;
 const uint64_t lcgB = 1442695040888963407UL;
@@ -558,6 +560,7 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
   typedef int64_t data_t;
   RDMA_WR<data_t> * wrs = (RDMA_WR<data_t> *) shm.base();
   data_t * vals = (data_t*) (wrs + FLAGS_batch_size);
+  CHECK_LE( vals + sizeA_per_core, (data_t*) ((char*)shm.base() + shm.size()) );
     
   for( int i = 0; i < FLAGS_batch_size; ++i ) {
     std::memset( &wrs[i], 0 , sizeof(wrs[i]) );
@@ -576,8 +579,6 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
     wrs[i].wr.num_sge = 1;
     wrs[i].wr.opcode = IBV_WR_RDMA_WRITE;
     wrs[i].wr.send_flags = IBV_SEND_INLINE | (((i+1) % FLAGS_dest_batch_size == 0) ? IBV_SEND_SIGNALED : 0);
-    
-    wrs[i].wr.wr.rdma.remote_addr = (intptr_t) &vals[0];
   }
 
   auto refill_wrs = [&wrs,&vals,&shm] {
@@ -586,6 +587,7 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
       for( int j = 0; j < FLAGS_dest_batch_size; ++j ) {
         wrs[i+j].wr.wr.rdma.rkey = shm.rkey(target);
         wrs[i+j].wr.imm_data = target;
+        wrs[i+j].wr.wr.rdma.remote_addr = (intptr_t) &vals[ next_random_number() % sizeA_per_core ];
       }
     }
   };
@@ -615,7 +617,8 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
   typedef int64_t data_t;
   RDMA_WR<data_t> * wrs = (RDMA_WR<data_t> *) shm.base();
   data_t * vals = (data_t*) (wrs + FLAGS_batch_size);
-  
+  CHECK_LE( vals + sizeA_per_core, (data_t*) ((char*)shm.base() + shm.size()) );
+
   CHECK( FLAGS_batch_size % FLAGS_dest_batch_size == 0 );
 
   for( int i = 0; i < FLAGS_batch_size; ++i ) {
@@ -635,9 +638,6 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
     wrs[i].wr.num_sge = 1;
     wrs[i].wr.opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
     wrs[i].wr.send_flags = (((i+1) % FLAGS_dest_batch_size == 0) ? IBV_SEND_SIGNALED : 0);
-    
-    wrs[i].wr.wr.atomic.remote_addr = (intptr_t) &vals[0];
-    wrs[i].wr.wr.atomic.compare_add = 1;
   }
 
   auto refill_wrs = [&wrs,&vals,&shm] {
@@ -646,6 +646,8 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
       for( int j = 0; j < FLAGS_dest_batch_size; ++j ) {
         wrs[i+j].wr.wr.atomic.rkey = shm.rkey(target);
         wrs[i+j].wr.imm_data = target;
+        wrs[i+j].wr.wr.atomic.remote_addr = (intptr_t) &vals[ next_random_number() % sizeA_per_core ];
+        wrs[i+j].wr.wr.atomic.compare_add = 1;
       }
     }
   };
@@ -717,9 +719,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     paired_fetchadd_test( ib, shm );
   } else if( FLAGS_test == "random_write" ) {
     message_count_per_core = FLAGS_message_count / Grappa::cores();
+    sizeA_per_core = FLAGS_sizeA / Grappa::cores();
     random_write_test( ib, shm );
   } else if( FLAGS_test == "gups" ) {
     message_count_per_core = FLAGS_message_count / Grappa::cores();
+    sizeA_per_core = FLAGS_sizeA / Grappa::cores();
     gups_test( ib, shm );
   } else {
     LOG(ERROR) << "Test " << FLAGS_test << " not found.";

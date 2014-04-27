@@ -286,11 +286,11 @@ int Verbs::poll() {
 }
 
 void RDMASharedMemory::init( size_t newsize ) {
-  size = newsize;
+  size_ = newsize;
 
   // allocate memory
   void * base =  (void *) 0x0000100000000000L;
-  CHECK_NOTNULL( buf = mmap( base, size,
+  CHECK_NOTNULL( buf = mmap( base, size_,
                              PROT_WRITE | PROT_READ,
                              MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED,
                              -1,
@@ -298,7 +298,7 @@ void RDMASharedMemory::init( size_t newsize ) {
   CHECK_EQ( base, buf ) << "Mmap at fixed address failed";
 
   // register memory
-  CHECK_NOTNULL( mr = ib.register_memory_region( buf, size ) );
+  CHECK_NOTNULL( mr = ib.register_memory_region( buf, size_ ) );
 
   // distribute rkeys
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
@@ -315,9 +315,9 @@ void RDMASharedMemory::finalize() {
     mr = NULL;
   }
   if( buf ) {
-    munmap( buf, size );
+    munmap( buf, size_ );
     buf = NULL;
-    size = 0;
+    size_ = 0;
   }
 }
 
