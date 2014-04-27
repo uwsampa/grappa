@@ -37,8 +37,8 @@ namespace Grappa {
   }
 }
 
-// prefetch two cache lines per message
-#define DOUBLE_LINE_PREFETCH
+// (don't) prefetch two cache lines per message
+//#define DOUBLE_LINE_PREFETCH
 
 DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
@@ -535,6 +535,7 @@ void RDMAAggregator::draw_routing_graph() {
         // issue prefetch for next message
         char * pf = reinterpret_cast< char* >( message->prefetch_ );
         __builtin_prefetch( pf +  0, 1, prefetch_type );
+        //__builtin_prefetch( buffer, 1, prefetch_type );
 #ifdef DOUBLE_LINE_PREFETCH
         __builtin_prefetch( pf + 64, 1, prefetch_type );
 #endif
