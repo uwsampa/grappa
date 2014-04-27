@@ -124,10 +124,9 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
   return tg;
 }
 
-
-
+// assumes that for object T, the address of T is the address of its fields
 template <typename T>
-Relation<T> readTuplesUnordered( std::string fn ) {
+size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t numfields ) {
   /*
   std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
   std::ifstream metadata_file(metadata_path, std::ifstream::in);
@@ -137,9 +136,9 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   */
 
   // binary; TODO: factor out to allow other formats like fixed-line length ascii
-  T sample;
-  CHECK( reinterpret_cast<char*>(&sample._fields) == reinterpret_cast<char*>(&sample) ) << "IO assumes _fields is the first field, but it is not for T";
-  size_t row_size_bytes = sizeof(sample._fields); // get just the size of the fields (since T is a padded data type)
+
+// we get just the size of the fields (since T is a padded data type)
+  size_t row_size_bytes = sizeof(int64_t) * numfields;
   VLOG(2) << "row_size_bytes=" << row_size_bytes;
   std::string data_path = FLAGS_relations+"/"+fn;
   size_t file_size = fs::file_size( data_path );
@@ -178,20 +177,46 @@ Relation<T> readTuplesUnordered( std::string fn ) {
     VLOG(5) << "reading";
     data_file.read( (char*) local_start, local_count * row_size_bytes );
     data_file.close();
-  
-    // expand packed data into T's
-    char * byte_ptr = reinterpret_cast<char*>(local_start);
-    for( int64_t i = local_count - 1; i >= 0; --i ) {
-      char * data = byte_ptr + i * row_size_bytes;
-      memcpy(&local_start[i], data, row_size_bytes);
+
+    // expand packed data into T's if necessary
+    if (row_size_bytes < sizeof(T)) {
+      VLOG(5) << "inflating";
+      char * byte_ptr = reinterpret_cast<char*>(local_start);
+      // go backwards so we never overwrite
+      for( int64_t i = local_count - 1; i >= 0; --i ) {
+        char * data = byte_ptr + i * row_size_bytes;
+        memcpy(&local_start[i], data, row_size_bytes);
+      }
     }
+
+    VLOG(4) << "local first row: " << *local_start;
   });
 
+  *buf_addr = tuples;
+  return ntuples;
+}
+  
+// convenient version for Relation<T> type
+template <typename T>
+Relation<T> readTuplesUnordered( std::string fn ) {
+  GlobalAddress<T> tuples;
+  
+  T sample;
+  CHECK( reinterpret_cast<char*>(&sample._fields) == reinterpret_cast<char*>(&sample) ) << "IO assumes _fields is the first field, but it is not for T";
+
+  auto ntuples = readTuplesUnordered<T>( fn, &tuples, sizeof(sample._fields)/sizeof(int64_t) );  
   Relation<T> r = { tuples, ntuples };
   return r;
 }
 
-void convert2bin( std::string fn ) {
+int64_t toInt(std::string& s) {
+  return std::stoi(s);
+}
+double toDouble(std::string& s) {
+  return std::stod(s);
+}
+template< typename N=int64_t, typename Parser=decltype(toInt) >
+void convert2bin( std::string fn, Parser parser=&toInt, uint64_t burn=0 ) {
   std::ifstream infile(fn, std::ifstream::in);
   CHECK( infile.is_open() ) << fn << " failed to open";
   
@@ -205,16 +230,19 @@ void convert2bin( std::string fn ) {
   while( infile.good() ) {
     std::getline( infile, line );
 
-    std::vector<int64_t> readFields;
+    std::vector<N> readFields;
 
     std::stringstream ss(line);
+    uint64_t j = 0;
     while (true) {
       std::string buf;
       ss >> buf; 
       if (buf.compare("") == 0) break;
-
-      auto f = std::stoi(buf);
-      readFields.push_back(f);
+ 
+      if (j++ < burn) { 
+        auto f = parser(buf);
+        readFields.push_back(f);
+      }
     }
     CHECK(expected_numcols > 0 || readFields.size() > 0) << "first line had 0 columns";
     if (readFields.size() == 0) break; // takes care of EOF
@@ -232,6 +260,7 @@ void convert2bin( std::string fn ) {
   outfile.close();
   std::cout << "binary: " << outpath << std::endl;
   std::cout << "rows: " << linenum << std::endl;
+  std::cout << "cols: " << expected_numcols << std::endl;
 
 }
   
