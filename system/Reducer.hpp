@@ -35,20 +35,25 @@
 template <typename T, T (*ReduceOp)(const T&, const T&)>
 class AllReducer {
   private:
-    T localSum;
+    T * const localSum;
+    const T * const init;
     bool finished;
-    const T init;
 
   public:
-    AllReducer(T init) : init(init) {}
+    AllReducer(T initV) : init(new T(initV))
+                       , localSum(new T) {}
+    ~AllReducer() {
+      delete init;
+      delete localSum;
+    }
 
     void reset() {
       finished = false;
-      localSum = init;
+      *localSum = *init;
     }
 
     void accumulate(T val) {
-      localSum = ReduceOp(localSum, val);
+      *localSum = ReduceOp(*localSum, val);
     } 
 
     /// Finish the reduction and return the final value.
@@ -61,9 +66,9 @@ class AllReducer {
       if (!finished) {
         finished = true;
         //TODO init version and specialized version for non-template allowed
-        localSum = Grappa::allreduce<T,ReduceOp> (localSum);
+        *localSum = Grappa::allreduce<T,ReduceOp> (*localSum);
       }
-      return localSum;
+      return *localSum;
     }
 
 
