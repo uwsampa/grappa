@@ -575,7 +575,7 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
     wrs[i].wr.sg_list = &wrs[i].sge;
     wrs[i].wr.num_sge = 1;
     wrs[i].wr.opcode = IBV_WR_RDMA_WRITE;
-    wrs[i].wr.send_flags = IBV_SEND_INLINE | IBV_SEND_SIGNALED;
+    wrs[i].wr.send_flags = IBV_SEND_INLINE | (((i+1) % FLAGS_dest_batch_size == 0) ? IBV_SEND_SIGNALED : 0);
     
     wrs[i].wr.wr.rdma.remote_addr = (intptr_t) &vals[0];
   }
@@ -589,7 +589,7 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
       }
     }
   };
-  
+
   start_time = MPI_Wtime();
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
@@ -601,10 +601,12 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
 
     // wait for sends to complete
     int popped = 0;
-    while( popped < FLAGS_batch_size ) {
+    auto term = FLAGS_batch_size / FLAGS_dest_batch_size;
+    while( popped < term ) {
       popped += ib.poll();
     }
   }
+
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   end_time = MPI_Wtime();
 }
@@ -632,7 +634,7 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
     wrs[i].wr.sg_list = &wrs[i].sge;
     wrs[i].wr.num_sge = 1;
     wrs[i].wr.opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
-    wrs[i].wr.send_flags = IBV_SEND_SIGNALED;
+    wrs[i].wr.send_flags = (((i+1) % FLAGS_dest_batch_size == 0) ? IBV_SEND_SIGNALED : 0);
     
     wrs[i].wr.wr.atomic.remote_addr = (intptr_t) &vals[0];
     wrs[i].wr.wr.atomic.compare_add = 1;
@@ -647,7 +649,7 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
       }
     }
   };
-  
+
   start_time = MPI_Wtime();
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
@@ -659,7 +661,8 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
 
     // wait for sends to complete
     int popped = 0;
-    while( popped < FLAGS_batch_size ) {
+    auto term = FLAGS_batch_size / FLAGS_dest_batch_size;
+    while( popped < term ) {
       popped += ib.poll();
     }
   }
@@ -678,7 +681,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   shm.init();
 
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
-
 
   random_number = FLAGS_seed + Grappa::mycore();
   next_random_number();
