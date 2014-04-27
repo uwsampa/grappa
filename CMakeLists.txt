@@ -174,7 +174,7 @@ add_definitions(-DSHMMAX=${SHMMAX})
 # add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if(NOT APPLE)
-  list(APPEND GRAPPA_LIBS pthread rt ibverbs)
+  list(APPEND GRAPPA_LIBS pthread rt)
 endif()
 
 # set(BOOST_ROOT ...)

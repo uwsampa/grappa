@@ -21,19 +21,16 @@
 // http://www.affero.org/oagpl.html.
 ////////////////////////////////////////////////////////////////////////
 
-#include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
 #include "Verbs.hpp"
 
 #include <xmmintrin.h>
 
-BOOST_AUTO_TEST_SUITE( Verbs_tests );
-
 using namespace Grappa;
 
-DEFINE_int64( message_count, 1L << 20 , "Number of messages sent per node" );
 DEFINE_int64( sizeA, 1L << 30 , "Size of GUPS increment array" );
-DEFINE_int64( batch_size, 128, "Number of concurrent sent messages" );
+DEFINE_int64( sizeB, 1L << 30 , "Total number of messages sent" );
+DEFINE_int64( batch_size, 512, "Number of concurrent sent messages" );
 DEFINE_int64( dest_batch_size, 8, "Number of concurrent sent messages per node for gups" );
 DEFINE_int64( seed, 1 , "Seed for random addresses" );
 
@@ -673,8 +670,8 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
 }
 
 
-BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa::init( GRAPPA_TEST_ARGS );
+int main(int argc, char * argv[]) {
+  Grappa::init( &argc, &argv );
 
   Verbs ib;
   RDMASharedMemory shm( ib );
@@ -691,38 +688,38 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
   if( FLAGS_test == "simple_send_recv" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_send_recv_test( ib, shm );
   } else if( FLAGS_test == "simple_rdma_write" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_rdma_write_test( ib, shm );
   } else if( FLAGS_test == "simple_rdma_write_immediate" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_rdma_write_immediate_test( ib, shm );
   } else if( FLAGS_test == "simple_rdma_read" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_rdma_read_test( ib, shm );
   } else if( FLAGS_test == "paired_write" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_write_test( ib, shm );
   } else if( FLAGS_test == "paired_write_bypass" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_write_bypass_test( ib, shm );
   } else if( FLAGS_test == "paired_zero_write" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_zero_write_test( ib, shm );
   } else if( FLAGS_test == "paired_read" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_read_test( ib, shm );
   } else if( FLAGS_test == "paired_fetchadd" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_fetchadd_test( ib, shm );
   } else if( FLAGS_test == "random_write" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::cores();
     sizeA_per_core = FLAGS_sizeA / Grappa::cores();
     random_write_test( ib, shm );
   } else if( FLAGS_test == "gups" ) {
-    message_count_per_core = FLAGS_message_count / Grappa::cores();
+    message_count_per_core = FLAGS_sizeB / Grappa::cores();
     sizeA_per_core = FLAGS_sizeA / Grappa::cores();
     gups_test( ib, shm );
   } else {
@@ -735,7 +732,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   if( (FLAGS_test == "random_write") || (FLAGS_test == "gups") ) {
     if( Grappa::mycore() == 0 ) {
-      double count = FLAGS_message_count;
+      double count = FLAGS_sizeB;
       double duration = end_time - start_time;
       //double count = iterations * (Grappa::cores() / 2) * message_count_per_core;
       double rate = count / duration / 1.0e9;
@@ -750,7 +747,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       LOG(INFO) << "Sent " << count << " messages in " << duration << ": " << rate << " Msgs/s";
     }
   }
-  BOOST_CHECK_EQUAL( 1, 1 );
     
   shm.finalize();
   ib.finalize();
@@ -758,4 +754,3 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::finalize();
 }
 
-BOOST_AUTO_TEST_SUITE_END();
