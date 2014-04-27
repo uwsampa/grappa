@@ -32,7 +32,8 @@ BOOST_AUTO_TEST_SUITE( Verbs_tests );
 using namespace Grappa;
 
 DEFINE_int64( message_count, 1L << 20 , "Number of messages sent per node" );
-DEFINE_int64( batch_size, 100, "Number of concurrent sent messages" );
+DEFINE_int64( batch_size, 128, "Number of concurrent sent messages" );
+DEFINE_int64( dest_batch_size, 8, "Number of concurrent sent messages per node for gups" );
 DEFINE_int64( seed, 1 , "Seed for random addresses" );
 
 DEFINE_string( test, "gups", "Which test should we run?" );
@@ -570,7 +571,7 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
     wrs[i].sge.lkey = shm.lkey();
     
     wrs[i].wr.wr_id = i;
-    wrs[i].wr.next = NULL;
+    wrs[i].wr.next = ((i+1) % FLAGS_dest_batch_size == 0) ? NULL : &wrs[i+1].wr;
     wrs[i].wr.sg_list = &wrs[i].sge;
     wrs[i].wr.num_sge = 1;
     wrs[i].wr.opcode = IBV_WR_RDMA_WRITE;
@@ -580,10 +581,12 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
   }
 
   auto refill_wrs = [&wrs,&vals,&shm] {
-    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    for( int i = 0; i < FLAGS_batch_size; i += FLAGS_dest_batch_size ) {
       Core target = next_random_number() % Grappa::cores();
-      wrs[i].wr.wr.rdma.rkey = shm.rkey(target);
-      wrs[i].wr.imm_data = target;
+      for( int j = 0; j < FLAGS_dest_batch_size; ++j ) {
+        wrs[i+j].wr.wr.rdma.rkey = shm.rkey(target);
+        wrs[i+j].wr.imm_data = target;
+      }
     }
   };
   
@@ -591,7 +594,7 @@ void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
     refill_wrs();
-    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    for( int i = 0; i < FLAGS_batch_size; i += FLAGS_dest_batch_size ) {
       Core target = wrs[i].wr.imm_data;
       ib.post_send( target, &wrs[i].wr );
     }
@@ -610,7 +613,9 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
   typedef int64_t data_t;
   RDMA_WR<data_t> * wrs = (RDMA_WR<data_t> *) shm.base();
   data_t * vals = (data_t*) (wrs + FLAGS_batch_size);
-    
+  
+  CHECK( FLAGS_batch_size % FLAGS_dest_batch_size == 0 );
+
   for( int i = 0; i < FLAGS_batch_size; ++i ) {
     std::memset( &wrs[i], 0 , sizeof(wrs[i]) );
   }
@@ -623,7 +628,7 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
     wrs[i].sge.lkey = shm.lkey();
     
     wrs[i].wr.wr_id = i;
-    wrs[i].wr.next = NULL;
+    wrs[i].wr.next = ((i+1) % FLAGS_dest_batch_size == 0) ? NULL : &wrs[i+1].wr;
     wrs[i].wr.sg_list = &wrs[i].sge;
     wrs[i].wr.num_sge = 1;
     wrs[i].wr.opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
@@ -634,10 +639,12 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
   }
 
   auto refill_wrs = [&wrs,&vals,&shm] {
-    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    for( int i = 0; i < FLAGS_batch_size; i += FLAGS_dest_batch_size ) {
       Core target = next_random_number() % Grappa::cores();
-      wrs[i].wr.wr.atomic.rkey = shm.rkey(target);
-      wrs[i].wr.imm_data = target;
+      for( int j = 0; j < FLAGS_dest_batch_size; ++j ) {
+        wrs[i+j].wr.wr.atomic.rkey = shm.rkey(target);
+        wrs[i+j].wr.imm_data = target;
+      }
     }
   };
   
@@ -645,7 +652,7 @@ void gups_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
     refill_wrs();
-    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    for( int i = 0; i < FLAGS_batch_size; i += FLAGS_dest_batch_size ) {
       Core target = wrs[i].wr.imm_data;
       ib.post_send( target, &wrs[i].wr );
     }
