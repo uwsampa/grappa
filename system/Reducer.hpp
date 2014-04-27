@@ -70,7 +70,30 @@ class AllReducer {
     //TODO, a non collective call to finish would be nice
     //any such scheme will require knowing where each participant's
     //value lives (e.g. process-global variable)
-};
+} GRAPPA_BLOCK_ALIGNED;
+
+template <typename T, typename AllReducerType, typename CF>
+T reduction(T init, CF f) {
+  Core master = Grappa::mycore();
+  auto r = Grappa::symmetric_global_alloc<AllReducerType>();
+  Grappa::on_all_cores( [=] {
+      // call the constructor 
+      new (r.localize()) AllReducerType(init);
+      r->reset();
+  });
+  
+  // user code, calling accumulate
+  f(r);
+
+  T result;
+  Grappa::on_all_cores( [master,r,&result] {
+    T localcopy = r->finish();
+    if (Grappa::mycore() == master) 
+      result = localcopy;
+  });
+  Grappa::global_free(r);
+  return result;
+}       
 
 namespace Grappa {
 
