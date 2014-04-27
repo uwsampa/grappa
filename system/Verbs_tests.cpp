@@ -25,6 +25,8 @@
 #include "Grappa.hpp"
 #include "Verbs.hpp"
 
+#include <xmmintrin.h>
+
 BOOST_AUTO_TEST_SUITE( Verbs_tests );
 
 using namespace Grappa;
