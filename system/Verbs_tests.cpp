@@ -30,12 +30,24 @@ BOOST_AUTO_TEST_SUITE( Verbs_tests );
 using namespace Grappa;
 
 DEFINE_int64( message_count, 1L << 20 , "Number of messages sent per node" );
-DEFINE_int64( batch_size, 100 , "Number of concurrent sent messages" );
+DEFINE_int64( batch_size, 100, "Number of concurrent sent messages" );
+DEFINE_int64( seed, 1 , "Seed for random addresses" );
 
-DEFINE_string( test, "simple_rdma_write", "Which test should we run?" );
+DEFINE_string( test, "gups", "Which test should we run?" );
 
 double start_time = 0.0;
 double end_time = 0.0;
+
+uint64_t message_count_per_core =0;
+
+const uint64_t lcgM = 6364136223846793005UL;
+const uint64_t lcgB = 1442695040888963407UL;
+uint64_t random_number = 0;
+
+uint64_t next_random_number() {
+  random_number = lcgM * random_number + lcgB;
+  return random_number;
+}
 
 void simple_send_recv_test( Verbs & ib, RDMASharedMemory & shm ) {
   if( Grappa::mycore() == 0 ) { LOG(INFO) << "Starting simple send/recv test"; }
@@ -77,7 +89,7 @@ void simple_send_recv_test( Verbs & ib, RDMASharedMemory & shm ) {
   send_wr->opcode = IBV_WR_SEND;
   
   start_time = MPI_Wtime();
-  for( int i = 0; i < FLAGS_message_count; ++i ) {
+  for( int i = 0; i < message_count_per_core; ++i ) {
     *send_data = 1;
     ib.post_receive( Grappa::mycore(), recv_wr );
     ib.post_send( Grappa::mycore(), send_wr );
@@ -134,7 +146,7 @@ void simple_rdma_write_test( Verbs & ib, RDMASharedMemory & shm ) {
   send_wr->wr.rdma.rkey = shm.rkey( Grappa::mycore() );
   
   start_time = MPI_Wtime();
-  for( int i = 0; i < FLAGS_message_count; ++i ) {
+  for( int i = 0; i < message_count_per_core; ++i ) {
     *send_data = 1;
     //ib.post_receive( Grappa::mycore(), recv_wr );
     ib.post_send( Grappa::mycore(), send_wr );
@@ -192,7 +204,7 @@ void simple_rdma_write_immediate_test( Verbs & ib, RDMASharedMemory & shm ) {
   send_wr->wr.rdma.rkey = shm.rkey( Grappa::mycore() );
   
   start_time = MPI_Wtime();
-  for( int i = 0; i < FLAGS_message_count; ++i ) {
+  for( int i = 0; i < message_count_per_core; ++i ) {
     *send_data = 1;
     ib.post_receive( Grappa::mycore(), recv_wr );
     ib.post_send( Grappa::mycore(), send_wr );
@@ -250,7 +262,7 @@ void simple_rdma_read_test( Verbs & ib, RDMASharedMemory & shm ) {
   send_wr->wr.rdma.rkey = shm.rkey( Grappa::mycore() );
   
   start_time = MPI_Wtime();
-  for( int i = 0; i < FLAGS_message_count; ++i ) {
+  for( int i = 0; i < message_count_per_core; ++i ) {
     //ib.post_receive( Grappa::mycore(), recv_wr );
     ib.post_send( Grappa::mycore(), send_wr );
     
@@ -298,7 +310,7 @@ void paired_write_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   // lower half posts to upper half
   if( Grappa::mycore() < (Grappa::cores() / 2) ) {
-    for( int i = 0; i < FLAGS_message_count; i += FLAGS_batch_size ) {
+    for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
       ib.post_send( target, &wrs[0].wr );
 
       // wait for sends to complete
@@ -363,7 +375,7 @@ void paired_write_bypass_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   // lower half posts to upper half
   if( Grappa::mycore() < (Grappa::cores() / 2) ) {
-    for( int i = 0; i < FLAGS_message_count; i += FLAGS_batch_size ) {
+    for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
       ib.post_send( target, &wrs[0].wr );
 
       // wait for sends to complete
@@ -419,7 +431,7 @@ void paired_zero_write_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   // lower half posts to upper half
   if( Grappa::mycore() < (Grappa::cores() / 2) ) {
-    for( int i = 0; i < FLAGS_message_count; i += FLAGS_batch_size ) {
+    for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
       ib.post_send( target, &wrs[0].wr );
 
       // wait for sends to complete
@@ -467,7 +479,7 @@ void paired_read_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   // lower half posts to upper half
   if( Grappa::mycore() < (Grappa::cores() / 2) ) {
-    for( int i = 0; i < FLAGS_message_count; i += FLAGS_batch_size ) {
+    for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
       ib.post_send( target, &wrs[0].wr );
 
       // wait for sends to complete
@@ -520,7 +532,7 @@ void paired_fetchadd_test( Verbs & ib, RDMASharedMemory & shm) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   // lower half posts to upper half
   if( Grappa::mycore() < (Grappa::cores() / 2) ) {
-    for( int i = 0; i < FLAGS_message_count; i += FLAGS_batch_size ) {
+    for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
       ib.post_send( target, &wrs[0].wr );
 
       // wait for sends to complete
@@ -539,6 +551,113 @@ void paired_fetchadd_test( Verbs & ib, RDMASharedMemory & shm) {
   // }  
 }
 
+void random_write_test( Verbs & ib, RDMASharedMemory & shm) {
+  typedef int64_t data_t;
+  RDMA_WR<data_t> * wrs = (RDMA_WR<data_t> *) shm.base();
+  data_t * vals = (data_t*) (wrs + FLAGS_batch_size);
+    
+  for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    std::memset( &wrs[i], 0 , sizeof(wrs[i]) );
+  }
+
+  for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    wrs[i].data = i;
+    
+    wrs[i].sge.addr = (uintptr_t) &wrs[i].data;
+    wrs[i].sge.length = sizeof(wrs[i].data);
+    wrs[i].sge.lkey = shm.lkey();
+    
+    wrs[i].wr.wr_id = i;
+    wrs[i].wr.next = NULL;
+    wrs[i].wr.sg_list = &wrs[i].sge;
+    wrs[i].wr.num_sge = 1;
+    wrs[i].wr.opcode = IBV_WR_RDMA_WRITE;
+    wrs[i].wr.send_flags = IBV_SEND_INLINE | IBV_SEND_SIGNALED;
+    
+    wrs[i].wr.wr.rdma.remote_addr = (intptr_t) &vals[0];
+  }
+
+  auto refill_wrs = [&wrs,&vals,&shm] {
+    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+      Core target = next_random_number() % Grappa::cores();
+      wrs[i].wr.wr.rdma.rkey = shm.rkey(target);
+      wrs[i].wr.imm_data = target;
+    }
+  };
+  
+  start_time = MPI_Wtime();
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
+    refill_wrs();
+    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+      Core target = wrs[i].wr.imm_data;
+      ib.post_send( target, &wrs[i].wr );
+    }
+
+    // wait for sends to complete
+    int popped = 0;
+    while( popped < FLAGS_batch_size ) {
+      popped += ib.poll();
+    }
+  }
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  end_time = MPI_Wtime();
+}
+
+void gups_test( Verbs & ib, RDMASharedMemory & shm) {
+  typedef int64_t data_t;
+  RDMA_WR<data_t> * wrs = (RDMA_WR<data_t> *) shm.base();
+  data_t * vals = (data_t*) (wrs + FLAGS_batch_size);
+    
+  for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    std::memset( &wrs[i], 0 , sizeof(wrs[i]) );
+  }
+
+  for( int i = 0; i < FLAGS_batch_size; ++i ) {
+    wrs[i].data = i;
+    
+    wrs[i].sge.addr = (uintptr_t) &wrs[i].data;
+    wrs[i].sge.length = sizeof(wrs[i].data);
+    wrs[i].sge.lkey = shm.lkey();
+    
+    wrs[i].wr.wr_id = i;
+    wrs[i].wr.next = NULL;
+    wrs[i].wr.sg_list = &wrs[i].sge;
+    wrs[i].wr.num_sge = 1;
+    wrs[i].wr.opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
+    wrs[i].wr.send_flags = IBV_SEND_SIGNALED;
+    
+    wrs[i].wr.wr.atomic.remote_addr = (intptr_t) &vals[0];
+    wrs[i].wr.wr.atomic.compare_add = 1;
+  }
+
+  auto refill_wrs = [&wrs,&vals,&shm] {
+    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+      Core target = next_random_number() % Grappa::cores();
+      wrs[i].wr.wr.atomic.rkey = shm.rkey(target);
+      wrs[i].wr.imm_data = target;
+    }
+  };
+  
+  start_time = MPI_Wtime();
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  for( int i = 0; i < message_count_per_core; i += FLAGS_batch_size ) {
+    refill_wrs();
+    for( int i = 0; i < FLAGS_batch_size; ++i ) {
+      Core target = wrs[i].wr.imm_data;
+      ib.post_send( target, &wrs[i].wr );
+    }
+
+    // wait for sends to complete
+    int popped = 0;
+    while( popped < FLAGS_batch_size ) {
+      popped += ib.poll();
+    }
+  }
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  end_time = MPI_Wtime();
+}
+
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -550,31 +669,47 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   shm.init();
 
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
-  int total_cores = Grappa::locale_cores();
-  FLAGS_message_count /= total_cores;
-  double count = FLAGS_message_count * total_cores;
+
+
+  random_number = FLAGS_seed + Grappa::mycore();
+  next_random_number();
 
   //Grappa::Metrics::start_tracing();
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
   if( FLAGS_test == "simple_send_recv" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     simple_send_recv_test( ib, shm );
   } else if( FLAGS_test == "simple_rdma_write" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     simple_rdma_write_test( ib, shm );
   } else if( FLAGS_test == "simple_rdma_write_immediate" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     simple_rdma_write_immediate_test( ib, shm );
   } else if( FLAGS_test == "simple_rdma_read" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     simple_rdma_read_test( ib, shm );
   } else if( FLAGS_test == "paired_write" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     paired_write_test( ib, shm );
   } else if( FLAGS_test == "paired_write_bypass" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     paired_write_bypass_test( ib, shm );
   } else if( FLAGS_test == "paired_zero_write" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     paired_zero_write_test( ib, shm );
   } else if( FLAGS_test == "paired_read" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     paired_read_test( ib, shm );
   } else if( FLAGS_test == "paired_fetchadd" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::locale_cores();
     paired_fetchadd_test( ib, shm );
+  } else if( FLAGS_test == "random_write" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::cores();
+    random_write_test( ib, shm );
+  } else if( FLAGS_test == "gups" ) {
+    message_count_per_core = FLAGS_message_count / Grappa::cores();
+    gups_test( ib, shm );
   } else {
     LOG(ERROR) << "Test " << FLAGS_test << " not found.";
   }
@@ -583,17 +718,24 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   //Grappa::Metrics::stop_tracing();
 
-
-  if( Grappa::mycore() == 0 ) {
-    double count = FLAGS_message_count * total_cores;
-    double duration = end_time - start_time;
-    //double count = iterations * (Grappa::cores() / 2) * FLAGS_message_count;
-    double rate = count / duration;
-    LOG(INFO) << "Sent " << count << " messages in " << duration << ": " << rate << " Msgs/s";
-    
-    BOOST_CHECK_EQUAL( 1, 1 );
-    //Grappa::Metrics::merge_and_dump_to_file();
+  if( (FLAGS_test == "random_write") || (FLAGS_test == "gups") ) {
+    if( Grappa::mycore() == 0 ) {
+      double count = FLAGS_message_count;
+      double duration = end_time - start_time;
+      //double count = iterations * (Grappa::cores() / 2) * message_count_per_core;
+      double rate = count / duration / 1.0e9;
+      LOG(INFO) << "Sent " << count << " messages in " << duration << ": " << rate << " GUPS";
+    }
+  } else {
+    if( Grappa::mycore() == 0 ) {
+      double count = message_count_per_core * Grappa::locale_cores();
+      double duration = end_time - start_time;
+      //double count = iterations * (Grappa::cores() / 2) * message_count_per_core;
+      double rate = count / duration;
+      LOG(INFO) << "Sent " << count << " messages in " << duration << ": " << rate << " Msgs/s";
+    }
   }
+  BOOST_CHECK_EQUAL( 1, 1 );
     
   shm.finalize();
   ib.finalize();

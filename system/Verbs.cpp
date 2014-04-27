@@ -54,9 +54,9 @@ void Verbs::initialize_device() {
   // open device and get attributes
   CHECK_NOTNULL( context = ibv_open_device( device ) );
   PCHECK( ibv_query_device( context, &device_attributes ) >= 0 );
-  LOG(INFO) << "max_qp_rd_atom: " << device_attributes.max_qp_rd_atom
-            << " max_res_rd_atom: " << device_attributes.max_res_rd_atom
-            << " max_qp_init_rd_atom: " << device_attributes.max_qp_init_rd_atom;
+  DVLOG(5) << "max_qp_rd_atom: " << device_attributes.max_qp_rd_atom
+           << " max_res_rd_atom: " << device_attributes.max_res_rd_atom
+           << " max_qp_init_rd_atom: " << device_attributes.max_qp_init_rd_atom;
       
   // choose a port (always port 1 for now) and get attributes
   if( device_attributes.phys_port_cnt > 1 ) {

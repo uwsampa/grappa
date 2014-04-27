@@ -50,6 +50,7 @@ set(SYSTEM_SOURCES
   SummarizingMetric.cpp
   ThreadQueue.cpp
   Timestamp.cpp
+  Verbs.cpp
   Worker.cpp
   Addressing.hpp
   Aggregator.hpp
@@ -137,6 +138,7 @@ set(SYSTEM_SOURCES
   tasks/Task.cpp
   tasks/TaskingScheduler.cpp
   stack.S
+  Verbs.hpp
 )
 
 ################
@@ -219,6 +221,7 @@ add_check( Metrics_tests.cpp                 2 1  pass )
 add_check( Stealing_tests.cpp                2 1  fail ) # deprecated?
 add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
+add_check( Verbs_tests.cpp                   2 1  fail )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
