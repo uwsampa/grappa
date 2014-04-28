@@ -70,6 +70,60 @@ struct MapperContext {
   }
 };
 
+template <typename K, typename V>
+struct Combiner {
+  std::unordered_map<K, std::vector<V>> * groups;
+
+  Combiner() : groups(new std::unordered_map<K, std::vector<V>>()) {}
+} GRAPPA_BLOCK_ALIGNED;
+
+template <typename K, typename V, typename OutType>
+struct CombiningMapperContext {
+  GlobalAddress<Reducer<K,V,OutType>> reducers;
+  int64_t num_reducers;
+  GlobalAddress<Combiner<K,V>> combining;
+
+  CombiningMapperContext(GlobalAddress<Reducer<K,V,OutType>> reducers, GlobalAddress<Combiner<K,V>> combining, int64_t num_reducers)
+    : reducers(reducers)
+    , combining(combining)
+    , num_reducers(num_reducers) {}
+
+  // called within user map
+  void emitIntermediate(K key, V val) const {
+    DVLOG(5) << "push key " << key;
+    std::vector<V>& slot = (*(combining->groups))[key];
+    slot.push_back(val);
+  }
+
+  // called within user combine
+  template < Grappa::GlobalCompletionEvent * GCE=&default_mr_gce >
+  void emitCombinedIntermediate(K key, V val) const {
+    auto index = std::hash<K>()(key) % num_reducers;
+    auto target = reducers + index;
+    DVLOG(5) << "index = " << index;
+    reducer_append<GCE>( target, key, val );
+  }
+
+  void combineDoneWithKey( K key ) const {
+    DVLOG(4) << "clear key " << key;
+    (*(combining->groups))[key].clear();
+  }
+};
+
+template < typename K, typename V, typename OutType, typename CombineF >
+void combineExecute(CombiningMapperContext<K,V,OutType> ctx, CombineF combinef) {
+  Grappa::on_all_cores([=] {
+      auto local = ctx.combining->groups;
+      for (auto it=local->begin(); it!=local->end(); ++it) {
+        combinef( ctx, it->first, it->second );
+        ctx.combineDoneWithKey( it->first );
+      }
+  });
+}
+     
+
+
+
 
 template < typename K, typename V, typename OutType >
 void emit(Reducer<K,V,OutType>& ctx, OutType result) {
@@ -78,6 +132,14 @@ void emit(Reducer<K,V,OutType>& ctx, OutType result) {
 
 template < typename T, typename K, typename V, typename OutType, typename MapF, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
 void mapExecute(MapperContext<K, V, OutType> ctx, GlobalAddress<T> keyvals, size_t num, MapF mf) {
+  Grappa::forall<GCE>(keyvals, num, [=]( T& kv ) {
+     mf(ctx, kv);
+  });
+}  
+
+//TODO get rid of this code duplication
+template < typename T, typename K, typename V, typename OutType, typename MapF, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
+void mapExecute(CombiningMapperContext<K, V, OutType> ctx, GlobalAddress<T> keyvals, size_t num, MapF mf) {
   Grappa::forall<GCE>(keyvals, num, [=]( T& kv ) {
      mf(ctx, kv);
   });
@@ -102,11 +164,48 @@ void reduceExecute(GlobalAddress<Reducer<K,V,OutType>> reducers, size_t num, Red
   });
 }
 
+template < typename K, typename V, typename OutType >
+GlobalAddress<Reducer<K,V,OutType>> allocateReducers( size_t num_reducers ) {
+  auto reducers = Grappa::global_alloc<Reducer<K, V, OutType>>( num_reducers );    
+  Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
+      r = Reducer<K,V,OutType>();
+      }); 
+  return reducers;
+}
+
+template < typename K, typename V >
+GlobalAddress<Combiner<K,V>> allocateCombiners() {
+    auto combiners = Grappa::symmetric_global_alloc<Combiner<K,V>>();
+    Grappa::on_all_cores([=] {
+        *(combiners.localize()) = Combiner<K,V>();
+        });
+    return combiners;
+}
+
+// MapRedue with local combiner
+// This signature takes pointers to existing reducer/combiner structures so they can be reused
+// (global array) reducers
+// (symmetric alloc) combiners
+template < typename T, typename K, typename V, typename OutType, typename MapF, typename CombineF, typename ReduceF>
+void CombiningMapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, GlobalAddress<Reducer<K,V,OutType>> reducers, GlobalAddress<Combiner<K,V>> combiners, size_t num_reducers/*Grappa::cores()*/, MapF mf, CombineF cf, ReduceF rf) {
+  Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
+      r.result->clear();
+      r.groups->clear();
+      }); 
+
+  CombiningMapperContext<K,V,OutType> ctx(reducers, combiners, num_reducers);
+  mapExecute<T,K,V,OutType,MapF>(ctx, keyvals, num, mf);
+
+  combineExecute<K,V,OutType>(ctx, cf);
+
+  reduceExecute<K,V,OutType,ReduceF>(reducers, num_reducers, rf);
+}
+
 
 // push-based map reduce
 template < typename T, typename K, typename V, typename OutType, typename MapF, typename ReduceF>
 GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, size_t num_reducers/*Grappa::cores()*/, MapF mf, ReduceF rf) {
-  auto reducers = Grappa::global_alloc<Reducer<K, V, OutType>>( num_reducers );    
+  auto reducers = allocateReducers<K,V,OutType>( num_reducers );
   Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
       r = Reducer<K,V,OutType>();
       }); 
@@ -121,7 +220,7 @@ GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<T> keyvals
 
 template < typename T, typename K, typename V, typename OutType, typename MapF, typename ReduceF, typename RA>
 GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<RA> keyvals, size_t num_reducers/*Grappa::cores()*/, MapF mf, ReduceF rf) {
-  auto reducers = Grappa::global_alloc<Reducer<K, V, OutType>>( num_reducers );    
+  auto reducers = allocateReducers<K,V,OutType>( num_reducers );
   Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
       r = Reducer<K,V,OutType>();
       }); 
