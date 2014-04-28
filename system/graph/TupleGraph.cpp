@@ -156,13 +156,18 @@ TupleGraph TupleGraph::load_tsv( std::string path ) {
       while( infile.good() && start_offset < end_offset ) {
         int64_t v0 = -1;
         int64_t v1 = -1;
-        infile >> v0;
-        if( !infile.good() ) break;
-        infile >> v1;
-        Edge e = { v0, v1 };
-        DVLOG(6) << "Read " << v0 << " -> " << v1;
-        read_edges.push_back( e );
-        start_offset = infile.tellg();
+        if( infile.peek() == '#' ) { // if a comment
+          std::string str;
+          std::getline( infile, str );
+        } else {
+          infile >> v0;
+          if( !infile.good() ) break;
+          infile >> v1;
+          Edge e = { v0, v1 };
+          DVLOG(6) << "Read " << v0 << " -> " << v1;
+          read_edges.push_back( e );
+          start_offset = infile.tellg();
+        }
       }
 
       DVLOG(6) << "Done reading at " << start_offset << " end_offset " << end_offset;
@@ -173,7 +178,6 @@ TupleGraph TupleGraph::load_tsv( std::string path ) {
     } );
 
   auto nedge = Grappa::reduce<int64_t,collective_add>(&local_offset);
-  LOG(INFO) << "Read " << nedge << " total edges";
   
   TupleGraph tg( nedge );
   auto edges = tg.edges;
