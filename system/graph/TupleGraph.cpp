@@ -7,6 +7,7 @@
 #include "Delegate.hpp"
 
 #include <fstream>
+#include <vector>
 
 DEFINE_bool( use_mpi_io, false, "Use MPI IO optimizations" );
 
@@ -52,36 +53,6 @@ TupleGraph TupleGraph::load_generic( std::string path, void (*f)( const char *, 
   return tg;
 }
 
-/// helper method function for parallel save of a single file
-void TupleGraph::save_generic( std::string path, void (*f)( const char *, Edge*, Edge*) ) {
-  if( fs::exists( path ) ) {
-    // warn if file exists
-    CHECK( fs::is_regular_file( path ) ) << "File exists, but is not a regular file.";
-    LOG(WARNING) << "Overwriting " << path;
-  } else {
-    // create empty file
-    std::ofstream outfile( path, std::ofstream::binary );
-  }
-  
-  size_t path_length = path.size() + 1; // include space for terminator
-
-  CHECK_LT( path_length, max_path_length )
-    << "Sorry, filename exceeds preset limit. Please change max_path_length constant in this file and rerun.";
-
-  char filename[ max_path_length ];
-  strncpy( &filename[0], path.c_str(), max_path_length );
-
-  Core mycore = Grappa::mycore();
-  auto edges = this->edges;
-  auto nedge = this->nedge;
-  
-  on_all_cores( [=] {
-      f( filename, edges.localize(), (edges+nedge).localize() );
-    } );
-  
-  // done!
-}
-
 
 ///
 /// reading
@@ -104,6 +75,7 @@ void local_load_bintsv4( const char * filename,
     Grappa::barrier();
     int64_t offset = Grappa::delegate::fetch_and_add( make_global( &local_offset, 0 ),
                                               local_count );
+    Grappa::barrier();
 
     infile.seekg( offset * sizeof(Int32Edge) );
 
@@ -123,13 +95,205 @@ void local_load_bintsv4( const char * filename,
 }
 
 
+/// helper method for parallel load of a single file
+static std::vector< Grappa::TupleGraph::Edge > read_edges;
+TupleGraph TupleGraph::load_tsv( std::string path ) {
+  // make sure file exists
+  CHECK( fs::exists( path ) ) << "File not found.";
+  CHECK( fs::is_regular_file( path ) ) << "File is not a regular file.";
+
+  size_t file_size = fs::file_size( path );
+
+  size_t path_length = path.size() + 1; // include space for terminator
+
+  CHECK_LT( path_length, max_path_length )
+    << "Sorry, filename exceeds preset limit. Please change max_path_length constant in this file and rerun.";
+
+  char filename[ max_path_length ];
+  strncpy( &filename[0], path.c_str(), max_path_length );
+
+  Core mycore = Grappa::mycore();
+  auto bytes_each_core = file_size / Grappa::cores();
+
+  // read into temporary buffer
+  on_all_cores( [=] {
+      // use standard C++/POSIX IO
+
+      // make one core take any data remaining after truncation
+      auto my_bytes_each_core = bytes_each_core;
+      if( Grappa::mycore() == 0 ) {
+        my_bytes_each_core += file_size - (bytes_each_core * Grappa::cores());
+      }
+      
+      // compute initial offset into ASCII file
+      // TODO: fix this with scan
+      local_offset = 0; // do on all cores
+      Grappa::barrier();
+      int64_t start_offset = Grappa::delegate::fetch_and_add( make_global( &local_offset, 0 ),
+                                                              my_bytes_each_core );
+      Grappa::barrier();
+      int64_t end_offset = start_offset + my_bytes_each_core;
+
+      DVLOG(7) << "Reading about " << my_bytes_each_core
+               << " bytes starting at " << start_offset
+               << " of " << file_size;
+      
+      // start reading at start offset
+      std::ifstream infile( filename, std::ios_base::in );
+      infile.seekg( start_offset );
+
+      if( start_offset > 0 ) {
+        // move past next newline so we start parsing from a record boundary
+        std::string s;
+        std::getline( infile, s );
+        DVLOG(6) << "Skipped '" << s << "'";
+      }
+      
+      start_offset = infile.tellg();
+      DVLOG(6) << "Start reading at " << start_offset;
+
+      // read up to one entry past the end_offset
+      while( infile.good() && start_offset < end_offset ) {
+        int64_t v0 = -1;
+        int64_t v1 = -1;
+        infile >> v0;
+        if( !infile.good() ) break;
+        infile >> v1;
+        Edge e = { v0, v1 };
+        DVLOG(6) << "Read " << v0 << " -> " << v1;
+        read_edges.push_back( e );
+        start_offset = infile.tellg();
+      }
+
+      DVLOG(6) << "Done reading at " << start_offset << " end_offset " << end_offset;
+      
+      // collect sizes
+      local_offset = read_edges.size();
+      DVLOG(7) << "Read " << local_offset << " edges";
+    } );
+
+  auto nedge = Grappa::reduce<int64_t,collective_add>(&local_offset);
+  LOG(INFO) << "Read " << nedge << " total edges";
+  
+  TupleGraph tg( nedge );
+  auto edges = tg.edges;
+  //auto leftovers = GlobalVector<int64_t>::create(N);
+
+  on_all_cores( [=] {
+      Edge * local_ptr = edges.localize();
+      Edge * local_end = (edges+nedge).localize();
+      auto local_count = local_end - local_ptr;
+      auto read_count = read_edges.size();
+
+      DVLOG(7) << "local_count " << local_count
+               << " read_count " << read_count;
+      
+      // copy everything in our read buffer that fits locally
+      auto local_max = MIN( local_count, read_count );
+      std::memcpy( local_ptr, &read_edges[0], local_max * sizeof(Edge) );
+      local_offset = local_max;
+      Grappa::barrier();
+
+      // get rid of remaining edges
+      auto mycore = Grappa::mycore();
+      auto likely_consumer = (mycore + 1) % Grappa::cores();
+      while( local_max < read_count ) {
+        Edge e = read_edges[local_max];
+        DVLOG(7) << "Looking for somewhere to place edge " << local_max;
+        
+        int retval = delegate::call( likely_consumer, [=] ()->int {
+            Edge * local_ptr = edges.localize();
+            Edge * local_end = (edges+nedge).localize();
+            auto local_count = local_end - local_ptr;
+
+            DVLOG(7) << "Trying to place edge " << local_max
+                      << " on core " << Grappa::mycore()
+                      << " with local_offset " << local_offset
+                      << " and local_count " << local_count;
+            
+            // do we have space to insert here?
+            if( local_offset < local_count ) {
+              // yes, so do so
+              local_ptr[local_offset] = e;
+              local_offset++;
+
+              if( local_offset < local_count ) {
+                DVLOG(7) << "Succeeded with space available";
+                return 0; // succeeded with more space available
+              } else {
+                DVLOG(7) << "Succeeded with no more space available";
+                return 1; // succeeded with no more space available
+              }
+            } else {
+              // no, so return nack.
+              DVLOG(7) << "Failed with no more space available";
+              return -1; // did not succeed
+            }
+          } );
+
+        // insert succeeded, so move to next edge
+        if( retval >= 0 ) {
+          local_max++;
+        }
+
+        // no more space available on target, so move to next core
+        if( local_max < read_count && retval != 0 ) {
+          likely_consumer = (likely_consumer + 1) % Grappa::cores();
+          CHECK_NE( likely_consumer, Grappa::mycore() ) << "No more space to place edge on cluster?";
+        }
+      }
+      
+      // wait for everybody else to fill in our remaining spaces
+      Grappa::barrier();
+      
+      // discard temporary read buffer
+      read_edges.clear();
+    } );
+
+  // done!
+  return tg;
+}
+
+
+
 ///
 /// writing
 /// 
 
+/// helper method function for parallel save of a single file
+void TupleGraph::save_generic( std::string path, void (*f)( const char *, Edge*, Edge*) ) {
+  if( fs::exists( path ) ) {
+    // warn if file exists
+    CHECK( fs::is_regular_file( path ) ) << "File exists, but is not a regular file.";
+    LOG(WARNING) << "Overwriting " << path;
+  }
+
+  // create empty file
+  std::ofstream outfile( path, std::ofstream::binary | std::ofstream::trunc );
+  
+  size_t path_length = path.size() + 1; // include space for terminator
+
+  CHECK_LT( path_length, max_path_length )
+    << "Sorry, filename exceeds preset limit. Please change max_path_length constant in this file and rerun.";
+
+  char filename[ max_path_length ];
+  strncpy( &filename[0], path.c_str(), max_path_length );
+
+  Core mycore = Grappa::mycore();
+  auto edges = this->edges;
+  auto nedge = this->nedge;
+  
+  on_all_cores( [=] {
+      f( filename, edges.localize(), (edges+nedge).localize() );
+    } );
+  
+  // done!
+}
+
 /// helper function to write to a range of a file with POSIX range locking
 static void write_locked_range( const char * filename, size_t offset, const char * buf, size_t size ) {
   int fd;
+
   PCHECK( (fd = open( filename, O_WRONLY )) >= 0 );
 
   // lock range in file
@@ -179,6 +343,7 @@ void local_save_bintsv4( const char * filename,
     Grappa::barrier();
     int64_t offset = Grappa::delegate::fetch_and_add( make_global( &local_offset, 0 ),
                                               local_count );
+    Grappa::barrier();
 
     write_locked_range( filename, offset * sizeof(Int32Edge),
                         (char*) local_ptr, local_count * sizeof(Int32Edge ) );
@@ -217,7 +382,8 @@ void local_save_tsv( const char * filename,
     Grappa::barrier();
     int64_t offset = Grappa::delegate::fetch_and_add( make_global( &local_offset, 0 ),
                                                       ss.str().size() );
-    
+    Grappa::barrier();
+
     write_locked_range( filename, offset,
                         ss.str().c_str(), ss.str().size() );
   } else {
@@ -231,8 +397,8 @@ void local_save_tsv( const char * filename,
 TupleGraph TupleGraph::Load( std::string path, std::string format ) {
   if( format == "bintsv4" ) {
     return load_generic( path, local_load_bintsv4 );
-  // } else if( format == "tsv" ) {
-  //   return load_tsv( std::string path );
+  } else if( format == "tsv" ) {
+    return load_tsv( path );
   } else {
     LOG(FATAL) << "Format " << format << " not supported.";
   }

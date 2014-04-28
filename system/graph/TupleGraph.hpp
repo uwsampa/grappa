@@ -13,7 +13,7 @@ namespace Grappa {
     static TupleGraph load_generic( std::string, void (*f)( const char *, Edge*, Edge*) );
     void save_generic( std::string, void (*f)( const char *, Edge*, Edge*) );
     
-    void save_tsv( std::string path );
+    static TupleGraph load_tsv( std::string path );
     
   public:
     GlobalAddress<Edge> edges;
