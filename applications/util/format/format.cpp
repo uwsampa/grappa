@@ -31,10 +31,13 @@ int main(int argc, char* argv[]) {
     }
 
     t = walltime() - t;
-    LOG(INFO) << "make_graph: " << t;
+    LOG(INFO) << "Loaded " << tg.nedge << " edges in " << t << " seconds.";
 
     if( !FLAGS_output_path.empty() ) {
+      t = walltime();
       tg.save( FLAGS_output_path, FLAGS_output_format );
+      t = walltime() - t;
+      LOG(INFO) << "Saved " << tg.nedge << " edges in " << t << " seconds.";
     }
     
   });
