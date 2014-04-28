@@ -11,6 +11,8 @@
 #include <unordered_map>
 
 
+namespace MapReduce {
+
 extern Grappa::GlobalCompletionEvent default_mr_gce;
 
 template <Grappa::GlobalCompletionEvent * GCE, typename RandomAccess, typename CF>
@@ -133,6 +135,6 @@ GlobalAddress<Reducer<K,V,OutType>> MapReduceJobExecute(GlobalAddress<RA> keyval
 }
 
 
-
+} // end namespace
 
         /// TODO: join: quite annoying might as well do parallel(map/map) reduce because otherwise need to marshal data from two tables into an forall() iterator anyway 

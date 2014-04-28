@@ -1,6 +1,8 @@
 #include "MapReduce.hpp"
 #include <GlobalAllocator.hpp>
 
+using namespace MapReduce;
+
 //////////////////////////////////////
 // Word Count
 /////////////////////////////////////
