@@ -20,6 +20,7 @@ DEFINE_uint64(num_generate, 100, "Number of points to generate (if --input not s
 DEFINE_uint64(k, 2, "Number of clusters");
 DEFINE_uint64(numred, CORES_NUM_REDUCERS, "Number of reducers; default = 0 (indicates to use number of cores)");
 DEFINE_uint64(maxiters, NO_MAX_ITERS, "Number of max iterations; default = 0 (indicates no maximum)");
+DEFINE_bool(combiner, true, "Use local combiner after mapper. This makes communication O(K*SIZE) instead of O(Input*SIZE)");
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iterations_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, kmeans_runtime, 0);
@@ -158,6 +159,26 @@ void KMeansMap( const MapReduce::MapperContext<clusterid_t,Vector<Size>,Cluster<
   auto closest = find_cluster( p );
   ctx.emitIntermediate( closest, p );
 }
+template <int Size=SIZE>
+void KMeansMapC( const MapReduce::CombiningMapperContext<clusterid_t,Vector<Size>,Cluster<Size>>& ctx, Vector<Size>& p ) {
+  auto closest = find_cluster( p );
+  ctx.emitIntermediate( closest, p );
+}
+
+template <int Size=SIZE>
+void KMeansCombine( const MapReduce::CombiningMapperContext<clusterid_t,Vector<Size>,Cluster<Size>>& ctx, clusterid_t id, std::vector<Vector<Size>> points ) {
+  Vector<Size> center(0); 
+  for ( auto local_it = points.begin(); local_it!= points.end(); ++local_it ) {
+    center += *local_it; 
+  }
+
+  center /= points.size();
+
+  VLOG(1) << "(locally) cluster " << id << " contains " << points.size() << " points";
+
+  ctx.emitCombinedIntermediate( id, center );
+}
+
 
 template <int Size=SIZE>
 void KMeansReduce( MapReduce::Reducer<clusterid_t,Vector<Size>,Cluster<Size>>& ctx, clusterid_t id, std::vector<Vector<Size>> points ) {
@@ -263,29 +284,48 @@ void kmeans() {
 
   double start = walltime();
 
+  GlobalAddress<MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>> reducers;
+  GlobalAddress<MapReduce::Combiner<clusterid_t,Vector<SIZE>>> combiners;
+  if (FLAGS_combiner) {
+    reducers = MapReduce::allocateReducers<clusterid_t,Vector<SIZE>,Cluster<SIZE>>( numred );
+    combiners = MapReduce::allocateCombiners<clusterid_t,Vector<SIZE>>();
+  }
+
   double tempDist = std::numeric_limits<double>::max();
   uint64_t iter = 0;
   while ( (tempDist > FLAGS_converge_dist) 
       and ((FLAGS_maxiters == NO_MAX_ITERS) or (iter < FLAGS_maxiters)) ) {
     double iter_start = walltime();
 
-    GlobalAddress<MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>> iter_result = 
-      MapReduce::MapReduceJobExecute<Vector<SIZE>,clusterid_t,Vector<SIZE>,Cluster<SIZE>>(points, numpoints, numred, &KMeansMap<SIZE>, &KMeansReduce<SIZE>); 
+    
+    GlobalAddress<MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>> iter_result;
+    if (FLAGS_combiner) {
+      MapReduce::CombiningMapReduceJobExecute<Vector<SIZE>,clusterid_t,Vector<SIZE>,Cluster<SIZE>>(points, numpoints, reducers, combiners, numred, &KMeansMapC<SIZE>, &KMeansCombine<SIZE>, &KMeansReduce<SIZE>);
+      iter_result = reducers;
+    } else {
+      iter_result = MapReduce::MapReduceJobExecute<Vector<SIZE>,clusterid_t,Vector<SIZE>,Cluster<SIZE>>(points, numpoints, numred, &KMeansMap<SIZE>, &KMeansReduce<SIZE>); 
+    }
 
     std::vector<Vector<SIZE>> oldMeans(means->means);
 
     // send means to all nodes using
     // poor man's all-to-all
-    forall(iter_result, numred, [=](MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>& r) {
+    forall(iter_result, numred, [=](int64_t i, MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>& r) {
+        VLOG(2) << "looking at reducer " << i;
         for (Cluster<SIZE> clust : *(r.result)) {
+          VLOG(2) << "broadcasting " << clust;
           call_on_all_cores([=] {
-            DVLOG(4) << "saving to means[" << clust.id << "]";
+            VLOG(2) << "saving to means[" << clust.id << "]";
             means->means[clust.id] = clust.center;
           });
         }        
         r.result->clear();
     });
-    global_free(iter_result); 
+
+    if (!FLAGS_combiner) {
+      // TODO: also change combiner=false case to use MapReduceJobExecute that recycles global heap space
+      global_free(iter_result); 
+    }
 
     // how much did all centers move?
     double newDist = 0.0f;

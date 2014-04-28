@@ -194,11 +194,16 @@ void CombiningMapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, GlobalAd
       }); 
 
   CombiningMapperContext<K,V,OutType> ctx(reducers, combiners, num_reducers);
+  VLOG(1) << "map";
   mapExecute<T,K,V,OutType,MapF>(ctx, keyvals, num, mf);
 
+  VLOG(1) << "combine/send";
   combineExecute<K,V,OutType>(ctx, cf);
 
+  VLOG(1) << "reduce";
   reduceExecute<K,V,OutType,ReduceF>(reducers, num_reducers, rf);
+  
+  VLOG(1) << "complete";
 }
 
 
