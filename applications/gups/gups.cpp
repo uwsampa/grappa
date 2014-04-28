@@ -61,7 +61,8 @@ int main(int argc, char * argv[]) {
     
     global_free(B);
     global_free(A);
-    
+
+    Grappa::Metrics::merge_and_print();
   });
   finalize();
 }
