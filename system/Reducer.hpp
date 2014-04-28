@@ -96,7 +96,10 @@ T reduction(T init, CF f) {
     if (Grappa::mycore() == master) 
       result = localcopy;
   });
-  Grappa::global_free(r);
+
+  // FIXME: memory leak on r; but free is problematic with symmetric_global_alloc
+  // Grappa::global_free(r);
+
   return result;
 }       
 
