@@ -9,7 +9,7 @@
 //    then computing closestPoint and the distance need to be parallelized. What is the effort to do this
 //    in Spark or Grappa?
 
-#define SIZE 7
+#define SIZE 4
 #define CORES_NUM_REDUCERS 0
 
 DEFINE_bool(normalize, false, "Whether to treat all features in the vector as real values in [0,1]");
