@@ -36,42 +36,42 @@ DEFINE_bool( aggregator_enable, true, "should we aggregate packets or just send 
 DEFINE_bool( flush_on_idle, true, "flush all aggregated messages there's nothing better to do");
 
 
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_0_to_255_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_256_to_511_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_512_to_767_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_768_to_1023_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1024_to_1279_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1280_to_1535_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1536_to_1791_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1792_to_2047_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2048_to_2303_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2304_to_2559_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2560_to_2815_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2816_to_3071_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3072_to_3327_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3328_to_3583_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3584_to_3839_bytes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3840_to_4095_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_0_to_255_bytes, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_256_to_511_bytes, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_512_to_767_bytes, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_768_to_1023_bytes, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1024_to_1279_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1280_to_1535_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1536_to_1791_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_1792_to_2047_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2048_to_2303_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2304_to_2559_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2560_to_2815_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_2816_to_3071_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3072_to_3327_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3328_to_3583_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3584_to_3839_bytes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>,aggregator_3840_to_4095_bytes,0);
 
 
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_aggregated_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_aggregated_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_deaggregated_, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_deaggregated_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_forwarded_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_forwarded_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_newest_wait_ticks_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_oldest_wait_ticks_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_polls_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_flushes_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_multiflushes_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_timeouts_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_idle_flushes,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_capacity_flushes_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_idle_poll_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_idle_poll_useful_,0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bundles_received_,0);
-GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, aggregator_bundle_bytes_received_, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_aggregated_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_aggregated_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_deaggregated_, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_deaggregated_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_forwarded_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_forwarded_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_newest_wait_ticks_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_oldest_wait_ticks_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_polls_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_flushes_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_multiflushes_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_timeouts_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_idle_flushes,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_capacity_flushes_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_idle_poll_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_idle_poll_useful_,0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, aggregator_bundles_received_,0);
+// GRAPPA_DEFINE_METRIC( SummarizingMetric<uint64_t>, aggregator_bundle_bytes_received_, 0);
 
 /* Not currently useful because Communicator.cpp has one *//*
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, aggregator_start_time, []() {
@@ -109,7 +109,7 @@ Aggregator::Aggregator( )
   , tag_( -1 )
   , vt_agg_commid_( VT_COMM_DEF( "Aggregator" ) )
 #endif
-  , stats()
+                      //  , stats()
 { 
 #ifdef STL_DEBUG_ALLOCATOR
   struct sigaction access_control_toggle_sa;
@@ -181,7 +181,7 @@ void Aggregator::deaggregate( ) {
                                                    header->args_size );
       if( header->destination == Grappa::mycore() ) { // for us?
           
-	stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
+	//stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
           // trace fine-grain communication
 #ifdef GRAPPA_TRACE
           if (FLAGS_record_grappa_events) {
@@ -210,7 +210,7 @@ void Aggregator::deaggregate( ) {
         DVLOG(5) << "forwarding " << *header
                 << " with args " << args
                 << " and payload " << payload;
-	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
+	//stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
         aggregate( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -238,7 +238,7 @@ void Aggregator_deaggregate_am( void * buf, size_t size ) {
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
-  global_aggregator.stats.record_receive_bundle( size );
+  //global_aggregator.stats.record_receive_bundle( size );
 #ifdef STL_DEBUG_ALLOCATOR
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
 #endif
@@ -260,68 +260,68 @@ size_t Grappa_sizeof_header() {
 }
 
 
-/* metrics */
-AggregatorMetrics::AggregatorMetrics()
-    : histogram_()
-  {
-    histogram_[0] = &aggregator_0_to_255_bytes;
-    histogram_[1] = &aggregator_256_to_511_bytes;
-    histogram_[2] = &aggregator_512_to_767_bytes;
-    histogram_[3] = &aggregator_768_to_1023_bytes;
-    histogram_[4] = &aggregator_1024_to_1279_bytes;
-    histogram_[5] = &aggregator_1280_to_1535_bytes;
-    histogram_[6] = &aggregator_1536_to_1791_bytes;
-    histogram_[7] = &aggregator_1792_to_2047_bytes;
-    histogram_[8] = &aggregator_2048_to_2303_bytes;
-    histogram_[9] = &aggregator_2304_to_2559_bytes;
-    histogram_[10] = &aggregator_2560_to_2815_bytes;
-    histogram_[11] = &aggregator_2816_to_3071_bytes;
-    histogram_[12] = &aggregator_3072_to_3327_bytes;
-    histogram_[13] = &aggregator_3328_to_3583_bytes;
-    histogram_[14] = &aggregator_3584_to_3839_bytes;
-    histogram_[15] = &aggregator_3840_to_4095_bytes;
-  }
+// /* metrics */
+// AggregatorMetrics::AggregatorMetrics()
+//     : histogram_()
+//   {
+//     histogram_[0] = &aggregator_0_to_255_bytes;
+//     histogram_[1] = &aggregator_256_to_511_bytes;
+//     histogram_[2] = &aggregator_512_to_767_bytes;
+//     histogram_[3] = &aggregator_768_to_1023_bytes;
+//     histogram_[4] = &aggregator_1024_to_1279_bytes;
+//     histogram_[5] = &aggregator_1280_to_1535_bytes;
+//     histogram_[6] = &aggregator_1536_to_1791_bytes;
+//     histogram_[7] = &aggregator_1792_to_2047_bytes;
+//     histogram_[8] = &aggregator_2048_to_2303_bytes;
+//     histogram_[9] = &aggregator_2304_to_2559_bytes;
+//     histogram_[10] = &aggregator_2560_to_2815_bytes;
+//     histogram_[11] = &aggregator_2816_to_3071_bytes;
+//     histogram_[12] = &aggregator_3072_to_3327_bytes;
+//     histogram_[13] = &aggregator_3328_to_3583_bytes;
+//     histogram_[14] = &aggregator_3584_to_3839_bytes;
+//     histogram_[15] = &aggregator_3840_to_4095_bytes;
+//   }
   
 
 
-void AggregatorMetrics::record_poll() {
-  aggregator_polls_++;
-}
+// void AggregatorMetrics::record_poll() {
+//   aggregator_polls_++;
+// }
 
-void AggregatorMetrics::record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts ) {
-  Grappa::Timestamp ts = Grappa::timestamp();
-  aggregator_oldest_wait_ticks_ += ts - oldest_ts;
-  aggregator_newest_wait_ticks_ += ts - newest_ts;
-  aggregator_flushes_++;
-}
+// void AggregatorMetrics::record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts ) {
+//   Grappa::Timestamp ts = Grappa::timestamp();
+//   aggregator_oldest_wait_ticks_ += ts - oldest_ts;
+//   aggregator_newest_wait_ticks_ += ts - newest_ts;
+//   aggregator_flushes_++;
+// }
 
-void AggregatorMetrics::record_idle_flush() {
-  aggregator_idle_flushes++;
-}
+// void AggregatorMetrics::record_idle_flush() {
+//   aggregator_idle_flushes++;
+// }
 
-void AggregatorMetrics::record_multiflush() {
-  aggregator_multiflushes_++;
-}
+// void AggregatorMetrics::record_multiflush() {
+//   aggregator_multiflushes_++;
+// }
 
-void AggregatorMetrics::record_timeout() {
-  aggregator_timeouts_++;
-}
+// void AggregatorMetrics::record_timeout() {
+//   aggregator_timeouts_++;
+// }
 
-void AggregatorMetrics::record_idle_poll( bool useful ) {
-  if ( useful ) aggregator_idle_poll_useful_++;
-  else aggregator_idle_poll_++;
-}
+// void AggregatorMetrics::record_idle_poll( bool useful ) {
+//   if ( useful ) aggregator_idle_poll_useful_++;
+//   else aggregator_idle_poll_++;
+// }
 
-void AggregatorMetrics::record_capacity_flush() {
-  aggregator_capacity_flushes_++;
-}
+// void AggregatorMetrics::record_capacity_flush() {
+//   aggregator_capacity_flushes_++;
+// }
   
-void AggregatorMetrics::record_forward( size_t bytes ) {
-  ++aggregator_messages_forwarded_;
-  aggregator_bytes_forwarded_ += bytes;
-}
+// void AggregatorMetrics::record_forward( size_t bytes ) {
+//   ++aggregator_messages_forwarded_;
+//   aggregator_bytes_forwarded_ += bytes;
+// }
 
-void AggregatorMetrics::record_receive_bundle( size_t bytes ) {
-  ++aggregator_bundles_received_;
-  aggregator_bundle_bytes_received_+= bytes ;
-} 
+// void AggregatorMetrics::record_receive_bundle( size_t bytes ) {
+//   ++aggregator_bundles_received_;
+//   aggregator_bundle_bytes_received_+= bytes ;
+// } 

@@ -172,46 +172,46 @@ public:
 };
 
 
-GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_aggregated_);
-GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_aggregated_);
-GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_deaggregated_);
-GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_deaggregated_);
-GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bundles_received_);
+// GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_aggregated_);
+// GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_aggregated_);
+// GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_messages_deaggregated_);
+// GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bytes_deaggregated_);
+// GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, aggregator_bundles_received_);
 
-/// stats class for aggregator
-class AggregatorMetrics {
-private:
-  Grappa::SimpleMetric<uint64_t> * histogram_[16];
+// /// stats class for aggregator
+// class AggregatorMetrics {
+// private:
+//   Grappa::SimpleMetric<uint64_t> * histogram_[16];
     
-public:
+// public:
 
-  AggregatorMetrics();
+//   AggregatorMetrics();
 
-  void record_poll();
+//   void record_poll();
 
-  void record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts );
-  void record_idle_flush();
-  void record_multiflush();
-  void record_timeout();
-  void record_idle_poll( bool useful );
-  void record_capacity_flush();
+//   void record_flush( Grappa::Timestamp oldest_ts, Grappa::Timestamp newest_ts );
+//   void record_idle_flush();
+//   void record_multiflush();
+//   void record_timeout();
+//   void record_idle_poll( bool useful );
+//   void record_capacity_flush();
 
-  void record_aggregation( size_t bytes ) {
-    aggregator_messages_aggregated_++;
-    aggregator_bytes_aggregated_ += bytes;
-    (*(histogram_[ (bytes >> 8) & 0xf ]))++;
-  }
+//   void record_aggregation( size_t bytes ) {
+//     aggregator_messages_aggregated_++;
+//     aggregator_bytes_aggregated_ += bytes;
+//     (*(histogram_[ (bytes >> 8) & 0xf ]))++;
+//   }
 
-  void record_deaggregation( size_t bytes ) {
-    ++aggregator_messages_deaggregated_;
-    aggregator_bytes_deaggregated_ += bytes;
-  }
+//   void record_deaggregation( size_t bytes ) {
+//     ++aggregator_messages_deaggregated_;
+//     aggregator_bytes_deaggregated_ += bytes;
+//   }
 
-  void record_forward( size_t bytes );
+//   void record_forward( size_t bytes );
 
-  void record_receive_bundle( size_t bytes );
+//   void record_receive_bundle( size_t bytes );
 
-};
+// };
 
 /// Header for aggregated active messages.
 struct AggregatorGenericCallHeader {
@@ -344,8 +344,8 @@ private:
   friend void Aggregator_deaggregate_am( void * buf, size_t size );
 
 public:
-  /// statistics
-  AggregatorMetrics stats;  
+//   /// statistics
+//   AggregatorMetrics stats;  
 
   /// Construct Aggregator.
   Aggregator( );
@@ -374,7 +374,7 @@ public:
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     DVLOG(5) << "flushing node " << node;
     Core target = route_map_[ node ];
-    stats.record_flush( buffers_[ target ].oldest_ts_, buffers_[ target ].newest_ts_ );
+    //stats.record_flush( buffers_[ target ].oldest_ts_, buffers_[ target ].newest_ts_ );
     size_t size = buffers_[ target ].current_position_;
     global_communicator.send_immediate_with_payload( target, [] (void * buf, int size) {
         Aggregator_deaggregate_am( buf, size );
@@ -394,13 +394,13 @@ public:
     StateTimer::enterState_communication();
     if( FLAGS_flush_on_idle ) {
       while ( !least_recently_sent_.empty() ) {
-        stats.record_idle_flush();
+        //stats.record_idle_flush();
         DVLOG(5) << "idle flush Core " << least_recently_sent_.top_key();
         flush(least_recently_sent_.top_key());
       }
     }
     bool useful = poll(); 
-    stats.record_idle_poll(useful);
+    //stats.record_idle_poll(useful);
     return useful;
   }
   
@@ -424,19 +424,19 @@ public:
 #ifdef VTRACE_FULL
     VT_TRACER("poll");
 #endif
-    stats.record_poll();
+    //stats.record_poll();
 
-    uint64_t beforePoll = aggregator_bundles_received_; 
+    uint64_t beforePoll = 0; //aggregator_bundles_received_; 
     global_communicator.poll();
-    uint64_t afterPoll = aggregator_bundles_received_;
+    uint64_t afterPoll = 0; //aggregator_bundles_received_;
     bool pollUseful = afterPoll > beforePoll;
 
 
     uint64_t ts = get_timestamp();
 
-    uint64_t beforeDeaggregate = aggregator_messages_deaggregated_;
+    uint64_t beforeDeaggregate = 0; //aggregator_messages_deaggregated_;
     deaggregate();
-    uint64_t afterDeaggregate = aggregator_messages_deaggregated_;
+    uint64_t afterDeaggregate = 0;  //aggregator_messages_deaggregated_;
     bool deagUseful = afterDeaggregate > beforeDeaggregate;
     
     // timestamp overflows are silently ignored. 
@@ -445,7 +445,7 @@ public:
     while( !least_recently_sent_.empty() &&
 	   ((-least_recently_sent_.top_priority() + FLAGS_aggregator_autoflush_ticks) < ts) &&
 	   ((FLAGS_aggregator_max_flush == 0) || (num_flushes < FLAGS_aggregator_max_flush)) ) {
-      stats.record_timeout();
+      //stats.record_timeout();
       DVLOG(5) << "timeout for node " << least_recently_sent_.top_key()
 	       << ": inserted at " << -least_recently_sent_.top_priority()
 	       << " autoflush_ticks " << FLAGS_aggregator_autoflush_ticks
@@ -453,7 +453,7 @@ public:
       flush( least_recently_sent_.top_key() );                   // send.
       ++num_flushes;
     }
-    if( num_flushes > 0 ) stats.record_multiflush();
+    //if( num_flushes > 0 ) stats.record_multiflush();
     bool flushUseful = num_flushes > 0;
     previous_timestamp_ = ts;
 
@@ -521,7 +521,7 @@ public:
 		 << "(current buffer position " << buffers_[ target ].current_position_
 		 << ", next buffer position " << buffers_[ target ].current_position_ + total_call_size << ")";
 	// doesn't fit, so flush before inserting
-	stats.record_capacity_flush();
+	//stats.record_capacity_flush();
 	flush( target );
 	DCHECK( buffers_[ target ].fits( total_call_size ));
       }
@@ -530,7 +530,7 @@ public:
       buffers_[ target ].insert( &header, sizeof( header ) );
       buffers_[ target ].insert( args, args_size );
       buffers_[ target ].insert( payload, payload_size );
-      stats.record_aggregation( total_call_size );
+      //stats.record_aggregation( total_call_size );
 
     } else {
 
@@ -677,7 +677,7 @@ namespace Grappa {
     /// Poll Grappa aggregation and communication layers.
     static inline void poll()
     {
-      global_aggregator.poll();
+      //global_aggregator.poll();
     #ifdef ENABLE_RDMA_AGGREGATOR
       Grappa::impl::global_rdma_aggregator.poll();
     #endif

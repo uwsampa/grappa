@@ -56,9 +56,6 @@ namespace impl { void idle_flush_rdma_aggregator(); }
 namespace Metrics { void sample_all(); }
 }
 
-// forward-declare old aggregator flush
-bool idle_flush_aggregator();
-
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
 DECLARE_bool(flush_on_idle);
@@ -223,11 +220,7 @@ class TaskingScheduler : public Scheduler {
             Grappa::impl::idle_flush_rdma_aggregator();
           }
 
-          if ( idle_flush_aggregator() ) {
-            stats.prev_state = TaskingSchedulerMetrics::StateIdleUseful;
-          } else {
-            stats.prev_state = TaskingSchedulerMetrics::StateIdle;
-          }
+          stats.prev_state = TaskingSchedulerMetrics::StateIdle;
 
 
           StateTimer::enterState_scheduler();

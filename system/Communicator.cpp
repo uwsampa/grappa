@@ -47,14 +47,14 @@ DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
 
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, communicator_message_bytes, 0 );
 
-// GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_start_time, []() {
-//     // initialization value
-//     return Grappa::walltime();
-//     });
-// GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_end_time, []() {
-//     // sampling value
-//     return Grappa::walltime();
-//     });
+GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_start_time, []() {
+    // initialization value
+    return Grappa::walltime();
+    });
+GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_end_time, []() {
+    // sampling value
+    return Grappa::walltime();
+    });
 
 /// Global communicator instance
 Communicator global_communicator;
