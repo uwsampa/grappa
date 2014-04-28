@@ -11,6 +11,7 @@
 
 #define SIZE 4
 #define CORES_NUM_REDUCERS 0
+#define NO_MAX_ITERS 0
 
 DEFINE_bool(normalize, false, "Whether to treat all features in the vector as real values in [0,1]");
 DEFINE_double(converge_dist, 0.0001, "How far all the means must move in one iteration to consider converged");
@@ -18,6 +19,7 @@ DEFINE_string(input, "", "Input file: binary integers of size SIZE");
 DEFINE_uint64(num_generate, 100, "Number of points to generate (if --input not specified)");
 DEFINE_uint64(k, 2, "Number of clusters");
 DEFINE_uint64(numred, CORES_NUM_REDUCERS, "Number of reducers; default = 0 (indicates to use number of cores)");
+DEFINE_uint64(maxiters, NO_MAX_ITERS, "Number of max iterations; default = 0 (indicates no maximum)");
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iterations_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, kmeans_runtime, 0);
@@ -261,9 +263,10 @@ void kmeans() {
 
   double start = walltime();
 
-  double tempDist = 1;
-  uint32_t iter = 0;
-  while ( tempDist > FLAGS_converge_dist ) {
+  double tempDist = std::numeric_limits<double>::max();
+  uint64_t iter = 0;
+  while ( (tempDist > FLAGS_converge_dist) 
+      and ((FLAGS_maxiters == NO_MAX_ITERS) or (iter < FLAGS_maxiters)) ) {
     double iter_start = walltime();
 
     GlobalAddress<MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>> iter_result = 
