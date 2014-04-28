@@ -215,8 +215,9 @@ int64_t toInt(std::string& s) {
 double toDouble(std::string& s) {
   return std::stod(s);
 }
+#include <boost/tokenizer.hpp>
 template< typename N=int64_t, typename Parser=decltype(toInt) >
-void convert2bin( std::string fn, Parser parser=&toInt, uint64_t burn=0 ) {
+void convert2bin( std::string fn, Parser parser=&toInt, char * separators=" ", uint64_t burn=0 ) {
   std::ifstream infile(fn, std::ifstream::in);
   CHECK( infile.is_open() ) << fn << " failed to open";
   
@@ -232,22 +233,25 @@ void convert2bin( std::string fn, Parser parser=&toInt, uint64_t burn=0 ) {
 
     std::vector<N> readFields;
 
-    std::stringstream ss(line);
     uint64_t j = 0;
-    while (true) {
-      std::string buf;
-      ss >> buf; 
-      if (buf.compare("") == 0) break;
- 
-      if (j++ < burn) { 
-        auto f = parser(buf);
+    boost::char_separator<char> sep(separators);
+    boost::tokenizer<boost::char_separator<char>> tk (line, sep);
+    for (boost::tokenizer<boost::char_separator<char>>::iterator i(tk.begin());
+        i!=tk.end();++i) {
+      if (j++ >= burn) { 
+        std::string s(*i);
+        N f = parser(s);
         readFields.push_back(f);
       }
     }
+    
     CHECK(expected_numcols > 0 || readFields.size() > 0) << "first line had 0 columns";
     if (readFields.size() == 0) break; // takes care of EOF
 
-    if (expected_numcols < 0) expected_numcols = readFields.size();
+    if (expected_numcols < 0) { 
+      expected_numcols = readFields.size();
+      std::cout << expected_numcols << " cols from example " << readFields << std::endl;
+    }
     CHECK (expected_numcols == readFields.size()) << "line " << linenum 
                                                   << " does not have " << expected_numcols << " columns";
 
