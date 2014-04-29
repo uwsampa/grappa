@@ -34,7 +34,11 @@ DEFINE_int64( batch_size, 512, "Number of concurrent sent messages" );
 DEFINE_int64( dest_batch_size, 8, "Number of concurrent sent messages per node for gups" );
 DEFINE_int64( seed, 1 , "Seed for random addresses" );
 
-DEFINE_string( test, "gups", "Which test should we run?" );
+DEFINE_string( mode, "gups", "Which mode should we run in?" );
+
+
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<double>, gups_throughput, 0.0 );
 
 double start_time = 0.0;
 double end_time = 0.0;
@@ -687,54 +691,56 @@ int main(int argc, char * argv[]) {
   //Grappa::Metrics::start_tracing();
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
-  if( FLAGS_test == "simple_send_recv" ) {
+  if( FLAGS_mode == "simple_send_recv" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_send_recv_test( ib, shm );
-  } else if( FLAGS_test == "simple_rdma_write" ) {
+  } else if( FLAGS_mode == "simple_rdma_write" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_rdma_write_test( ib, shm );
-  } else if( FLAGS_test == "simple_rdma_write_immediate" ) {
+  } else if( FLAGS_mode == "simple_rdma_write_immediate" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_rdma_write_immediate_test( ib, shm );
-  } else if( FLAGS_test == "simple_rdma_read" ) {
+  } else if( FLAGS_mode == "simple_rdma_read" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     simple_rdma_read_test( ib, shm );
-  } else if( FLAGS_test == "paired_write" ) {
+  } else if( FLAGS_mode == "paired_write" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_write_test( ib, shm );
-  } else if( FLAGS_test == "paired_write_bypass" ) {
+  } else if( FLAGS_mode == "paired_write_bypass" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_write_bypass_test( ib, shm );
-  } else if( FLAGS_test == "paired_zero_write" ) {
+  } else if( FLAGS_mode == "paired_zero_write" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_zero_write_test( ib, shm );
-  } else if( FLAGS_test == "paired_read" ) {
+  } else if( FLAGS_mode == "paired_read" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_read_test( ib, shm );
-  } else if( FLAGS_test == "paired_fetchadd" ) {
+  } else if( FLAGS_mode == "paired_fetchadd" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::locale_cores();
     paired_fetchadd_test( ib, shm );
-  } else if( FLAGS_test == "random_write" ) {
+  } else if( FLAGS_mode == "random_write" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::cores();
     sizeA_per_core = FLAGS_sizeA / Grappa::cores();
     random_write_test( ib, shm );
-  } else if( FLAGS_test == "gups" ) {
+  } else if( FLAGS_mode == "gups" ) {
     message_count_per_core = FLAGS_sizeB / Grappa::cores();
     sizeA_per_core = FLAGS_sizeA / Grappa::cores();
     gups_test( ib, shm );
   } else {
-    LOG(ERROR) << "Test " << FLAGS_test << " not found.";
+    LOG(ERROR) << "Test " << FLAGS_mode << " not found.";
   }
   
 
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   //Grappa::Metrics::stop_tracing();
 
-  if( (FLAGS_test == "random_write") || (FLAGS_test == "gups") ) {
+  if( (FLAGS_mode == "random_write") || (FLAGS_mode == "gups") ) {
     if( Grappa::mycore() == 0 ) {
       double count = FLAGS_sizeB;
       double duration = end_time - start_time;
       //double count = iterations * (Grappa::cores() / 2) * message_count_per_core;
+      gups_runtime = duration;
+      gups_throughput = count / duration;
       double rate = count / duration / 1.0e9;
       LOG(INFO) << "Sent " << count << " messages in " << duration << ": " << rate << " GUPS";
     }
@@ -748,6 +754,10 @@ int main(int argc, char * argv[]) {
     }
   }
     
+  run([]{
+        Grappa::Metrics::merge_and_print();
+      });
+
   shm.finalize();
   ib.finalize();
 
