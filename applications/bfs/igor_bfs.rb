@@ -24,7 +24,7 @@ Igor do
   params.merge!(GFLAGS)
   
   @c = ->{ %Q[ %{tdir}/grappa_srun --no-freeze-on-error
-    -- %{tdir}/bfs_bags.exe --metrics --max_degree_source
+    -- %{tdir}/bfs_bags.exe --metrics --max_degree_source --vmodule bfs_bags=1
     #{GFLAGS.expand}
   ].gsub(/\s+/,' ') }
   command @c[]

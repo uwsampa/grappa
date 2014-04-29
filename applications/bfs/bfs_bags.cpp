@@ -104,12 +104,12 @@ void bfs(GlobalAddress<G> _g, int nbfs, TupleGraph tg) {
     while (!frontier->empty()) {
       
       auto nf = frontier->size();
-      VLOG(3) << "remaining_edges = " << remaining_edges << ", nf = " << nf << ", prev_nf = " << prev_nf << ", frontier_edges: " ;
+      VLOG(1) << "remaining_edges = " << remaining_edges << ", nf = " << nf << ", prev_nf = " << prev_nf << ", frontier_edges: " ;
       if (top_down && frontier_edges > remaining_edges/FLAGS_beamer_alpha && nf > prev_nf) {
-        VLOG(2) << "switching to bottom-up";
+        VLOG(1) << "switching to bottom-up";
         top_down = false;
       } else if (!top_down && frontier_edges < g->nv/FLAGS_beamer_beta && nf < prev_nf) {
-        VLOG(2) << "switching to top-down";
+        VLOG(1) << "switching to top-down";
         top_down = true;
       }
       
@@ -184,7 +184,6 @@ void bfs(GlobalAddress<G> _g, int nbfs, TupleGraph tg) {
     
     double this_bfs_time = walltime() - t;
     LOG(INFO) << "(root=" << root << ", time=" << this_bfs_time << ")";
-    total_time += this_bfs_time;
     
     if (!verified) {
       // only verify the first one to save time
@@ -193,6 +192,8 @@ void bfs(GlobalAddress<G> _g, int nbfs, TupleGraph tg) {
       verify_time = (walltime()-t);
       LOG(INFO) << verify_time;
       verified = true;
+    } else {
+      total_time += this_bfs_time;
     }
     
     bfs_mteps += bfs_nedge / this_bfs_time / 1.0e6;
