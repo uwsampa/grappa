@@ -154,6 +154,7 @@ Igor do
     shared_pool_memory_fraction 0.25
             flatten_completions 1
                  flat_combining 1
+       log2_concurrent_receives 7
   }
   
   params { grappa_version 'osdi14'; version 'grappa' }
