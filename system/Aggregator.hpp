@@ -677,7 +677,7 @@ namespace Grappa {
     /// Poll Grappa aggregation and communication layers.
     static inline void poll()
     {
-      //global_aggregator.poll();
+      global_communicator.poll();
     #ifdef ENABLE_RDMA_AGGREGATOR
       Grappa::impl::global_rdma_aggregator.poll();
     #endif
