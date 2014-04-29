@@ -188,10 +188,14 @@ GlobalAddress<Combiner<K,V>> allocateCombiners() {
 // (symmetric alloc) combiners
 template < typename T, typename K, typename V, typename OutType, typename MapF, typename CombineF, typename ReduceF>
 void CombiningMapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, GlobalAddress<Reducer<K,V,OutType>> reducers, GlobalAddress<Combiner<K,V>> combiners, size_t num_reducers/*Grappa::cores()*/, MapF mf, CombineF cf, ReduceF rf) {
+  // clear all data structures from a previous usage
   Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
       r.result->clear();
       r.groups->clear();
       }); 
+  Grappa::on_all_cores([=] {
+      combiners->groups->clear();
+  });
 
   CombiningMapperContext<K,V,OutType> ctx(reducers, combiners, num_reducers);
   VLOG(1) << "map";
