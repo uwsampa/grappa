@@ -251,3 +251,6 @@ Igor do
   end
   
 end
+
+$twitter = '/pic/projects/grappa/twitter/bintsv4/twitter-all.bintsv4'
+$friendster = '/pic/projects/grappa/friendster/bintsv4/friendster.bintsv4'

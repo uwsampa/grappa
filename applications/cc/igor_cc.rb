@@ -36,6 +36,8 @@ Igor do
     num_starting_workers 512
     aggregator_autoflush_ticks 3e6.to_i
     periodic_poll_ticks 2e5.to_i
+    global_heap_fraction 0.2
+    shared_pool_chunk_size 2**15
   }
   
   expect :total_time

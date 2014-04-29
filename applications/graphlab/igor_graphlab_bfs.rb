@@ -38,7 +38,7 @@ Igor do
     loop_threshold 1024
     max_iterations 1024
     global_heap_fraction 0.15
-    shared_pool_memory_fraction 0.3
+    shared_pool_memory_fraction 0.35
   }
   
   expect :total_time
