@@ -55,6 +55,12 @@ class Vector {
       }
     }
 
+    void check_isnan() const {
+      for (int i=0; i<Size; i++) {
+        CHECK( !isnan(this->data[i]) );
+      }
+    }
+
     Vector& operator+=(const Vector& rhs) {
         DVLOG(5) << "adding i " << Size;
       for (int i=0; i<Size; i++) {
@@ -167,6 +173,8 @@ void KMeansMapC( const MapReduce::CombiningMapperContext<clusterid_t,Vector<Size
 
 template <int Size=SIZE>
 void KMeansCombine( const MapReduce::CombiningMapperContext<clusterid_t,Vector<Size>,Cluster<Size>>& ctx, clusterid_t id, std::vector<Vector<Size>> points ) {
+  DCHECK( points.size() > 0 );
+
   Vector<Size> center(0); 
   for ( auto local_it = points.begin(); local_it!= points.end(); ++local_it ) {
     center += *local_it; 
@@ -174,7 +182,9 @@ void KMeansCombine( const MapReduce::CombiningMapperContext<clusterid_t,Vector<S
 
   center /= points.size();
 
-  VLOG(1) << "(locally) cluster " << id << " contains " << points.size() << " points";
+  //center.check_isnan();
+
+  VLOG(2) << "(locally) cluster " << id << " contains " << points.size() << " points";
 
   ctx.emitCombinedIntermediate( id, center );
 }
@@ -182,16 +192,20 @@ void KMeansCombine( const MapReduce::CombiningMapperContext<clusterid_t,Vector<S
 
 template <int Size=SIZE>
 void KMeansReduce( MapReduce::Reducer<clusterid_t,Vector<Size>,Cluster<Size>>& ctx, clusterid_t id, std::vector<Vector<Size>> points ) {
+  DCHECK( points.size() > 0 );
+  
   Vector<Size> center(0); 
   for ( auto local_it = points.begin(); local_it!= points.end(); ++local_it ) {
     center += *local_it; 
   }
 
   center /= points.size();
+  
+  //center.check_isnan();
 
   Cluster<Size> res = { center, id };
   
-  VLOG(1) << "cluster " << res << " contains " << points.size() << " points";
+  VLOG(2) << "cluster " << res << " contains " << points.size() << " points";
 
   emit( ctx, res );
 }
@@ -333,11 +347,11 @@ void kmeans() {
       newDist += means->means[i].sq_dist(oldMeans[i]);
     }
     tempDist = newDist;
-    LOG(INFO) << "iteration " << iter << ": dist=" << tempDist;
 
     ++iter;
-    double iter_end = walltime();
-    iterations_runtime += iter_end - iter_start;
+    double this_iter_runtime = walltime() - iter_start;
+    iterations_runtime += this_iter_runtime;
+    LOG(INFO) << "iteration " << iter << ": dist=" << tempDist << " time=" << this_iter_runtime;
   }
   kmeans_runtime = walltime() - start;
 }
