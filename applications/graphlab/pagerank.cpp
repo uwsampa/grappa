@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << construction_time;
     
     LOG(INFO) << "starting pagerank";
-    
+        
     for (int i = 0; i < FLAGS_trials; i++) {
       if (FLAGS_trials > 1) LOG(INFO) << "trial " << i;
       
@@ -136,6 +136,7 @@ int main(int argc, char* argv[]) {
       }
       
       if (i == 0) {
+        Metrics::reset_all_cores();
         total_time.reset(); // don't count the first one
         total_rank = 0;
         forall(g, [](G::Vertex& v){ total_rank += v->rank; });

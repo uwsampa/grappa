@@ -64,7 +64,7 @@ void bfs(GlobalAddress<G> _g, int nbfs, TupleGraph tg) {
   auto _frontier = GlobalBag<VertexID>::create(_g->nv);
   auto _next     = GlobalBag<VertexID>::create(_g->nv);
   call_on_all_cores([=]{ frontier = _frontier; next = _next; g = _g; });
-  
+    
   // do BFS from multiple different roots and average their times
   for (int root_idx = 0; root_idx < nbfs; root_idx++) {
   
@@ -192,6 +192,7 @@ void bfs(GlobalAddress<G> _g, int nbfs, TupleGraph tg) {
       verify_time = (walltime()-t);
       LOG(INFO) << verify_time;
       verified = true;
+      Metrics::reset_all_cores(); // don't count the first one
     } else {
       total_time += this_bfs_time;
     }

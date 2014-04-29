@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
         NaiveGraphlabEngine<G,SSSP>::run_sync(g);
       }
       
-      if (i == 0) total_time.reset(); // don't count the first one
+      if (i == 0) Metrics::reset_all_cores(); // don't count the first one
     }
     
     LOG(INFO) << "-- SSSP done";

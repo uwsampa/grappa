@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
     
     construction_time = walltime()-t;
     LOG(INFO) << construction_time;
-    
+        
     for (int i = 0; i < FLAGS_trials; i++) {
       if (FLAGS_trials > 1) LOG(INFO) << "trial " << i;
       
@@ -133,7 +133,7 @@ int main(int argc, char* argv[]) {
         NaiveGraphlabEngine<G,LabelPropagation>::run_sync(g);
       }
       
-      if (i == 0) total_time.reset(); // don't count the first one
+      if (i == 0) Metrics::reset_all_cores(); // don't count the first one
     }
     
     LOG(INFO) << total_time;
