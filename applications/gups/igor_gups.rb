@@ -12,7 +12,7 @@ Igor do
   isolate 'gups.exe'
   
   GFLAGS.merge!({
-      sizeB: 2**32
+      sizeB: 2**34
   })
   GFLAGS.delete :flat_combining
   GFLAGS.delete :loop_threshold
@@ -28,10 +28,10 @@ Igor do
   sbatch_flags << "--time=10:00"
   
   params {
-    nnode 64
+    nnode 16, 32, 64, 96
     ppn   16
     num_starting_workers 512
-    aggregator_autoflush_ticks 12.5e6.to_i, 25e6.to_i, 40e6.to_i, 45e6.to_i, 50e6.to_i, 55e6.to_i, 60e6.to_i, 65e6.to_i, 70e6.to_i
+    aggregator_autoflush_ticks 6e6.to_i, 12.5e6.to_i, 25e6.to_i, 40e6.to_i, 45e6.to_i, 50e6.to_i, 55e6.to_i, 60e6.to_i, 65e6.to_i, 70e6.to_i
     periodic_poll_ticks 2e5.to_i, 1e6.to_i
     loop_threshold 1024
     shared_pool_chunk_size 2**15
