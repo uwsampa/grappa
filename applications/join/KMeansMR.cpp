@@ -22,6 +22,7 @@ DEFINE_uint64(numred, CORES_NUM_REDUCERS, "Number of reducers; default = 0 (indi
 DEFINE_uint64(maxiters, NO_MAX_ITERS, "Number of max iterations; default = 0 (indicates no maximum)");
 DEFINE_bool(combiner, true, "Use local combiner after mapper. This makes communication O(K*SIZE) instead of O(Input*SIZE)");
 
+
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iterations_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, kmeans_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, pick_centers_runtime, 0);
