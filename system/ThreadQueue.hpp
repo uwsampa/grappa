@@ -28,6 +28,9 @@
 #include <glog/logging.h>
 #include <iostream>
 
+#define WORKER_PREFETCH
+#define STACK_PREFETCH
+
 namespace Grappa {
 
 
