@@ -18,6 +18,7 @@ ENV["VT_PFORM_GDIR"] = "."
 ENV["VT_PFORM_LDIR"] = "/scratch"
 ENV["VT_FILE_UNIQUE"] = "yes"
 ENV["VT_MPITRACE"] = "no"
+ENV["VT_UNIFY"] = "no"
 
 ## set MVAPICH2 options to avoid keeping around malloced memory
 ## (and some performance tweaks which may be irrelevant)

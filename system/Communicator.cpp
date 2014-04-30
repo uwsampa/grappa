@@ -454,5 +454,6 @@ void Communicator::finish(int retval) {
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   
   // For VampirTrace's sake, clean up MPI only when process exits.
-  atexit(finalize_mpi);
+  // atexit(finalize_mpi);
+  MPI_CHECK( MPI_Finalize() );
 }

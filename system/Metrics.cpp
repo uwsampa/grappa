@@ -214,6 +214,7 @@ namespace Grappa {
       #ifdef VTRACE_SAMPLED
         VT_USER_START("sampling");
         sample();
+        if (mycore() == 0) LOG(INFO) << "Tracing started.";
       #endif
       #endif // GOOGLE_PROFILER
     }
@@ -224,8 +225,8 @@ namespace Grappa {
         impl::profile_handler(NULL);
         #ifdef VTRACE_SAMPLED
           VT_USER_END("sampling");
-          
           sample();
+          if (mycore() == 0) LOG(INFO) << "Tracing stopped.";
         #endif
       #endif
     }
