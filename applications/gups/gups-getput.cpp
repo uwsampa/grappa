@@ -52,11 +52,9 @@ int main(int argc, char * argv[]) {
 
     double start = walltime();
 
-    forall(B, FLAGS_sizeB, [=](int64_t& b){
-//     forall<unbound>( 0, FLAGS_sizeB-1, [=] ( int64_t i ) {
-//                        uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
-                       auto a = delegate::read( A + b );
-                       delegate::write<async>( A + b, a + 1 );
+    forall(B, FLAGS_sizeB, [=](int64_t i, int64_t& b){
+        auto a = delegate::read( A + b );
+        delegate::write<async>( A + b, a + 1 );
     });
 
     gups_runtime = walltime() - start;
