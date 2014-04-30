@@ -137,12 +137,14 @@ int main(int argc, char* argv[]) {
       
       if (i == 0) {
         Metrics::reset_all_cores();
+        Metrics::start_tracing();
         total_time.reset(); // don't count the first one
         total_rank = 0;
         forall(g, [](G::Vertex& v){ total_rank += v->rank; });
         std::cerr << "total_rank: " << total_rank << "\n";
       }      
     }
+    Metrics::stop_tracing();
     
     LOG(INFO) << "-- pagerank done";
     
