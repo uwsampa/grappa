@@ -220,10 +220,11 @@ class TaskingScheduler : public Scheduler {
             Grappa::impl::idle_flush_rdma_aggregator();
           }
 
-          stats.prev_state = TaskingSchedulerMetrics::StateIdle;
+          result = periodicQ.dequeue();
+          stats.prev_state = TaskingSchedulerMetrics::StatePoll;
+          prev_ts = current_ts;
+          return result;
 
-
-          StateTimer::enterState_scheduler();
         } else {
           *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
           stats.prev_state = TaskingSchedulerMetrics::StateIdle;
