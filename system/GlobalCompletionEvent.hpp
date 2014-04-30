@@ -146,6 +146,8 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
+  int64_t incomplete() { return count; }
+  
   /// Send a completion message to the originating core. Uses the local instance of the gce to
   /// keep track of information in order to flatten completions automatically.
   void send_completion(Core owner, int64_t dec = 1) {
