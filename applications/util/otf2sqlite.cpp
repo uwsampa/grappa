@@ -47,7 +47,7 @@ DEFINE_string( counter, "", "Name of counter to turn into time series" );
 
 DEFINE_int64( min_time, 0, "Time to start converting trace" );
 DEFINE_int64( max_time, -1, "Max time to convert in trace" );
-DEFINE_int64( buffer_size, 4*1024, "OTF buffer size" );
+DEFINE_int64( buffer_size, 1 << 22 , "OTF buffer size" );
 
 DEFINE_bool( list_counters, false, "Print list of counters" );
 
@@ -59,7 +59,11 @@ uint32_t relevant_counter = -1;
 sqlite3 * db = NULL;
 sqlite3_stmt * stmt = NULL;
 
+OTF_Reader * reader = NULL;
 
+int handle_time_resolution(void * userData, uint32_t stream, uint64_t ticksPerSecond, OTF_KeyValueList * list) {
+  LOG(INFO) << "ticksPerSecond: " << ticksPerSecond;
+}
 
 int defcounter_handler( void* userData,
                         uint32_t stream,
@@ -94,7 +98,14 @@ int counter_handler( void* userData,
                      uint32_t counter,
                      uint64_t value,
                      OTF_KeyValueList *list ) {
+  static size_t ct;
   if( counter == relevant_counter ) {
+    if ((++ct % (1<<12)) == 0) {
+      ct = 0;
+      uint64_t min, current, max;
+      OTF_Reader_eventBytesProgress(reader, &min, &current, &max);
+      LOG(INFO) << ".. " << (double)(current-min)/(max-min) * 100 << "% (timestamp: " << time << ")";
+    }
     if( stmt ) {
       CHECK_EQ( SQLITE_OK, sqlite3_reset( stmt ) ) << sqlite3_errmsg(db);
       CHECK_EQ( SQLITE_OK, sqlite3_bind_int64( stmt, 1, time ) ) << sqlite3_errmsg(db);
@@ -153,7 +164,7 @@ int main( int argc, char** argv ) {
   CHECK_NOTNULL( manager ); 
 
   CHECK_NE( FLAGS_otf, "" ) << "Please specify input OTF file";
-  OTF_Reader * reader = OTF_Reader_open( FLAGS_otf.c_str(), manager ); 
+  reader = OTF_Reader_open( FLAGS_otf.c_str(), manager ); 
   CHECK_NOTNULL( reader );
 
   OTF_Reader_setBufferSizes( reader, FLAGS_buffer_size );
@@ -167,13 +178,15 @@ int main( int argc, char** argv ) {
 
     std::stringstream ss;
     ss << "CREATE TABLE IF NOT EXISTS " << FLAGS_table << "("
-       << " TIME INT PRIMARY KEY NOT NULL,"
+       << " TIME INT8 PRIMARY KEY NOT NULL,"
        << " COUNTER_NAME   TEXT,"
        << " PROCESS        INT,"
-       << " INT_VALUE      INT,"
+       << " INT_VALUE      INT8,"
        << " DOUBLE_VALUE   REAL);";
     sqlite_exec( db, ss.str().c_str(), NULL, NULL );
-
+    
+    sqlite_exec(db, "BEGIN TRANSACTION", NULL, NULL);
+    
     std::stringstream ss2;
     ss2 << "INSERT OR IGNORE INTO " << FLAGS_table
         << " VALUES (?, ?, ?, ?, ?);";
@@ -193,7 +206,7 @@ int main( int argc, char** argv ) {
   //   http://wwwpub.zih.tu-dresden.de/~jurenz/otf/api/current/OTF__Definitions_8h.html
   register_otf_handler( handlers, OTF_DEFCOUNTER_RECORD, defcounter_handler );
   register_otf_handler( handlers, OTF_COUNTER_RECORD, counter_handler );
-
+  register_otf_handler( handlers, OTF_DEFTIMERRESOLUTION_RECORD, handle_time_resolution );
 
   uint64_t read;
   read = OTF_Reader_readDefinitions( reader, handlers );
@@ -210,7 +223,9 @@ int main( int argc, char** argv ) {
   
   read = OTF_Reader_readMarkers( reader, handlers );
   LOG(INFO) << "Read " << read << " markers";
-
+  
+  sqlite_exec(db, "COMMIT TRANSACTION", NULL, NULL);
+  
   LOG(INFO) << "Done.";
   if( stmt ) sqlite3_finalize( stmt );
   if( db ) sqlite3_close( db );
