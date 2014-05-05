@@ -12,6 +12,7 @@
 #define SIZE 4
 #define CORES_NUM_REDUCERS 0
 #define NO_MAX_ITERS 0
+#define COMPARE_ALL 0
 
 DEFINE_bool(normalize, false, "Whether to treat all features in the vector as real values in [0,1]");
 DEFINE_double(converge_dist, 0.0001, "How far all the means must move in one iteration to consider converged");
@@ -21,6 +22,7 @@ DEFINE_uint64(k, 2, "Number of clusters");
 DEFINE_uint64(numred, CORES_NUM_REDUCERS, "Number of reducers; default = 0 (indicates to use number of cores)");
 DEFINE_uint64(maxiters, NO_MAX_ITERS, "Number of max iterations; default = 0 (indicates no maximum)");
 DEFINE_bool(combiner, true, "Use local combiner after mapper. This makes communication O(K*SIZE) instead of O(Input*SIZE)");
+DEFINE_uint64(centers_compared, COMPARE_ALL, "How many centers to check");
 
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, iterations_runtime, 0);
@@ -29,6 +31,7 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<double>, pick_centers_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, ingress_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, normalize_runtime, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, number_of_points, 0);
+GRAPPA_DEFINE_METRIC(SummarizingMetric<double>, kmeans_broadcast_time, 0);
 
 // RNG
 typedef std::mt19937 RNG;
@@ -139,21 +142,40 @@ struct means_aligned {
 GlobalAddress<means_aligned> means;
 
 
+std::uniform_int_distribution<uint32_t> * unif_dist_clusters;
+
 template <int Size>
 clusterid_t find_cluster(Vector<Size>& p) {
   clusterid_t c = 0;
   auto min_dist = std::numeric_limits<double>::max();
   clusterid_t argmin_idx = -1;
   DVLOG(5) << "find cluster in means of size " << means->means.size();
-  for (auto m : means->means) {
-    auto cur_dist = p.sq_dist(m);
-    VLOG(4) << "mean " << c << " has dist " << cur_dist << " comparing to min so far " << min_dist;
-    if ( cur_dist < min_dist ) {
-      min_dist = cur_dist;
-      argmin_idx = c;
+  if (FLAGS_centers_compared == COMPARE_ALL) {
+    for (auto m : means->means) {
+      auto cur_dist = p.sq_dist(m);
+      VLOG(4) << "mean " << c << " has dist " << cur_dist << " comparing to min so far " << min_dist;
+      if ( cur_dist < min_dist ) {
+        min_dist = cur_dist;
+        argmin_idx = c;
+      }
+      ++c;
     }
-    ++c;
+  } else {
+    // only check a random subset of clusters
+    // this is a (braindead) way to decouple CPU usage from K
+    for (int i=0; i<FLAGS_centers_compared; i++) {
+      auto m = means->means[(*unif_dist_clusters)(rng)];
+      auto cur_dist = p.sq_dist(m);
+      VLOG(4) << "mean " << c << " has dist " << cur_dist << " comparing to min so far " << min_dist;
+      if ( cur_dist < min_dist ) {
+        min_dist = cur_dist;
+        argmin_idx = c;
+      }
+      ++c;
+    }
   }
+
+
   
   VLOG(5) << "pick cluster " << argmin_idx << " of " << means->means.size() << " for " << p;
 
@@ -275,10 +297,17 @@ void kmeans() {
   });
   VLOG(2) << "picking means";
 
+  on_all_cores([=] {
+      std::random_device rd;
+      rng.seed(mycore() + rd());
+
+      if (FLAGS_centers_compared != COMPARE_ALL) {
+        unif_dist_clusters = new std::uniform_int_distribution<uint32_t>(0, K-1);
+      }
+  });
+
   // pick K of the points to be centers
   std::vector<Vector<SIZE>> initial_means;
-  std::random_device rd;
-  rng.seed(mycore() + rd());
   std::uniform_int_distribution<uint32_t> unif_dist(0, numpoints-1);  // FIXME: Need to sample without replacement
   for (int c=0; c<K; c++) {
     // TODO actually randomly pick a center without replacement
@@ -318,29 +347,33 @@ void kmeans() {
       MapReduce::CombiningMapReduceJobExecute<Vector<SIZE>,clusterid_t,Vector<SIZE>,Cluster<SIZE>>(points, numpoints, reducers, combiners, numred, &KMeansMapC<SIZE>, &KMeansCombine<SIZE>, &KMeansReduce<SIZE>);
       iter_result = reducers;
     } else {
-      iter_result = MapReduce::MapReduceJobExecute<Vector<SIZE>,clusterid_t,Vector<SIZE>,Cluster<SIZE>>(points, numpoints, numred, &KMeansMap<SIZE>, &KMeansReduce<SIZE>); 
+      MapReduce::MapReduceJobExecute<Vector<SIZE>,clusterid_t,Vector<SIZE>,Cluster<SIZE>>(points, numpoints, reducers, numred, &KMeansMap<SIZE>, &KMeansReduce<SIZE>); 
+      iter_result = reducers;
     }
 
     std::vector<Vector<SIZE>> oldMeans(means->means);
 
+    auto start_bc = walltime();
     // send means to all nodes using
     // poor man's all-to-all
     forall(iter_result, numred, [=](int64_t i, MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>& r) {
         VLOG(2) << "looking at reducer " << i;
         for (Cluster<SIZE> clust : *(r.result)) {
           VLOG(2) << "broadcasting " << clust;
-          call_on_all_cores([=] {
-            VLOG(2) << "saving to means[" << clust.id << "]";
-            means->means[clust.id] = clust.center;
-          });
-        }        
-        r.result->clear();
+          for (int c=0; c<Grappa::cores(); c++) {
+            delegate::call<async>(c, [=] {
+              VLOG(2) << "saving to means[" << clust.id << "]";
+              means->means[clust.id] = clust.center;
+            });
+          }
+        }
+         // call_on_all_cores([=] {
+         // });
+        //r.result->clear();
     });
+    auto stop_bc = walltime();
+    kmeans_broadcast_time += stop_bc - start_bc;
 
-    if (!FLAGS_combiner) {
-      // TODO: also change combiner=false case to use MapReduceJobExecute that recycles global heap space
-      global_free(iter_result); 
-    }
 
     // how much did all centers move?
     double newDist = 0.0f;
