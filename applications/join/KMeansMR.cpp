@@ -330,8 +330,8 @@ void kmeans() {
 
   GlobalAddress<MapReduce::Reducer<clusterid_t,Vector<SIZE>,Cluster<SIZE>>> reducers;
   GlobalAddress<MapReduce::Combiner<clusterid_t,Vector<SIZE>>> combiners;
+  reducers = MapReduce::allocateReducers<clusterid_t,Vector<SIZE>,Cluster<SIZE>>( numred );
   if (FLAGS_combiner) {
-    reducers = MapReduce::allocateReducers<clusterid_t,Vector<SIZE>,Cluster<SIZE>>( numred );
     combiners = MapReduce::allocateCombiners<clusterid_t,Vector<SIZE>>();
   }
 
