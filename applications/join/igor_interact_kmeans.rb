@@ -13,7 +13,7 @@ end
 Igor do
   include Isolatable
   
-  database '/sampa/home/bdmyers/hardcode_results/datapar.db', :kmeans
+  database '/people/bdmyers/hardcode_results/datapar.db', :kmeans
 
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(["#{exe}"],
@@ -33,6 +33,8 @@ Igor do
                    input 'data/train_features.txt.bind'
                    relations '/sampa/home/bdmyers/escience/datasets'
                    k 2
+                   maxiters 0
+                   combiner 'true'
   }
   params.merge!(GFLAGS) 
   
@@ -55,7 +57,9 @@ Igor do
   #expect :query_runtime
   #expect :shit
  
-  $basic = results{|t| t.select(:vtag, :run_at,:nnode, :trial, :ppn, :k, :iterations_runtime_count, :iterations_runtime_mean, :kmeans_runtime)}
+  $basic = results{|t| t.select(:vtag, :run_at,:nnode, :converge_dist, :normalize, :k, :centers_compared, :combiner, :iterations_runtime_count, :iterations_runtime_mean, :kmeans_broadcast_time_mean, :mr_mapping_runtime_mean, :mr_combining_runtime_mean, :mr_reducing_runtime_mean, :mr_reallocation_runtime_mean, :delegate_async_ops*4*8/1000000 / :iterations_runtime_count)}
+  $info = jobs{|t| t.select(:run_at, :nnode, :ppn, :input, :vtag, :error, :outfile)}
+  $out = jobs{|t| t.select(:query, :error, :outfile)}
 #  $detail = results{|t| t.select(:nnode, :ppn, :scale, :edgefactor, :query_runtime, :ir5_final_count_max/(:ir5_final_count_min+1), :ir6_count, (:ir2_count+:ir4_count+:ir6_count)/:query_runtime, :edges_transfered/:total_edges, :total_edges) }
     
   interact # enter interactive mode
