@@ -11,6 +11,11 @@
 #include <unordered_map>
 
 
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, mr_mapping_runtime);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, mr_combining_runtime);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, mr_reducing_runtime);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, mr_reallocation_runtime);
+
 namespace MapReduce {
 
 extern Grappa::GlobalCompletionEvent default_mr_gce;
@@ -188,6 +193,7 @@ GlobalAddress<Combiner<K,V>> allocateCombiners() {
 // (symmetric alloc) combiners
 template < typename T, typename K, typename V, typename OutType, typename MapF, typename CombineF, typename ReduceF>
 void CombiningMapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, GlobalAddress<Reducer<K,V,OutType>> reducers, GlobalAddress<Combiner<K,V>> combiners, size_t num_reducers/*Grappa::cores()*/, MapF mf, CombineF cf, ReduceF rf) {
+  auto start_realloc = Grappa::walltime();
   // clear all data structures from a previous usage
   Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
       r.result->clear();
@@ -196,17 +202,63 @@ void CombiningMapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, GlobalAd
   Grappa::on_all_cores([=] {
       combiners->groups->clear();
   });
+  auto stop_realloc = Grappa::walltime();
+  mr_reallocation_runtime += stop_realloc - start_realloc;
+
+  auto start_map = stop_realloc;
 
   CombiningMapperContext<K,V,OutType> ctx(reducers, combiners, num_reducers);
   VLOG(1) << "map";
   mapExecute<T,K,V,OutType,MapF>(ctx, keyvals, num, mf);
+  auto stop_map = Grappa::walltime();
+  mr_mapping_runtime += stop_map - start_map;
 
+  auto start_combine = stop_map;
   VLOG(1) << "combine/send";
   combineExecute<K,V,OutType>(ctx, cf);
+  auto stop_combine = Grappa::walltime();
 
+  mr_combining_runtime += stop_combine - start_combine;
+
+  auto start_reduce = stop_combine;
   VLOG(1) << "reduce";
   reduceExecute<K,V,OutType,ReduceF>(reducers, num_reducers, rf);
-  
+  auto stop_reduce = Grappa::walltime(); 
+
+  mr_reducing_runtime += stop_reduce - start_reduce;
+
+
+  VLOG(1) << "complete";
+}
+// (global array) reducers
+// (symmetric alloc) combiners
+template < typename T, typename K, typename V, typename OutType, typename MapF, typename ReduceF>
+void MapReduceJobExecute(GlobalAddress<T> keyvals, size_t num, GlobalAddress<Reducer<K,V,OutType>> reducers, size_t num_reducers/*Grappa::cores()*/, MapF mf, ReduceF rf) {
+  auto start_realloc = Grappa::walltime();
+  // clear all data structures from a previous usage
+  Grappa::forall<&default_mr_gce>(reducers, num_reducers, [](Reducer<K,V,OutType>& r) {
+      r.result->clear();
+      r.groups->clear();
+      }); 
+  auto stop_realloc = Grappa::walltime();
+  mr_reallocation_runtime += stop_realloc - start_realloc;
+
+  auto start_map = stop_realloc;
+
+  MapperContext<K,V,OutType> ctx(reducers, num_reducers);
+  VLOG(1) << "map";
+  mapExecute<T,K,V,OutType,MapF>(ctx, keyvals, num, mf);
+  auto stop_map = Grappa::walltime();
+  mr_mapping_runtime += stop_map - start_map;
+
+  auto start_reduce = stop_map;
+  VLOG(1) << "reduce";
+  reduceExecute<K,V,OutType,ReduceF>(reducers, num_reducers, rf);
+  auto stop_reduce = Grappa::walltime(); 
+
+  mr_reducing_runtime += stop_reduce - start_reduce;
+
+
   VLOG(1) << "complete";
 }
 
