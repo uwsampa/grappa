@@ -30,7 +30,11 @@ namespace Grappa {
 
   class TupleGraph {
   public:    
-    struct Edge { int64_t v0, v1; };
+    struct Edge {
+      int64_t v0;
+      int64_t v1;
+      uint64_t data;
+    };
 
   private:
     bool initialized;
@@ -39,6 +43,7 @@ namespace Grappa {
     void save_generic( std::string, void (*f)( const char *, Edge*, Edge*) );
     
     static TupleGraph load_tsv( std::string path );
+    static TupleGraph load_mm( std::string path );
     
   public:
     GlobalAddress<Edge> edges;

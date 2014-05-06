@@ -280,6 +280,263 @@ TupleGraph TupleGraph::load_tsv( std::string path ) {
   return tg;
 }
 
+/// Matrix Market format loader
+TupleGraph TupleGraph::load_mm( std::string path ) {
+  // make sure file exists
+  CHECK( fs::exists( path ) ) << "File not found.";
+  CHECK( fs::is_regular_file( path ) ) << "File is not a regular file.";
+
+  size_t file_size = fs::file_size( path );
+
+  size_t path_length = path.size() + 1; // include space for terminator
+
+  CHECK_LT( path_length, max_path_length )
+    << "Sorry, filename exceeds preset limit. Please change max_path_length constant in this file and rerun.";
+
+  char filename[ max_path_length ];
+  strncpy( &filename[0], path.c_str(), max_path_length );
+
+
+  // read header
+  struct {
+    int header_end_offset = 0;
+    bool field_double  = false;
+    bool field_default_value = false;
+    bool field_bidir = false;
+  } header_info;
+  
+  size_t size_m = 0, size_n = 0, size_nonzero = 0;
+  {
+    std::ifstream infile( filename, std::ios_base::in );
+    bool done = false;
+    int line = 0;
+    std::string s;
+
+    do { // read all comment lines
+      std::getline( infile, s );
+
+      if( s[0] == '%' ) { // comment line
+        if( line == 0 ) { // first line
+          std::istringstream ss( s );
+          std::string tmp;
+
+          // read first token of header
+          ss >> tmp;
+          CHECK_EQ( tmp, "%%MatrixMarket" );
+
+          // read data type (array or matrix)
+          ss >> tmp;
+          CHECK_EQ( tmp, "matrix" ) << "Currently, only MM object supported is 'matrix'";
+
+          // read format
+          ss >> tmp;
+          CHECK_EQ( tmp, "coordinate" ) << "Currently, only MM format supported is 'coordinate'.";
+
+          // read field type
+          ss >> tmp;
+          if( tmp == "real" || tmp == "double" ) {
+            header_info.field_double = true;
+          } else if( tmp == "integer" ) {
+            header_info.field_double = false;
+          } else if( tmp == "pattern" ) {
+            header_info.field_double = false;
+            header_info.field_default_value = true;
+          } else {
+            LOG(FATAL) << "Currently, only MM fields supported are real, double, integer, pattern (not " << tmp << ").";
+          }
+
+          // read symmetry
+          ss >> tmp;
+          if( tmp == "symmetric" || tmp == "hermitian" || tmp == "skew-symmetric" ) {
+            header_info.field_bidir = true;
+          } else if ( tmp == "general" ) {
+            header_info.field_bidir = false;
+          } else {
+            LOG(FATAL) << "Unsupported symmetry " << tmp << ".";
+          }
+        } else {
+          // just skip other comments
+        }
+      } else {
+        done = true;
+      }
+      ++line;
+    } while( !done );
+
+    { // read dimensions from last string
+      std::istringstream ss( s );
+      std::string tmp;
+
+      ss >> size_m;
+      ss >> size_n;
+      ss >> size_nonzero;
+    }
+    
+    header_info.header_end_offset = infile.tellg();
+    file_size -= header_info.header_end_offset;
+    DVLOG(7) << "Header ends at " << local_offset;
+  }
+
+  DVLOG(7) << "Reading matrix of size " << size_m << "x" << size_n << " with " << size_nonzero << " nonzeros";
+
+
+  
+  Core mycore = Grappa::mycore();
+  auto bytes_each_core = file_size / Grappa::cores();
+
+  // read into temporary buffer
+  on_all_cores( [=] {
+      // use standard C++/POSIX IO
+
+      // make one core take any data remaining after truncation
+      auto my_bytes_each_core = bytes_each_core;
+      if( Grappa::mycore() == 0 ) {
+        my_bytes_each_core += file_size - (bytes_each_core * Grappa::cores());
+      }
+      
+      // compute initial offset into ASCII file
+      // TODO: fix this with scan
+      local_offset = header_info.header_end_offset-1; // do on all cores
+      Grappa::barrier();
+      int64_t start_offset = Grappa::delegate::fetch_and_add( make_global( &local_offset, 0 ),
+                                                              my_bytes_each_core );
+      Grappa::barrier();
+      int64_t end_offset = start_offset + my_bytes_each_core;
+
+      DVLOG(7) << "Reading about " << my_bytes_each_core
+               << " bytes starting at " << start_offset
+               << " of " << file_size;
+      
+      // start reading at start offset
+      std::ifstream infile( filename, std::ios_base::in );
+      infile.seekg( start_offset );
+
+      if( start_offset > 0 ) {
+        // move past next newline so we start parsing from a record boundary
+        std::string s;
+        std::getline( infile, s );
+        DVLOG(6) << "Skipped '" << s << "'";
+      }
+      
+      start_offset = infile.tellg();
+      DVLOG(6) << "Start reading at " << start_offset;
+
+      // read up to one entry past the end_offset
+      while( infile.good() && start_offset < end_offset ) {
+        int64_t v0 = -1;
+        int64_t v1 = -1;
+        uint64_t data = 0;
+        if( infile.peek() == '#' ) { // if a comment
+          std::string str;
+          std::getline( infile, str );
+        } else {
+          infile >> v0;
+          if( !infile.good() ) break;
+          infile >> v1;
+          if( header_info.field_double ) {
+            double d;
+            infile >> d;
+            data = *((uint64_t*)&d); // hack. reuse bits for data.
+          } else {
+            int64_t d;
+            infile >> d;
+            data = *((uint64_t*)&d);
+          }
+          Edge e = { v0, v1, data };
+          DVLOG(6) << "Read " << v0 << " -> " << v1 << " with data " << (void*) data;
+          read_edges.push_back( e );
+          start_offset = infile.tellg();
+        }
+      }
+
+      DVLOG(6) << "Done reading at " << start_offset << " end_offset " << end_offset;
+      
+      // collect sizes
+      local_offset = read_edges.size();
+      DVLOG(7) << "Read " << local_offset << " edges";
+    } );
+
+  auto nedge = Grappa::reduce<int64_t,collective_add>(&local_offset);
+  LOG(INFO) << "Loading " << nedge << " edges";
+  TupleGraph tg( nedge );
+  auto edges = tg.edges;
+  //auto leftovers = GlobalVector<int64_t>::create(N);
+
+  on_all_cores( [=] {
+      Edge * local_ptr = edges.localize();
+      Edge * local_end = (edges+nedge).localize();
+      auto local_count = local_end - local_ptr;
+      auto read_count = read_edges.size();
+
+      DVLOG(7) << "local_count " << local_count
+               << " read_count " << read_count;
+      
+      // copy everything in our read buffer that fits locally
+      auto local_max = MIN( local_count, read_count );
+      std::memcpy( local_ptr, &read_edges[0], local_max * sizeof(Edge) );
+      local_offset = local_max;
+      Grappa::barrier();
+
+      // get rid of remaining edges
+      auto mycore = Grappa::mycore();
+      auto likely_consumer = (mycore + 1) % Grappa::cores();
+      while( local_max < read_count ) {
+        Edge e = read_edges[local_max];
+        DVLOG(7) << "Looking for somewhere to place edge " << local_max;
+        
+        int retval = delegate::call( likely_consumer, [=] ()->int {
+            Edge * local_ptr = edges.localize();
+            Edge * local_end = (edges+nedge).localize();
+            auto local_count = local_end - local_ptr;
+
+            DVLOG(7) << "Trying to place edge " << local_max
+                      << " on core " << Grappa::mycore()
+                      << " with local_offset " << local_offset
+                      << " and local_count " << local_count;
+            
+            // do we have space to insert here?
+            if( local_offset < local_count ) {
+              // yes, so do so
+              local_ptr[local_offset] = e;
+              local_offset++;
+
+              if( local_offset < local_count ) {
+                DVLOG(7) << "Succeeded with space available";
+                return 0; // succeeded with more space available
+              } else {
+                DVLOG(7) << "Succeeded with no more space available";
+                return 1; // succeeded with no more space available
+              }
+            } else {
+              // no, so return nack.
+              DVLOG(7) << "Failed with no more space available";
+              return -1; // did not succeed
+            }
+          } );
+
+        // insert succeeded, so move to next edge
+        if( retval >= 0 ) {
+          local_max++;
+        }
+
+        // no more space available on target, so move to next core
+        if( local_max < read_count && retval != 0 ) {
+          likely_consumer = (likely_consumer + 1) % Grappa::cores();
+          CHECK_NE( likely_consumer, Grappa::mycore() ) << "No more space to place edge on cluster?";
+        }
+      }
+      
+      // wait for everybody else to fill in our remaining spaces
+      Grappa::barrier();
+      
+      // discard temporary read buffer
+      read_edges.clear();
+    } );
+
+  // done!
+  return tg;
+}
+
 
 
 ///
@@ -425,6 +682,8 @@ TupleGraph TupleGraph::Load( std::string path, std::string format ) {
     return load_generic( path, local_load_bintsv4 );
   } else if( format == "tsv" ) {
     return load_tsv( path );
+  } else if( format == "mm" || format == "mtx" ) {
+    return load_mm( path );
   } else {
     LOG(FATAL) << "Format " << format << " not supported.";
   }
