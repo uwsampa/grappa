@@ -20,13 +20,13 @@ namespace MapReduce {
 
 extern Grappa::GlobalCompletionEvent default_mr_gce;
 
-template <Grappa::GlobalCompletionEvent * GCE, typename RandomAccess, typename CF>
-void forall_symmetric(GlobalAddress<RandomAccess> vs, CF f ) { 
+template <Grappa::GlobalCompletionEvent * GCE, typename RandomAccess, typename AF, typename CF>
+void forall_symmetric(GlobalAddress<RandomAccess> vs, AF accessor, CF f ) { 
 
   Grappa::on_all_cores([=] {
-      Grappa::forall_here<async,GCE>(0, vs->data.size(), [=](int64_t start, int64_t iters) {
+      Grappa::forall_here<async,GCE>(0, accessor(vs).size(), [=](int64_t start, int64_t iters) {
         for (int i=start; i<start+iters; i++) {
-           auto e = vs->data[i];
+           auto e = accessor(vs)[i];
            f(e);
         }
       }); // local task blocks for all iterations
@@ -153,7 +153,8 @@ void mapExecute(CombiningMapperContext<K, V, OutType> ctx, GlobalAddress<T> keyv
 // takes a symmetric global address
 template < typename T, typename K, typename V, typename OutType, typename MapF, typename RA, Grappa::GlobalCompletionEvent * GCE=&default_mr_gce > 
 void mapExecute(MapperContext<K, V, OutType> ctx, GlobalAddress<RA> keyvals_sym, MapF mf) {
-  forall_symmetric<GCE>(keyvals_sym, [=]( T& kv ) { 
+  forall_symmetric<GCE>(keyvals_sym, [](GlobalAddress<RA> collection) { return collection->data; },
+                                     [=]( T& kv ) { 
      mf(ctx, kv);
   });
 }  

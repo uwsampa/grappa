@@ -10,6 +10,7 @@ set(SOURCES
   relation_io.cpp
   relation.hpp
   utils.h
+  utils.cc
   MatchesDHT.hpp
   MatchesDHT.cpp
   DoubleDHT.hpp
@@ -31,6 +32,8 @@ set(SOURCES
   strings.cc
   MapReduce.cpp
   MapReduce.hpp
+  HashJoin.hpp
+  HashJoin.cpp
 )
 set(INCLUDE_DIRS
   "${APP_GRAPH500}"
@@ -55,6 +58,7 @@ set(QUERIES_IND
   MapReduce_tests.cpp
   KMeansMR.cpp
   convert2bin.cpp
+  HashJoin_tests.cpp
 )
 
 set(QUERIES_SOURCES
