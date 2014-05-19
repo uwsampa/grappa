@@ -124,10 +124,16 @@ namespace Grappa {
   public:
     ReducerBase(): local_value() {}
     
+    /// Read out value; does expensive global reduce.
+    /// 
+    /// Called implicitly when the Reducer is used as the underlying type, 
+    /// or by an explicit cast operation.
     operator T () const { return reduce<T,ReduceOp>(&this->local_value); }
     
+    /// Globally set the value; expensive global synchronization.
     void operator=(const T& v){ reset(); local_value = v; }
     
+    /// Globally reset to default value for the type.
     void reset() { call_on_all_cores([this]{ this->local_value = T(); }); }
   };
   
@@ -138,16 +144,54 @@ namespace Grappa {
   
   enum class ReducerType { Add, Or, And, Max, Min };
   
+  /// Reducers are a special kind of *symmetric* object that, when read, 
+  /// compute a reduction over all instances. They can be inexpensively updated
+  /// (incremented/decremented, etc), so operations that modify the value
+  /// without observing it are cheap and require no communication. However,
+  /// reading the value forces a global reduction operation each time, 
+  /// and directly setting the value forces global synchronization.
+  /// 
+  /// *Reducers must be declared in the C++ global scope* ("global variables")
+  /// so they have identical pointers on each core. Declaring one as a local
+  /// variable (on the stack), or in a symmetric allocation will lead to
+  /// segfaults or worse.
+  /// 
+  /// By default, Reducers do a global "sum", using the `+` operator; other
+  /// operations can be specified by ReducerType (second template parameter).
+  /// 
+  /// Example usage (count non-negative values in an array):
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// // declare symmetric global object
+  /// Reducer<int> non_negative_count;
+  /// 
+  /// int main(int argc, char* argv[]) {
+  ///   Grappa::init(&argc, &argv);
+  ///   Grappa::run([]{
+  ///     GlobalAddress<double> A;
+  ///     // allocate & initialize array A...
+  /// 
+  ///     // set global count to 0 (expensive global sync.)
+  ///     non_negative_count = 0;
+  /// 
+  ///     forall(A, N, [](double& A_i){
+  ///       if (A_i > 0) {
+  ///         // cheap local increment
+  ///         non_negative_count += 1;
+  ///       }
+  ///     });
+  /// 
+  ///     // read out total value and print it (expensive global reduction)
+  ///     LOG(INFO) << non_negative_count << " non negative values";
+  ///   });
+  ///   Grappa::finalize();
+  /// }
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T, ReducerType R >
   class Reducer : public ReducerBase<T,collective_add> {};
   
-  // template< typename T >
-  // class Reducer<T,operator+>
-  //     : ReducerBase<T,operator+> {
-  //   void operator+=(const T& v){ local_value += v; }
-  //   void operator++(){ local_value++; }
-  // };
-  
+  /// Reducer for sum (+), useful for global accumulators.
+  /// Provides cheap operators for increment and decrement 
+  /// (`++`, `+=`, `--`, `-=`).
   template< typename T >
   class Reducer<T,ReducerType::Add> : public ReducerBase<T,collective_add> {
   public:
@@ -158,16 +202,47 @@ namespace Grappa {
     void operator-=(const T& v){ this->local_value -= v; }
     void operator--(){ this->local_value--; }
     void operator--(int){ this->local_value--; }
-    void operator=(const T& v){ this->reset(); this->local_value = v; }
   };
 
+  /// Reducer for "or" (`operator|`).
+  /// Useful for "any" checks, such as "are any values non-zero?". 
+  /// Provides cheap operator for "or-ing" something onto the value: `|=`.
+  /// 
+  /// Example:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// Reducer<bool,ReducerType::Or> any_nonzero;
+  /// 
+  /// // ... (somewhere in main task)
+  /// any_nonzero = false;
+  /// forall(A, N, [](double& A_i){
+  ///   if (A_i != 0) {
+  ///     any_nonzero |= true
+  ///   }
+  /// });
+  /// LOG(INFO) << ( any_nonzero ? "some" : "no" ) << " nonzeroes.";
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
   class Reducer<T,ReducerType::Or> : public ReducerBase<T,collective_or> {
   public:
     Super(ReducerBase<T,collective_or>);
     void operator|=(const T& v){ this->local_value |= v; }
   };
-  
+
+  /// Reducer for "and" (`operator&`). 
+  /// Useful for "all" checks, such as "are all values non-zero?".
+  /// Provides cheap operator for "and-ing" something onto the value: `&=`.
+  /// 
+  /// Example:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// Reducer<bool,ReducerType::And> all_nonzero;
+  /// 
+  /// // ... (somewhere in main task)
+  /// all_zero = true;
+  /// forall(A, N, [](double& A_i){
+  ///   all_zero &= (A_i == 0);
+  /// });
+  /// LOG(INFO) << ( all_zero ? "" : "not " ) << "all zero.";
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
   class Reducer<T,ReducerType::And> : public ReducerBase<T,collective_and> {
   public:
@@ -175,6 +250,20 @@ namespace Grappa {
     void operator&=(const T& v){ this->local_value &= v; }
   };
   
+  /// Reducer for finding the maximum of many values.
+  /// Provides cheap operator (`<<`) for "inserting" potential max values.
+  /// 
+  /// Example:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// Reducer<double,ReducerType::Max> max_val;
+  /// 
+  /// // ... (somewhere in main task)
+  /// max_val = 0.0;
+  /// forall(A, N, [](double& A_i){
+  ///   max_val << A_i;
+  /// });
+  /// LOG(INFO) << "maximum value: " << max_val;
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
   class Reducer<T,ReducerType::Max> : public ReducerBase<T,collective_max> {
   public:
@@ -185,7 +274,21 @@ namespace Grappa {
       }
     }
   };
-
+  
+  /// Reducer for finding the minimum of many values.
+  /// Provides cheap operator (`<<`) for "inserting" potential min values.
+  /// 
+  /// Example:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// Reducer<double,ReducerType::Min> min_val;
+  /// 
+  /// // ... (somewhere in main task)
+  /// min_val = 0.0;
+  /// forall(A, N, [](double& A_i){
+  ///   min_val << A_i;
+  /// });
+  /// LOG(INFO) << "minimum value: " << min_val;
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
   class Reducer<T,ReducerType::Min> : public ReducerBase<T,collective_min> {
   public:
@@ -199,6 +302,24 @@ namespace Grappa {
   
 #undef Super  
   
+  /// Helper class for implementing reduceable tuples, where reduce is based on 
+  /// just one of the two elements
+  /// 
+  /// Example usage to find the vertex with maximum degree in a graph (from SSSP app):
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// using MaxDegree = CmpElement<VertexID,int64_t>;
+  /// Reducer<MaxDegree,ReducerType::Max> max_degree;
+  /// 
+  /// ...
+  /// GlobalAddress<G> g;
+  /// // ...initialize graph structure...
+  /// 
+  /// // find max degree vertex
+  /// forall(g, [](VertexID i, G::Vertex& v){
+  ///   max_degree << MaxDegree(i, v.nadj);
+  /// });
+  /// root = static_cast<MaxDegree>(max_degree).idx();
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename Id, typename Cmp >
   class CmpElement {
     Id i; Cmp c;
