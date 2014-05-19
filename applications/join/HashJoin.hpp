@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "utils.h"
+#include "stats.h"
 
 extern Grappa::GlobalCompletionEvent default_join_left_gce;
 extern Grappa::GlobalCompletionEvent default_join_right_gce;
@@ -89,6 +90,7 @@ struct HashJoinContext {
 
     template < Grappa::GlobalCompletionEvent * GCE = &default_join_reduce_gce >
     void reduceExecute() {
+      // equijoin
       Grappa::forall<GCE>(reducers, num_reducers, [=]( int64_t i, JoinReducer<K,VL,VR,OutType>& reducer) {
           // for all keys on left
           for ( auto local_it = reducer.groupsL->begin(); local_it!= reducer.groupsL->end(); ++local_it ) {
@@ -98,6 +100,7 @@ struct HashJoinContext {
             // cross product
             for (auto right_it = rightGroup.begin(); right_it!=rightGroup.end(); ++right_it) {
               for (auto left_it = leftGroup.begin(); left_it!=leftGroup.end(); ++left_it) {
+                join_coarse_result_count++;
                 reducer.result->push_back( combine<OutType,VL,VR>(*left_it,*right_it) );
               }
             }
