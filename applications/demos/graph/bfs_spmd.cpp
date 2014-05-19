@@ -31,7 +31,11 @@
 ///   of times (specified by --nbfs).
 ////////////////////////////////////////////////////////////////////////
 
-#include "common.hpp"
+#include <Grappa.hpp>
+#include <GlobalVector.hpp>
+#include <graph/Graph.hpp>
+
+#include "bfs.hpp"
 
 DEFINE_bool( metrics, false, "Dump metrics");
 
@@ -176,7 +180,7 @@ int main(int argc, char* argv[]) {
       if (!verified) {
         // only verify the first one to save time
         t = walltime();
-        bfs_nedge = verify(tg, g, root);
+        bfs_nedge = Verificator<>::verify(tg, g, root);
         verify_time = (walltime()-t);
         LOG(INFO) << verify_time;
         verified = true;
