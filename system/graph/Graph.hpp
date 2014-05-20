@@ -70,7 +70,6 @@ namespace Grappa {
       { }
     };
     
-    ///////////////////////////////////////////////////////////////
     /// Vertex with customizable inline 'data' field. Will attempt 
     /// to pack the provided type into the block-aligned Vertex 
     /// class, but if it is too large, will heap-allocate (from 
@@ -78,11 +77,7 @@ namespace Grappa {
     /// fields.
     ///
     /// Example subclasses:
-    /// @code
-    /// ////////////////////////
-    /// // Vertex with parent
-    ///
-    /// // Preferred:
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     /// struct Parent { int64_t parent; };
     /// 
     /// Vertex<Parent> p;
@@ -93,7 +88,7 @@ namespace Grappa {
     ///   int64_t parent() { return data; }
     ///   void parent(int64_t parent) { data = parent; }
     /// };
-    /// @endcode
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     template< typename T = int64_t, typename E = double, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(int64_t)*2-sizeof(int64_t*)) >
     struct Vertex : public VertexBase {
       T data;
@@ -133,7 +128,115 @@ namespace Grappa {
   
   }
   
-  
+  /// Distributed graph data structure, with customizable vertex and edge data.
+  /// 
+  /// This is Grappa's primary graph data structure. Graph is a 
+  /// *symmetric data structure*, so a Graph proxy object will be allocated 
+  /// on all cores, providing local access to common data and methods to
+  /// access the entirety of the graph.
+  /// 
+  /// The Graph class defines two types based on the specified template
+  /// parameters: Vertex and Edge. Vertex holds information about an
+  /// individual vertex, such as the degree (`nadj`), and the associated
+  /// data whose type is specified by the `V` template parameter. 
+  /// Edge holds the two global addresses to its source and destination
+  /// vertices, as well as data associated with this edge, of the type
+  /// specified by the `E` parameter.
+  /// 
+  /// A typical use of Graph will define a custom graph type, construct it, 
+  /// and then use the returned symmetric pointer to refer to the graph,
+  /// possibly looking something like this:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// // define the graph type:
+  /// struct VertexData { double rank; };
+  /// struct EdgeData { double weight; };
+  /// using G = Graph<VertexData,EdgeData>;
+  /// 
+  /// // load tuples from a file:
+  /// TupleGraph tuples = TupleGraph::Load("twitter.bintsv4", "bintsv4");
+  /// 
+  /// // after constructing a graph, we get a symmetric pointer back
+  /// GlobalAddress<G> g = G::create(tuples);
+  /// 
+  /// // we can easily get info such as the number of vertices out by
+  /// // using the local proxy directly through the global address:
+  /// LOG(INFO) << "graph has " << g->nv << " vertices";
+  /// 
+  /// // or we can use the global address itself as an iterator over vertices:
+  /// forall(g, [](G::Vertex& v){ });
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// 
+  /// Graph Structure
+  /// ----------------
+  /// 
+  /// This Graph structure is constructed from a TupleGraph (a simple list
+  /// of edge tuples -- source & dest) using Graph::create().
+  /// 
+  /// Vertices are randomly distributed among cores (using a simple global
+  /// heap allocation). Edges are placed on the core of their *source* vertex.
+  /// Therefore, iterating over outgoing edges is very efficient, but a 
+  /// vertex's incoming edges must be found the hard way (in practice, 
+  /// we just avoid doing it entirely if using this graph structure).
+  /// 
+  /// Parallel Iterators
+  /// -------------------
+  /// 
+  /// A number of parallel iterators are available for Graphs, to iterate 
+  /// over vertices or edges using `forall`. Specialization is done based 
+  /// on which parameters are requested, sometimes resulting in different 
+  /// iteration schemes.
+  /// 
+  /// Full graph iteration:
+  /// 
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// 
+  /// using G = Graph<VertexData,EdgeData>;
+  /// GlobalAddress<G> g = /* initialize graph */;
+  ///
+  /// // simple iteration over vertices
+  /// forall(g, [](G::Vertex& v){});
+  ///
+  /// // simple iteration over vertices with index
+  /// forall(g, [](VertexID i, G::Vertex& v){});
+  ///
+  /// // iterate over all adjacencies of all vertices
+  /// // (at the source vertex and edge, so both may be modified)
+  /// forall(g, [](G::Vertex& src, G::Edge& e){ ... });
+  /// 
+  /// // (equivalent to)
+  /// forall(g, [](G::Vertex& src){
+  ///   forall(adj(g,src), [](G::Edge& adj){
+  ///     ...
+  ///   });
+  /// });
+  ///
+  /// // iterate over edges from the destination vertex, 
+  /// // must be **non-blocking**
+  /// // (edge no longer modifiable, but a copy is carried along)
+  /// forall(g, [](const G::Edge& e, G::Vertex& dst){ ... });
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// 
+  /// Iteration over adjacencies of single Vertex:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// // usually done inside another iteration over vertices, like so:
+  /// forall(g, [=](Vertex& v){
+  /// 
+  ///   // variations exist for constructing a parallel iterator over
+  ///   // a vertex's outgoing edges (adjacency list, or `adj`):
+  ///   // - from a Vertex&: adj(g,v)
+  ///   // - or a VertexID: adj(g, v.id)
+  ///   
+  ///   // `forall` has various specializations for `adj`, including:
+  ///   forall<async>(adj(g,v), [&v](Edge& e){
+  ///     LOG(INFO) << v.id << " -> " << e.id;
+  ///   });
+  ///   // or this form, which provides the index within the adj list [0,v.nadj)
+  ///   forall<async>(adj(g,v), [&v](int64_t ei, Edge& e){
+  ///     LOG(INFO) << "v.adj[" << ei << "] = " << e.id;
+  ///   });
+  /// 
+  /// });
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename V, typename E >
   struct Graph {
     
@@ -227,7 +330,7 @@ namespace Grappa {
     /// Change the data associated with each vertex, keeping the same connectivity 
     /// structure and allowing the user to intialize the new data type using the old vertex.
     ///
-    /// @param F f: void (Vertex<OldData>& v, NewData& d) {}
+    /// @param f: void (Vertex<OldData>& v, NewData& d) {}
     ///
     /// Example:
     /// @code
@@ -438,37 +541,8 @@ namespace Grappa {
     
   }
   
-  /// @brief Parallel iteration over a Graph.
-  /// 
-  /// Specialization is performed
-  /// based on what arguments are asked for (and in what order).
-  /// Available options are:
-  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  /// using G = Graph<VertexData,EdgeData>;
-  /// GlobalAddress<G> g;
-  ///
-  /// // simple iteration over vertices
-  /// forall(g, [](G::Vertex& v){});
-  ///
-  /// // simple iteration over vertices with index
-  /// forall(g, [](VertexID i, G::Vertex& v){});
-  ///
-  /// // iterate over all adjacencies of all vertices
-  /// // (at the source vertex and edge, so both may be modified)
-  /// forall(g, [](G::Vertex& src, G::Edge& e){ ... });
-  /// 
-  /// // (equivalent to)
-  /// forall(g, [](G::Vertex& src){
-  ///   forall(adj(g,src), [](G::Edge& adj){
-  ///     ...
-  ///   });
-  /// });
-  ///
-  /// // iterate over edges from the destination vertex, 
-  /// // must be **non-blocking**
-  /// // (edge no longer modifiable, but a copy is carried along)
-  /// forall(g, [](const G::Edge& e, G::Vertex& dst){ ... });
-  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// Parallel iterator over Graph, specializes based on arguments.
+  /// See Graph overview page for details.
   template< GlobalCompletionEvent * C = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename V, typename E,
