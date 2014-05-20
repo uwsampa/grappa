@@ -180,6 +180,8 @@ namespace Grappa {
     /// Construct a message.
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
+    /// @param payload pointer to payload buffer
+    /// @param payload_size size of payload (in bytes)
     inline PayloadMessage( Core dest, T t, void * payload, size_t payload_size )
       : MessageBase( dest )
       , storage_( t )

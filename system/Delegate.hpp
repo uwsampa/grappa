@@ -115,17 +115,19 @@ namespace Grappa {
 
   namespace delegate {
 
-    /// Helper that makes it easier to implement custom delegate operations on global
-    /// addresses specifically.
+    /// Helper that makes it easier to implement custom delegate operations 
+    /// specifically on global addresses.
+    /// 
+    /// Does specialization based on return type of the lambda.
     ///
     /// Example:
-    /// ~~~~
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     /// GlobalAddress<int> xa;
     /// bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
     ///
     /// // or by reference:
     /// bool is_zero = delegate::call(xa, [](int& x){ return x == 0; });
-    /// ~~~
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     template< SyncMode S = SyncMode::Blocking,
               GlobalCompletionEvent * C = &impl::local_gce,
               typename T = decltype(nullptr),

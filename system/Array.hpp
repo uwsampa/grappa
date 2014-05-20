@@ -157,7 +157,7 @@ void prefix_sum(GlobalAddress<T> array, size_t nelem) {
 namespace util {
   
   /// String representation of a global array.
-  /// @example
+  /// 
   /// @code
   ///   GlobalAddress<int> xs;
   ///   DVLOG(2) << array_str("x", xs, 4);

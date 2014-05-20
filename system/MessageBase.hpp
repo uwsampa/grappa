@@ -133,6 +133,7 @@ namespace Grappa {
       ///    -# A 2D global address of a function that knows how to
       ///       deserialize and execute the message functor/payload
       ///    -# the message functor/payload
+      /// @param max_size  Largest possible serialized size
       /// @return address of the byte following the serialized message in the buffer
       inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
         DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
