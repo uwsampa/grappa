@@ -282,7 +282,8 @@ add_commtest_check( Communicator_tests.cpp   2 1  pass )
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
-  get_property(CMAKE_CURRENT_INCLUDES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+  get_property(include_dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+  string(REPLACE ";" " " CMAKE_CURRENT_INCLUDES "${include_dirs}")
   
   set(DOXYGEN_OUTPUT "doxygen")
   set(DOXYGEN_BUILD_DIR ${CMAKE_SOURCE_DIR}/build)
