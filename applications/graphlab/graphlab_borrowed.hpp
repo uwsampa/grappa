@@ -20,6 +20,71 @@
  *
  */
 
+// Jenkin's 32 bit integer mix from
+// http://burtleburtle.net/bob/hash/integer.html
+inline uint32_t integer_mix(uint32_t a) {
+  a -= (a<<6);
+  a ^= (a>>17);
+  a -= (a<<9);
+  a ^= (a<<4);
+  a -= (a<<3);
+  a ^= (a<<10);
+  a ^= (a>>15);
+  return a;
+}
+
+/** \brief Returns the hashed value of an edge. */
+inline static size_t hash_edge(const std::pair<VertexID, VertexID>& e, const uint32_t seed = 5) {
+  // a bunch of random numbers
+#if (__SIZEOF_PTRDIFF_T__ == 8)
+  static const size_t a[8] = {0x6306AA9DFC13C8E7,
+    0xA8CD7FBCA2A9FFD4,
+    0x40D341EB597ECDDC,
+    0x99CFA1168AF8DA7E,
+    0x7C55BCC3AF531D42,
+    0x1BC49DB0842A21DD,
+    0x2181F03B1DEE299F,
+    0xD524D92CBFEC63E9};
+#else
+  static const size_t a[8] = {0xFC13C8E7,
+    0xA2A9FFD4,
+    0x597ECDDC,
+    0x8AF8DA7E,
+    0xAF531D42,
+    0x842A21DD,
+    0x1DEE299F,
+    0xBFEC63E9};
+#endif
+  VertexID src = e.first;
+  VertexID dst = e.second;
+  return (integer_mix(src^a[seed%8]))^(integer_mix(dst^a[(seed+1)%8]));
+}
+
+//////////////////////////////////////////////////////////////////
+// graphlab: dense_bitset.hpp
+//////////////////////////////////////////////////////////////////
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
 #pragma once
 
 #include <cstdio>
