@@ -74,7 +74,57 @@ class AllReducer {
 
 namespace Grappa {
 
-  /// @brief Symmetric Reduction object
+  /// Symmetric object with no special built-in semantics, but several
+  /// reduction-oriented operations defined.
+  /// 
+  /// Intended to be used as a building block for symmetric objects or
+  /// when manual management of reductions on symmetric data.
+  /// 
+  /// This is closely related to Reducer, but rather than implicitly performing 
+  /// reduction operations whenever the value is observed, SimpleSymmetric's 
+  /// require one of the helper reducer operations to be applied manually. This
+  /// flexibility could be useful for doing more than one kind of reduction on
+  /// the same symmetric object.
+  /// 
+  /// Example usage for a global counter:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// SimpleSymmetric<int> global_x;
+  /// 
+  /// // ...
+  /// Grappa::run([]{
+  ///   GlobalAddress<int> A = /* initialize array A */;
+  ///   
+  ///   // increment counter locally 
+  ///   forall(A, N, [](int& A_i){ if (A_i == 0) global_x++; });
+  /// 
+  ///   // compute reduction explicitly to get total
+  ///   int total = sum(global_x);
+  ///   
+  /// });
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// 
+  /// Or to use it for global boolean checks:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// SimpleSymmetric<bool> x;
+  /// 
+  /// // ...
+  /// Grappa::run([]{
+  ///   GlobalAddress<int> A = /* initialize array A */;
+  ///   
+  ///   // initialize x on all cores to false
+  ///   set(x, false);
+  ///   
+  ///   // find if all elements are > 0 (and's all symmetric bools together)
+  ///   forall(A, N, [](int& A_i){ if (A_i > 0) x &= true; });
+  ///   bool all_postive = all(x);
+  ///   
+  ///   // find if any are negative (or's all symmetric bools together)
+  ///   set(x, false);
+  ///   forall(A, N, [](int& A_i){ if (A_i < 0) x = true; });
+  ///   bool any_negative = any(x);
+  ///   
+  /// });
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
   class SimpleSymmetric {
     T local_value;
@@ -91,38 +141,64 @@ namespace Grappa {
     //     s->self = s;
     //   });
     // }
-  
+    
+    /// Reduction across symmetric object doing 'and' ('&')
     friend T all(SimpleSymmetric * r) {
       return reduce<T,collective_and>(&r->local_value);
     }
+    
+    /// Reduction across symmetric object doing 'or' ('|')
     friend T any(SimpleSymmetric * r) {
       return reduce<T,collective_or >(&r->local_value);
     }
+    
+    /// Reduction across symmetric object doing 'sum' ('+')
     friend T sum(SimpleSymmetric * r) {
       return reduce<T,collective_add>(&r->local_value);
     }
+    
+    /// Set instances on all cores to the given value.
     friend void set(SimpleSymmetric * r, const T& val) {
       call_on_all_cores([=]{ r->local_value = val; });
     }
 
+    /// Reduction across symmetric object doing 'and' ('&')
     friend T all(SimpleSymmetric& r) { return all(&r); }
+    
+    /// Reduction across symmetric object doing 'or' ('|')
     friend T any(SimpleSymmetric& r) { return any(&r); }
+    
+    /// Reduction across symmetric object doing 'sum' ('+')
     friend T sum(SimpleSymmetric& r) { return sum(&r); }
+
+    /// Set instances on all cores to the given value.
     friend void set(SimpleSymmetric& r, const T& val) { return set(&r, val); }
     
-    void operator|=(const T& val) { local() |= val; }
-    void operator+=(const T& val) { local() += val; }
-    void operator++() { local()++; }
-    void operator++(int) { local()++; }
+    /// Operate on local copy.
+    T& operator&=(const T& val) { return local() &= val; }
+
+    /// Operate on local copy.
+    T& operator|=(const T& val) { return local() |= val; }
+
+    /// Operate on local copy.
+    T& operator+=(const T& val) { return local() += val; }
+
+    /// Operate on local copy.
+    T& operator++() { return ++local(); }
+
+    /// Operate on local copy.
+    T& operator++(int) { return local()++; }
     
   } GRAPPA_BLOCK_ALIGNED;
   
+  /// Base class for Reducer implementing some operations common to all 
+  /// specializations.
   template< typename T, T (*ReduceOp)(const T&, const T&) >
-  class ReducerBase {
+  class ReducerImpl {
   protected:
     T local_value;
   public:
-    ReducerBase(): local_value() {}
+    ReducerImpl(): local_value() {}
     
     /// Read out value; does expensive global reduce.
     /// 
@@ -187,15 +263,15 @@ namespace Grappa {
   /// }
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T, ReducerType R >
-  class Reducer : public ReducerBase<T,collective_add> {};
+  class Reducer : public ReducerImpl<T,collective_add> {};
   
   /// Reducer for sum (+), useful for global accumulators.
   /// Provides cheap operators for increment and decrement 
   /// (`++`, `+=`, `--`, `-=`).
   template< typename T >
-  class Reducer<T,ReducerType::Add> : public ReducerBase<T,collective_add> {
+  class Reducer<T,ReducerType::Add> : public ReducerImpl<T,collective_add> {
   public:
-    Super(ReducerBase<T,collective_add>);
+    Super(ReducerImpl<T,collective_add>);
     void operator+=(const T& v){ this->local_value += v; }
     void operator++(){ this->local_value++; }
     void operator++(int){ this->local_value++; }
@@ -222,9 +298,9 @@ namespace Grappa {
   /// LOG(INFO) << ( any_nonzero ? "some" : "no" ) << " nonzeroes.";
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
-  class Reducer<T,ReducerType::Or> : public ReducerBase<T,collective_or> {
+  class Reducer<T,ReducerType::Or> : public ReducerImpl<T,collective_or> {
   public:
-    Super(ReducerBase<T,collective_or>);
+    Super(ReducerImpl<T,collective_or>);
     void operator|=(const T& v){ this->local_value |= v; }
   };
 
@@ -244,9 +320,9 @@ namespace Grappa {
   /// LOG(INFO) << ( all_zero ? "" : "not " ) << "all zero.";
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
-  class Reducer<T,ReducerType::And> : public ReducerBase<T,collective_and> {
+  class Reducer<T,ReducerType::And> : public ReducerImpl<T,collective_and> {
   public:
-    Super(ReducerBase<T,collective_and>);
+    Super(ReducerImpl<T,collective_and>);
     void operator&=(const T& v){ this->local_value &= v; }
   };
   
@@ -265,9 +341,9 @@ namespace Grappa {
   /// LOG(INFO) << "maximum value: " << max_val;
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
-  class Reducer<T,ReducerType::Max> : public ReducerBase<T,collective_max> {
+  class Reducer<T,ReducerType::Max> : public ReducerImpl<T,collective_max> {
   public:
-    Super(ReducerBase<T,collective_max>);
+    Super(ReducerImpl<T,collective_max>);
     void operator<<(const T& v){
       if (v > this->local_value) {
         this->local_value = v;
@@ -290,9 +366,9 @@ namespace Grappa {
   /// LOG(INFO) << "minimum value: " << min_val;
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename T >
-  class Reducer<T,ReducerType::Min> : public ReducerBase<T,collective_min> {
+  class Reducer<T,ReducerType::Min> : public ReducerImpl<T,collective_min> {
   public:
-    Super(ReducerBase<T,collective_min>);
+    Super(ReducerImpl<T,collective_min>);
     void operator<<(const T& v){
       if (v < this->local_value) {
         this->local_value = v;
