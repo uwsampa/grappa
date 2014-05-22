@@ -23,7 +23,14 @@
 
 ////////////////////////////////////////////////////////////////////////
 /// Demonstrates using the GraphLab API to implement Pagerank
+/// 
+/// This variant uses GraphlabGraph (which uses GraphLab's split vertex
+/// representation).
+/// 
+/// @note: This is currently *slower* than the "naive" engine, due to
+/// an inefficient implementation of the graph structure.
 ////////////////////////////////////////////////////////////////////////
+
 #include <Grappa.hpp>
 #include "graphlab.hpp"
 

@@ -1,3 +1,17 @@
+////////////////////////////////////////////////////////////////////////
+/// GraphLab is an API and runtime system for graph-parallel computation.
+/// This is a rough prototype implementation of the programming model to
+/// demonstrate using Grappa as a platform for other models.
+/// More information on the actual GraphLab system can be found at:
+/// graphlab.org.
+////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////
+// Implementation of GraphLab's split-vertex graph representation and
+/// synchronous engine built for it.
+///
+/// (included from graphlab.hpp)
+
 #include "graphlab_borrowed.hpp"
 
 GRAPPA_DECLARE_METRIC(SummarizingMetric<int>, core_set_size);
@@ -111,12 +125,19 @@ namespace Grappa {
   public:
     GraphlabGraph() = default;
     ~GraphlabGraph() = default;
-
-   /** Greedy assign (source, target) to a machine using: 
-    *  bitset<MAX_MACHINE> src_degree : the degree presence of source over machines
-    *  bitset<MAX_MACHINE> dst_degree : the degree presence of target over machines
-    *  vector<size_t>      edge_cts : the edge counts over machines
-    * */
+    
+    /// Greedy assign (source, target) to a machine.
+    /// 
+    /// @param source      source vertex id
+    /// @param target      destination vertex id
+    /// @param src_degree  the degree presence of source over machines
+    /// @param dst_degree  the degree presence of target over machines
+    /// @param edge_cts    the edge counts over machines
+    /// @param usehash     consistently hash edges to nodes
+    /// @param userecent   ???
+    /// 
+    /// This function was copied nearly verbatim from GraphLab's source code.
+    /// 
     static Core edge_to_core_greedy (const VertexID source, 
        const VertexID target,
        CoreBitset& src_degree,

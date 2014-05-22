@@ -20,6 +20,13 @@
  *
  */
 
+/////////////////////////////////////////////////////////////////////
+/// This code is directly borrowed from the GraphLab source code in 
+/// order to compare lower-level runtime components fairly. It 
+/// carries the license and copyright above rather than Grappa's.
+/////////////////////////////////////////////////////////////////////
+
+
 // Jenkin's 32 bit integer mix from
 // http://burtleburtle.net/bob/hash/integer.html
 inline uint32_t integer_mix(uint32_t a) {

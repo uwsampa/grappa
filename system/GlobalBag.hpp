@@ -1,6 +1,13 @@
 #include <Grappa.hpp>
 
 namespace Grappa {
+  
+  /// Global unordered queue with local insert and iteration.
+  /// 
+  /// Useful for situations where intermediate values may be produced 
+  /// from anywhere and iterated over later. We use this mostly for 
+  /// places like BFS's "frontier", where things to process next phase
+  /// are stored in a bag so they can be processed without communicating.
   template< typename T >
   class GlobalBag {
     GlobalAddress<GlobalBag> self;

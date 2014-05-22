@@ -29,6 +29,9 @@
 /// - Uses the builtin hybrid compressed-sparse-row graph format
 /// - Computes the 'parent' tree given a root, and does this a number 
 ///   of times (specified by --nbfs).
+/// 
+/// This variant uses GlobalBag to implement the frontier, and also 
+/// supports the '--max_degree_source' flag.
 ////////////////////////////////////////////////////////////////////////
 
 #include "common.hpp"
