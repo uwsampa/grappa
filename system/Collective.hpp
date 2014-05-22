@@ -392,7 +392,22 @@ namespace Grappa {
     return total;
   }
   
-  
+  /// Custom reduction from all cores.
+  /// 
+  /// Takes a lambda to run on each core, returns the sum of all the results
+  /// to the caller. This is often easier than using the "custom Accessor" 
+  /// version of reduce, and also works on symmetric addresses.
+  /// 
+  /// Basically, reduce() could be implemented as:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// int global_x;
+  /// 
+  /// // (in main task)
+  /// int total = sum_all_cores([]{ return global_x; });
+  /// 
+  /// // is equivalent to:
+  /// int total = reduce<collective_add>(&global_x);
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   template< typename F = nullptr_t >
   auto sum_all_cores(F func) -> decltype(func()) {
     decltype(func()) total = func();
