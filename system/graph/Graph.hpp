@@ -89,7 +89,7 @@ namespace Grappa {
     ///   void parent(int64_t parent) { data = parent; }
     /// };
     /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    template< typename T = int64_t, typename E = double, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(int64_t)*2-sizeof(int64_t*)) >
+    template< typename T, typename E, bool HeapData = (sizeof(T) > BLOCK_SIZE-sizeof(VertexBase)-sizeof(E*)) >
     struct Vertex : public VertexBase {
       T data;
       E * local_edge_state;
@@ -105,7 +105,6 @@ namespace Grappa {
       static constexpr size_t locale_heap_size() { return 0; }
       static constexpr size_t size() { return locale_heap_size() + global_heap_size(); }
       
-      
     } GRAPPA_BLOCK_ALIGNED;
   
     template< typename T, typename E >
@@ -119,6 +118,7 @@ namespace Grappa {
       ~Vertex() { locale_free(&data); }
     
       T* operator->() { return &data; }
+      const T* operator->() const { return &data; }
       
       static constexpr size_t global_heap_size() { return sizeof(Vertex); }
       static constexpr size_t locale_heap_size() { return sizeof(T); }
@@ -363,6 +363,11 @@ namespace Grappa {
       
     VertexID id(Vertex& v) {
       return make_linear(&v) - vs;
+    }
+    
+    Edge edge(Vertex& v, size_t i) {
+      auto j = v.local_adj[i];
+      return Edge{ j, vs+j, v.local_edge_state[i] };
     }
     
   } GRAPPA_BLOCK_ALIGNED;  
