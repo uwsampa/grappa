@@ -10,20 +10,21 @@ extern int64_t nedge_traversed;
 
 template <typename T>
 class VerificatorBase {
+  using Vertex = typename Graph<T>::Vertex;
 public:
 
   static int64_t get_level(GlobalAddress<Graph<T>> g, int64_t j) {
-    return delegate::call(g->vs+j, [](T& v){ return v->level; });
+    return delegate::call(g->vs+j, [](Vertex& v){ return v->level; });
   }
   static int64_t get_parent(GlobalAddress<Graph<T>> g, int64_t j) {
-    return delegate::call(g->vs+j, [](T& v){ return v->parent; });
+    return delegate::call(g->vs+j, [](Vertex& v){ return v->parent; });
   }
 
   static int compute_levels(GlobalAddress<Graph<T>> g, int64_t root) {
     // compute levels
-    delegate::call(g->vs+root, [](T& v){ v->level = 0; });
+    delegate::call(g->vs+root, [](Vertex& v){ v->level = 0; });
   
-    forall(g->vs, g->nv, [=](int64_t i, T& v){
+    forall(g, [=](VertexID i, Vertex& v){
       if (v->level >= 0) return;
       
       if (v->parent >= 0 && i != root) {
@@ -46,7 +47,7 @@ public:
         parent = i;
         while (get_level(g, parent) < 0) {
           CHECK_GT(nhop, 0);
-          parent = delegate::call(g->vs+parent, [=](T& v){
+          parent = delegate::call(g->vs+parent, [=](Vertexnin& v){
             v->level = nhop;
             return v->parent;
           });
@@ -60,7 +61,7 @@ public:
   static inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<T>> g, int64_t root) {
 
     // check root
-    delegate::call(g->vs+root, [=](T& v){
+    delegate::call(g->vs+root, [=](Vertex& v){
         CHECK_EQ(v->parent, root);
     });
 
@@ -93,7 +94,7 @@ public:
       nedge_traversed++;
 
       auto mark_seen = [g](int64_t i){
-        delegate::call(g->vs+i, [](T& v){ v->seen = true; });
+        delegate::call(g->vs+i, [](Vertex& v){ v->seen = true; });
       };
 
       // Mark seen tree edges.
@@ -113,7 +114,7 @@ public:
     nedge_traversed = Grappa::reduce<int64_t,collective_add>(&nedge_traversed);
 
     // check that every BFS edge was seen & that there's only one root
-    forall(g->vs, g->nv, [=](int64_t i, T& v){
+    forall(g, [=](VertexID i, Vertex& v){
       if (i != root) {
         CHECK(!(v->parent >= 0 && !v->seen)) << "Error!" << "VertexID: " << i <<" v->parent =" << v->parent << " v->seen = " << v->seen;
         CHECK_NE(v->parent, i);

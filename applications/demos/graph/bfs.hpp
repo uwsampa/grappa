@@ -28,6 +28,11 @@ public:
   }
 };
 
+inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<T>> g, int64_t root) {
+  return Verificator<BFSVertex>::verify(tg, g, root);
+}
+  
+
 template< typename T >
 inline int64_t choose_root(GlobalAddress<Graph<T>> g) {
   int64_t root;

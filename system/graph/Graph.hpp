@@ -237,7 +237,7 @@ namespace Grappa {
   /// 
   /// });
   /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  template< typename V, typename E >
+  template< typename V = Empty, typename E = Empty >
   struct Graph {
     
     using Vertex = impl::Vertex<V,E>;

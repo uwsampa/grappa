@@ -1,6 +1,5 @@
-#ifndef __SSSP_HPP__
-#define __SSSP_HPP__
-#include "verificator.hpp"
+#pragma once
+#include "../verifier.hpp"
 
 extern int64_t nedge_traversed;
 
@@ -85,5 +84,3 @@ void dump_sssp_graph(GlobalAddress<Graph<SSSPVertex>> &g) {
     });
   }
 }
-
-#endif
