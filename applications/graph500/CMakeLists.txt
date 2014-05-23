@@ -1,2 +1,0 @@
-add_subdirectory(grappa)
-add_subdirectory(generator)
