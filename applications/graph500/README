@@ -1,0 +1,57 @@
+Graph500 Grappa Implementation
+
+See COPYING for the general license.  Portions copyright 2010 by
+the Georgia Institute of Technology, and portions copyright 2009-2011
+by the Trustees of Indiana University, and portions copyright 2012
+by the University of Washington.
+
+BUILDING INSTRUCTIONS
+
+RUNNING INSTRUCTIONS (OTHER THAN MPI VERSIONS)
+
+Options:
+  v   : version
+  h|? : this message
+  R   : use R-MAT from SSCA2 (default: use Kronecker generator)
+  s   : R-MAT scale (default 14)
+  e   : R-MAT edge factor (default 16)
+  A|a : R-MAT A (default 0.57) >= 0
+  B|b : R-MAT B (default 0.19) >= 0
+  C|c : R-MAT C (default 0.19) >= 0
+  D|d : R-MAT D (default 0.05) >= 0
+        Note: Setting 3 of A,B,C,D requires the arguments to sum to
+        at most 1.  Otherwise, the parameters are added and normalized
+        so that the sum is 1.
+  V   : Enable extra (Verbose) output
+  o   : Read the edge list from (or dump to) the named file
+  r   : Read the BFS roots from (or dump to) the named file
+
+The -o and -r options to the graph500 executable read the data from
+binary files that must already match in byte order.  The make-edgelist
+executable generates these files given the same options.
+
+Outputs take the form of "key: value", with keys:
+  SCALE
+  edgefactor
+  construction_time
+  min_time
+  firstquartile_time
+  median_time
+  thirdquartile_time
+  max_time
+  mean_time
+  stddev_time
+  min_nedge
+  firstquartile_nedge
+  median_nedge
+  thirdquartile_nedge
+  max_nedge
+  mean_nedge
+  stddev_nedge
+  min_TEPS
+  firstquartile_TEPS
+  median_TEPS
+  thirdquartile_TEPS
+  max_TEPS
+  harmonic_mean_TEPS
+  harmonic_stddev_TEPS
