@@ -24,7 +24,6 @@
 #pragma once
 
 #include "Communicator.hpp"
-#include "PoolAllocator.hpp"
 #include "FullEmptyLocal.hpp"
 #include "GlobalCompletionEvent.hpp"
 // #include "ParallelLoop.hpp"
@@ -41,34 +40,6 @@ namespace Grappa {
   namespace delegate {
     /// @addtogroup Delegates
     /// @{
-    
-    /// Do asynchronous generic delegate with `void` return type. Uses message pool to allocate
-    /// the message. Enrolls with GCE so you can guarantee all have completed after a global
-    /// GlobalCompletionEvent::wait() call.
-    ///
-    /// @deprecated Explicit pool version deprecated in favor of version that uses send_heap_message().
-    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename PoolType = impl::MessagePoolBase, typename F = decltype(nullptr)>
-    inline void call_async(PoolType& pool, Core dest, F remote_work) {
-      static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
-      delegate_ops++;
-      delegate_async_ops++;
-      Core origin = Grappa::mycore();
-      
-      if (dest == origin) {
-        // short-circuit if local
-        delegate_targets++;
-        delegate_short_circuits++;
-        remote_work();
-      } else {
-        if (GCE) GCE->enroll();
-        
-        pool.send_message(dest, [origin, remote_work] {
-          delegate_targets++;
-          remote_work();
-          if (GCE) complete(make_global(GCE,origin));
-        });
-      }
-    }
     
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
     /// The idea is to allocate storage for the result, issue the delegate request, and then

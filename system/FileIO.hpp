@@ -21,12 +21,17 @@
 // http://www.affero.org/oagpl.html.
 ////////////////////////////////////////////////////////////////////////
 
+#pragma once
+
 #include <unistd.h>
 #include <aio.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
+
+#include <mpi.h>
+
 #include "GlobalAllocator.hpp"
 #include "Tasking.hpp"
 #include "ParallelLoop.hpp"
@@ -60,6 +65,13 @@ namespace impl {
     static_assert( sizeof(long) == sizeof(int64_t), "long must be 64 bits" );
     sscanf(p.stem().c_str(), "block.%ld.%ld", (long*)start, (long*)end);
   }
+
+/// call in a collective context
+void read_unordered_shared( const char * filename, void * local_ptr, size_t local_size );
+
+/// call in a collective context
+void write_unordered_shared( const char * filename, void * local_ptr, size_t local_size );
+
 }
   
 #ifdef SIGRTMIN
@@ -68,7 +80,7 @@ namespace impl {
 
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \
-  for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
+  for (int64_t i=start, n=nbuf; i<end && (n = std::min(nbuf, end-i)); i+=nbuf)
 
 /// @addtogroup Utility
 /// @{
@@ -174,7 +186,8 @@ namespace impl {
     if (strncmp(mode, "r", FNAME_LENGTH) == 0) {
       int fdesc = open(fname, O_RDONLY);
       if (fdesc == -1) {
-        fprintf(stderr, "Error opening file for read only: %s.\n", fname);
+        //fprintf(stderr, "Error opening file for read only: %s.\n", fname);
+        LOG(FATAL) << "Error opening file for read only: " << fname;
         exit(1);
       }
       return (FileDesc)fdesc;
@@ -239,7 +252,7 @@ namespace impl {
   	  Grappa::impl::global_scheduler.allow_active_workers(FLAGS_io_blocks_per_node);
   	});
 
-    const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
+    const int64_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 
     Grappa::CompletionEvent io_joiner;
     auto joiner_addr = make_global(&io_joiner);
@@ -249,7 +262,7 @@ namespace impl {
     auto arg_addr = make_global(&args);
 
     // read array
-    for_buffered (i, n, 0, nelem, NBUF) {
+    for_buffered (i, n, 0, (int64_t)nelem, NBUF) {
       CHECK( i+n <= nelem) << "nelem = " << nelem << ", i+n = " << i+n;
     
       io_joiner.enroll();
@@ -282,14 +295,14 @@ namespace impl {
   
     auto args = locale_alloc< read_array_args<T> >(nfiles);
   
-    const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
+    const int64_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 
     Grappa::CompletionEvent io_joiner;
   	auto joiner_addr = make_global(&io_joiner);
 
-    size_t i = 0;
+    int64_t i = 0;
     fs::directory_iterator d(dirname);
-    for (size_t i = 0; d != fs::directory_iterator(); i++, d++) {
+    for (int64_t i = 0; d != fs::directory_iterator(); i++, d++) {
       int64_t start, end;
       array_dir_scan(d->path(), &start, &end);
       //VLOG(1) << "start = " << start << ", end = " << end;
@@ -363,9 +376,9 @@ namespace impl {
       
       VLOG(1) << "saving to " << fname;
       
-      const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
+      const int64_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
       T * buf = Grappa::locale_alloc<T>(NBUF);
-          
+      
       for_buffered (i, n, r.start, r.end, NBUF) {
         typename Incoherent<T>::RO c(array+i, n, buf);
         c.block_until_acquired();
@@ -389,9 +402,9 @@ namespace impl {
 
     std::fstream fo(fname, std::ios::out | std::ios::binary);
 
-    const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
+    const int64_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
   	T * buf = Grappa::locale_alloc<T>(NBUF);
-    for_buffered (i, n, 0, nelems, NBUF) {
+    for_buffered (i, n, 0, (int64_t)nelems, NBUF) {
       typename Incoherent<T>::RO c(array+i, n, buf);
       c.block_until_acquired();
   	  fo.write((char*)buf, sizeof(T)*n);
@@ -412,6 +425,100 @@ void save_array(File& f, bool asDirectory, GlobalAddress<T> array, size_t nelem)
   } else {
     impl::_save_array_file(f.fname, array, nelem);
   }
+}
+
+
+template< typename T >
+void write_array_unordered( std::string filename, GlobalAddress<T> array, size_t nelem ) {
+
+  LOG(WARNING) << "Make sure you're writing to a shared filesystem with proper locking!";
+
+
+  // all this stuff is trying to find a workaround for NFS problems on the sampa cluster
+  if( fs::exists( filename ) ) {
+    fs::remove( filename );
+  }
+
+  // create empty file
+  { std::ofstream ofs( filename, std::ios::binary | std::ios::out ); }
+  //fs::resize_file( filename, 0 );
+
+  // make sure file exists
+  CHECK( fs::exists( filename ) ) << "File not found.";
+  CHECK( fs::is_regular_file( filename ) ) << "File is not a regular file.";
+  CHECK_EQ( fs::file_size( filename ), 0 );
+  
+  // helper struct for filename propagation
+  struct ArrayWriteHelper {
+    std::unique_ptr< char[] > filename;
+  } GRAPPA_BLOCK_ALIGNED;
+  auto helper = symmetric_global_alloc<ArrayWriteHelper>();
+
+  size_t filename_size = filename.size();
+  Core mycore = Grappa::mycore();
+  on_all_cores( [=,&filename] {
+
+      // distribute filename across all cores
+      helper->filename.reset( new char[filename_size+1] );
+      if( Grappa::mycore() == mycore ) {
+        strncpy( &helper->filename[0], filename.c_str(), filename.size()+1 );
+      }
+      MPI_CHECK( MPI_Bcast( &helper->filename[0], filename_size+1, MPI_CHAR, mycore, MPI_COMM_WORLD ) );
+
+      // get local chunk of array
+      T * local_ptr = array.localize();
+      T * local_end = (array+nelem).localize();
+      int64_t local_count = local_end - local_ptr;
+
+      // write from local chunk
+      impl::write_unordered_shared( &helper->filename[0], local_ptr, local_count * sizeof(T) );
+      
+    } );
+
+  // Do this once it's supported
+  // symmetric_global_free(helper);
+}
+
+
+template< typename T >
+void read_array_unordered( std::string filename, GlobalAddress<T> array, size_t nelem ) {
+
+  // make sure file exists
+  CHECK( fs::exists( filename ) ) << "File not found.";
+  CHECK( fs::is_regular_file( filename ) ) << "File is not a regular file.";
+
+  size_t file_size = fs::file_size( filename );
+  CHECK_EQ( file_size, nelem * sizeof(T) ) << "Array and file are different sizes";
+  
+  // helper struct for filename propagation
+  struct ArrayReadHelper {
+    std::unique_ptr< char[] > filename;
+  } GRAPPA_BLOCK_ALIGNED;
+  auto helper = symmetric_global_alloc<ArrayReadHelper>();
+
+  size_t filename_size = filename.size();
+  Core mycore = Grappa::mycore();
+  on_all_cores( [=,&filename] {
+
+      // distribute filename across all cores
+      helper->filename.reset( new char[filename_size+1] );
+      if( Grappa::mycore() == mycore ) {
+        strncpy( &helper->filename[0], filename.c_str(), filename.size()+1 );
+      }
+      MPI_CHECK( MPI_Bcast( &helper->filename[0], filename_size+1, MPI_CHAR, mycore, MPI_COMM_WORLD ) );
+
+      // get local chunk of array
+      T * local_ptr = array.localize();
+      T * local_end = (array+nelem).localize();
+      int64_t local_count = local_end - local_ptr;
+
+      // load into local chunk
+      impl::read_unordered_shared( &helper->filename[0], local_ptr, local_count * sizeof(T) );
+      
+    } );
+
+  // Do this once it's supported
+  // symmetric_global_free(helper);
 }
 
 } // namespace Grappa

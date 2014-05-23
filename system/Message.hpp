@@ -136,8 +136,8 @@ namespace Grappa {
         //*(reinterpret_cast< intptr_t* >(p)) = gfp;
         // p += sizeof( fp );
 
-        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
-        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        MessageFPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< MessageFPAddr* >(p)) = gfp;
         static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
         p += sizeof( gfp );
 
@@ -180,6 +180,8 @@ namespace Grappa {
     /// Construct a message.
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
+    /// @param payload pointer to payload buffer
+    /// @param payload_size size of payload (in bytes)
     inline PayloadMessage( Core dest, T t, void * payload, size_t payload_size )
       : MessageBase( dest )
       , storage_( t )
@@ -292,8 +294,8 @@ namespace Grappa {
         // *(reinterpret_cast< intptr_t* >(p)) = gfp;
         // p += sizeof( fp );
 
-        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
-        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        MessageFPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< MessageFPAddr* >(p)) = gfp;
         static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
         p += sizeof( gfp );
 

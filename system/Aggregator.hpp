@@ -39,11 +39,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#pragma GCC system_header
-#include <gasnet.h>
-
 #include "common.hpp"
-#include "gasnet_helpers.h"
 
 #include "Communicator.hpp"
 #include "Timestamp.hpp"
@@ -70,7 +66,7 @@ DECLARE_bool(flush_on_idle );
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 
-extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
+extern void Aggregator_deaggregate_am( void * buf, size_t size );
 
 extern bool aggregator_access_control_active;
 
@@ -203,9 +199,7 @@ public:
   void record_aggregation( size_t bytes ) {
     aggregator_messages_aggregated_++;
     aggregator_bytes_aggregated_ += bytes;
-#ifdef GASNET_CONDUIT_IBV
     (*(histogram_[ (bytes >> 8) & 0xf ]))++;
-#endif
   }
 
   void record_deaggregation( size_t bytes ) {
@@ -295,19 +289,9 @@ private:
   /// max node count. used to allocate buffers.
   int max_nodes_;
 
-#ifdef GASNET_CONDUIT_IBV
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
   static const unsigned int buffer_size_ = 4096 - 72;
-#endif
-#ifdef GASNET_CONDUIT_UDP
-  /// number of bytes in each aggregation buffer
-  static const unsigned int buffer_size_ = 512 - 72;
-#endif
-#ifdef GASNET_CONDUIT_MPI
-  /// number of bytes in each aggregation buffer
-  static const unsigned int buffer_size_ = 65000 - 72;
-#endif
 
   /// buffer for sending non-aggregated messages
   char raw_send_buffer_[ buffer_size_ ];
@@ -348,16 +332,16 @@ private:
   };
 
 #ifdef STL_DEBUG_ALLOCATOR
-  /// Storage for received pre-deaggregation GASNet active messages
+  /// Storage for received pre-deaggregation active messages
   std::queue< ReceivedAM, std::deque< ReceivedAM, STLMemDebug::Allocator< ReceivedAM > > > received_AM_queue_;
 #else
-  /// Storage for received pre-deaggregation GASNet active messages
+  /// Storage for received pre-deaggregation active messages
   std::queue< ReceivedAM > received_AM_queue_;
 #endif
 
   /// Deaggregated buffered active messages
   void deaggregate( );
-  friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
+  friend void Aggregator_deaggregate_am( void * buf, size_t size );
 
 public:
   /// statistics
@@ -391,10 +375,10 @@ public:
     DVLOG(5) << "flushing node " << node;
     Core target = route_map_[ node ];
     stats.record_flush( buffers_[ target ].oldest_ts_, buffers_[ target ].newest_ts_ );
-    global_communicator.send( target,
-                              aggregator_deaggregate_am_handle_,
-                              buffers_[ target ].buffer_,
-                              buffers_[ target ].current_position_ );
+    size_t size = buffers_[ target ].current_position_;
+    global_communicator.send_immediate_with_payload( target, [] (void * buf, int size) {
+        Aggregator_deaggregate_am( buf, size );
+      }, buffers_[ target ].buffer_, size );
     buffers_[ target ].flush();
     //DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
@@ -557,10 +541,9 @@ public:
       memcpy( buf, args, args_size );
       buf += args_size;
       memcpy( buf, payload, payload_size );
-      global_communicator.send( target,
-				aggregator_deaggregate_am_handle_,
-				raw_send_buffer_,
-				total_call_size );
+      global_communicator.send_immediate_with_payload( target, [] (void * buf, int size) {
+          Aggregator_deaggregate_am( buf, size );
+        }, raw_send_buffer_, total_call_size );
     }
 
     // trace fine-grain communication
@@ -624,6 +607,8 @@ inline void Grappa_call_on( Core destination, void (* fn_p)(ArgsStruct *, size_t
                               const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                               const void * payload = NULL, const size_t payload_size = 0)
 {
+  LOG(ERROR) << "Do not call this function!";
+  exit(1);
   StateTimer::start_communication();
 #if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
   struct __attribute__((deprecated("Using old aggregator bypass"))) Warning {};
@@ -657,6 +642,8 @@ inline void Grappa_call_on_x( Core destination, void (* fn_p)(ArgsStruct *, size
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
+  LOG(ERROR) << "Do not call this function!";
+  exit(1);
   StateTimer::start_communication();
 #if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
   struct __attribute__((deprecated("Using old aggregator bypass, which adds additional blocking"))) Warning {};

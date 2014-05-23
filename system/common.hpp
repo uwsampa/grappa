@@ -29,6 +29,22 @@
 #include <stdint.h>
 #include <iostream>
 #include <glog/logging.h>
+#include <memory>
+#include <algorithm>
+
+using std::unique_ptr;
+
+/// Construct unique_ptr more easily. (to be included in C++1y)
+/// 
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// auto m = make_unique<MyClass>(a,5);
+/// // equivalent to:
+/// auto m = std::unique_ptr<MyClass>(new MyClass(a,5));
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 
 #include <cstddef>
 using std::nullptr_t;
@@ -42,8 +58,30 @@ using std::nullptr_t;
 #include <time.h>
 #endif
 
-#define BILLION 1000000000
-#define MILLION 1000000
+#define ONE                 (1ULL)
+#define KILO                (1024ULL * ONE)
+#define MEGA                (1024ULL * KILO)
+#define GIGA                (1024ULL * MEGA)
+#define TERA                (1024ULL * GIGA)
+#define PETA                (1024ULL * TERA)
+#define CACHE_LINE_SIZE     (64ULL)
+#define SIZE_OF_CACHE       (MEGA * 64ULL)
+#define THOUSAND        (1000ULL * ONE)
+#define MILLION         (1000ULL * THOUSAND)
+#define BILLION         (1000ULL * MILLION)
+
+#ifndef MAX
+#  define MAX(a,b) ((a) < (b) ? (b) : (a))
+#endif
+#ifndef MIN
+#  define MIN(a,b) ((a) > (b) ? (b) : (a))
+#endif
+
+// align ptr x to y boundary (rounding up)
+#define ALIGN_UP(x, y) \
+    ((((u_int64_t)(x) & (((u_int64_t)(y))-1)) != 0) ? \
+        ((void *)(((u_int64_t)(x) & (~(u_int64_t)((y)-1)))+(y))) \
+        : ((void *)(x)))
 
 /// Use to deprecate old APIs
 #define GRAPPA_DEPRECATED __attribute__((deprecated))
@@ -82,12 +120,12 @@ inline double walltime(void) {
 
 } // namespace Grappa
 
-#define GRAPPA_TIME(var, block) \
-   	do { \
-		double _tmptime = Grappa::walltime(); \
-		block \
-		var = Grappa::walltime()-_tmptime; \
-	} while(0)
+ #define GRAPPA_TIME(var, block) \
+      do { \
+     double _tmptime = Grappa::walltime(); \
+     block \
+     var = Grappa::walltime()-_tmptime; \
+   } while(0)
 
 #define GRAPPA_TIMER(var) \
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; \
@@ -98,6 +136,14 @@ inline double walltime(void) {
     for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
          LOG(INFO) << name << ": " << (Grappa::walltime()-_tmpstart), _tmptime = 1)
 
+#define GRAPPA_TIME_VLOG(level, name, indent) \
+    VLOG(level) << indent << name << "..."; \
+    for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
+       VLOG(level) << indent << "  (" << (Grappa::walltime()-_tmpstart) << " s)", _tmptime = 1)
+
+#define GRAPPA_TIME_REGION(var) \
+    for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
+         var += (Grappa::walltime()-_tmpstart), _tmptime = 1)
 
 /// Compute ratio of doubles, returning 0 when divisor is 0
 template< typename T, typename U >
@@ -157,8 +203,40 @@ T * Grappa_magic_identity_function(T * t) {
   return t;
 }
 
+/// Helper for invoking 'std::min_element' on containers.
+template< typename Container, typename Comparator >
+auto min_element(const Container& c, Comparator cmp) -> decltype(*c.begin()) {
+  return *std::min_element(c.begin(), c.end(), cmp);
+}
+
+/// Helper for invoking 'std::min_element' on containers.
+template< typename Container, typename Comparator >
+auto min_element(const Container& c0, const Container& c1, Comparator cmp) -> decltype(*c0.begin()) {
+   auto m0 = min_element(c0, cmp);
+   auto m1 = min_element(c1, cmp);
+   return cmp(m0,m1) ? m0 : m1;
+}
+
+/// Range type that represents the values `[start,end)`.
+/// Only valid for types that define `<`, `==`, and `++`.
+template< typename T >
+struct Range { T start, end; };
+
+/// Helper for invoking 'std::min_element' on a Range.
+template< typename T, typename Comparator >
+T min_element(Range<T> r, Comparator cmp) {
+  T best = r.start;
+  for (T e = r.start; e < r.end; e++) {
+    if (cmp(e,best)) {
+      best = e;
+    }
+  }
+  return best;
+}
+
 /// range for block distribution
-struct range_t { int64_t start, end; };
+using range_t = Range<int64_t>;
+
 
 inline std::ostream& operator<<(std::ostream& o, const range_t& r) {
   o << "<" << r.start << "," << r.end << ">";
@@ -283,7 +361,7 @@ namespace Grappa {
   namespace impl {
     // A small helper for Google logging CHECK_NULL().
     template <typename T>
-    T* CheckNull(const char *file, int line, const char *names, T* t) {
+    inline T* CheckNull(const char *file, int line, const char *names, T* t) {
       if (t != NULL) {
         google::LogMessageFatal(file, line, new std::string(names));
       }
@@ -301,9 +379,46 @@ namespace Grappa {
 #define DCHECK_NULL(val)                        \
   ;
 #endif  
-    
+
+
+#define MPI_CHECK( mpi_call )                                           \
+  do {                                                                  \
+    int retval;                                                         \
+    if( (retval = (mpi_call)) != 0 ) {                                  \
+      char error_string[MPI_MAX_ERROR_STRING];                          \
+      int length;                                                       \
+      MPI_Error_string( retval, error_string, &length);                 \
+      LOG(FATAL) << "MPI call failed: " #mpi_call ": "                  \
+                 << error_string;                                       \
+    }                                                                   \
+  } while(0)
+
   /// @}
 
 }
 
+namespace Grappa {
+  
+/// @addtogroup Utility
+/// @{
+
+namespace impl{
+
+static inline void prefetcht0(const void *p) {
+    __builtin_prefetch(p, 0, 3);
+}
+
+static inline void prefetchnta(const void *p) {
+    __builtin_prefetch(p, 0, 0);
+}
+
+static inline void prefetcht2(const void *p) {
+    __builtin_prefetch(p, 0, 1);
+}
+
+}
+
+/// @}
+
+}
 #endif

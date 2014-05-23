@@ -18,10 +18,12 @@ set(SYSTEM_SOURCES
   AsyncDelegate.cpp
   Barrier.cpp
   Cache.cpp
+  ChunkAllocator.cpp
   CallbackMetric.cpp
   Collective.cpp
   Communicator.cpp
   Delegate.cpp
+  FileIO.cpp
   FlatCombiner.cpp
   GlobalAllocator.cpp
   GlobalCompletionEvent.cpp
@@ -57,11 +59,13 @@ set(SYSTEM_SOURCES
   Barrier.hpp
   boost_helpers.hpp
   Cache.hpp
+  ChunkAllocator.hpp
   CallbackMetric.hpp
   CallbackMetricImpl.hpp
   Collective.hpp
   common.hpp
   Communicator.hpp
+  CommunicatorImpl.hpp
   CompletionEvent.hpp
   ConditionVariable.hpp
   ConditionVariableLocal.hpp
@@ -119,7 +123,6 @@ set(SYSTEM_SOURCES
   ThreadQueue.hpp
   Timestamp.hpp
   Worker.hpp
-  gasnet_helpers.h
   stack.h
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
@@ -141,6 +144,7 @@ set(SYSTEM_SOURCES
 list(APPEND SYSTEM_SOURCES
   graph/Graph.hpp
   graph/Graph.cpp
+  graph/TupleGraph.cpp
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
@@ -199,6 +203,7 @@ add_check( GlobalMemory_tests.cpp            2 1  pass )
 add_check( GlobalVector_tests.cpp            2 1  pass )
 add_check( Gups_tests.cpp                    2 1  pass )
 add_check( LocaleSharedMemory_tests.cpp      2 1  pass )
+add_check( Malloc_tests.cpp                  2 1  fail )
 add_check( Message_tests.cpp                 2 1  fail )
 add_check( Mutex_tests.cpp                   2 1  pass )
 add_check( New_delegate_tests.cpp            2 2  pass )
@@ -218,10 +223,67 @@ add_check( ThreadQueue_tests.cpp             2 1  pass )
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
 
+#
+# begin hack for dealing with communicator test
+#
+
+add_library(Communicator
+        Communicator.cpp
+        LocaleSharedMemory.cpp
+)
+add_dependencies(Communicator all-third-party)
+
+macro(add_commtest_exe target exe )
+  add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
+  set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
+  target_link_libraries(${target}
+    Communicator
+    ${GRAPPA_LIBS}
+    ${MPI_CXX_LIBRARIES}
+    ${Boost_LIBRARIES}
+  )
+endmacro(add_commtest_exe)
+
+macro(add_commtest_test name nnode ppn)
+  get_filename_component(base ${name} NAME_WE) # name without extension
+  
+  add_commtest_exe(${name} ${name} ${ARGN})
+  set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
+  set_target_properties(${test} PROPERTIES
+    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
+  )
+  
+  # TODO: use "ctest" to make whole regression test suite
+  add_custom_target("check-${base}"
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+    DEPENDS Communicator ${name}
+  )
+  add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+  )
+  
+  set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
+  list(APPEND GRAPPA_TESTS "check-${base}")
+endmacro(add_commtest_test)
+
+macro(add_commtest_check test_cpp nnode ppn target)
+  get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
+  set(test "${test_name}.test")
+  add_commtest_test(${test} ${nnode} ${ppn} ${test_cpp})
+endmacro()
+
+add_commtest_check( Communicator_tests.cpp   2 1  pass )
+
+#
+# end hack for dealing with communicator test
+#
+
+
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
-  get_property(CMAKE_CURRENT_INCLUDES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+  get_property(include_dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+  string(REPLACE ";" " " CMAKE_CURRENT_INCLUDES "${include_dirs}")
   
   set(DOXYGEN_OUTPUT "doxygen")
   set(DOXYGEN_BUILD_DIR ${CMAKE_SOURCE_DIR}/build)

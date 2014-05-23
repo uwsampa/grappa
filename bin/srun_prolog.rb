@@ -6,25 +6,7 @@ end
 
 ## set up Google logging defaults
 ENV["GLOG_logtostderr"] = "1"
-ENV["GLOG_v"] = "0"
-
-## set up GASNet debugging
-ENV["GASNET_BACKTRACE"] = "1"
-ENV["GASNET_FREEZE_SIGNAL"] = "SIGUSR1"
-ENV["GASNET_FREEZE_ON_ERROR"] = "1"
-ENV["GASNET_FREEZE"] = "0"
-# ENV["GASNET_VERBOSEENV"] = "1"
-
-case `hostname`
-when /n\d+/ #(sampa)
-  # workaround for 1G huge pages
-  ENV["GASNET_PHYSMEM_MAX"] = "1024M"
-end
-
-## these will ensure we use RDMA rather than copying data to a bounce buffer
-ENV["GASNET_PACKEDLONG_LIMIT"] = "0"
-ENV["GASNET_NONBULKPUT_BOUNCE_LIMIT"] = "0"
-ENV["GASNET_PUTINMOVE_LIMIT"] = "0"
+ENV["GLOG_v"] = "1"
 
 ## set Google profiler sample rate
 ENV["CPUPROFILE_FREQUENCY"] = "50"
@@ -36,19 +18,23 @@ ENV["VT_PFORM_GDIR"] = "."
 ENV["VT_PFORM_LDIR"] = "/scratch"
 ENV["VT_FILE_UNIQUE"] = "yes"
 ENV["VT_MPITRACE"] = "no"
+ENV["VT_UNIFY"] = "no"
 
 ## set MVAPICH2 options to avoid keeping around malloced memory
 ## (and some performance tweaks which may be irrelevant)
 ENV["MV2_USE_LAZY_MEM_UNREGISTER"] = "0"
-ENV["MV2_ON_DEMAND_THRESHOLD"] = "3000"
+ENV["MV2_HOMOGENEOUS_CLUSTER"] = "1"
 
-ENV["MV2_DEFAULT_MAX_SEND_WQE"] = "2"
-ENV["MV2_DEFAULT_MAX_RECV_WQE"] = "2"
-ENV["MV2_MAX_INLINE_SIZE"] = "0"
-ENV["MV2_NUM_RDMA_BUFFER"] = "4"
+ENV["MV2_USE_RDMA_FAST_PATH"] = "0"
+
+ENV["MV2_SRQ_MAX_SIZE"] = "8192"
+#ENV["MV2_USE_XRC"] = "1" # doesn't seem to work with 1.9b on pal
+
+#ENV["MV2_USE_MCAST"] = "1" # doesn't always work on pal
 
 ## set MVAPICH2 options to avoid keeping around malloced memory
 ENV["OMPI_MCA_mpi_leave_pinned"] = "0"
+ENV["OMPI_MCA_mpi_yield_when_idle"] = "0"
 
 ## Clean up any leftover shared memory regions
 s = `ipcs -m | grep $USER | awk '{print $2}' | xargs -n1 -r ipcrm -m`

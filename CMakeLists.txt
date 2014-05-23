@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
-option(GASNET_USE_UDP "Force Gasnet to use UDP (typically set by configure script)" OFF)
+option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -16,8 +16,8 @@ set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
 
 project(Grappa)
 
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
 
 set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
 set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
@@ -36,6 +36,11 @@ if(TRACING)
 
   include_directories("${THIRD_PARTY_ROOT}/include/vampirtrace")
   
+endif()
+
+if(PROFILING)
+  set(GOOGLE_PROFILER ON)
+  add_definitions(-DGOOGLE_PROFILER)
 endif()
 
 # global C++ flags
@@ -83,6 +88,10 @@ if(TRACING)
   endif()
 endif()
 
+if(PROFILING)
+  message("-- Profiling enabled.")
+endif()
+
 ##### </RUNPATH> ########
 
 
@@ -122,6 +131,11 @@ list(APPEND GRAPPA_LIBS
   glog
 )
 
+# TODO: actually check if PMI is available for this platform, possibly build it
+if(NOT APPLE)
+  list(APPEND GRAPPA_LIBS pmi)
+endif()
+
 #####################################
 # Boost
 #####################################
@@ -148,38 +162,6 @@ else()
   message("-- Boost not found.")
   message("   !! Will download and build Boost, which may take a while.")
 endif()
-
-######################################
-# Gasnet
-######################################
-if(DEFINED APPLE OR GASNET_USE_UDP)
-  set(GASNET_CONDUIT "udp")
-else()
-  set(GASNET_CONDUIT "ibv") # values: ibv,mpi
-endif()
-
-set(GASNET_THREAD "seq")  # values: seq,par,parsync -- seq recommended
-list(APPEND GRAPPA_LIBS "gasnet-${GASNET_CONDUIT}-${GASNET_THREAD}")
-
-if( ${GASNET_CONDUIT} MATCHES "ibv")
-  list(APPEND GRAPPA_LIBS "ibverbs")
-endif()
-if( ${GASNET_CONDUIT} MATCHES "mpi")
-  list(APPEND GRAPPA_LIBS "ammpi")
-endif()
-if( ${GASNET_CONDUIT} MATCHES "udp")
-  list(APPEND GRAPPA_LIBS "amudp")
-endif()
-
-string(TOUPPER ${GASNET_CONDUIT} GASNET_CONDUIT_UP)
-string(TOUPPER ${GASNET_THREAD} GASNET_THREAD_UP)
-
-add_definitions(
-  "-DGASNET_${GASNET_THREAD_UP}"
-  "-DGASNET_${GASNET_CONDUIT_UP}"
-  "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
-)
-include_directories("${THIRD_PARTY_ROOT}/include/${GASNET_CONDUIT}-conduit")
 
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1

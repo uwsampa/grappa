@@ -98,11 +98,16 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::MetricBase&
 }
 
 /// Define a new Grappa Metric
-/// @param type: supported types include: int, unsigned int, int64_t, uint64_t, float, and double
+/// @param type  Metric type (e.g. SummarizingMetric<double>)
+/// @param name  Variable name
+/// @param arg1  Default value
 #define GRAPPA_DEFINE_METRIC(type, name, arg1) \
   Grappa::type name(#name, arg1)
 
-/// Declare a stat (defined in a separate .cpp file) so it can be used
+/// Declare a metric (defined in a separate .cpp file) so it can be used
+/// 
+/// @param type  Metric type (e.g. SummarizingMetric<double>)
+/// @param name  Variable name
 #define GRAPPA_DECLARE_METRIC(type, name) \
   extern Grappa::type name;
 

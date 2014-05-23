@@ -35,6 +35,10 @@
 namespace fs = boost::filesystem;
 
 
+DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before dumping stats blob");
+DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
+DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
+
 
 DECLARE_string(stats_blob_filename);
 
@@ -161,8 +165,11 @@ namespace Grappa {
     }
     
     void dump_stats_blob() {
+      MetricList all;
+      merge(all); // also flushes histogram logs
+
       std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-      print( o, Grappa::impl::registered_stats(), "");
+      print( o, all, "");
     }
 
     void reset() {
@@ -207,6 +214,7 @@ namespace Grappa {
       #ifdef VTRACE_SAMPLED
         VT_USER_START("sampling");
         sample();
+        if (mycore() == 0) LOG(INFO) << "Tracing started.";
       #endif
       #endif // GOOGLE_PROFILER
     }
@@ -217,8 +225,8 @@ namespace Grappa {
         impl::profile_handler(NULL);
         #ifdef VTRACE_SAMPLED
           VT_USER_END("sampling");
-          
           sample();
+          if (mycore() == 0) LOG(INFO) << "Tracing stopped.";
         #endif
       #endif
     }

@@ -24,199 +24,100 @@
 #include "SharedMessagePool.hpp"
 #include "Metrics.hpp"
 #include "ConditionVariable.hpp"
+#include "common.hpp"
+#include "ChunkAllocator.hpp"
 #include <stack>
 
-DEFINE_int64(shared_pool_size, 1L << 18, "Size (in bytes) of global SharedMessagePool (on each Core)");
+DEFINE_int64( shared_pool_chunk_size, 1 << 13, "Number of bytes to allocate when shared message pool is empty" );
 
-/// Note: max is enforced only for blockable callers, and is enforced early to avoid callers
-/// that cannot block (callers from message handlers) to have a greater chance of proceeding.
-/// In 'init_shared_pool()', 'emergency_alloc' margin is set, currently, to 1/4 of the max.
-///
-/// Currently setting this max to cap shared_pool usage at ~1GB, though this may be too much
-/// for some apps & machines, as it is allocated out of the locale-shared heap. It's also
-/// worth noting that under current settings, most apps don't reach this point at steady state.
-DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
-DEFINE_double(shared_pool_memory_fraction, 0.5, "Fraction of remaining memory to use for shared pool (after taking out global_heap and stacks)");
+DECLARE_int64( locale_shared_size );
+
+DEFINE_int64(shared_pool_max_size, 0, "Soft maximum size (in bytes) of shared message pool storage (on each Core) (0 sets automatically base on memory fraction)");
+DEFINE_double(shared_pool_memory_fraction, 0.25, "Fraction of locale shared heap to use for shared pool");
+
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, shared_message_pools_allocated, 0);
 
+/// record counts of messages allocated by cache line count
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_1cl, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_2cl, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_3cl, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_ncl, 0 );
+GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_toobig, 0 );
+
 namespace Grappa {
 
-  /// type T must have a member: 'T * next'
-  template< typename T, void *(*Allocator)(size_t) = malloc >
-  class PiggybackStack {
-  protected:
-    T* pop() {
-      T* r = top;
-      if (r != nullptr) {
-        top = r->next;
-        if (top) CHECK(top->allocated == 0);
-        r->next = nullptr;
-      }
-      return r;
-    }
-    
-    bool is_emergency() { return global_scheduler.in_no_switch_region(); }
-  public:
-    long allocated;
-    const long max_alloc;
-    const long emergency_alloc;
-    T * top;
-  
-    PiggybackStack(long max_alloc = -1, long emergency_alloc = 0): allocated(0), max_alloc(max_alloc), emergency_alloc(emergency_alloc), top(nullptr) {}
-    
-    ~PiggybackStack() {
-      CHECK(false) << "didn't think this was being cleaned up.";
-      while (!empty()) {
-        delete pop();
-      }
-    }
-    
-    void release(T * s) {
-      DCHECK(s->allocated == 0);
-      s->next = top;
-      top = s;
-    }
-    
-    T* take() {
-      T* r = nullptr;
-      if (!empty()) {
-        r = pop();
-      } else if ((max_alloc == -1) || (allocated < (max_alloc-emergency_alloc))
-                || (is_emergency() && allocated < max_alloc)) {
-        allocated++;
-        shared_message_pools_allocated++;
-        r = new (Allocator(sizeof(T))) T();
-      }
-      // DCHECK(r != nullptr);
-      // new (r) T();
-      return r;
-    }
-    
-    bool empty() { return top == nullptr; }
-    
-    long find(T *o) {
-      long id = 0;
-      for (auto *i = top; i; i = i->next, id++) {
-        if (i == o) return id;
-      }
-      return -1;
-    }
-    
-    long size() {
-      long id = 0;
-      for (auto *i = top; i; i = i->next, id++);
-      return id;
-    }
-    
-  };
+namespace impl {
 
-  SharedMessagePool * shared_pool = nullptr;
-  
-  PiggybackStack<SharedMessagePool,locale_alloc> *pool_stack;
-  
-  ConditionVariable blocked_senders;
+/// messages larger than this size will be malloced directly.
+/// this should be a multiple of the cacheline size.
+#define MAX_POOL_MESSAGE_SIZE (1 << 10)
 
-  void* _shared_pool_alloc_message(size_t sz) {
-    DCHECK_GE(shared_pool->remaining(), sz);
-    DCHECK( !shared_pool->emptying );
-    shared_pool->to_send++;
-    return shared_pool->PoolAllocator::allocate(sz);
+/// We will preallocate pools of messages up to this size (in cachelines).
+/// Higher sizes will allocate as needed.
+#define MAX_POOL_MESSAGE_SIZE_PREALLOCATED_CUTOFF (1 << 8)
+
+/// number of cachelines in largest pool message
+#define MAX_POOL_CACHELINE_COUNT (MAX_POOL_MESSAGE_SIZE / CACHE_LINE_SIZE)
+
+/// storage for message pools
+struct aligned_pool_allocator message_pool[ MAX_POOL_CACHELINE_COUNT ];
+
+/// set up shared pool for basic message sizes
+void init_shared_pool() {
+  if( 0 == FLAGS_shared_pool_max_size ) {
+    double size = FLAGS_locale_shared_size;
+    size /= Grappa::locale_cores();
+    size *= FLAGS_shared_pool_memory_fraction;
+    FLAGS_shared_pool_max_size = size;
   }
-  
-  void init_shared_pool() {
-    if (FLAGS_shared_pool_max == -1) {
-      size_t mem_remaining = impl::locale_shared_memory.get_free_memory() / locale_cores();
-      long num_pools = static_cast<long>(FLAGS_shared_pool_memory_fraction * static_cast<double>(mem_remaining)) / FLAGS_shared_pool_size;
-      FLAGS_shared_pool_max = num_pools;
+
+  for( int i = 0; i < MAX_POOL_CACHELINE_COUNT; ++i ) {
+    auto message_size = (i+1) * CACHE_LINE_SIZE;
+    auto chunk_count = FLAGS_shared_pool_chunk_size / message_size;
+
+    // only make big chunks for frequently-used message sizes
+    if( i >= (MAX_POOL_MESSAGE_SIZE_PREALLOCATED_CUTOFF / CACHE_LINE_SIZE) ) {
+      chunk_count = 1;
     }
-    double total_gb = static_cast<double>(FLAGS_shared_pool_max*FLAGS_shared_pool_size) / (1L<<30);
-    if (mycore() == 0) VLOG(1) << "shared_pool -> size = " << FLAGS_shared_pool_size << ", max = " << FLAGS_shared_pool_max << ", total = " << total_gb << " GB";
-    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc>(FLAGS_shared_pool_max, FLAGS_shared_pool_max/4);
-    shared_pool = pool_stack->take();
+
+    aligned_pool_allocator_init( &message_pool[i],
+                                 CACHE_LINE_SIZE, // alignment
+                                 message_size,
+                                 chunk_count );
   }
+}
+
+
+void* _shared_pool_alloc(size_t sz) {
+  size_t cacheline_count = sz / CACHE_LINE_SIZE;
+  CHECK_EQ( cacheline_count * CACHE_LINE_SIZE, sz ) << "Message size not a multiple of cacheline size?";
   
-  void* _shared_pool_alloc(size_t sz) {
-// #ifdef DEBUG
-    // auto i = pool_stack->find(shared_pool);
-    // if (i >= 0) VLOG(0) << "found: " << shared_pool << ": " << i << " / " << pool_stack->size();
-// #endif
-    DCHECK(!shared_pool || shared_pool->next == nullptr);
-    if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
-      return _shared_pool_alloc_message(sz);
-    } else {
-      // if not emptying already, do it
-      auto *o = shared_pool;
-      shared_pool = nullptr;
-      if (o && !o->emptying) {
-        CHECK_GT(o->allocated, 0);
-        o->emptying = true;
-        if (o->to_send == 0) {
-          o->on_empty();
-        }
-      }
-      DCHECK(pool_stack->empty() || pool_stack->top->allocated == 0);
-      // find new shared_pool
-      SharedMessagePool *p = pool_stack->take();
-      if (p) {
-        CHECK_EQ(p->allocated, 0) << "not a fresh pool!";
-        shared_pool = p;
-        return _shared_pool_alloc_message(sz);
-      } else {
-        // can't allocate any more
-        // try to block until a pool frees up
-        do {
-          Grappa::wait(&blocked_senders);
-          if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
-            p = shared_pool;
-          } else {
-            p = pool_stack->take();
-          }
-        } while (!p);
-        
-        // p must be able to allocate
-        shared_pool = p;
-        return _shared_pool_alloc_message(sz);
-      }
+  if( sz > MAX_POOL_MESSAGE_SIZE ) {
+    shared_pool_alloc_toobig++;
+    return locale_alloc_aligned<char>(CACHE_LINE_SIZE, sz);
+  } else {
+    // record the pool allocation (bucketed by number of cachelines)
+    switch( cacheline_count ) {
+    case 1: shared_pool_alloc_1cl++; break;
+    case 2: shared_pool_alloc_2cl++; break;
+    case 3: shared_pool_alloc_3cl++; break;
+    default: shared_pool_alloc_ncl++; break;
     }
+    return aligned_pool_allocator_alloc( &message_pool[cacheline_count] );
   }
+}
+
+void _shared_pool_free(MessageBase * m, size_t sz) {
+  size_t cacheline_count = sz / CACHE_LINE_SIZE;
   
-  void SharedMessagePool::message_sent(impl::MessageBase* m) {
-    DCHECK(this->next == nullptr);
-#ifdef DEBUG
-    validate_in_pool(m);
-#endif
-    this->to_send--;
-    if (this->emptying && this->to_send == 0) {
-      // CHECK(this != shared_pool);
-      DCHECK_GT(this->allocated, 0);
-      this->on_empty();
-    }
+  if( sz > MAX_POOL_MESSAGE_SIZE ) {
+    return locale_free(m);
+  } else {
+    return aligned_pool_allocator_free( &message_pool[cacheline_count], m );
   }
-  
-  void SharedMessagePool::on_empty() {
-    CHECK(this->next == nullptr);
-    CHECK(this != shared_pool);
-    
-    DCHECK_EQ(this->to_send, 0);
-    DVLOG(3) << "empty and emptying, to_send:"<< to_send << ", allocated:" << allocated << "/" << buffer_size << " @ " << this << ", buf:" << (void*)buffer << "  completions_received:" << completions_received << ", allocated_count:" << allocated_count;
-// #ifdef DEBUG
-    // verify everything sent
-    // this->iterate([](impl::MessageBase* m) {
-    //   if (!m->is_sent_ || !m->is_delivered_ || !m->is_enqueued_) {
-    //     CHECK(false) << "!! message(" << m << ", is_sent_:" << m->is_sent_ << ", is_delivered_:" << m->is_delivered_ << ", m->is_enqueued_:" << m->is_enqueued_ << ", extra:" << m->pool << ")";
-    //   }
-    // });
-  
-    memset(buffer, (0x11*locale_mycore()) | 0xf0, buffer_size); // poison
-    
-// #endif
-    DCHECK( pool_stack->find(this) == -1 );
-    DCHECK( this->next == nullptr );
-    
-    this->reset();
-    pool_stack->release(this);
-    broadcast(&blocked_senders);
-  }
+}
+
+}
 
 } // namespace Grappa
