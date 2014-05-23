@@ -47,7 +47,7 @@ public:
         parent = i;
         while (get_level(g, parent) < 0) {
           CHECK_GT(nhop, 0);
-          parent = delegate::call(g->vs+parent, [=](Vertexnin& v){
+          parent = delegate::call(g->vs+parent, [=](Vertex& v){
             v->level = nhop;
             return v->parent;
           });
