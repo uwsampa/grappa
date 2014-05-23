@@ -34,6 +34,6 @@ inline int64_t choose_root(GlobalAddress<Graph<V,E>> g) {
 }
 
 inline int64_t verify(TupleGraph tg, GlobalAddress<G> g, int64_t root) {
-  return VerificatorBase<BFSData>::verify(tg, g, root);
+  return VerificatorBase<G>::verify(tg, g, root);
 }
 

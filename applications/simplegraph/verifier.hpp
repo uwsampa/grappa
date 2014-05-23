@@ -8,19 +8,19 @@ using namespace Grappa;
 
 extern int64_t nedge_traversed;
 
-template <typename T>
+template <typename G>
 class VerificatorBase {
-  using Vertex = typename Graph<T>::Vertex;
+  using Vertex = typename G::Vertex;
 public:
 
-  static int64_t get_level(GlobalAddress<Graph<T>> g, int64_t j) {
+  static int64_t get_level(GlobalAddress<G> g, int64_t j) {
     return delegate::call(g->vs+j, [](Vertex& v){ return v->level; });
   }
-  static int64_t get_parent(GlobalAddress<Graph<T>> g, int64_t j) {
+  static int64_t get_parent(GlobalAddress<G> g, int64_t j) {
     return delegate::call(g->vs+j, [](Vertex& v){ return v->parent; });
   }
 
-  static int compute_levels(GlobalAddress<Graph<T>> g, int64_t root) {
+  static int compute_levels(GlobalAddress<G> g, int64_t root) {
     // compute levels
     delegate::call(g->vs+root, [](Vertex& v){ v->level = 0; });
   
@@ -58,7 +58,7 @@ public:
     });
   }
 
-  static inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<T>> g, int64_t root) {
+  static inline int64_t verify(TupleGraph tg, GlobalAddress<G> g, int64_t root) {
 
     // check root
     delegate::call(g->vs+root, [=](Vertex& v){

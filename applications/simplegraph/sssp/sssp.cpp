@@ -20,25 +20,25 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<int64_t>, sssp_nedge, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, graph_create_time, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, verify_time, 0);
 
-void dump_sssp_graph(GlobalAddress<Graph<SSSPVertex>> &g);
+void dump_sssp_graph(GlobalAddress<G> &g);
 
 // global completion flag 
 bool global_complete = false;
 // local completion flag
 bool local_complete = false;
 
-void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
+void do_sssp(GlobalAddress<G> &g, int64_t root) {
 
     // intialize parent to -1
-    forall(g, [](SSSPVertex& v){ v->init(v.nadj); });
+    forall(g, [](G::Vertex& v){ v->init(v.nadj); });
 
     VLOG(1) << "root => " << root;
 
     // set zero value for root distance and
     // setup 'root' as the parent of itself
-    delegate::call(g->vs+root,[=](SSSPVertex& v) { 
-       v->dist = 0.0;
-          v->parent = root;
+    delegate::call(g->vs+root,[=](G::Vertex& v) { 
+      v->dist = 0.0;
+      v->parent = root;
     });
 
     // expose global completion flag to global address space
@@ -52,7 +52,7 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
       on_all_cores([]{ local_complete = true; });
 
       // iterate over all vertices of the graph
-      forall(g, [=](int64_t vsid, SSSPVertex& vs) {
+      forall(g, [=](VertexID vsid, G::Vertex& vs) {
 
         if (vs->dist !=  std::numeric_limits<double>::max()) {
 
@@ -60,13 +60,12 @@ void do_sssp(GlobalAddress<Graph<SSSPVertex>> &g, int64_t root) {
           // visit all the adjacencies of the vertex 
           // and update there dist values if needed
           double dist = vs->dist;
-          double *weights = vs->weights;
-
-          forall_here(0,vs.nadj,[=](int64_t i){
+          
+          forall(adj(g,vs), [=](G::Edge& e){
             // calculate potentinal new distance and...
-            double sum = dist + weights[i];            
+            double sum = dist + e->weight;
             // ...send it to the core where the vertex is located
-            delegate::call<async>(g->vs+vs.local_adj[i], [=](SSSPVertex& ve){
+            delegate::call<async>(e.ga, [=](G::Vertex& ve){
               if (sum < ve->dist) {
                 // update vertex parameters
                 ve->dist = sum;
@@ -100,10 +99,10 @@ int main(int argc, char* argv[]) {
     // Graph500 Kronecker generator to get a power-law graph
     auto tg = TupleGraph::Kronecker(FLAGS_scale, NE, 111, 222);
 
-    // create graph with incorporated SSSPVertex
-    auto g = Graph<SSSPVertex>::create( tg );
+    // create graph with incorporated Vertex
+    auto g = G::Undirected( tg );
     graph_create_time = (walltime()-t);
-
+    
     LOG(INFO) << "graph generated (#nodes = " << g->nv << "), " << graph_create_time;
       
     t = walltime();
@@ -118,7 +117,7 @@ int main(int argc, char* argv[]) {
     if (!verified) {
       // only verify the first one to save time
       t = walltime();
-      sssp_nedge = Verificator<>::verify(tg, g, root);
+      sssp_nedge = Verificator<G>::verify(tg, g, root);
       verify_time = (walltime()-t);
       LOG(INFO) << verify_time;
       verified = true;
