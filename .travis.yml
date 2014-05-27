@@ -12,7 +12,9 @@ before_script:
   - sudo apt-get update -q
   - sudo apt-get install libboost1.54-all-dev
 before_install:
-  - sudo apt-get install mpich2
+  - wget http://www.cebacad.net/files/mpich/ubuntu/mpich-3.1/mpich_3.1-1ubuntu_amd64.deb
+  - sudo dpkg -i mpich_3.1-1ubuntu_amd64.deb
+  - sudo apt-get -f install -y
 script:
   - ./configure && cd build/Make+Release && make VERBOSE=1 check-all-pass-compile-only
 branches:
