@@ -8,7 +8,7 @@ compiler:
 #   - if [ "$CXX" = "g++" ]; then sudo apt-get install -qq g++-4.7; fi
 #   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.7" CC="gcc-4.7"; fi
 install:
-  - sudo apt-get install -y mpich2 libboost-dev
+  - sudo apt-get install -y mpich2 libboost1.54-dev
 script:
   - ./configure && cd build/Make+Release && make VERBOSE=1 check-all-pass-compile-only
 branches:
