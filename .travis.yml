@@ -10,7 +10,9 @@ compiler:
 before_install:
   - sudo apt-get update -qq
   - apt-cache show libboost-dev
-  - sudo apt-get install -y mpich2 libboost1.54-dev
+  - sudo apt-get install -y mpich2
+  - sudo apt-get install -y bjam
+  - sudo bjam install
 script:
   - ./configure && cd build/Make+Release && make VERBOSE=1 check-all-pass-compile-only
 branches:
