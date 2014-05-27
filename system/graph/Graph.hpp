@@ -770,9 +770,10 @@ namespace Grappa {
     auto lsz = Vertex::locale_heap_size()*g->nv
                           + (sizeof(VertexID)+sizeof(EdgeState))*g->nadj;
     auto GB = [](size_t v){ return static_cast<double>(v) / (1L<<30); };
-    LOG(INFO) << "\nlocale_heap_size: " << GB(lsz) << " GB"
-              << "\nglobal_heap_size: " << GB(gsz) << " GB"
-              << "\ngraph_total_size: " << GB(lsz+gsz) << " GB";
+    LOG(INFO) << "\nGraph memory breakdown:"
+              << "\n  locale_heap_size: " << GB(lsz) << " GB"
+              << "\n  global_heap_size: " << GB(gsz) << " GB"
+              << "\n  graph_total_size: " << GB(lsz+gsz) << " GB";
     return g;
   }
   
