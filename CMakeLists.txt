@@ -139,6 +139,9 @@ endif()
 #####################################
 # Boost
 #####################################
+set(Boost_DETAILED_FAILURE_MSG ON)
+set(Boost_DEBUG ON)
+
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
 set(Boost_USE_MULTITHREADED OFF)
