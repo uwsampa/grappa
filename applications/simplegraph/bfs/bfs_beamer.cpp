@@ -26,12 +26,16 @@
 /// graph data structure. This implement's Graph500's BFS benchmark:
 /// - Uses the Graph500 Specification Kronecker graph generator with
 ///   numVertices = 2^scale (--scale specified on command-line)
+/// - Or can read in a graph from a file
 /// - Uses the builtin hybrid compressed-sparse-row graph format
 /// - Computes the 'parent' tree given a root, and does this a number 
 ///   of times (specified by --nbfs).
 /// 
-/// This variant uses GlobalBag to implement the frontier, and also 
-/// supports the '--max_degree_source' flag.
+/// This variant implements Scott Beamer's direction-optimizing (bottom-up)
+/// BFS (http://dl.acm.org/citation.cfm?id=2389013), uses GlobalBag to
+/// implement the frontier, and supports the '--max_degree_source' flag
+/// (useful for comparing against other BFS implementations with 
+/// potentially different random root selection).
 ////////////////////////////////////////////////////////////////////////
 
 #include "common.hpp"
@@ -40,8 +44,10 @@
 
 DEFINE_bool( max_degree_source, false, "Start from maximum degree vertex");
 
-DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-up.");
-DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
+DEFINE_double(beamer_alpha, 20.0, 
+  "Beamer BFS parameter (specifies when to switch to bottom-up)");
+DEFINE_double(beamer_beta, 20.0,
+  "Beamer BFS parameter (specifies when to switch back to top-down)");
 
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, bfs_mteps);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<double>, total_time);
