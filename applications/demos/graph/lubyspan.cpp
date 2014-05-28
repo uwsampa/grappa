@@ -22,7 +22,7 @@ bool unconnected(GlobalAddress<Graph<LubyVertex>> graph) {
   forall(graph, [graph](LubyVertex &vertextocheck) {
     if (vertextocheck->level == 2) {
       forall<async>(adj(graph, vertextocheck), [](GlobalAddress<LubyVertex> gvertex) {
-        delegate::call(gvertex, [](LubyVertex &gvertex_) {
+        delegate::call<async>(gvertex, [](LubyVertex &gvertex_) {
           gvertex_->seen = true;
         });
       }); 
@@ -141,25 +141,25 @@ int main(int argc, char * argv[]) {
             });
 
             if(discard) {
-              delegate::call<async>( gv, []( LubyVertex &x ) {
+              delegate::call( gv, []( LubyVertex &x ) {
                 LOG(INFO) << "Marking " << x->rank << "as -1 due to discard"; 
                 x->level = -1;
               });
 
-              forall<async>(adj(g, gv), [](GlobalAddress<LubyVertex> discardAdj) {
+              forall(adj(g, gv), [](GlobalAddress<LubyVertex> discardAdj) {
                 delegate::call(discardAdj, [](LubyVertex &discardAdj_) {
                   discardAdj_->parent--;
                 });
               });
             } else {
-              delegate::call<async>( gv, [] ( LubyVertex &x ) {
+              delegate::call( gv, [] ( LubyVertex &x ) {
         //        LOG(INFO) << "Marking " << x->parent << "as 2";
                 x->level = 2;
               });
 
-              forall<async>(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
+              forall(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
                 delegate::call(discardAdj, [rank] (LubyVertex & discard) {
-                  if (rank != discard->parent) {
+                  if (rank != discard->rank) {
                     LOG(INFO) << "Marking " << discard->rank << "as -1 due to non-discard";
                     discard->level = -1;
                   }
@@ -185,9 +185,13 @@ int main(int argc, char * argv[]) {
         }
       });
 
-      sync();
+      //sync();
       numRemaining = stillVertices(g);
     } while (numRemaining > 0);
+
+     forall(g, [g](LubyVertex&v) {
+       v->seen = false;
+     });
 
     //bool print = spanning(g);
       forall(g, [g](LubyVertex &v) {
