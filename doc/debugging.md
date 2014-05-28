@@ -19,10 +19,14 @@ Tracing
 
 Grappa supports sampled tracing via VampirTrace. These traces can be visualized using the commercial tool, [Vampir](http://www.vampir.eu/). When tracing, what happens is all of the metrics specified with `GRAPPA_DEFINE_METRIC()` are sampled at a regular interval using sampling interrupts by Google's `gperftools` library, and saved to a compressed trace using the VampirTrace open source library. This results in a trace with the individual values of all of the Grappa statistics on all cores, over the execution.
 
-Before configuring, ensure you have VampirTrace built somewhere. If VampirTrace is not built anywhere, there is a script to download and build it in `tools/`. Make sure to specify where to install it with the `--prefix` flag:
+Before configuring, ensure you have a recent version of VampirTrace built somewhere.
+
+*Note: many MPI builds come with an older version of VampirTrace which is incompatible.* We recommend using the steps below to build the version we use (5.14.4).
+
+ If VampirTrace is not built anywhere, there is a script to download and build it in `tools/`. *Make sure to do this with the compiler you will use to build the rest of Grappa*. Also make sure to specify where to install it with the `--prefix` flag:
 
 ```bash
-> ./third-party/vampirtrace.rb --prefix=/sampa/share/grappa-third-party
+> ./third-party/vampirtrace.rb --prefix=/opt/vampirtrace
 ```
 
 To use tracing, a separate Grappa build configuration must be made using either the '--tracing' or '--vampir' flags. If Vampir was installed in your `third-party` directory, just use '--tracing'; otherwise, use '--vampir' to specify the path to a separate VampirTrace install. For example:

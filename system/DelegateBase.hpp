@@ -106,7 +106,7 @@ namespace Grappa {
                     "lambda doesn't return the expected type");
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short
-      // -circuit case and extra work in MessagePool)
+      // -circuit case)
       //   Promise<T> a;
       //   a.call_async(dest, func);
       //   return a.get();

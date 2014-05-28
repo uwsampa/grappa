@@ -27,12 +27,13 @@
 //#include "common.hpp"
 #include "CompletionEvent.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "CountingSemaphoreLocal.hpp"
 #include "Barrier.hpp"
+#include "MessagePool.hpp"
 
 #include <functional>
+#include <algorithm>
 
 // TODO/FIXME: use actual max message size (have Communicator be able to tell us)
 const size_t MAX_MESSAGE_SIZE = 3192;
@@ -85,10 +86,9 @@ namespace Grappa {
     CompletionEvent ce(cores()-1);
     
     auto lsz = [&ce,origin,work]{};
-    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) if (c != mycore()) {
-      pool.send_message(c, [&ce, origin, work] {
+      send_heap_message(c, [&ce, origin, work] {
         work();
         send_heap_message(origin, [&ce]{ ce.complete(); });
       });
@@ -116,10 +116,9 @@ namespace Grappa {
     auto ce_addr = make_global(&ce);
     
     auto lsz = [ce_addr,work]{};
-    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
-      pool.send_message(c, [ce_addr, work] {
+      send_heap_message(c, [ce_addr, work] {
         spawn([ce_addr, work] {
           work();
           complete(ce_addr);
@@ -190,7 +189,7 @@ namespace Grappa {
         
         if (mycore() != HOME_CORE) {
           for (size_t k=0; k<nelem; k+=n_per_msg) {
-            size_t this_nelem = MIN(n_per_msg, nelem-k);
+            size_t this_nelem = std::min(n_per_msg, nelem-k);
             
             // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
             send_heap_message(HOME_CORE, [this,k](void * payload, size_t payload_size) {
@@ -225,7 +224,7 @@ namespace Grappa {
               // send totals back to all the other cores
               size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
               for (size_t k=0; k<nelem; k+=n_per_msg) {
-                size_t this_nelem = MIN(n_per_msg, nelem-k);
+                size_t this_nelem = std::min(n_per_msg, nelem-k);
                 pool.send_message(c, [this,k](void * payload, size_t psz){
                   auto total_k = static_cast<T*>(payload);
                   auto in_n = psz / sizeof(T);
@@ -294,19 +293,17 @@ namespace Grappa {
   ///   }
   /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
-  T reduce(T * global_ptr) {
+  T reduce(const T * global_ptr) {
     //NOTE: this is written in a continuation passing
     //style to avoid the use of a GCE which async delegates only support
     CompletionEvent ce(cores()-1);
-    // TODO: look into optionally stack-allocating pool storage like in IncoherentAcquirer.
-    MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
   
     T total = *global_ptr;
     Core origin = mycore();
     
     for (Core c=0; c<cores(); c++) {
       if (c != origin) {
-        pool.send_message(c, [global_ptr, &ce, &total, origin]{
+        send_heap_message(c, [global_ptr, &ce, &total, origin]{
           T val = *global_ptr;
           send_heap_message(origin, [val,&ce,&total] {
             total = ReduceOp(total, val);
@@ -392,7 +389,41 @@ namespace Grappa {
      }
     ce.wait();
     return total;
-   }
+  }
+  
+  /// Custom reduction from all cores.
+  /// 
+  /// Takes a lambda to run on each core, returns the sum of all the results
+  /// to the caller. This is often easier than using the "custom Accessor" 
+  /// version of reduce, and also works on symmetric addresses.
+  /// 
+  /// Basically, reduce() could be implemented as:
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /// int global_x;
+  /// 
+  /// // (in main task)
+  /// int total = sum_all_cores([]{ return global_x; });
+  /// 
+  /// // is equivalent to:
+  /// int total = reduce<collective_add>(&global_x);
+  /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  template< typename F = nullptr_t >
+  auto sum_all_cores(F func) -> decltype(func()) {
+    decltype(func()) total = func();
+    CompletionEvent _ce(cores()-1);
+    auto ce = make_global(&_ce);
+    for (Core c=0; c < cores(); c++) if (c != mycore()) {
+      send_heap_message(c, [ce,func,&total]{
+        auto r = func();
+        send_heap_message(ce.core(), [ce,r,&total]{
+          total += r;
+          ce->complete();
+        });
+      });
+    }
+    ce->wait();
+    return total;
+  }
   
   /// @}
 } // namespace Grappa

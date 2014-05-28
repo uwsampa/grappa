@@ -7,8 +7,14 @@ compiler:
 #   - sudo apt-get update -qq
 #   - if [ "$CXX" = "g++" ]; then sudo apt-get install -qq g++-4.7; fi
 #   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.7" CC="gcc-4.7"; fi
-install:
-  - sudo apt-get install mpich2
+before_script:
+  - sudo add-apt-repository ppa:boost-latest/ppa -y
+  - sudo apt-get update -q
+  - sudo apt-get install libboost1.54-all-dev
+before_install:
+  - wget http://www.cebacad.net/files/mpich/ubuntu/mpich-3.1/mpich_3.1-1ubuntu_amd64.deb
+  - sudo dpkg -i mpich_3.1-1ubuntu_amd64.deb || true
+  - sudo apt-get -f install -y
 script:
   - ./configure && cd build/Make+Release && make VERBOSE=1 check-all-pass-compile-only
 branches:

@@ -25,7 +25,7 @@
 
 #include <gflags/gflags.h>
 
-#include <mpi.h>
+#include <boost/interprocess/shared_memory_object.hpp>
 
 #ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
@@ -33,36 +33,28 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #endif
 
 #include "Communicator.hpp"
+#include "LocaleSharedMemory.hpp"
+#include "Metrics.hpp"
 
-// histogram buckets
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_0_to_255_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_256_to_511_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_512_to_767_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_768_to_1023_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1024_to_1279_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1280_to_1535_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1536_to_1791_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_1792_to_2047_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2048_to_2303_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2304_to_2559_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2560_to_2815_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_2816_to_3071_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3072_to_3327_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3328_to_3583_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3584_to_3839_bytes, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, comm_3840_to_4095_bytes, 0);
+DEFINE_int64( log2_concurrent_receives, 7, "How many receive requests do we keep active at a time?" );
+DEFINE_int64( log2_concurrent_sends, 7, "How many send requests do we keep active at a time?" );
 
-// other metrics
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);
-GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_bytes, 0);
-GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_start_time, []() {
-    // initialization value
-    return Grappa::walltime();
-    });
-GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_end_time, []() {
-    // sampling value
-    return Grappa::walltime();
-    });
+DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
+
+// // other metrics
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);
+// GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_bytes, 0);
+
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, communicator_message_bytes, 0 );
+
+// GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_start_time, []() {
+//     // initialization value
+//     return Grappa::walltime();
+//     });
+// GRAPPA_DEFINE_METRIC( CallbackMetric<double>, communicator_end_time, []() {
+//     // sampling value
+//     return Grappa::walltime();
+//     });
 
 /// Global communicator instance
 Communicator global_communicator;
@@ -70,21 +62,39 @@ Communicator global_communicator;
 
 /// Construct communicator
 Communicator::Communicator( )
-  : handlers_()
-  , registration_is_allowed_( false )
-  , communication_is_allowed_( false )
-  , mycore_( -1 )
+  : mycore_( -1 )
   , mylocale_( -1 )
   , locale_mycore_( -1 )
   , cores_( -1 )
   , locales_( -1 )
   , locale_cores_( -1 )
-  , locale_of_core_(NULL)
+  , locale_of_core_()
+
+  , receives()
+  , receive_head(0)
+  , receive_dispatch(0)
+  , receive_tail(0)
+  , receive_mask(0)
+    
+  , sends()
+  , send_head(0)
+  , send_tail(0)
+  , send_mask(0)
+
+  , barrier_request( MPI_REQUEST_NULL )
+  , external_sends()
+  , collective_context(NULL)
+
+  , mycore( mycore_ )
+  , cores( cores_ )
+  , mylocale( mylocale_ )
+  , locales( locales_ )
+  , locale_mycore( locale_mycore_ )
+  , locale_cores( locale_cores_ )
 #ifdef VTRACE_FULL
   , communicator_grp_vt( VT_COUNT_GROUP_DEF( "Communicator" ) )
   , send_ev_vt( VT_COUNT_DEF( "Sends", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_grp_vt ) )
 #endif
-  , stats()
 { }
 
 
@@ -96,30 +106,85 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   {
     HeapLeakChecker::Disabler disable_leak_checks_here;
 #endif
-  GASNET_CHECK( gasnet_init( argc_p, argv_p ) ); 
+  MPI_CHECK( MPI_Init( argc_p, argv_p ) ); 
 #ifdef HEAPCHECK_ENABLE
   }
 #endif
-  // make sure the Core type is big enough for our system
-  assert( static_cast< int64_t >( gasnet_nodes() ) <= (1L << sizeof(Core) * 8) && 
-          "Core type is too small for number of nodes in job" );
 
+  // this will let our error wrapper actually fire.
+  MPI_CHECK( MPI_Comm_set_errhandler( MPI_COMM_WORLD, MPI_ERRORS_RETURN ) );
+
+  // initialize masks
+  receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
+  send_mask = (1 << FLAGS_log2_concurrent_sends) - 1;
+  
   // initialize job geometry
-  mycore_ = gasnet_mynode();
-  cores_ = gasnet_nodes();
+  int mycoreint, coresint;
+  MPI_CHECK( MPI_Comm_rank( MPI_COMM_WORLD, &mycoreint ) );
+  MPI_CHECK( MPI_Comm_size( MPI_COMM_WORLD, &coresint ) );
+  mycore_ = mycoreint;
+  cores_ = coresint;
+  
+  // try to compute locale geometry
+  char * locale_rank_string = NULL;
 
-  mylocale_ = gasneti_nodeinfo[mycore_].supernode;
-  locales_ = gasnet_nodes() / gasneti_nodemap_local_count;
-  locale_mycore_ = gasneti_nodemap_local_rank;
-  locale_cores_ = gasneti_nodemap_local_count;
+  // are we using Slurm?
+  if( (locale_rank_string = getenv("SLURM_LOCALID")) ) {
+    locale_mycore_ = atoi(locale_rank_string);
 
-  // allocate and initialize core-to-locale translation
-  locale_of_core_ = new Locale[ cores_ ];
-  for( int i = 0; i < cores_; ++i ) {
-    locale_of_core_[i] = gasneti_nodeinfo[i].supernode;
+    char * locale_size_string = getenv("SLURM_TASKS_PER_NODE");
+    CHECK_NOTNULL( locale_size_string );
+    // TODO: verify that locale dimensions are the same for all nodes in job
+    locale_cores_ = atoi(locale_size_string);
+
+    // are we using OpenMPI?
+  } else if( (locale_rank_string = getenv("OMPI_COMM_WORLD_LOCAL_RANK")) ) {
+    locale_mycore_ = atoi(locale_rank_string);
+
+    char * locale_size_string = getenv("OMPI_COMM_WORLD_LOCAL_SIZE");
+    CHECK_NOTNULL( locale_size_string );
+    locale_cores_ = atoi(locale_size_string);
+
+    // are we using MVAPICH2?
+  } else if( (locale_rank_string = getenv("MV2_COMM_WORLD_LOCAL_RANK")) ){
+    locale_mycore_ = atoi(locale_rank_string);
+
+    char * locale_size_string = getenv("MV2_COMM_WORLD_LOCAL_SIZE");
+    CHECK_NOTNULL( locale_size_string );
+    locale_cores_ = atoi(locale_size_string);
+
+  } else {
+    LOG(ERROR) << "Could not determine locale dimensions!";
+    exit(1);
   }
 
-  DVLOG(2) << " mycore_ " << mycore_ 
+  // verify that job has the same number of processes on each node
+  int64_t my_locale_cores = locale_cores_;
+  int64_t max_locale_cores = 0;
+  MPI_CHECK( MPI_Allreduce( &my_locale_cores, &max_locale_cores, 1,
+                            MPI_INT64_T, MPI_MAX, MPI_COMM_WORLD ) );
+  CHECK_EQ( my_locale_cores, max_locale_cores )
+    << "Number of processes per locale is not the same across job!";
+
+
+  // Guess at rank-to-locale mapping
+  // TODO: verify ranks aren't allocated in a cyclic fashion
+  mylocale_ = mycore_ / locale_cores_;
+
+  
+  // Guess at number of locales
+  // TODO: verify ranks aren't allocated in a cyclic fashion
+  locales_ = cores_ / locale_cores_;
+
+  // allocate and initialize core-to-locale translation
+  locale_of_core_.reset( new Locale[ cores_ ] );
+  for( int i = 0; i < cores_; ++i ) {
+    // TODO: verify ranks aren't allocated in a cyclic fashion
+    locale_of_core_[i] = i / locale_cores_;
+  }
+
+  DVLOG(2) << "hostname " << hostname()
+           << " mycore_ " << mycore_ 
            << " cores_ " << cores_
            << " mylocale_ " << mylocale_ 
            << " locales_ " << locales_ 
@@ -127,75 +192,268 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
            << " locale_cores_ " << locale_cores_
            << " pid " << getpid();
 
-  registration_is_allowed_ = true;
+
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+
+  receives = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_receives ];
+
+  sends = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_sends ];
+  
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 }
 
-
-
-#define ONE_MEGA (1024 * 1024)
-#define SHARED_PROCESS_MEMORY_SIZE  (0 * ONE_MEGA)
-#define SHARED_PROCESS_MEMORY_OFFSET (0 * ONE_MEGA)
-/// activate communication layer. finishes registering handlers and
-/// any shared memory segment. After this call, network communication
-/// is allowed, but no more handler registrations are allowed.
+                             
 void Communicator::activate() {
-    assert( registration_is_allowed_ );
-  GASNET_CHECK( gasnet_attach( &handlers_[0], handlers_.size(), // install active message handlers
-                               SHARED_PROCESS_MEMORY_SIZE,
-                               SHARED_PROCESS_MEMORY_OFFSET ) );
-  stats.reset_clock();
-  registration_is_allowed_ = false;
-  communication_is_allowed_ = true;
+
+  for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
+    char * buf;
+    buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
+    //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size) , MPI_INFO_NULL, &buf );
+    sends[i].buf = buf;
+    sends[i].size = 1 << FLAGS_log2_buffer_size;
+  }
+
+  for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
+    char * buf;
+    buf = (char*) Grappa::impl::locale_shared_memory.allocate_aligned( (1 << FLAGS_log2_buffer_size), 8 );
+    //MPI_Alloc_mem( (1 << FLAGS_log2_buffer_size), MPI_INFO_NULL, &buf );
+    receives[i].buf = buf;
+    receives[i].size = 1 << FLAGS_log2_buffer_size;
+  }
+
+  repost_receive_buffers();
+
   DVLOG(3) << "Entering activation barrier";
-  barrier();
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   DVLOG(3) << "Leaving activation barrier";
 }
 
 
-void finalise_mpi(void)
+const char * Communicator::hostname() {
+  static char name[ MPI_MAX_PROCESSOR_NAME ] = {0};
+  static int name_size = 0;
+  if( '\0' == name[0] ) {
+    MPI_CHECK( MPI_Get_processor_name( &name[0], &name_size ) );
+  }
+  return &name[0];
+}
+
+
+
+
+
+CommunicatorContext * Communicator::try_get_send_context() {
+  CommunicatorContext * c = NULL;
+
+  if( ((send_head + 1) & send_mask) != send_tail ) {
+    c = &sends[send_head];
+    CHECK_EQ( c->reference_count, 0 ) << "Send context already in use!";
+    send_head = (send_head + 1) & send_mask;
+  }
+
+  return c;
+}
+
+void Communicator::post_send( CommunicatorContext * c,
+                              int dest,
+                              size_t size,
+                              int tag ) {
+  DCHECK_GE( dest, 0 );
+  c->reference_count = 1; // mark as active
+  DVLOG(6) << "Posting send " << c << " to " << dest
+           << " with buf " << c->buf
+           << " callback " << (void*)c->callback;
+  MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
+  communicator_message_bytes += size;
+}
+
+void Communicator::post_external_send( CommunicatorContext * c,
+                                       int dest,
+                                       size_t size,
+                                       int tag ) {
+  DVLOG(6) << "Posting external send " << c;
+  post_send( c, dest, size, tag );
+  external_sends.push_back(c);
+  communicator_message_bytes += size;
+}
+
+void Communicator::post_receive( CommunicatorContext * c ) {
+  MPI_CHECK( MPI_Irecv( c->buf, c->size, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &c->request ) );
+  DVLOG(6) << "Posted receive " << c << " with buf " << c->buf << " callback " << (void*) c->callback;
+}
+
+
+
+
+void Communicator::garbage_collect() {
+  int flag;
+  MPI_Status status;
+
+  // check for completed sends and re-enable
+  while( send_tail != send_head ) {
+    auto c = &sends[send_tail];
+    if( c->reference_count > 0 ) {
+      MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+      if( flag ) {
+        if( c->callback ) {
+          (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
+        }
+        c->reference_count = 0;
+        send_tail = (send_tail + 1) & send_mask;
+      } else { // not sent yet
+        break;
+      }
+    } else { // not reference count > 0
+      break;
+    }
+  }
+
+  // check external send contexts too
+  while( !external_sends.empty() ) {
+    auto c = external_sends.front();
+    if( c->reference_count > 0 ) {
+      MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+      if( flag ) {
+        c->reference_count = 0;
+        if( c->callback ) {
+          (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
+        }
+        external_sends.pop_front();
+      } else { // not sent yet
+        break;
+      }
+    } else { // not reference_count > 0
+      break;
+    }
+  }
+}
+
+void Communicator::repost_receive_buffers() {
+
+  // consume buffers that are completely delivered
+  while( receive_tail != receive_dispatch ) {
+    auto c = &receives[receive_tail];
+    if( 0 == c->reference_count ) {
+      receive_tail = (receive_tail + 1) & receive_mask;
+    } else {
+      break;
+    }
+  }
+
+  // repost free buffers
+  while( ((receive_head + 1) & receive_mask) != receive_tail ) {
+    auto c = &receives[receive_head];
+    post_receive( c );
+    receive_head = (receive_head + 1) & receive_mask;
+  }
+  
+}
+
+
+static void receive_buffer( CommunicatorContext * c, int size ) {
+  auto fp = reinterpret_cast< Grappa::impl::Deserializer * >( c->buf );
+  DVLOG(6) << "Calling deserializer " << (void*) (*fp) << " for " << c;
+  (*fp)( (char*) (fp+1), (size - sizeof(Grappa::impl::Deserializer)), c );
+}
+
+static void receive( CommunicatorContext * c, int size ) {
+  DVLOG(6) << "Receiving " << c;
+  receive_buffer( c, size );
+}
+
+void Communicator::process_received_buffers() {
+  MPI_Status status;
+
+  while( receive_dispatch != receive_head ) {
+    int flag;
+    auto c = &receives[receive_dispatch];
+    
+    MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+    
+    // if message has been received
+    if( flag ) {
+      int size = 0;
+      MPI_CHECK( MPI_Get_count( &status, MPI_BYTE, &size ) );
+      c->reference_count = 1;
+      // start delivering received buffer
+      receive( c, size );
+      if( c->callback ) {
+        (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, size );
+      }
+      receive_dispatch = (receive_dispatch + 1) & receive_mask;
+      // update if anything has finished delivery
+      repost_receive_buffers();
+    } else {
+      break;
+    }
+  }
+  
+  // see if anything else finished delivery while we were busy
+  repost_receive_buffers();
+}
+
+void Communicator::process_collectives() {
+  if( collective_context ) {
+    auto c = collective_context;
+    int flag;
+    MPI_Status status;
+    MPI_CHECK( MPI_Test( &c->request, &flag, &status ) );
+    if( flag ) {
+      c->reference_count = 0;
+      if( c->callback ) {
+        (c->callback)( c, status.MPI_SOURCE, status.MPI_TAG, c->size );
+      }
+      collective_context = NULL;
+    }
+  }
+}
+
+void Communicator::poll( unsigned int max_receives ) {
+  process_received_buffers();
+  process_collectives();
+  garbage_collect();
+}
+
+
+
+
+
+static void finalize_mpi(void)
 {
-   int already_finalised;
+  int already_finalised;
 
    MPI_Finalized(&already_finalised);
-   if (!already_finalised)
-      MPI_Finalize();
+   if (!already_finalised) {
+     MPI_Finalize();
+   }
 }
 
 /// tear down communication layer.
 void Communicator::finish(int retval) {
-  communication_is_allowed_ = false;
-  // Don't call gasnet_exit, since it screws up VampirTrace
-  //gasnet_exit( retval );
-  // Instead, call MPI_finalize();
-  // TODO: when we call this here, boost test crashes for some reason. why?
-  //MPI_Finalize();
-  // Instead, call it in an atexit handler.
-  atexit(finalise_mpi);
-}
-
-
-CommunicatorMetrics::CommunicatorMetrics() 
-    : histogram_()
-  { 
-    histogram_[0] = &comm_0_to_255_bytes;
-    histogram_[1] = &comm_256_to_511_bytes;
-    histogram_[2] = &comm_512_to_767_bytes;
-    histogram_[3] = &comm_768_to_1023_bytes;
-    histogram_[4] = &comm_1024_to_1279_bytes;
-    histogram_[5] = &comm_1280_to_1535_bytes;
-    histogram_[6] = &comm_1536_to_1791_bytes;
-    histogram_[7] = &comm_1792_to_2047_bytes;
-    histogram_[8] = &comm_2048_to_2303_bytes;
-    histogram_[9] = &comm_2304_to_2559_bytes;
-    histogram_[10] = &comm_2560_to_2815_bytes;
-    histogram_[11] = &comm_2816_to_3071_bytes;
-    histogram_[12] = &comm_3072_to_3327_bytes;
-    histogram_[13] = &comm_3328_to_3583_bytes;
-    histogram_[14] = &comm_3584_to_3839_bytes;
-    histogram_[15] = &comm_3840_to_4095_bytes;
-  }
-
-void CommunicatorMetrics::reset_clock() {
-  communicator_start_time.reset();
-}
   
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  
+  // get rid of any outstanding sends
+  for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
+    if( NULL != sends[i].callback ) {
+      sends[i].callback = NULL;
+      MPI_CHECK( MPI_Cancel( &sends[i].request ) );
+    }
+  }
+  
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  
+  // get rid of any outstanding receives
+  for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
+    if( NULL != receives[i].callback ) {
+      receives[i].callback = NULL;
+      MPI_CHECK( MPI_Cancel( &receives[i].request ) );
+    }
+  }
+  
+  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  
+  // For VampirTrace's sake, clean up MPI only when process exits.
+  // atexit(finalize_mpi);
+  MPI_CHECK( MPI_Finalize() );
+}

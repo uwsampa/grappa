@@ -33,7 +33,7 @@
 BOOST_AUTO_TEST_SUITE( LocaleSharedMemory_tests );
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa::init( GRAPPA_TEST_ARGS, 1<<23 );
+  Grappa::init( GRAPPA_TEST_ARGS, 1<<10 );
   Grappa::run([]{
 
     int64_t * arr = NULL;
