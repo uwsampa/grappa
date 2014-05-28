@@ -122,8 +122,7 @@ if( GOOGLE_PROFILER )
   add_definitions( -DGOOGLE_PROFILER )
 endif()
 
-# pre-compiled external dependencies
-# TODO: make CMake build these (see GraphLab's CMake)
+# External dependencies (built automatically if not found, see third-party/CMakeLists.txt)
 include_directories("${THIRD_PARTY_ROOT}/include")
 link_directories("${THIRD_PARTY_ROOT}/lib")
 list(APPEND GRAPPA_LIBS
@@ -132,15 +131,22 @@ list(APPEND GRAPPA_LIBS
 )
 
 # TODO: actually check if PMI is available for this platform, possibly build it
-if(NOT APPLE)
+find_library(PMI_FOUND pmi)
+if(PMI_FOUND)
+  link_directories(${PMI_FOUND})
   list(APPEND GRAPPA_LIBS pmi)
 endif()
+# if(NOT APPLE)
+#   list(APPEND GRAPPA_LIBS pmi)
+# endif()
 
 #####################################
 # Boost
 #####################################
-set(Boost_DETAILED_FAILURE_MSG ON)
-set(Boost_DEBUG ON)
+if(VERBOSE)
+  set(Boost_DETAILED_FAILURE_MSG ON)
+  set(Boost_DEBUG ON)
+endif()
 
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
