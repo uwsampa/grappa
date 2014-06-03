@@ -31,7 +31,7 @@ class DHT_symmetric {
     size_t partitions;
 
     uint64_t computeIndex( K key ) {
-      return HF(key) % partitions - 1;
+      return HF(key) % partitions;
     }
 
     // for creating local DHT_symmetric
