@@ -34,6 +34,8 @@ set(SOURCES
   MapReduce.hpp
   HashJoin.hpp
   HashJoin.cpp
+  Aggregates.hpp
+  DHT_symmetric.hpp
 )
 set(INCLUDE_DIRS
   "${APP_GRAPH500}"
