@@ -1,11 +1,13 @@
 #pragma once
 
-template < typename V >
-V SUM(V sofar, V nextval) {
-  return sofar + nextval;
-}
+namespace Aggregates {
+  template < typename State, typename UV >
+    State SUM(State sofar, UV nextval) {
+      return sofar + nextval;
+    }
 
-template < typename NUMERIC, typename UV >
-NUMERIC COUNT(NUMERIC sofar, UV nextval) {
-  return sofar + 1;
+  template < typename State, typename UV >
+    State COUNT(State sofar, UV nextval) {
+      return sofar + 1;
+    }
 }
