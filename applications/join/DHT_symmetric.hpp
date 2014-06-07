@@ -69,6 +69,18 @@ class DHT_symmetric {
         resIt->second = UpF(resIt->second, val);
       });
     }
+
+    template< GlobalCompletionEvent * GCE, SyncMode S = SyncMode::Async >
+    void insert_unique( K key, V val ) {
+      uint64_t index = computeIndex( key );
+      auto target = this->self;
+
+      Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
+        // inserts initial value only if the key is not yet present
+        std::pair<K,V> entry(key, val);
+        target->local_map->insert(entry); 
+      });
+    }
   
     template < GlobalCompletionEvent * GCE, typename CF >
     void forall_entries( CF f ) {
