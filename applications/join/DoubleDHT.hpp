@@ -91,15 +91,17 @@ class DoubleDHT {
       return lookup_local_helper(key, target->entriesRight, result);
     }
 
-    template <typename V>
+    template <bool Unique, typename V>
     static void insert_local_helper( K key, std::list<_DDHT_TYPE(Entry<V>)> * entries, V val) {
       // find matching key in the list
       for (auto i = entries->begin(); i!=entries->end(); ++i) {
         Entry<V> e = *i;
         if ( e.key == key ) {
           // key found so add to matches
-          e.vs->push_back( val );
-          hash_tables_size+=1;
+          if (!Unique) {
+            e.vs->push_back( val );
+            hash_tables_size+=1;
+          }
           return;
         }
       }
@@ -109,24 +111,27 @@ class DoubleDHT {
       Entry<V> newe( key );
       newe.vs->push_back( val );
       entries->push_back( newe );
+      hash_tables_size+=1;
     }
    
+    template < bool Unique >
     static void insert_local_left( K key, PairCell * target, VL val ) {
       // if first time the cell is hit then initialize
       if ( target->entriesLeft == NULL ) {
         target->entriesLeft = new std::list<Entry<VL>>();
       }
 
-      insert_local_helper( key, target->entriesLeft, val ); 
+      insert_local_helper<Unique>( key, target->entriesLeft, val ); 
     }
 
+    template < bool Unique >
     static void insert_local_right( K key, PairCell * target, VR val ) {
       // if first time the cell is hit then initialize
       if ( target->entriesRight == NULL ) {
         target->entriesRight = new std::list<Entry<VR>>();
       }
 
-      insert_local_helper( key, target->entriesRight, val ); 
+      insert_local_helper<Unique>( key, target->entriesRight, val ); 
     }
     
   public:
@@ -196,7 +201,7 @@ class DoubleDHT {
     // VL == VR, or might be different, so we can't check on them either.
     
     // version of lookup that takes a continuation instead of returning results back
-    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_left ( K key, VL val, CF f ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
@@ -207,7 +212,7 @@ class DoubleDHT {
       Grappa::spawnRemote<GCE>( target.core(), [key, val, target, f, this]() {
         
         // this is atomic { insert_local; lookup_local }
-        insert_local_left( key, target.pointer(), val );
+        insert_local_left<Unique>( key, target.pointer(), val );
 
         Entry<VR> e;
         if (lookup_local_right( key, target.pointer(), &e)) {
@@ -224,13 +229,18 @@ class DoubleDHT {
       });
     }
     // overload for only specifying GCE
-  template<Grappa::GlobalCompletionEvent * GCE, typename CF>
+  template<Grappa::GlobalCompletionEvent * GCE, typename CF, bool Unique=false>
   void insert_lookup_iter_left ( K key, VL val, CF f ) {
     insert_lookup_iter_left<CF, GCE>( key, val, f );
   }
 
+  // overload for only specifying GCE and Unique
+  template<Grappa::GlobalCompletionEvent * GCE, bool Unique, typename CF>
+  void insert_lookup_iter_left ( K key, VL val, CF f ) {
+    insert_lookup_iter_left<CF, GCE>( key, val, f );
+  }
 
-    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_right ( K key, VR val, CF f ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
@@ -241,7 +251,7 @@ class DoubleDHT {
       Grappa::spawnRemote<GCE>( target.core(), [key, val, target, f, this]() {
         
         // this is atomic { insert_local; lookup_local }
-        insert_local_right( key, target.pointer(), val );
+        insert_local_right<Unique>( key, target.pointer(), val );
 
         Entry<VL> e;
         if (lookup_local_left( key, target.pointer(), &e)) {
@@ -258,9 +268,14 @@ class DoubleDHT {
       });
     }
     // overload for only specifying GCE
-  template<Grappa::GlobalCompletionEvent * GCE, typename CF>
+  template<Grappa::GlobalCompletionEvent * GCE, typename CF, bool Unique=false>
   void insert_lookup_iter_right ( K key, VR val, CF f ) {
-    insert_lookup_iter_right<CF, GCE>( key, val, f );
+    insert_lookup_iter_right<CF, GCE, Unique>( key, val, f );
+  }
+  // overload for only specifying GCE and Unique
+  template<Grappa::GlobalCompletionEvent * GCE, bool Unique, typename CF>
+  void insert_lookup_iter_right ( K key, VR val, CF f ) {
+    insert_lookup_iter_right<CF, GCE, Unique>( key, val, f );
   }
 
     /* Uncomment to duplicate left right
