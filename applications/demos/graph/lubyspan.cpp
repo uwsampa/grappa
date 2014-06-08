@@ -130,12 +130,12 @@ int main(int argc, char * argv[]) {
             bool discard = delegate::call(vj, [nadj, rank](LubyVertex &l) {
               if(l->level == 2 || (l->level == 1 && l.nadj > nadj)
                   || (l->level == 1 && l.nadj == nadj && l->rank > rank)) {
-        //        LOG(INFO) << "Marking " << l->parent << " as 2 at discard";
+                LOG(INFO) << "Marking " << l->rank << " as 2 at discard";
                 l->level = 2;
                 return true;
               } else { 
-        //        LOG(INFO) << "Marking " << l->parent << " as -1 at discard";
-                l->level = 0;
+                LOG(INFO) << "Marking " << l->rank << " as -1 at discard";
+           //     l->level = 0; // Does nothing
                 return false;
               }
             });
@@ -146,18 +146,20 @@ int main(int argc, char * argv[]) {
                 x->level = -1;
               });
 
-              forall(adj(g, gv), [](GlobalAddress<LubyVertex> discardAdj) {
-                delegate::call(discardAdj, [](LubyVertex &discardAdj_) {
-                  discardAdj_->parent--;
+              forall<async>(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
+                delegate::call(discardAdj, [rank](LubyVertex &discardAdj_) {
+                  if(rank != discardAdj_->rank) {
+                    discardAdj_->parent--;
+                  }
                 });
               });
             } else {
               delegate::call( gv, [] ( LubyVertex &x ) {
-        //        LOG(INFO) << "Marking " << x->parent << "as 2";
+                LOG(INFO) << "Marking " << x->rank << "as 2";
                 x->level = 2;
               });
 
-              forall(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
+              forall<async>(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
                 delegate::call(discardAdj, [rank] (LubyVertex & discard) {
                   if (rank != discard->rank) {
                     LOG(INFO) << "Marking " << discard->rank << "as -1 due to non-discard";
@@ -177,7 +179,7 @@ int main(int argc, char * argv[]) {
           }
        
           if (v->level == 1) {
-      //    LOG(INFO) << "Marking " << v->parent << " as 2 at end of loop";
+            LOG(INFO) << "Marking " << v->parent << " as 2 at end of loop";
             delegate::call(gv, [](LubyVertex & mark) {
               mark->level = 2;
             });
@@ -185,6 +187,8 @@ int main(int argc, char * argv[]) {
         }
       });
 
+
+      LOG(INFO) << " Finished executing step " << steps;
       //sync();
       numRemaining = stillVertices(g);
     } while (numRemaining > 0);
