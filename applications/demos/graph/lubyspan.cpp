@@ -3,7 +3,7 @@
 #include "lubyspan.hpp"
 #include <random>
 
-DEFINE_int32(scale, 8, "Log2 number of vertices.");
+DEFINE_int32(scale, 20, "Log2 number of vertices.");
 DEFINE_int32(edgefactor, 4, "Average edges per vertex.");
 
 std::default_random_engine randengine;
@@ -61,26 +61,6 @@ inline int64_t stillVertices(GlobalAddress<Graph<LubyVertex>> g) {
   return numRemaining;
 }
 
-/*inline bool spanning(GlobalAddress<Graph<BFSVertex>> g) {
-  forall(g, [g](BFSVertex &v) {
-    if (v->level == 2) {
-      v->seen = true;
-      forall<async>(adj(g, v), [](BFSVertex &vj) {
-        vj->seen = true;
-      });
-    }
-  });
-
-  bool ret = true;
-  forall(g, [&ret] (BFSVertex &v) {
-    if (!v->seen) {
-      ret = false;
-    }
-  });
-
-  return ret;
-}*/
-
 int main(int argc, char * argv[]) {
   init(&argc, &argv);
   run([] {
@@ -108,7 +88,7 @@ int main(int argc, char * argv[]) {
 
       if (numRemaining > 15) {
         forall(g, [](LubyVertex &v) {
-          if (v->level == 0 && (v->parent == 0 || distrib(randengine) % (2 * v->parent) == 0)) {
+          if (v->level == 0 && (v->parent <= 0 || distrib(randengine) % (2 * v->parent) == 0)) {
             v->level = 1; // candidate
           }
         });
@@ -123,70 +103,42 @@ int main(int argc, char * argv[]) {
 
       forall(g, [g](LubyVertex &v) {
         if (v->level == 1) {
-          int64_t nadj = v.nadj;
+          int64_t nadj = v->parent;
           int64_t rank = v->rank;
-          auto gv = make_global( &v ); 
-          forall<async>(adj(g, v), [nadj, gv, g, rank](GlobalAddress<LubyVertex> vj) {
-            bool discard = delegate::call(vj, [nadj, rank](LubyVertex &l) {
-              if(l->level == 2 || (l->level == 1 && l.nadj > nadj)
-                  || (l->level == 1 && l.nadj == nadj && l->rank > rank)) {
-                LOG(INFO) << "Marking " << l->rank << " as 2 at discard";
-                l->level = 2;
-                return true;
-              } else { 
-                LOG(INFO) << "Marking " << l->rank << " as -1 at discard";
-           //     l->level = 0; // Does nothing
-                return false;
+
+          forall<async>(adj(g, v), [nadj, rank](GlobalAddress<LubyVertex> l) {
+            delegate::call<async>(l, [nadj, rank](LubyVertex &l_) {
+              if(l_->level == 1 && (l_->parent < nadj || (
+                l_->parent == nadj && l_->rank < rank))) {
+                l_->level = 0;
               }
             });
-
-            if(discard) {
-              delegate::call( gv, []( LubyVertex &x ) {
-                LOG(INFO) << "Marking " << x->rank << "as -1 due to discard"; 
-                x->level = -1;
-              });
-
-              forall<async>(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
-                delegate::call(discardAdj, [rank](LubyVertex &discardAdj_) {
-                  if(rank != discardAdj_->rank) {
-                    discardAdj_->parent--;
-                  }
-                });
-              });
-            } else {
-              delegate::call( gv, [] ( LubyVertex &x ) {
-                LOG(INFO) << "Marking " << x->rank << "as 2";
-                x->level = 2;
-              });
-
-              forall<async>(adj(g, gv), [rank](GlobalAddress<LubyVertex> discardAdj) {
-                delegate::call(discardAdj, [rank] (LubyVertex & discard) {
-                  if (rank != discard->rank) {
-                    LOG(INFO) << "Marking " << discard->rank << "as -1 due to non-discard";
-                    discard->level = -1;
-                  }
-                });
-              });
-            }
           });
-          
-          if(v->level == -1) {
-            /*forall<async>(adj(g, v), [](GlobalAddress<BFSVertex>vj) {
-              delegate::call(vj, [](BFSVertex &l) {
-                l->parent--;
-              }); 
-            });*/
-          }
-       
-          if (v->level == 1) {
-            LOG(INFO) << "Marking " << v->parent << " as 2 at end of loop";
-            delegate::call(gv, [](LubyVertex & mark) {
-              mark->level = 2;
-            });
-          }
         }
       });
 
+      forall(g, [g](LubyVertex &v) {
+        if (v->level == 1) {
+          v->level = 2;
+          int64_t rank = v->rank;
+          forall<async>(adj(g, v), [rank, g](GlobalAddress<LubyVertex> discardAdj) {
+            delegate::call<async>(discardAdj, [rank, g](LubyVertex &discardAdj_) {
+              if (rank != discardAdj_->rank) {
+                CHECK(discardAdj_->level <= 0) << "Discarding edge with val " << discardAdj_->level;
+                discardAdj_->level = -1;
+                Grappa::spawn([g, discardAdj_] {
+                  forall<async>(adj(g, discardAdj_),
+                    [](GlobalAddress<LubyVertex> dec) {
+                    delegate::call<async>(dec, [](LubyVertex &dec_) {
+                      dec_->parent--;
+                    });
+                  });
+                });
+              }
+            });
+          });
+        }
+      });
 
       LOG(INFO) << " Finished executing step " << steps;
       //sync();
