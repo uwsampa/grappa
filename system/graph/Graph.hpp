@@ -326,7 +326,12 @@ namespace Grappa {
   AdjIterator<V> adj(GlobalAddress<Graph<V>> g, V& v) {
     return AdjIterator<V>(g, make_global(v.local_adj), v.nadj);
   }
-  
+
+  template< typename V >
+  AdjIterator<V> adj(GlobalAddress<Graph<V>> g, const V& v) {
+    return AdjIterator<V>(g, make_global(v.local_adj), v.nadj);
+  }
+ 
   template< typename V >
   AdjIterator<V> adj(GlobalAddress<Graph<V>> g, GlobalAddress<V> v) {
     auto p = delegate::call(v, [](V& v){
