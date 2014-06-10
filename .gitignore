@@ -100,3 +100,4 @@ routing.dot
 *.sqlite
 .RData
 
+.vagrant/
