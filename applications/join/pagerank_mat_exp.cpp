@@ -614,6 +614,10 @@ struct RelationObject {
   }
 } GRAPPA_BLOCK_ALIGNED;
 
+uint64_t sizes_count = 0;
+uint64_t ranks_count = 0;
+uint64_t contribs_count = 0;
+uint64_t num_vertices_from_sizes = 0;
 
 void query() {
 
@@ -661,6 +665,8 @@ auto group_hash_001 = DHT_int64::create_DHT_symmetric( );
  auto start_V25 = walltime();
  // Compiled subplan for GrappaApply(vid=$0,_COLUMN1_=$1)[GrappaGroupBy($1; SUM($6))[GrappaApply(src=$0,vid=$1,src1=$2,len=$3,src11=$4,rank=$5,_COLUMN6_=($5 / $3))[GrappaSelect(($2 = $4))[GrappaHashJoin(($0 = $4))[GrappaHashJoin(($0 = $2))[MemoryScan[GrappaFileScan(public:adhoc:edges)], GrappaApply(src=$0,len=$1)[GrappaApply(src=$0,_COLUMN1_=$1)[GrappaGroupBy($0; COUNT($1))[MemoryScan[GrappaFileScan(public:adhoc:edges)]]]]], GrappaApply(src=$0,rank=$1)[GrappaProject($0,$1)[GrappaApply(src=$0,_COLUMN1_=1.0)[MemoryScan[GrappaFileScan(public:adhoc:edges)]]]]]]]]]
 
+VLOG(1) << "#edges = " << V7.numtuples;
+
 auto start_1 = walltime();
  
  forall<&V8>( V7.data, V7.numtuples, [=](int64_t i, MaterializedTupleRef_V7_0_1& t_005) {
@@ -674,13 +680,17 @@ auto start_1 = walltime();
     t_002.set(0, t_003.get(0));
     t_002.set(1, t_003.get(1));
     
- hash_000.insert(t_002.get(0), t_002);
+ ranks_count++;
+ hash_000.insert_unique(t_002.get(0), t_002);
  
  }); // end scan over V7
  
  auto end_1 = walltime();
  auto runtime_1 = end_1 - start_1;
  VLOG(1) << "pipeline 1: " << runtime_1 << " s";
+
+ uint64_t total_ranks_count = reduce<uint64_t,COLL_ADD>( &ranks_count );
+ VLOG(1) << "rank *inserts* = " << total_ranks_count;
  
 auto start_2 = walltime();
  
@@ -692,6 +702,12 @@ auto start_2 = walltime();
  auto end_2 = walltime();
  auto runtime_2 = end_2 - start_2;
  VLOG(1) << "pipeline 2: " << runtime_2 << " s";
+
+ group_hash_001-> forall_entries<&V14> ([=](std::pair<const int64_t,int64_t>& V13) {
+    num_vertices_from_sizes++;
+ });
+ uint64_t total_nvfs_count = reduce<uint64_t,COLL_ADD>( &num_vertices_from_sizes );
+ VLOG(1) << "#vert according to sizes hash = " << total_nvfs_count;
  
 auto start_3 = walltime();
  group_hash_001-> forall_entries<&V14> ([=](std::pair<const int64_t,int64_t>& V13) {
@@ -703,6 +719,7 @@ auto start_3 = walltime();
     t_006.set(0, t_007.get(0));
     t_006.set(1, t_007.get(1));
     
+ sizes_count++;
  hash_001.insert(t_006.get(0), t_006);
  
  });
@@ -710,6 +727,9 @@ auto start_3 = walltime();
  auto end_3 = walltime();
  auto runtime_3 = end_3 - start_3;
  VLOG(1) << "pipeline 3: " << runtime_3 << " s";
+ 
+ uint64_t total_sizes_count = reduce<uint64_t,COLL_ADD>( &sizes_count );
+ VLOG(1) << "#sizes = " << total_sizes_count;
  
  auto joinmat = RelationObject<MaterializedTupleRef_V2_0_1_2_3_4_5_6>::create();
 auto start_4 = walltime();
@@ -732,8 +752,10 @@ auto start_4 = walltime();
     t_001.set(4, t_010.get(4));
     t_001.set(5, t_010.get(5));
     t_001.set(6, ( (t_010.get(5)) / (t_010.get(3)) ));
-    
+   
     joinmat->data->push_back(t_001);
+    //VLOG_EVERY_N(1, 20000000) << "local size is " << joinmat->data->size(); 
+    contribs_count++;
      
  
     }
@@ -747,6 +769,8 @@ auto start_4 = walltime();
  auto end_4 = walltime();
  auto runtime_4 = end_4 - start_4;
  VLOG(1) << "pipeline 4: " << runtime_4 << " s";
+ uint64_t total_contribs_count = reduce<uint64_t,COLL_ADD>( &contribs_count );
+ VLOG(1) << "#contribs = " << total_contribs_count;
 
  auto start_99 = walltime();
  on_all_cores([=] {
