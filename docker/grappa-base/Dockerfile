@@ -1,4 +1,8 @@
+######################################################
+# Base image with all of Grappa's dependencies
+######################################################
 FROM ubuntu
+MAINTAINER Grappa Team <grappa@cs.washington.edu>
 
 RUN apt-get update
 RUN apt-get install -y \
@@ -9,7 +13,7 @@ RUN apt-get install -y \
   ninja-build \
   git
 
-# build Ruby
+# build recent version of Ruby
 RUN wget http://cache.ruby-lang.org/pub/ruby/2.1/ruby-2.1.2.tar.gz && \
   tar xzf ruby-2.1.2.tar.gz && \
   cd ruby-2.1.2 && \
@@ -21,9 +25,11 @@ RUN wget http://cache.ruby-lang.org/pub/ruby/2.1/ruby-2.1.2.tar.gz && \
 RUN wget http://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.1.tar.gz && \
   tar xzf openmpi-1.8.1.tar.gz && \
   cd openmpi-1.8.1 && \
-  ./configure --enable-contrib-no-build=vt && \
+  CC=$(which gcc) CXX=$(which g++) ./configure --enable-contrib-no-build=vt --prefix=/usr && \
   make && \
   make install
 
 # clean up
 RUN rm -rf openmpi-1.8.1* ruby-2.1.2*
+
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
