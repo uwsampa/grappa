@@ -59,6 +59,14 @@ And there you have it! Two levels of VM sharing a directory...
 		$ docker run -ti --privileged grappa-base /bin/bash
 		grappa-base$ sysctl -w kernel.shmmax=$((1<<30))
 
+# Additional tools/notes
+## Tools To Investigate
+- Fig: http://orchardup.github.io/fig/
+  - Creates and runs Docker images automatically
+- Shipyard: https://github.com/shipyard/shipyard
+  - GUI for Docker
+- Drone: https://github.com/drone/drone
+  - Docker-based Continuous Integration (should work better for us than Jenkins once we have a Dockerfile setup working)
 
 
 ---
