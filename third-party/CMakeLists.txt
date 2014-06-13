@@ -71,7 +71,7 @@ if( NOT THIRD_PARTY_GFLAGS )
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
     CONFIGURE_COMMAND
       CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-    BUILD_COMMAND      make -j
+    BUILD_COMMAND      make -j 4
     INSTALL_COMMAND    make install
   )
   list(APPEND tool_list third-party-gflags)
@@ -95,7 +95,7 @@ if( NOT THIRD_PARTY_GLOG )
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
     CONFIGURE_COMMAND
     CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${THIRD_PARTY_ROOT}/include LDFLAGS=-L${THIRD_PARTY_ROOT}/lib
-    BUILD_COMMAND      make -j
+    BUILD_COMMAND      make -j 4
     INSTALL_COMMAND    make install
     DEPENDS third-party-gflags
   )
@@ -122,7 +122,7 @@ if(TRACING)
       INSTALL_DIR        ${THIRD_PARTY_ROOT}
       CONFIGURE_COMMAND  
         CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-frame-pointers
-      BUILD_COMMAND      make -j
+      BUILD_COMMAND      make -j 4
       INSTALL_COMMAND    make install
     )
     list(APPEND tool_list third-party-gperftools)
