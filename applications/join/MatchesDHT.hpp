@@ -16,6 +16,13 @@
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_remote_lookups);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_remote_inserts);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_local_lookups);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_local_inserts);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_lookups);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_inserts);
+
 
 // for naming the types scoped in MatchesDHT
 #define MDHT_TYPE(type) typename MatchesDHT<K,V,HF>::type
@@ -103,6 +110,31 @@ class MatchesDHT {
       });
     }
 
+
+    struct size_aligned {
+      size_t s;
+
+      size_aligned operator+(const size_aligned& o) const {
+        size_aligned v;
+        v.s = this->s + o.s;
+        return v;
+      }
+    } GRAPPA_BLOCK_ALIGNED;
+
+   size_t size() {
+     auto l_size = Grappa::symmetric_global_alloc<size_aligned>();
+     Grappa::forall( base, capacity, [l_size](int64_t i, Cell& c) {
+       if (c.entries != NULL) {
+         for (auto eiter = c.entries->begin(); eiter != c.entries->end(); ++eiter) {
+           l_size->s += eiter->vs->size();
+         }
+       }
+     });
+    return Grappa::reduce<size_aligned, COLL_ADD>(l_size ).s;
+        //FIXME: mem leak l_size
+   }
+
+
     static void set_RO_global( MatchesDHT<K,V,HF> * globally_valid_local_pointer ) {
       Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
         // list of entries in this cell
@@ -126,13 +158,13 @@ class MatchesDHT {
       });
     }
 
-
     uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       lookup_result result = Grappa::delegate::call( target.core(), [key,target,this]() {
+        hash_called_lookups++;
 
         MDHT_TYPE(lookup_result) lr;
         lr.num = 0;
@@ -160,7 +192,13 @@ class MatchesDHT {
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
       //if you are going to do more suspending ops (comms) inside the loop
+      if (target.core() == Grappa::mycore()) {
+        hash_local_lookups++;
+      } else {
+        hash_remote_lookups++;
+      }
       Grappa::spawnRemote<GCE>( target.core(), [key, target, f, this]() {
+        hash_called_lookups++;
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
@@ -186,6 +224,7 @@ class MatchesDHT {
       GlobalAddress< Cell > target = base + index; 
 
       Grappa::delegate::call<async>( target.core(), [key, target, f]() {
+        hash_called_lookups++;
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           uint64_t len = e.vs->size();
@@ -241,7 +280,14 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
+      if (target.core() == Grappa::mycore()) {
+        hash_local_inserts++;
+      } else {
+        hash_remote_inserts++;
+      }
       Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
+        hash_called_inserts++;
+
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
 
