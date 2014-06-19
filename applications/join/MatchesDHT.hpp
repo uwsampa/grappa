@@ -238,12 +238,13 @@ class MatchesDHT {
     // Shouldn't be used with `insert`.
     //
     // returns true if the set already contains the key
-    bool insert_unique( K key ) {
+    void insert_unique( K key, V val ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
-//FIXME: remove index capture
-      bool result = Grappa::delegate::call( target.core(), [index,key, target]() {   // TODO: have an additional version that returns void
+      Grappa::delegate::call( target.core(), [key,val,target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
+        hash_called_inserts++;
+
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
 
@@ -259,20 +260,19 @@ class MatchesDHT {
           Entry e = *i;
           if ( e.key == key ) {
             // key found so no insert
-            return true;
+            return;
           }
         }
 
         // this is the first time the key has been seen
         // so add it to the list
         Entry newe( key );        // TODO: cleanup since sharing insert* code here, we are just going to store an empty vector
+        newe.vs->push_back( val );
                                   // perhaps a different module
         entries->push_back( newe );
 
-        return false; 
+        return; 
      });
-
-      return result;
     }
 
 
