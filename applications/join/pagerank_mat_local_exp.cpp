@@ -618,6 +618,7 @@ uint64_t sizes_count = 0;
 uint64_t ranks_count = 0;
 uint64_t contribs_count = 0;
 uint64_t num_vertices_from_sizes = 0;
+uint64_t combined_messages = 0;
       
 
 std::unordered_map<int64_t, int64_t> local_group_hash_000;
@@ -805,6 +806,7 @@ auto start_4 = walltime();
  auto start_100 = walltime();
  on_all_cores([=] {
      for (auto it = local_group_hash_000.begin(); it!=local_group_hash_000.end(); ++it) {
+        combined_messages++;
        group_hash_000->update <&jm_sync, int64_t, &Aggregates::SUM<int64_t,int64_t>,0>( it->first, it->second);
      }
   });
@@ -813,7 +815,9 @@ auto start_4 = walltime();
   auto end_100 = walltime();
  auto runtime_100 = end_100 - start_100;
  VLOG(1) << "pipeline 100: " << runtime_100 << " s";
-       
+
+ auto total_combined_messages = reduce<uint64_t, COLL_ADD>( &combined_messages );
+ VLOG(1) << "total_combined_messages = " << total_combined_messages;      
     
 
  
