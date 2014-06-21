@@ -35,13 +35,17 @@ extern HeapLeakChecker * Grappa_heapchecker;
 
 #include "Communicator.hpp"
 #include "LocaleSharedMemory.hpp"
+
+#ifndef COMMUNICATOR_TEST
 #include "Metrics.hpp"
+#endif
 
 DEFINE_int64( log2_concurrent_receives, 7, "How many receive requests do we keep active at a time?" );
 DEFINE_int64( log2_concurrent_sends, 7, "How many send requests do we keep active at a time?" );
 
 DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
 
+#ifndef COMMUNICATOR_TEST
 // // other metrics
 // GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_messages, 0);
 // GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, communicator_bytes, 0);
@@ -56,6 +60,7 @@ GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, communicator_message_bytes, 0 
 //     // sampling value
 //     return Grappa::walltime();
 //     });
+#endif
 
 /// Global communicator instance
 Communicator global_communicator;
@@ -269,7 +274,9 @@ void Communicator::post_send( CommunicatorContext * c,
            << " with buf " << c->buf
            << " callback " << (void*)c->callback;
   MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, grappa_comm, &c->request ) );
+#ifndef COMMUNICATOR_TEST
   communicator_message_bytes += size;
+#endif
 }
 
 void Communicator::post_external_send( CommunicatorContext * c,
@@ -279,7 +286,9 @@ void Communicator::post_external_send( CommunicatorContext * c,
   DVLOG(6) << "Posting external send " << c;
   post_send( c, dest, size, tag );
   external_sends.push_back(c);
+#ifndef COMMUNICATOR_TEST
   communicator_message_bytes += size;
+#endif
 }
 
 void Communicator::post_receive( CommunicatorContext * c ) {
