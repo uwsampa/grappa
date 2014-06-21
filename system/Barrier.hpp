@@ -35,7 +35,7 @@ namespace Grappa {
   inline void barrier() {
     DVLOG(5) << "entering barrier";
     global_communicator.with_request_do_blocking( [] ( MPI_Request * request ) {
-        MPI_CHECK( MPI_Ibarrier( MPI_COMM_WORLD, request ) );
+        MPI_CHECK( MPI_Ibarrier( global_communicator.grappa_comm, request ) );
       } );
   }
   

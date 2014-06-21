@@ -667,7 +667,7 @@ namespace Grappa {
   #ifdef USE_MPI3_COLLECTIVES
     on_all_cores([g]{
       MPI_Request r; int done;
-      MPI_Iallreduce(MPI_IN_PLACE, g->scratch, g->nv, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD, &r);
+      MPI_Iallreduce(MPI_IN_PLACE, g->scratch, g->nv, MPI_INT64_T, MPI_SUM, global_communicator.grappa_comm, &r);
       do {
         MPI_Test( &r, &done, MPI_STATUS_IGNORE );
         if(!done) { Grappa::yield(); }

@@ -22,6 +22,7 @@
 ////////////////////////////////////////////////////////////////////////
 
 #include <cassert>
+#include <limits>
 
 #include <gflags/gflags.h>
 
@@ -85,6 +86,9 @@ Communicator::Communicator( )
   , external_sends()
   , collective_context(NULL)
 
+  , locale_comm()
+  , grappa_comm()
+    
   , mycore( mycore_ )
   , cores( cores_ )
   , mylocale( mylocale_ )
@@ -98,9 +102,9 @@ Communicator::Communicator( )
 { }
 
 
-/// initialize communication layer. After this call, node parameters
-/// may be queried and handlers may be registered, but no
-/// communication is allowed.
+/// Initialize communication layer. This method uses MPI_COMM_WORLD
+/// for job setup, but then all communication happens over a new
+/// communicator.
 void Communicator::init( int * argc_p, char ** argv_p[] ) {
 #ifdef HEAPCHECK_ENABLE
   {
@@ -111,78 +115,71 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   }
 #endif
 
-  // this will let our error wrapper actually fire.
-  MPI_CHECK( MPI_Comm_set_errhandler( MPI_COMM_WORLD, MPI_ERRORS_RETURN ) );
 
-  // initialize masks
-  receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
-  send_mask = (1 << FLAGS_log2_concurrent_sends) - 1;
+  // get locale-local communicator
+  MPI_CHECK( MPI_Comm_split_type( MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &locale_comm ) );
+  int locale_mycoreint = -1;
+  int locale_coresint = -1;
+  MPI_CHECK( MPI_Comm_rank( locale_comm, &locale_mycoreint ) );
+  MPI_CHECK( MPI_Comm_size( locale_comm, &locale_coresint ) );
+  locale_mycore_ = locale_mycoreint;
+  locale_cores_ = locale_coresint;
   
-  // initialize job geometry
-  int mycoreint, coresint;
-  MPI_CHECK( MPI_Comm_rank( MPI_COMM_WORLD, &mycoreint ) );
-  MPI_CHECK( MPI_Comm_size( MPI_COMM_WORLD, &coresint ) );
-  mycore_ = mycoreint;
-  cores_ = coresint;
+  // get locale count
+  int32_t localesint = locale_mycoreint == 0; // count one per locale and broadcast
+  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, &localesint, 1, MPI_INT32_T,
+                            MPI_SUM, MPI_COMM_WORLD ) );
+  locales_ = localesint;
   
-  // try to compute locale geometry
-  char * locale_rank_string = NULL;
-
-  // are we using Slurm?
-  if( (locale_rank_string = getenv("SLURM_LOCALID")) ) {
-    locale_mycore_ = atoi(locale_rank_string);
-
-    char * locale_size_string = getenv("SLURM_TASKS_PER_NODE");
-    CHECK_NOTNULL( locale_size_string );
-    // TODO: verify that locale dimensions are the same for all nodes in job
-    locale_cores_ = atoi(locale_size_string);
-
-    // are we using OpenMPI?
-  } else if( (locale_rank_string = getenv("OMPI_COMM_WORLD_LOCAL_RANK")) ) {
-    locale_mycore_ = atoi(locale_rank_string);
-
-    char * locale_size_string = getenv("OMPI_COMM_WORLD_LOCAL_SIZE");
-    CHECK_NOTNULL( locale_size_string );
-    locale_cores_ = atoi(locale_size_string);
-
-    // are we using MVAPICH2?
-  } else if( (locale_rank_string = getenv("MV2_COMM_WORLD_LOCAL_RANK")) ){
-    locale_mycore_ = atoi(locale_rank_string);
-
-    char * locale_size_string = getenv("MV2_COMM_WORLD_LOCAL_SIZE");
-    CHECK_NOTNULL( locale_size_string );
-    locale_cores_ = atoi(locale_size_string);
-
-  } else {
-    LOG(ERROR) << "Could not determine locale dimensions!";
-    exit(1);
-  }
-
-  // verify that job has the same number of processes on each node
-  int64_t my_locale_cores = locale_cores_;
-  int64_t max_locale_cores = 0;
-  MPI_CHECK( MPI_Allreduce( &my_locale_cores, &max_locale_cores, 1,
-                            MPI_INT64_T, MPI_MAX, MPI_COMM_WORLD ) );
-  CHECK_EQ( my_locale_cores, max_locale_cores )
-    << "Number of processes per locale is not the same across job!";
-
-
-  // Guess at rank-to-locale mapping
-  // TODO: verify ranks aren't allocated in a cyclic fashion
-  mylocale_ = mycore_ / locale_cores_;
-
+  // get my locale
+  int32_t mylocaleint = locale_mycoreint == 0;  // count one per locale and sum
+  MPI_CHECK( MPI_Scan( MPI_IN_PLACE, &mylocaleint, 1, MPI_INT32_T,
+                       MPI_SUM, MPI_COMM_WORLD ) );
+  // copy to all cores in locale
+  MPI_CHECK( MPI_Bcast( &mylocaleint, 1, MPI_INT32_T,
+                        0, locale_comm ) );
+  mylocaleint -= 1; // make zero-indexed
+  mylocale_ = mylocaleint;
   
-  // Guess at number of locales
-  // TODO: verify ranks aren't allocated in a cyclic fashion
-  locales_ = cores_ / locale_cores_;
-
+  // make new communicator with ranks laid out like we want
+  MPI_CHECK( MPI_Comm_split( MPI_COMM_WORLD, 0, mylocaleint, &grappa_comm ) );
+  int grappa_mycoreint = -1;
+  int grappa_coresint = -1;
+  MPI_CHECK( MPI_Comm_rank( grappa_comm, &grappa_mycoreint ) );
+  MPI_CHECK( MPI_Comm_size( grappa_comm, &grappa_coresint ) );
+  mycore_ = grappa_mycoreint;
+  cores_ = grappa_coresint;
+    
   // allocate and initialize core-to-locale translation
   locale_of_core_.reset( new Locale[ cores_ ] );
-  for( int i = 0; i < cores_; ++i ) {
-    // TODO: verify ranks aren't allocated in a cyclic fashion
-    locale_of_core_[i] = i / locale_cores_;
+  MPI_CHECK( MPI_Allgather( &mylocale_, 1, MPI_INT16_T,
+                            &locale_of_core_[0], 1, MPI_INT16_T,
+                            grappa_comm ) );
+
+  
+  // verify locale numbering is consistent with locales
+  int32_t localemin = std::numeric_limits<int32_t>::max();
+  int32_t localemax = std::numeric_limits<int32_t>::min();
+  MPI_CHECK( MPI_Reduce( &mylocaleint, &localemin, 1, MPI_INT32_T,
+                         MPI_MIN, 0, locale_comm ) );
+  MPI_CHECK( MPI_Reduce( &mylocaleint, &localemax, 1, MPI_INT32_T,
+                         MPI_MAX, 0, locale_comm ) );
+  if( 0 == locale_mycoreint ) {
+    CHECK_EQ( localemin, localemax ) << "Locale ID is not consistent across locale!";
   }
 
+  // verify locale core count is the same across job
+  int32_t locale_coresmin = std::numeric_limits<int32_t>::max();
+  int32_t locale_coresmax = std::numeric_limits<int32_t>::min();
+  MPI_CHECK( MPI_Reduce( &locale_coresint, &locale_coresmin, 1, MPI_INT32_T,
+                         MPI_MIN, 0, grappa_comm ) );
+  MPI_CHECK( MPI_Reduce( &locale_coresint, &locale_coresmax, 1, MPI_INT32_T,
+                         MPI_MAX, 0, grappa_comm ) );
+  if( 0 == grappa_mycoreint ) {
+    CHECK_EQ( locale_coresmin, locale_coresmax ) << "Number of cores per locale is not the same across job!";
+  }
+
+  
   DVLOG(2) << "hostname " << hostname()
            << " mycore_ " << mycore_ 
            << " cores_ " << cores_
@@ -192,14 +189,22 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
            << " locale_cores_ " << locale_cores_
            << " pid " << getpid();
 
+  // this will let our error wrapper actually fire.
+  MPI_CHECK( MPI_Comm_set_errhandler( locale_comm, MPI_ERRORS_RETURN ) );
+  MPI_CHECK( MPI_Comm_set_errhandler( grappa_comm, MPI_ERRORS_RETURN ) );
 
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
 
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
+
+  // initialize masks
+  receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
+  send_mask = (1 << FLAGS_log2_concurrent_sends) - 1;
+  
   receives = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_receives ];
 
   sends = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_sends ];
   
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
 }
 
                              
@@ -224,7 +229,7 @@ void Communicator::activate() {
   repost_receive_buffers();
 
   DVLOG(3) << "Entering activation barrier";
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
   DVLOG(3) << "Leaving activation barrier";
 }
 
@@ -263,7 +268,7 @@ void Communicator::post_send( CommunicatorContext * c,
   DVLOG(6) << "Posting send " << c << " to " << dest
            << " with buf " << c->buf
            << " callback " << (void*)c->callback;
-  MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &c->request ) );
+  MPI_CHECK( MPI_Isend( c->buf, size, MPI_BYTE, dest, tag, grappa_comm, &c->request ) );
   communicator_message_bytes += size;
 }
 
@@ -278,7 +283,7 @@ void Communicator::post_external_send( CommunicatorContext * c,
 }
 
 void Communicator::post_receive( CommunicatorContext * c ) {
-  MPI_CHECK( MPI_Irecv( c->buf, c->size, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &c->request ) );
+  MPI_CHECK( MPI_Irecv( c->buf, c->size, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, grappa_comm, &c->request ) );
   DVLOG(6) << "Posted receive " << c << " with buf " << c->buf << " callback " << (void*) c->callback;
 }
 
@@ -431,7 +436,7 @@ static void finalize_mpi(void)
 /// tear down communication layer.
 void Communicator::finish(int retval) {
   
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
   
   // get rid of any outstanding sends
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
@@ -441,7 +446,7 @@ void Communicator::finish(int retval) {
     }
   }
   
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
   
   // get rid of any outstanding receives
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_receives); ++i ) {
@@ -451,6 +456,11 @@ void Communicator::finish(int retval) {
     }
   }
   
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
+
+  MPI_Comm_free( &locale_comm );
+  MPI_Comm_free( &grappa_comm );
+
   MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
   
   // For VampirTrace's sake, clean up MPI only when process exits.

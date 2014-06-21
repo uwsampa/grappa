@@ -463,7 +463,7 @@ void write_array_unordered( std::string filename, GlobalAddress<T> array, size_t
       if( Grappa::mycore() == mycore ) {
         strncpy( &helper->filename[0], filename.c_str(), filename.size()+1 );
       }
-      MPI_CHECK( MPI_Bcast( &helper->filename[0], filename_size+1, MPI_CHAR, mycore, MPI_COMM_WORLD ) );
+      MPI_CHECK( MPI_Bcast( &helper->filename[0], filename_size+1, MPI_CHAR, mycore, global_communicator.grappa_comm ) );
 
       // get local chunk of array
       T * local_ptr = array.localize();
@@ -505,7 +505,7 @@ void read_array_unordered( std::string filename, GlobalAddress<T> array, size_t 
       if( Grappa::mycore() == mycore ) {
         strncpy( &helper->filename[0], filename.c_str(), filename.size()+1 );
       }
-      MPI_CHECK( MPI_Bcast( &helper->filename[0], filename_size+1, MPI_CHAR, mycore, MPI_COMM_WORLD ) );
+      MPI_CHECK( MPI_Bcast( &helper->filename[0], filename_size+1, MPI_CHAR, mycore, global_communicator.grappa_comm ) );
 
       // get local chunk of array
       T * local_ptr = array.localize();
