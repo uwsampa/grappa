@@ -26,7 +26,6 @@
 
 #include "Addressing.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "tasks/TaskingScheduler.hpp"
 
 // forward declare for active message templates
@@ -146,21 +145,11 @@ public:
       size_t nmsg = total_bytes / block_size + 2;
       size_t msg_size = sizeof(Grappa::Message<RequestArgs>);
       
-      if (nmsg*msg_size < Grappa::current_worker()->stack_remaining()-8192) {
-        CHECK_LT(Grappa::current_worker()->stack_remaining(), STACK_SIZE);
-        // try to put message storage on stack if there's space
-        char msg_buf[nmsg*msg_size];
-        Grappa::MessagePool pool(msg_buf, sizeof(msg_buf));
-        do_acquire(pool);
-      } else {
-        // fall back on heap-allocating the storage
-        Grappa::MessagePool pool(nmsg*msg_size);
-        do_acquire(pool);
-      }
+      do_acquire();
     }
   }
 
-  void do_acquire(Grappa::impl::MessagePoolBase& pool) {
+  void do_acquire() {
     size_t total_bytes = *count_ * sizeof(T);
     RequestArgs args;
     args.request_address = *request_address_;
@@ -183,7 +172,7 @@ public:
                << " of total bytes = " << *count_ * sizeof(T)
                << " from " << args.request_address;
 
-      pool.send_message(args.request_address.core(), [args]{
+      Grappa::send_heap_message(args.request_address.core(), [args]{
         IAMetrics::count_acquire_ams( args.request_bytes );
         DVLOG(5) << "Worker " << Grappa::current_worker()
         << " received acquire request to " << args.request_address

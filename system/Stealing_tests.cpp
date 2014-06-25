@@ -91,7 +91,13 @@ void multiBarrier( int index ) {
         wakeindex_args warg = { index };
         for (Core no = 1; no < Grappa::cores(); no++ ) {
             Core dest = (Grappa::mycore() + no) % Grappa::cores();
-            Grappa_call_on( dest, &wakeindex_f, &warg );
+            //Grappa_call_on( dest, &wakeindex_f, &warg );
+            send_heap_message( dest, [index] {
+                isWoken[index] = true;
+                if (isActuallyAsleep[index]) {
+                  Grappa::wake( threads[index] );
+                }
+              } );
         }
     } else {
         BOOST_MESSAGE( result << " == " << Grappa::cores()-1 );
@@ -136,8 +142,13 @@ void task_stolen( task1_arg * arg ) {
     GlobalAddress<int64_t> dum_addr = GlobalAddress<int64_t>::TwoDimensional( &num_stolen_started, 0 );
     int64_t result_d = Grappa_delegate_fetch_and_add_word( dum_addr, 1 );
     if ( result_d == (Grappa::cores()-1)*tasks_per_node - 1 ) {
-        wake_arg wwwarg = {NULL};
-        Grappa_call_on( 0, &wakedum_f, &wwwarg);
+        // wake_arg wwwarg = {NULL};
+        //Grappa_call_on( 0, &wakedum_f, &wwwarg);
+        send_heap_message( dest, [] {
+            if ( dummy_thr != NULL ) {
+              Grappa::wake( dummy_thr );
+            }
+          } );
     }
 
     // wake the corresponding task on Core 0
@@ -151,8 +162,11 @@ void task_stolen( task1_arg * arg ) {
     BOOST_MESSAGE( Grappa::current_worker() << " with task(stolen) called fetch add=" << result );
     if ( result == num_tasks-1 ) {
         BOOST_MESSAGE( Grappa::current_worker() << " with task(stolen) " << mynum << " result=" << result );
-        wake_arg wwarg = { parent };
-        Grappa_call_on( 0, &wake_f, &wwarg );
+        //Grappa_call_on( 0, &wake_f, &wwarg );
+        send_heap_message( dest, [parent] {
+            Grappa::wake( parent );
+          } );
+
     }     
 }
 

@@ -31,8 +31,6 @@ DEFINE_int64( periodic_poll_ticks, 20000, "number of ticks to wait before pollin
 
 DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has nothing better to do");
 
-DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before dumping stats blob");
-
 DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
 
 GRAPPA_DEFINE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches, 0 );

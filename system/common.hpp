@@ -58,8 +58,30 @@ using std::nullptr_t;
 #include <time.h>
 #endif
 
-#define BILLION 1000000000
-#define MILLION 1000000
+#define ONE                 (1ULL)
+#define KILO                (1024ULL * ONE)
+#define MEGA                (1024ULL * KILO)
+#define GIGA                (1024ULL * MEGA)
+#define TERA                (1024ULL * GIGA)
+#define PETA                (1024ULL * TERA)
+#define CACHE_LINE_SIZE     (64ULL)
+#define SIZE_OF_CACHE       (MEGA * 64ULL)
+#define THOUSAND        (1000ULL * ONE)
+#define MILLION         (1000ULL * THOUSAND)
+#define BILLION         (1000ULL * MILLION)
+
+#ifndef MAX
+#  define MAX(a,b) ((a) < (b) ? (b) : (a))
+#endif
+#ifndef MIN
+#  define MIN(a,b) ((a) > (b) ? (b) : (a))
+#endif
+
+// align ptr x to y boundary (rounding up)
+#define ALIGN_UP(x, y) \
+    ((((u_int64_t)(x) & (((u_int64_t)(y))-1)) != 0) ? \
+        ((void *)(((u_int64_t)(x) & (~(u_int64_t)((y)-1)))+(y))) \
+        : ((void *)(x)))
 
 /// Use to deprecate old APIs
 #define GRAPPA_DEPRECATED __attribute__((deprecated))
@@ -377,4 +399,28 @@ namespace Grappa {
 
 }
 
+namespace Grappa {
+  
+/// @addtogroup Utility
+/// @{
+
+namespace impl{
+
+static inline void prefetcht0(const void *p) {
+    __builtin_prefetch(p, 0, 3);
+}
+
+static inline void prefetchnta(const void *p) {
+    __builtin_prefetch(p, 0, 0);
+}
+
+static inline void prefetcht2(const void *p) {
+    __builtin_prefetch(p, 0, 1);
+}
+
+}
+
+/// @}
+
+}
 #endif

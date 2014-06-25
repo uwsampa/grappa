@@ -110,8 +110,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       gups_throughput_per_locale = gups_throughput / Grappa::locales();
       
       Grappa::Metrics::stop_tracing();
-      Grappa::Metrics::merge_and_print();
-
+      //Grappa::Metrics::merge_and_print();
+      LOG(INFO) << gups_runtime;
+      LOG(INFO) << gups_throughput;
+      LOG(INFO) << gups_throughput_per_locale;
+      
       if( FLAGS_validate ) {
         LOG(INFO) << "Validating....";
         validate(A, FLAGS_sizeA);

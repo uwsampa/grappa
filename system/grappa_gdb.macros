@@ -115,9 +115,9 @@ end
 
 
 define grappa_coroutine_print
-  set $grappa_coroutine_print_elem = (Worker*) $arg0
+  set $grappa_coroutine_print_elem = (Grappa::Worker*) $arg0
   printf "  Coroutine %p running=%d suspended=%d IP ", $grappa_coroutine_print_elem, $grappa_coroutine_print_elem->running, $grappa_coroutine_print_elem->suspended
-  output/a *(int*)($grappa_coroutine_print_elem->stack + $grappa_stack_offset) 
+  output/a *(int64_t*)($grappa_coroutine_print_elem->stack + $grappa_stack_offset)
   printf "\n"
 end
 document grappa_coroutine_print
@@ -157,10 +157,10 @@ define grappa_queue_print
   else
     set $grappa_queue_length = $grappa_queue->len
   end
-  printf "%s queue has length %d:\n", $arg0, $grappa_queue->len
+  printf "%s has length %d:\n", $arg0, $grappa_queue->len
   set $grappa_queue_print_elem = $grappa_queue->head
   while $grappa_queue_print_elem != 0
-    grappa_coroutine_print *$grappa_queue_print_elem
+    grappa_coroutine_print $grappa_queue_print_elem
     set $grappa_queue_print_elem = $grappa_queue_print_elem->next
   end
 end
@@ -177,7 +177,7 @@ define grappa_queue_length
   else
     set $grappa_queue_length = $grappa_queue->len
   end
-  printf "%s queue has length %d. (Contents not shown.)\n", $arg0, $grappa_queue->len
+  printf "%s has length %d. (Contents not shown.)\n", $arg0, $grappa_queue->len
 end
 document grappa_queue_length
 Prints length of queue.
@@ -186,10 +186,8 @@ Syntax:
 end
 
 
-
-
 define periodic_queue
-  grappa_queue_print "Periodic" &Grappa::impl::global_scheduler.periodicQ
+  grappa_queue_print "Periodic queue" &Grappa::impl::global_scheduler.periodicQ
 end
 document periodic_queue
 Prints contents of Grappa periodic queue.
@@ -198,7 +196,12 @@ Syntax:
 end
 
 define ready_queue
-  grappa_queue_print "Ready" &Grappa::impl::global_scheduler.readyQ
+  set $grappa_queues = Grappa::impl::global_scheduler.readyQ.queues
+  set $grappa_queues_count = Grappa::impl::global_scheduler.readyQ.num_queues
+  while $grappa_queues_count != 0
+    set $grappa_queues_count = $grappa_queues_count - 1
+    grappa_queue_print "One of n ready queues" &$grappa_queues[$grappa_queues_count]
+  end
 end
 document ready_queue
 Prints contents of Grappa ready queue.
@@ -207,7 +210,7 @@ Syntax:
 end
 
 define unassigned_queue
-  grappa_queue_print "Unassigned" &Grappa::impl::global_scheduler.unassignedQ
+  grappa_queue_print "Unassigned queue" &Grappa::impl::global_scheduler.unassignedQ
 end
 document unassigned_queue
 Prints contents of Grappa unassigned queue.
@@ -216,7 +219,7 @@ Syntax:
 end
 
 define unassigned_queue_length
-  grappa_queue_length "Unassigned" &Grappa::impl::global_scheduler.unassignedQ
+  grappa_queue_length "Unassigned queue" &Grappa::impl::global_scheduler.unassignedQ
 end
 document unassigned_queue_length
 Prints length of Grappa unassigned queue.
@@ -226,14 +229,14 @@ end
 
 define suspended_coroutines
   printf "Suspended non-idle coroutines:\n"
-  set $grappa_suspended_coros_elem = all_coros
+  set $grappa_suspended_coros_elem = Grappa::impl::all_coros
   while $grappa_suspended_coros_elem != 0
-    if $grappa_suspended_coros_elem->suspended
-      if !($grappa_suspended_coros_elem->idle)
+    if $grappa_suspended_coros_elem->suspended != 0
+      if $grappa_suspended_coros_elem->idle == 0
         grappa_coroutine_print $grappa_suspended_coros_elem
       end
     end
-    set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->next
+    set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->tracking_next
   end
 end
 document suspended_coroutines
@@ -244,7 +247,7 @@ end
 
 define current_coroutine
   printf "Current coroutine:\n"
-  grappa_coroutine_print *Grappa::impl::global_scheduler.current_thread
+  grappa_coroutine_print Grappa::impl::global_scheduler.current_thread
 end
 document current_coroutine
 Prints currently scheduled Grappa coroutine.
@@ -280,7 +283,7 @@ Syntax:
 end
 
 define public_tasks
-  set $grappa_publicQ = Grappa::impl::global_scheduler.task_manager->publicQ
+  set $grappa_publicQ = &Grappa::impl::StealQueue<Grappa::impl::Task>::steal_queue
   set $grappa_shared_tasks = $grappa_publicQ->top - $grappa_publicQ->bottom
   printf "Shared public tasks (newest at bottom) (%d shared):\n", $grappa_shared_tasks
   set $grappa_task_index = $grappa_publicQ->bottom
@@ -316,9 +319,6 @@ end
 define queues
   coroutines
   tasks
-  ready_queue
-  unassigned_queue
-  suspended_coroutines
 end
 document queues
 Prints contents of Grappa coroutine/task queues.
@@ -334,7 +334,7 @@ end
 
 define switch_to_coroutine
   grappa_save_state
-  set $grappa_coro = (Worker*) $arg0
+  set $grappa_coro = (Grappa::Worker*) $arg0
   set $rsp = $grappa_coro->stack + $grappa_stack_offset
 #  select-frame ($grappa_coro->stack + $grappa_stack_offset)
   set $rip = *(int*)$rsp
@@ -392,7 +392,7 @@ Syntax:
 end
 
 define dumpstack
-  p ((int64_t*)((Worker*)$arg0)->stack) @ (((Worker*)$arg0)->base+((Worker*)$arg0)->ssize+4096-((Worker*)$arg0)->stack)/sizeof(int64_t)
+  p ((int64_t*)((Grappa::Worker*)$arg0)->stack) @ (((Grappa::Worker*)$arg0)->base+((Grappa::Worker*)$arg0)->ssize+4096-((Grappa::Worker*)$arg0)->stack)/sizeof(int64_t)
 end
 document dumpstack
 Dump stack (as int64_t's).

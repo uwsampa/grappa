@@ -25,7 +25,6 @@
 #define __INCOHERENT_RELEASER_HPP__
 
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "tasks/TaskingScheduler.hpp"
 
 // forward declare for active message templates
@@ -131,20 +130,11 @@ public:
       size_t nmsg = total_bytes / block_size + 2;
       size_t msg_size = sizeof(Grappa::PayloadMessage<RequestArgs>);
       
-      if (nmsg*msg_size < Grappa::current_worker()->stack_remaining()-8192) {
-        // try to put message storage on stack if there's space
-        char msg_buf[nmsg*msg_size];
-        Grappa::MessagePool pool(msg_buf, sizeof(msg_buf));
-        do_release(pool);
-      } else {
-        // fall back on heap-allocating the storage
-        Grappa::MessagePool pool(nmsg*msg_size);
-        do_release(pool);
-      }
+      do_release();
     }
   }
   
-  void do_release(Grappa::impl::MessagePoolBase& pool) {
+  void do_release() {
     size_t total_bytes = *count_ * sizeof(T);
     
     RequestArgs args;
@@ -168,7 +158,7 @@ public:
                << " of total bytes = " << *count_ * sizeof(T)
                << " to " << args.request_address;
 
-      pool.send_message(args.request_address.core(),
+      Grappa::send_heap_message(args.request_address.core(),
         [args](void * payload, size_t payload_size) {
           IRMetrics::count_release_ams( payload_size );
           DVLOG(5) << "Worker " << Grappa::current_worker()

@@ -45,8 +45,6 @@
 
 #include "StateTimer.hpp"
 
-DECLARE_string(stats_blob_filename);
-
 GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches );
 GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_count);
 
@@ -65,6 +63,9 @@ DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
 DECLARE_bool(flush_on_idle);
 DECLARE_bool(rdma_flush_on_idle);
+
+DECLARE_bool( stats_blob_enable );
+DECLARE_string(stats_blob_filename);
 DECLARE_int64( stats_blob_ticks );
 
 namespace Grappa {
@@ -171,14 +172,14 @@ class TaskingScheduler : public Scheduler {
 #endif
         }
 
-        if( ( global_communicator.mycore() == 0 ) &&
-            ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
-          prev_stats_blob_ts = current_ts;
-          
-          std::ofstream f(FLAGS_stats_blob_filename);
-          Grappa::Metrics::print(f);
-          f.close();
-        }
+        // if( ( global_communicator.mycore == 0 ) &&
+        //     ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks ) &&
+        //     FLAGS_stats_blob_enable &&
+        //     current_thread != master ) {
+        //   prev_stats_blob_ts = current_ts;
+
+        //   Grappa::Metrics::dump_stats_blob();
+        // }
 
         // check for periodic tasks
         result = periodicDequeue(current_ts);
@@ -333,8 +334,8 @@ class TaskingScheduler : public Scheduler {
       if (n == -1) {
         max_allowed_active_workers = num_workers;
       } else {
-        //VLOG(1) << "mynode = " << global_communicator.mycore();
-        max_allowed_active_workers = n + ((global_communicator.mycore() == 0) ? 1 : 0);
+        //VLOG(1) << "mynode = " << global_communicator.mycore;
+        max_allowed_active_workers = n + ((global_communicator.mycore == 0) ? 1 : 0);
       }
     }
 
