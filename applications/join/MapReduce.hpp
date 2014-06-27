@@ -24,14 +24,19 @@ template <Grappa::GlobalCompletionEvent * GCE, typename RandomAccess, typename A
 void forall_symmetric(GlobalAddress<RandomAccess> vs, AF accessor, CF f ) { 
 
   Grappa::on_all_cores([=] {
+      //VLOG(1) << "size = " << accessor(vs).size();
       Grappa::forall_here<async,GCE>(0, accessor(vs).size(), [=](int64_t start, int64_t iters) {
+        auto coll = accessor(vs);
         for (int i=start; i<start+iters; i++) {
-           auto e = accessor(vs)[i];
-           f(e);
+          auto e = coll[i];
+          f(e);
         }
       }); // local task blocks for all iterations
+     // VLOG(1) << "finished mine";
      });
+     // VLOG(1) << "calling wait on me only";
   GCE->wait(); // block until all tasks are done
+      //VLOG(1) << "wait done";
 }
 
 template <typename K, typename V, typename OutType>
