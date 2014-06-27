@@ -51,6 +51,7 @@ static inline void write_edge(packed_edge* p, int64_t v0, int64_t v1) {
 typedef struct packed_edge {
   int64_t v0;
   int64_t v1;
+  uint64_t data; // hack for edge data in TupleGraph
 } packed_edge;
 
 static inline int64_t get_v0_from_edge(const packed_edge* p) {

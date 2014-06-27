@@ -65,26 +65,30 @@ void check_remote() {
   int a = 0;
   auto ga = make_global(&a);
   
-  Grappa::ConditionVariable w;
+  FullEmpty<bool> w;
   auto gw = make_global(&w);
   
   send_message(1, [ga, gw] {
     spawn([=]{
       BOOST_CHECK_EQUAL(delegate::read(ga), 0);
-      signal(gw);
+      send_heap_message(gw.core(), [gw]{
+          gw->writeXF(true);
+        });
     });
   });
-  wait(&w);
+  auto r1 = w.readFE();
   BOOST_CHECK_EQUAL(a, 0); // value unchanged
   
   // write
   send_message(1, [ga, gw] {
     spawn([=]{
       delegate::write(ga, 7);
-      signal(gw);
+      send_heap_message(gw.core(), [gw]{
+          gw->writeXF(true);
+        });
     });
   });
-  wait(&w);
+  auto r2 = w.readFE();
   BOOST_CHECK_EQUAL(a, 7);
   
   // compare and swap
@@ -93,18 +97,22 @@ void check_remote() {
   send_message(1, [gb, gw] {
     spawn([=]{
       BOOST_CHECK_EQUAL(delegate::compare_and_swap(gb, 3.14, 2.0), true);
-      signal(gw);
+      send_heap_message(gw.core(), [gw]{
+          gw->writeXF(true);
+        });
     });
   });
-  wait(&w);
+  auto r3 = w.readFE();
   BOOST_CHECK_EQUAL(b, 2.0);
   send_message(1, [gb, gw] {
     spawn([=]{
       BOOST_CHECK_EQUAL(delegate::compare_and_swap(gb, 3.14, 3.0), false);
-      signal(gw);
+      send_heap_message(gw.core(), [gw]{
+          gw->writeXF(true);
+        });
     });
   });
-  wait(&w);
+  auto r4 = w.readFE();
   BOOST_CHECK_EQUAL(b, 2.0);
   
   // fetch and add
@@ -113,18 +121,22 @@ void check_remote() {
   send_message(1, [gc, gw] {
     spawn([=]{
       BOOST_CHECK_EQUAL(delegate::fetch_and_add(gc, 1), 1);
-      signal(gw);
+      send_heap_message(gw.core(), [gw]{
+          gw->writeXF(true);
+        });
     });
   });
-  wait(&w);
+  auto r5 = w.readFE();
   BOOST_CHECK_EQUAL(c, 2);
   send_message(1, [gc, gw] {
     spawn([=]{
       BOOST_CHECK_EQUAL(delegate::fetch_and_add(gc, -2), 2);
-      signal(gw);
+      send_heap_message(gw.core(), [gw]{
+          gw->writeXF(true);
+        });
     });
   });
-  wait(&w);
+  auto r6 = w.readFE();
   BOOST_CHECK_EQUAL(c, 0);
 }
 

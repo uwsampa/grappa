@@ -2,7 +2,19 @@
 require 'igor'
 
 query = ARGV[0]
-queryexe = "grappa_#{query}.exe"
+plan = ""
+if ARGV.length == 2 then
+    plan = "#{ARGV[1]}_"
+end
+
+queryexe = "grappa_#{plan}#{query}.exe"
+
+
+machine = ENV['GRAPPA_CLUSTER']
+if not machine then
+    raise "need to set GRAPPA_CLUSTER to pal or sampa"
+end
+
 
 # inherit parser, sbatch_flags
 load '../../../../util/igor_common.rb'
@@ -16,12 +28,12 @@ $datasets="/sampa/home/bdmyers/graph_datasets"
 Igor do
   include Isolatable
   
-  database '/sampa/home/bdmyers/hardcode_results/cqs.db', :sp2bench
+  database "#{ENV['HOME']}/hardcode_results/cqs.db", :sp2bench
 
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(["#{queryexe}"],
-    File.dirname(__FILE__),
-    symlinks=["sp2bench_1m"])
+    File.dirname(__FILE__))#,
+   # symlinks=["sp2bench_1m"])
   
   GFLAGS = Params.new {
            num_starting_workers 1024
@@ -33,10 +45,9 @@ Igor do
                    poll_on_idle 1
                    nt ENV['NTUPLES'].to_i
   }
-  params.merge!(GFLAGS) 
   
   command %Q[ %{tdir}/grappa_srun --nnode=%{nnode} --ppn=%{ppn} -t 60
-    -- %{tdir}/#{queryexe}
+    -- %{tdir}/#{queryexe} --vmodule=grappa_Q*=%{emitlogging}
     #{expand_flags(*GFLAGS.keys)}
   ].gsub(/\s+/,' ')
   
@@ -46,10 +57,14 @@ Igor do
     trial 1
     nnode       2
     ppn         2
-    vtag         'v2-CSE'
-    machine 'grappa'
+    vtag         'v10-materializing'
+    machine "#{machine}"
     query "#{query}"
+    plan "#{plan}"
+    hash_local_cells 16*1024
+    emitlogging 0
   }
+  params.merge!(GFLAGS) 
   
 #  run {
 #    trial 1,2,3
@@ -61,25 +76,77 @@ Igor do
 #  } 
 
 
-  run {
-    nnode 1
-    ppn 1
-  }
+#  run {
+#    nnode 1
+#    ppn 1
+#  }
+#
+#  
+#  run {
+#    nnode 4
+#    ppn 6
+#  }
+#  run {
+#    nnode 6
+#    ppn 6
+#  }
+#  run {
+#    nnode 10
+#    ppn 6
+#  }
+#run {
+#    trial 1,2,3#1,2,3,4,5,6
+#    nnode 4,8,16#4,8,16#1,4,32,64#1,4,6,10,32,64
+#    ppn 6
+#    emitlogging 0
+#}
 
-  
-  run {
-    nnode 4
-    ppn 6
-  }
-  run {
-    nnode 6
-    ppn 6
-  }
-  run {
-    nnode 10
-    ppn 6
-  }
 
+#run  {
+#    vtag 'scalability'
+#    trial 1,2,3
+#    nnode 4,8,16,32,64
+#    ppn 16
+#    periodic_poll_ticks expr('nnode*2500')
+#    aggregator_autoflush_ticks expr('12500*nnode')
+#}
+#run  {
+#    vtag 'symmetric-hash'
+#    trial 1,2,3
+#    nnode 4,8,16,32,64
+#    ppn 16
+#    periodic_poll_ticks expr('nnode*2500')
+#    aggregator_autoflush_ticks expr('12500*nnode')
+#}
+#run  {
+#    vtag 'shuffle-compare'
+#    trial 1,2,3
+#    nnode 16
+#    ppn 16
+#    periodic_poll_ticks expr('nnode*2500')
+#    aggregator_autoflush_ticks expr('12500*nnode')
+#}
+#run {
+#    trial 1
+#    nnode 16
+#    ppn 6,16
+#    loop_threshold 512
+#}
+#run {
+#    trial 1
+#    nnode 16
+#    ppn 16
+#    aggregator_autoflush_ticks 200000,400000
+#    periodic_poll_ticks expr('aggregator_autoflush_ticks/5')
+#}
+run  {
+    vtag 'sym'
+    trial 1,2,3
+    nnode 16
+    ppn 16
+    periodic_poll_ticks expr('nnode*2500')
+    aggregator_autoflush_ticks expr('12500*nnode')
+}
 
 
   # required measures

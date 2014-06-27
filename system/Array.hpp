@@ -157,7 +157,7 @@ void prefix_sum(GlobalAddress<T> array, size_t nelem) {
 namespace util {
   
   /// String representation of a global array.
-  /// @example
+  /// 
   /// @code
   ///   GlobalAddress<int> xs;
   ///   DVLOG(2) << array_str("x", xs, 4);
@@ -177,7 +177,7 @@ namespace util {
     return ss.str();
   }
 
-  template< typename ArrayT, int width = 10 >
+  template< int width = 10, typename ArrayT = nullptr_t >
   inline std::string array_str(const char * name, const ArrayT& array) {
     bool multiline = array.size() > width;
     std::stringstream ss;
@@ -195,7 +195,7 @@ namespace util {
     return ss.str();
   }
   
-  template< typename ArrayT, int width = 10 >
+  template< int width = 10, typename ArrayT = nullptr_t >
   inline std::string array_str(const ArrayT& array) {
     return array_str(nullptr, array);
   }
@@ -224,7 +224,7 @@ namespace util {
   SimpleIterator<T> iterate(T* base = nullptr, size_t nelem = 0) { return SimpleIterator<T>{base, nelem}; }
   
   /// String representation of a local array, matches form of Grappa::array_str that takes a global array.
-  template<typename T, int width = 10>
+  template< int width = 10, typename T = nullptr_t >
   inline std::string array_str(const char * name, T * base, size_t nelem) {
     return array_str(name, iterate(base, nelem));
   }

@@ -42,6 +42,8 @@ private:
   size_t region_size;
   std::string region_name;
   void * base_address;
+  
+  size_t allocated;
 
   void create();
   void attach();
@@ -80,8 +82,9 @@ public:
   void * allocate_aligned( size_t size, size_t alignment );
   void deallocate( void * ptr );
 
-  size_t get_free_memory() const { return segment.get_free_memory(); }
-  size_t get_size() const { return segment.get_size(); }
+  const size_t get_free_memory() const { return segment.get_free_memory(); }
+  const size_t get_size() const { return segment.get_size(); }
+  const size_t get_allocated() const { return allocated; }
 };
 
 
@@ -101,6 +104,15 @@ inline T* locale_alloc(size_t n = 1) {
 
 inline void* locale_alloc(size_t n = 1) {
   return impl::locale_shared_memory.allocate(n);
+}
+
+template<typename T>
+inline T* locale_alloc_aligned(size_t alignment, size_t n = 1) {
+  return reinterpret_cast<T*>(impl::locale_shared_memory.allocate_aligned(sizeof(T)*n, alignment));
+}
+
+inline void* locale_alloc_aligned(size_t alignment, size_t n = 1) {
+  return impl::locale_shared_memory.allocate_aligned(n, alignment);
 }
 
 

@@ -115,11 +115,11 @@ void read_unordered_shared( const char * filename, void * local_ptr, size_t size
 
   // open file for reading
   int mode = MPI_MODE_RDONLY;
-  MPI_CHECK( MPI_File_open( MPI_COMM_WORLD, const_cast< char * >( filename ), mode, info, &infile ) );
+  MPI_CHECK( MPI_File_open( global_communicator.grappa_comm, const_cast< char * >( filename ), mode, info, &infile ) );
 
   // make sure we will read exactly the whole file
   int64_t total_size = 0;
-  MPI_CHECK( MPI_Reduce( &size, &total_size, 1, MPI_INT64_T, MPI_SUM, 0, MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Reduce( &size, &total_size, 1, MPI_INT64_T, MPI_SUM, 0, global_communicator.grappa_comm ) );
   if( 0 == Grappa::mycore() ) {
     MPI_Offset file_size = 0;
     MPI_CHECK( MPI_File_get_size( infile, &file_size ) );
@@ -132,7 +132,7 @@ void read_unordered_shared( const char * filename, void * local_ptr, size_t size
   // }
 
   // compute number of rounds required to read entire file
-  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, &round_count, 1, MPI_INT64_T, MPI_MAX, MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, &round_count, 1, MPI_INT64_T, MPI_MAX, global_communicator.grappa_comm ) );
 
   // read file in gigabyte-sized rounds
   for( int i = 0; i < round_count; ++i ) {
@@ -219,7 +219,7 @@ void write_unordered_shared( const char * filename, void * local_ptr, size_t siz
 
   // open file for writing
   int mode = MPI_MODE_CREATE | MPI_MODE_WRONLY;
-  MPI_CHECK( MPI_File_open( MPI_COMM_WORLD, const_cast< char * >( filename ), mode, info, &outfile ) );
+  MPI_CHECK( MPI_File_open( global_communicator.grappa_comm, const_cast< char * >( filename ), mode, info, &outfile ) );
   
   // drop any data previously in file
   MPI_CHECK( MPI_File_set_size( outfile, 0 ) );
@@ -230,7 +230,7 @@ void write_unordered_shared( const char * filename, void * local_ptr, size_t siz
   // }
 
   // compute number of rounds required to read entire file
-  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, &round_count, 1, MPI_INT64_T, MPI_MAX, MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, &round_count, 1, MPI_INT64_T, MPI_MAX, global_communicator.grappa_comm ) );
 
   // write file in gigabyte-sized rounds
   for( int i = 0; i < round_count; ++i ) {

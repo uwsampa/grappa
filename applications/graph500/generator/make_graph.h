@@ -29,6 +29,9 @@ void make_graph(
    * manipulate packed_edge objects (functions are write_edge,
    * get_v0_from_edge, get_v1_from_edge). */
 );
+
+void load_tuple_graph( std::string path, std::string format, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in);
+
 #else
 
 #ifdef __cplusplus
