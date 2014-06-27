@@ -223,7 +223,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call<async>( target.core(), [key, target, f]() {
+      Grappa::delegate::call<async,GCE>( target.core(), [key, target, f]() {
         hash_called_lookups++;
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
@@ -238,11 +238,11 @@ class MatchesDHT {
     // Shouldn't be used with `insert`.
     //
     // returns true if the set already contains the key
+    template< typename Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert_unique( K key, V val ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
-      Grappa::delegate::call( target.core(), [key,val,target]() {   // TODO: have an additional version that returns void
-                                                                 // to upgrade to call_async
+      Grappa::delegate::call<async,GCE>( target.core(), [key,val,target]() {  
         hash_called_inserts++;
 
         // list of entries in this cell
@@ -275,7 +275,7 @@ class MatchesDHT {
      });
     }
 
-
+    template< typename Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert( K key, V val ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
@@ -285,7 +285,8 @@ class MatchesDHT {
       } else {
         hash_remote_inserts++;
       }
-      Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
+
+      Grappa::delegate::call<async,GCE>( target.core(), [key, val, target]() { 
         hash_called_inserts++;
 
         // list of entries in this cell
@@ -305,7 +306,7 @@ class MatchesDHT {
             // key found so add to matches
             e.vs->push_back( val );
             hash_tables_size+=1;
-            return 0;
+            return;
           }
         }
 
@@ -315,7 +316,7 @@ class MatchesDHT {
         newe.vs->push_back( val );
         entries->push_back( newe );
 
-        return 0; 
+        return; 
       });
     }
 

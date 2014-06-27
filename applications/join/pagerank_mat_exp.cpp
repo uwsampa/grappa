@@ -681,7 +681,7 @@ auto start_1 = walltime();
     t_002.set(1, t_003.get(1));
     
  ranks_count++;
- hash_000.insert_unique(t_002.get(0), t_002);
+ hash_000.insert_unique<&V8>(t_002.get(0), t_002);
  
  }); // end scan over V7
  
@@ -720,7 +720,7 @@ auto start_3 = walltime();
     t_006.set(1, t_007.get(1));
     
  sizes_count++;
- hash_001.insert(t_006.get(0), t_006);
+ hash_001.insert<&V14>(t_006.get(0), t_006);
  
  });
  
