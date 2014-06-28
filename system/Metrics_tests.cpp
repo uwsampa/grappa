@@ -60,6 +60,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     baz += 4;
     baz += 9;
 
+    foostr = "foo";
+
     delegate::call(1, []() -> bool {
       foo++;
       foo++;
@@ -67,13 +69,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       baz += 16;
       baz += 25;
       baz += 36;
+      foostr = "bar";
+      foostr += "z";
 
       BOOST_CHECK( baz.value() == (16+25+36) );
       BOOST_CHECK( foo.value() == 2 );
       BOOST_CHECK( bar.value() == 5.41 );
+      BOOST_MESSAGE( "foostr => " << foostr.value() );
+      BOOST_CHECK( foostr.value() == "barz" );
 
       return true;
     });
+
+    BOOST_MESSAGE( "foostr => " << foostr.value() );
+    BOOST_CHECK( foostr.value() == "foo" );
   
     Metrics::print();
 
