@@ -9,8 +9,6 @@ set(SOURCES
   relation_io.hpp
   relation_io.cpp
   relation.hpp
-  utils.h
-  utils.cc
   MatchesDHT.hpp
   MatchesDHT.cpp
   DoubleDHT.hpp
@@ -28,8 +26,6 @@ set(SOURCES
   "${APP_BFS}/graph.cpp"
   stats.h
   stats.cpp
-  strings.h
-  strings.cc
   MapReduce.cpp
   MapReduce.hpp
   HashJoin.hpp
@@ -96,7 +92,18 @@ endforeach()
 foreach(query ${GENERATED_SOURCES})
   get_filename_component(query_name ${query}, NAME_WE)
   add_grappa_application(${query_name}.exe ${query})
-  target_link_libraries(${query_name}.exe generator querylib)
+    
+  # Raco C++ environment
+  set(RACO_DIR "$ENV{RACO_HOME}")
+  if (RACO_DIR)
+    include_directories($ENV{RACO_HOME}/c_test_environment)
+    link_directories($ENV{RACO_HOME}/c_test_environment) # TODO: replace this with something nicer like find()
+  else()
+      # should only trigger if there exist any generated queries (i.e. applications/join/grappa_*.cpp files)
+      message(FATAL_ERROR "Undefined RACO_HOME environment variable, required for generated queries")
+  endif()
+
+  target_link_libraries(${query_name}.exe generator querylib racoc)
   list(APPEND GENERATED_EXES "${query_name}.exe")
 endforeach()
 
