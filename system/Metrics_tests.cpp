@@ -38,15 +38,23 @@ using namespace Grappa;
 
 //equivalent to: static SimpleMetric<int> foo("foo", 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<int>, foo, 0);
+#define I_FOO 0
 
 //equivalent to: static SimpleMetric<double> bar("bar", 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<double>, bar, 0);
+#define I_BAR 1
 
 GRAPPA_DEFINE_METRIC(SummarizingMetric<int>, baz, 0);
+#define I_BAZ 2
 
 GRAPPA_DEFINE_METRIC(HistogramMetric, rand_msg, 0);
+#define I_HIST 3
 
 GRAPPA_DEFINE_METRIC(MaxMetric<uint64_t>, maz, 0);
+#define I_MAZ 4
+
+GRAPPA_DEFINE_METRIC(StringMetric, foostr, "");
+#define I_FOOSTR 5
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -90,6 +98,17 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       Metrics::print();
       return true;
     });
+   
+    // test merge 
+    std::vector<impl::MetricBase*> all;
+    Metrics::merge(all);
+    BOOST_CHECK( reinterpret_cast<SimpleMetric<int>*>(all[I_FOO])->value() == 3 );
+    BOOST_CHECK( reinterpret_cast<SimpleMetric<double>*>(all[I_BAR])->value() == 8.55 );
+    BOOST_CHECK( reinterpret_cast<SummarizingMetric<int>*>(all[I_BAZ])->value() == 91 );
+    // string append not associative
+    BOOST_CHECK( (reinterpret_cast<StringMetric*>(all[I_FOOSTR])->value() == "foobarz") 
+                || (reinterpret_cast<StringMetric*>(all[I_FOOSTR])->value() == "barzfoo") );
+      
 
     Metrics::reset_all_cores();
     Metrics::start_tracing();
