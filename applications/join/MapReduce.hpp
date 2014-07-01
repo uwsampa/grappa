@@ -25,10 +25,10 @@ void forall_symmetric(GlobalAddress<RandomAccess> vs, AF accessor, CF f ) {
 
   Grappa::on_all_cores([=] {
       //VLOG(1) << "size = " << accessor(vs).size();
-      Grappa::forall_here<async,GCE>(0, accessor(vs).size(), [=](int64_t start, int64_t iters) {
-        auto coll = accessor(vs);
+      auto local_vs = accessor(vs);
+      Grappa::forall_here<async,GCE>(0, local_vs.size(), [=](int64_t start, int64_t iters) {
         for (int i=start; i<start+iters; i++) {
-          auto e = coll[i];
+          auto e = local_vs[i];
           f(e);
         }
       }); // local task blocks for all iterations
