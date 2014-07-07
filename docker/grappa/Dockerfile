@@ -22,4 +22,4 @@ RUN chmod +x /run_hello_world.sh
 # have to make sure we re-set shmmax before running any Grappa programs
 RUN echo "sudo sysctl -w kernel.shmmax=$((1<<30))" >> /etc/profile
 
-ENTRYPOINT /bin/bash --login
+ENTRYPOINT ["/bin/bash","--login"]

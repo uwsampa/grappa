@@ -13,12 +13,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # Build VM from an NFS-enabled boot2docker.
   config.vm.box = "yungsang/boot2docker"
   
-  config.vm.synced_folder ".", "/vagrant", type: "nfs"
+  config.vm.synced_folder "..", "/grappa", type: "nfs"
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
   config.vm.network "private_network", ip: "192.168.33.10"
-
+  
+  config.vm.provider "virtualbox" do |v|
+    v.memory = 2048
+    v.cpus = 4
+  end  
+  
   # Should be able to redirect docker's port (4234?) to something else on 
   # the host using the command below. Remember to update `DOCKER_HOST` 
   # environment variable on the host, too.
