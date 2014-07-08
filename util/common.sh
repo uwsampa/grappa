@@ -14,3 +14,7 @@ function init_flags {
   # now source shflags
   source "${shflags_root}/src/shflags"      
 }
+
+function has_srun {
+  type srun >/dev/null 2>&1
+}
