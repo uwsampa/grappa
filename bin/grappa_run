@@ -20,7 +20,8 @@ DEFINE_boolean 'verbose' false "Verbose mode (prints info about job run. Not to 
 
 # srun-only options
 DEFINE_string 'time' '15:00' 'Job time to pass to srun' 't'
-DEFINE_string 'partition' '' 'Slurm partition to run on.'
+DEFINE_string 'partition' '' 'Slurm partition to run on. Can also be set by the SLURM_PARTITION environment variable'
+DEFINE_string 'account' '' 'Slurm account to use. Can also be set by the SLURM_ACCOUNT environment variable'
 
 # parse the command-line
 FLAGS "$@" || exit $?
@@ -39,7 +40,9 @@ totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
 if has_srun; then
   
   srun_flags=""
-  [ -n "$FLAGS_partition" ] && srun_flags="--partition=$FLAGS_partition"
+  
+  [ -n "$FLAGS_partition" ] && srun_flags+=" --partition=$FLAGS_partition"
+  [ -n "$FLAGS_account" ] && srun_flags+=" --account=$FLAGS_account"
   
   cmd="srun --cpu_bind=rank --label --kill-on-bad-exit --nodes=$FLAGS_nnode --ntasks-per-node=$FLAGS_ppn --time=$FLAGS_time $srun_flags -- $@"
   
