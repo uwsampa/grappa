@@ -271,7 +271,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   MPI_Errhandler mpi_error_handler;
   MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
-  MPI_Comm_set_errhandler( MPI_COMM_WORLD, mpi_error_handler );
+  MPI_Comm_set_errhandler( global_communicator.grappa_comm, mpi_error_handler );
 
 
   google::InstallFailureFunction( &Grappa::impl::failure_function );

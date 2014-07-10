@@ -21,23 +21,19 @@
 // http://www.affero.org/oagpl.html.
 ////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include "ConditionVariable.hpp"
-#include "Communicator.hpp"
-#include "CommunicatorImpl.hpp"
+#include "StringMetric.hpp"
+#include "StringMetricImpl.hpp"
 
 namespace Grappa {
-  /// @addtogroup Synchronization
-  /// @{
-  
-  /// Blocking SPMD barrier (must be called once on all cores to continue)
-  inline void barrier() {
-    DVLOG(5) << "entering barrier";
-    global_communicator.with_request_do_blocking( [] ( MPI_Request * request ) {
-        MPI_CHECK( MPI_Ibarrier( global_communicator.grappa_comm, request ) );
-      } );
+
+#ifdef VTRACE_SAMPLED
+  void StringMetric::vt_sample() const {
+    // TODO: for now, strings are traced as -1 no value
+    VT_COUNT_SIGNED_VAL(vt_counter, -1);
   }
-  
-  /// @}
+
+  // TODO: see TODO above  
+  const int StringMetric::vt_type = VT_COUNT_TYPE_SIGNED;
+#endif
 }
+

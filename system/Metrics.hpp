@@ -28,6 +28,7 @@
 
 #include "MetricBase.hpp"
 #include "SimpleMetric.hpp"
+#include "StringMetric.hpp"
 #include "SummarizingMetric.hpp"
 #include "CallbackMetric.hpp"
 #include "MaxMetric.hpp"

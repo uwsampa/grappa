@@ -88,7 +88,7 @@ void ping_test() {
   int target = (Grappa::mycore() + ( Grappa::cores() / 2 ) ) % Grappa::cores();
 
   double start = MPI_Wtime();
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   if( Grappa::mycore() < Grappa::cores() / 2 ) {
     for( int i = 0; i < send_count; ++i ) {
@@ -106,7 +106,7 @@ void ping_test() {
 
   DVLOG(1) << "Done.";
   
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
   double end = MPI_Wtime();
 
   BOOST_CHECK_EQUAL( send_count, receive_count );
@@ -125,11 +125,11 @@ void payload_test() {
   send_count = 12345678;
   receive_count = 0;
 
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   BOOST_CHECK_EQUAL( receive_count, 0 );
 
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   if( Grappa::mycore() == 0 ) {
     size_t size = sizeof(send_count);
@@ -148,7 +148,7 @@ void payload_test() {
     }
   }
 
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   BOOST_CHECK_EQUAL( send_count, receive_count );
 }
@@ -165,15 +165,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   global_communicator.activate();
   
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   ping_test();
 
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   payload_test();
   
-  MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 
   BOOST_CHECK_EQUAL( true, true );
 

@@ -143,6 +143,9 @@ private:
   CommunicatorContext * collective_context;
   
 public:
+  MPI_Comm locale_comm; // locale-local communicator
+  MPI_Comm grappa_comm; // grappa-specific communicator
+
   void garbage_collect();
   void repost_receive_buffers();
 
@@ -257,12 +260,12 @@ public:
   
   /// Global (anonymous) barrier (ALLNODES)
   inline void barrier() {
-    MPI_CHECK( MPI_Barrier( MPI_COMM_WORLD ) );
+    MPI_CHECK( MPI_Barrier( grappa_comm ) );
   }
 
   /// Global (anonymous) two-phase barrier notify (ALLNODES)
   inline void barrier_notify() {
-    MPI_CHECK( MPI_Ibarrier( MPI_COMM_WORLD, &barrier_request ) );
+    MPI_CHECK( MPI_Ibarrier( grappa_comm, &barrier_request ) );
   }
   
   /// Global (anonymous) two-phase barrier try (ALLNODES)

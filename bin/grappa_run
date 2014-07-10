@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# get directory of this script
+DIR="${BASH_SOURCE%/*}"
+if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
+
+UTILS="$DIR/../util"
+
+# source utils
+source "$UTILS/common.sh"
+
+# initialize flag-parsing library
+init_flags
+
+# declare command-line options
+DEFINE_integer 'nnode' 1 'Number of nodes to run the Grappa job with' 'n'
+DEFINE_integer 'ppn' 2 'Number of cores/processes per node' 'p'
+DEFINE_boolean 'freeze' false "Freeze all the jobs when there's an error" 'f'
+DEFINE_boolean 'verbose' false "Verbose mode (prints info about job run. Not to be confused with --v option after '--' which sets the logging level for the job itself." 'v'
+
+# srun-only options
+DEFINE_string 'time' '15:00' '[Slurm only] Job time to pass to srun' 't'
+DEFINE_string 'partition' '' '[Slurm only] Partition to run on. Can also be set by the SLURM_PARTITION environment variable'
+DEFINE_string 'account' '' '[Slurm only] Account to use. Can also be set by the SLURM_ACCOUNT environment variable'
+DEFINE_boolean 'mpirun' false "Use mpirun even if 'srun' is present."
+
+# parse the command-line
+FLAGS "$@" || exit $?
+eval set -- "${FLAGS_ARGV}"
+
+# compute total number of MPI processes
+totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
+
+# set freeze-on-error
+[ ${FLAGS_freeze} -eq ${FLAGS_TRUE} ] && export GRAPPA_FREEZE_ON_ERROR=1
+
+#TODO: test for if 'resv-ports' or 'OMPI_leave_pinned' should be set
+
+#TODO: figure out way to set default Slurm partition (environment variable? make our own?)
+
+if has_srun && [ $FLAGS_mpirun -eq $FLAGS_FALSE ]; then
+  
+  srun_flags=""
+  
+  [ -n "$FLAGS_partition" ] && srun_flags+=" --partition=$FLAGS_partition"
+  [ -n "$FLAGS_account" ] && srun_flags+=" --account=$FLAGS_account"
+  
+  cmd="srun --cpu_bind=rank --label --kill-on-bad-exit --nodes=$FLAGS_nnode --ntasks-per-node=$FLAGS_ppn --time=$FLAGS_time $srun_flags -- $@"
+  
+else
+  case `mpirun --version` in
+    
+  # OpenMPI v1.8
+  mpirun*1.8*)
+    [ $FLAGS_verbose -eq $FLAGS_TRUE ] && echo "# OpenMPI 1.8"
+    cmd="mpirun --n $totaln --map-by ppr:$FLAGS_ppn:node -- $@"
+    ;;
+    
+  # OpenMPI v < 1.8
+  mpirun*1.*)
+    cmd="mpirun --n $totaln --npernode $FLAGS_ppn -- $@"
+    ;;
+  
+  *)
+    echo "Unsupported version."
+    exit 1
+  esac
+fi
+
+# if verbose, echo command to be executed
+[ $FLAGS_verbose -eq $FLAGS_TRUE ] && echo "# $cmd"
+
+# setup environment variables
+source "$UTILS/env.sh"
+exec $cmd

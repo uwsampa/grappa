@@ -45,6 +45,7 @@ set(SYSTEM_SOURCES
   RDMAAggregator.cpp
   SharedMessagePool.cpp
   SimpleMetric.cpp
+  StringMetric.cpp
   StateTimer.cpp
   Metrics.cpp
   SummarizingMetric.cpp
@@ -111,6 +112,8 @@ set(SYSTEM_SOURCES
   SharedMessagePool.hpp
   SimpleMetric.hpp
   SimpleMetricImpl.hpp
+  StringMetric.hpp
+  StringMetricImpl.hpp
   StateTimer.hpp
   MetricBase.hpp
   Metrics.hpp
@@ -202,7 +205,7 @@ add_check( GlobalMemoryChunk_tests.cpp       2 1  pass )
 add_check( GlobalMemory_tests.cpp            2 1  pass )
 add_check( GlobalVector_tests.cpp            2 1  pass )
 add_check( Gups_tests.cpp                    2 1  pass )
-add_check( LocaleSharedMemory_tests.cpp      2 1  pass )
+add_check( LocaleSharedMemory_tests.cpp      1 2  pass )
 add_check( Malloc_tests.cpp                  2 1  fail )
 add_check( Message_tests.cpp                 2 1  fail )
 add_check( Mutex_tests.cpp                   2 1  pass )
@@ -231,6 +234,7 @@ add_library(Communicator
         Communicator.cpp
         LocaleSharedMemory.cpp
 )
+set_target_properties(Communicator PROPERTIES COMPILE_FLAGS "-DCOMMUNICATOR_TEST")
 add_dependencies(Communicator all-third-party)
 
 macro(add_commtest_exe target exe )
@@ -241,6 +245,7 @@ macro(add_commtest_exe target exe )
     ${GRAPPA_LIBS}
     ${MPI_CXX_LIBRARIES}
     ${Boost_LIBRARIES}
+
   )
 endmacro(add_commtest_exe)
 
@@ -250,7 +255,7 @@ macro(add_commtest_test name nnode ppn)
   add_commtest_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
   set_target_properties(${test} PROPERTIES
-    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
+    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base} -DCOMMUNICATOR_TEST"
   )
   
   # TODO: use "ctest" to make whole regression test suite
