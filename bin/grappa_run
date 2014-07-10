@@ -19,9 +19,9 @@ DEFINE_boolean 'freeze' false "Freeze all the jobs when there's an error" 'f'
 DEFINE_boolean 'verbose' false "Verbose mode (prints info about job run. Not to be confused with --v option after '--' which sets the logging level for the job itself." 'v'
 
 # srun-only options
-DEFINE_string 'time' '15:00' 'Job time to pass to srun' 't'
-DEFINE_string 'partition' '' 'Slurm partition to run on. Can also be set by the SLURM_PARTITION environment variable'
-DEFINE_string 'account' '' 'Slurm account to use. Can also be set by the SLURM_ACCOUNT environment variable'
+DEFINE_string 'time' '15:00' '[Slurm only] Job time to pass to srun' 't'
+DEFINE_string 'partition' '' '[Slurm only] Partition to run on. Can also be set by the SLURM_PARTITION environment variable'
+DEFINE_string 'account' '' '[Slurm only] Account to use. Can also be set by the SLURM_ACCOUNT environment variable'
 
 # parse the command-line
 FLAGS "$@" || exit $?
