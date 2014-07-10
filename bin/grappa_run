@@ -22,6 +22,7 @@ DEFINE_boolean 'verbose' false "Verbose mode (prints info about job run. Not to 
 DEFINE_string 'time' '15:00' '[Slurm only] Job time to pass to srun' 't'
 DEFINE_string 'partition' '' '[Slurm only] Partition to run on. Can also be set by the SLURM_PARTITION environment variable'
 DEFINE_string 'account' '' '[Slurm only] Account to use. Can also be set by the SLURM_ACCOUNT environment variable'
+DEFINE_boolean 'mpirun' false "Use mpirun even if 'srun' is present."
 
 # parse the command-line
 FLAGS "$@" || exit $?
@@ -37,7 +38,7 @@ totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
 
 #TODO: figure out way to set default Slurm partition (environment variable? make our own?)
 
-if has_srun; then
+if has_srun && [ $FLAGS_mpirun -eq $FLAGS_FALSE ]; then
   
   srun_flags=""
   
