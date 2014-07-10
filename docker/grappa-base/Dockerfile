@@ -11,7 +11,8 @@ RUN apt-get install -y \
   make \
   cmake \
   ninja-build \
-  git
+  git \
+  openssh-server
 
 # build recent version of Ruby
 RUN wget http://cache.ruby-lang.org/pub/ruby/2.1/ruby-2.1.2.tar.gz && \
@@ -31,7 +32,5 @@ RUN wget http://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.1.tar.
 
 # clean up
 RUN rm -rf openmpi-1.8.1* ruby-2.1.2*
-
-RUN apt-get install -y openssh-server
 
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
