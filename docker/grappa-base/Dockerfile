@@ -33,4 +33,14 @@ RUN wget http://www.open-mpi.org/software/ompi/v1.8/downloads/openmpi-1.8.1.tar.
 # clean up
 RUN rm -rf openmpi-1.8.1* ruby-2.1.2*
 
+# build grappa-third-party libs
+RUN git clone https://github.com/uwsampa/grappa.git
+
+RUN cd grappa && \
+  ./configure --cc=$(which gcc) --gen=Ninja \
+              --third-party=/grappa-third-party \
+              --shmmax=$((1<<30)) && \
+  cd build/Ninja+Release && \
+  ninja
+
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib

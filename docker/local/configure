@@ -1,0 +1,9 @@
+#!/bin/bash
+DIR="${BASH_SOURCE%/*}"
+
+$DIR/run -c "./configure \
+            --cc=$(which gcc) \
+            --mode=Release \
+            --gen=Ninja \
+            --third-party=/grappa-third-party \
+            --shmmax=$((1<<30))"
