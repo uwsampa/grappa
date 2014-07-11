@@ -44,3 +44,9 @@ RUN cd grappa && \
   ninja
 
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
+
+# containers run from 'grappa-base' will expect to have this volume
+VOLUME /grappa
+
+ENTRYPOINT ["/bin/bash"]
+CMD ["--login"]
