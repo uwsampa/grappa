@@ -8,6 +8,7 @@ opt.generator = 'Make'
 opt.mode      = 'Release'
 opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
+opt.third_party = ENV['GRAPPA_THIRD_PARTY']
 
 case `hostname`
 when /n[\d+]/
