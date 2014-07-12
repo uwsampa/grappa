@@ -6,8 +6,10 @@ DIR="${BASH_SOURCE%/*}"
 docker run --name grappa-container -v /grappa uwsampa/grappa-base
 
 # share /grappa with host via Samba
-# - to connect to it, use `boot2docker ip` to get the IP address of the VM and do "Finder > Connect to Server..." and connect via: cifs://`boot2docker ip 2>`/grappa
 docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker.sock svendowideit/samba grappa-container
+
+# to connect to the volume in the host, do something like:
+# > $DIR/mount /grappa
 
 # then to run bash in a grappa environment, with this editable source code, do:
 # > docker run -ti --volumes-from=grappa-container uwsampa/grappa-base
