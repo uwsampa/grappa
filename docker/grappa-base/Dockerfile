@@ -36,14 +36,16 @@ RUN rm -rf openmpi-1.8.1* ruby-2.1.2*
 # build grappa-third-party libs
 RUN git clone https://github.com/uwsampa/grappa.git
 
-RUN cd grappa && \
-  ./configure --cc=$(which gcc) --gen=Ninja \
+RUN grappa/configure --cc=$(which gcc) --gen=Ninja \
               --third-party=/grappa-third-party \
               --shmmax=$((1<<30)) && \
   cd build/Ninja+Release && \
   ninja
 
-ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
+ENV LD_LIBRARY_PATH    $LD_LIBRARY_PATH:/usr/local/lib
+ENV CC                 /usr/bin/gcc
+ENV CXX                /usr/bin/g++
+ENV GRAPPA_THIRD_PARTY /grappa-third-party
 
 # containers run from 'grappa-base' will expect to have this volume
 VOLUME /grappa

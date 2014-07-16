@@ -1,25 +1,16 @@
 ######################################################
 # Docker to build Grappa
 ######################################################
-FROM bholt/grappa-base
+FROM uwsampa/grappa-base
 MAINTAINER Grappa Team <grappa@cs.washington.edu>
 
-RUN git clone https://github.com/uwsampa/grappa.git
-
-RUN cd grappa && \
-  ./configure --cc=$(which gcc) --gen=Ninja \
-              --third-party=/grappa-third-party \
-              --shmmax=$((1<<30)) && \
-  cd build/Ninja+Release && \
-  ninja
-
-RUN cd grappa/build/Ninja+Release && \
-  ninja demo-hello_world
-
-ADD run_hello_world.sh /run_hello_world.sh
-RUN chmod +x /run_hello_world.sh
+VOLUME ["/grappa", "/build"]
+WORKDIR /build
 
 # have to make sure we re-set shmmax before running any Grappa programs
 RUN echo "sudo sysctl -w kernel.shmmax=$((1<<30))" >> /etc/profile
+
+# set prompt colors because I'm a bit vain
+RUN echo "export PS1='\[\e[0;34m\]docker \[\e[m\]\[\e[1;32m\]\w\[\e[m\] \[\e[0;33m\]\$ \[\e[m\]'" >> /etc/profile
 
 ENTRYPOINT ["/bin/bash","--login"]

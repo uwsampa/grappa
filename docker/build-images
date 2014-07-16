@@ -3,6 +3,10 @@
 # Commands to build 'grappa-base'
 # Also publishes to Docker Registry
 ##############################################
+DIR="${BASH_SOURCE%/*}"
 
-docker build -t uwsampa/grappa-base ./grappa-base
+docker build -t uwsampa/grappa-base $DIR/grappa-base
 docker push uwsampa/grappa-base
+
+docker build -t uwsampa/grappa $DIR/grappa
+docker push uwsampa/grappa
