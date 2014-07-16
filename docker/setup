@@ -3,10 +3,10 @@ DIR="${BASH_SOURCE%/*}"
 
 # setup data container with grappa source in volume '/grappa'
 # - pulls the grappa-base repository from the registry
-docker run --name grappa-container -v /grappa uwsampa/grappa-base
+docker run --name grappa-src -v /grappa uwsampa/grappa-base
 
 # share /grappa with host via Samba
-docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker.sock svendowideit/samba grappa-container
+docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker.sock svendowideit/samba grappa-src
 
 # to connect to the volume in the host, do something like:
 # > $DIR/mount /grappa

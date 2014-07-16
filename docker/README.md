@@ -136,6 +136,9 @@ Then fix it by just restarting the Vagrant VM:
 - Drone: https://github.com/drone/drone
   - Docker-based Continuous Integration (should work better for us than Jenkins once we have a Dockerfile setup working)
 
+### Running distributed jobs
+- [bittorrent-sync][]
 
 ---
 [yungsang/boot2docker]: https://vagrantcloud.com/yungsang/boot2docker
+[bittorrent-sync]: http://www.centurylinklabs.com/persistent-distributed-filesystems-in-docker-without-nfs-or-gluster/
