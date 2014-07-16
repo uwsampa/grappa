@@ -101,3 +101,5 @@ routing.dot
 .RData
 
 .vagrant/
+
+third-party/shflags-*
