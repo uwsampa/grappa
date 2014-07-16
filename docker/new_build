@@ -1,0 +1,15 @@
+#!/bin/bash
+#############################################
+# Create a new build volume and configure it
+#############################################
+
+DIR="${BASH_SOURCE%/*}"
+
+VOLUME_NAME="$1"
+shift
+
+# create a data-only container to hold the build
+docker run --name $VOLUME_NAME -v /build busybox
+
+# configure 
+docker run --volumes-from $VOLUME_NAME --volumes-from grappa-src uwsampa/grappa "/grappa/configure $@"
