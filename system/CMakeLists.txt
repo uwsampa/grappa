@@ -45,6 +45,7 @@ set(SYSTEM_SOURCES
   RDMAAggregator.cpp
   SharedMessagePool.cpp
   SimpleMetric.cpp
+  StringMetric.cpp
   StateTimer.cpp
   Metrics.cpp
   SummarizingMetric.cpp
@@ -111,6 +112,8 @@ set(SYSTEM_SOURCES
   SharedMessagePool.hpp
   SimpleMetric.hpp
   SimpleMetricImpl.hpp
+  StringMetric.hpp
+  StringMetricImpl.hpp
   StateTimer.hpp
   MetricBase.hpp
   Metrics.hpp
