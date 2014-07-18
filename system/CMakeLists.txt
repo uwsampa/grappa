@@ -188,7 +188,7 @@ endforeach()
 
 
 add_check( Addressing_tests.cpp              2 2  pass )
-add_check( Allocator_tests.cpp               2 2  pass )
+add_check( Allocator_tests.cpp               1 1  pass )
 add_check( Array_tests.cpp                   2 2  pass )
 add_check( BufferVector_tests.cpp            2 2  pass )
 add_check( Cache_tests.cpp                   2 1  pass )
