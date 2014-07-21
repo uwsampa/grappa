@@ -1,4 +1,0 @@
-#!/bin/bash
-DIR="${BASH_SOURCE%/*}"
-
-docker build -t local $DIR
