@@ -6,4 +6,5 @@ docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker
 # mount the Sampa share on the host
 mount_point=$1
 mkdir -p $mount_point
+umount $mount_point || /bin/true
 mount -t smbfs //guest:@$(boot2docker ip 2>/dev/null)/grappa $mount_point
