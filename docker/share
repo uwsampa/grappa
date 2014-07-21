@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# share /grappa with host via Samba
+docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker.sock svendowideit/samba grappa-src
+
+# mount the Sampa share on the host
+mount_point=$1
+mkdir -p $mount_point
+mount -t smbfs //guest:@$(boot2docker ip 2>/dev/null)/grappa $mount_point

@@ -1,4 +1,0 @@
-#!/bin/bash
-mount_point=$1
-mkdir -p $mount_point
-mount -t smbfs //guest:@$(boot2docker ip 2>/dev/null)/grappa $mount_point
