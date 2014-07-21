@@ -1,0 +1,16 @@
+#!/bin/bash
+DIR="${BASH_SOURCE%/*}"
+source $DIR/../util/common.sh
+init_flags
+
+DEFINE_string 'src' 'grappa-src' 'Container providing source files in /grappa' 's'
+
+# parse the command-line
+FLAGS "$@" || exit $?
+eval set -- "${FLAGS_ARGV}"
+
+# setup data container with grappa source in volume '/grappa'
+# - pulls the grappa-base repository from the registry
+docker run --privileged --name $FLAGS_src -v /grappa uwsampa/grappa
+
+docker run --privileged --volumes-from grappa-src uwsampa/grappa -c 'git clone https://github.com/uwsampa/grappa.git'
