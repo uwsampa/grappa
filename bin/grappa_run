@@ -6,27 +6,90 @@ if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
 
 UTILS="$DIR/../util"
 
-# source utils
-source "$UTILS/common.sh"
+export FLAGS_TRUE="true"
+export FLAGS_FALSE="true"
 
-# initialize flag-parsing library
-init_flags
+### defaults
+FLAGS_nnode=2
+FLAGS_ppn=2
+FLAGS_time="00:20:00"
 
-# declare command-line options
-DEFINE_integer 'nnode' 1 'Number of nodes to run the Grappa job with' 'n'
-DEFINE_integer 'ppn' 2 'Number of cores/processes per node' 'p'
-DEFINE_boolean 'freeze' false "Freeze all the jobs when there's an error" 'f'
-DEFINE_boolean 'verbose' false "Verbose mode (prints info about job run. Not to be confused with --v option after '--' which sets the logging level for the job itself." 'v'
+### Use associative array to declare how many arguments a long option
+### expects, in this case we declare that loglevel expects/has one
+### argument, long options that aren't listed in this way will have
+### zero arguments by default
+### (modified from http://mywiki.wooledge.org/ComplexOptionParsing)
+declare -A longoptspec
+longoptspec=( [nnode]=1,
+              [ppn]=1,
+              [freeze]=0,
+              [verbose]=0,
+              [time]=1,
+              [partition]=1,
+              [account]=1,
+              [mpirun]=0,
+            )
+optspec=":h-:"
+while getopts "$optspec" opt; do
+while true; do
+    case "${opt}" in
+        -) #OPTARG is name-of-long-option or name-of-long-option=value
+            if [[ "${OPTARG}" =~ .*=.* ]] #with this --key=value format only one argument is possible
+            then
+                opt=${OPTARG/=*/}
+                OPTARG=${OPTARG#*=}
+                ((OPTIND--))
+            else #with this --key value1 value2 format multiple arguments are possible
+                opt="$OPTARG"
+                OPTARG=(${@:OPTIND:$((longoptspec[$opt]))})
+            fi
+            ((OPTIND+=longoptspec[$opt]))
+            continue #now that opt/OPTARG are set we can process them as if getopts would've given us long options
+            ;;
+        nnode)
+          FLAGS_nnode="${OPTARG}"
+            ;;
+        ppn)
+          FLAGS_ppn="${OPTARG}"
+            ;;
+        freeze)
+          FLAGS_freeze="${FLAGS_TRUE}"
+            ;;
+        verbose)
+          FLAGS_nnode="${OPTARG}"
+            ;;
+        time)
+          FLAGS_nnode="${OPTARG}"
+            ;;
+        partition)
+          FLAGS_nnode="${OPTARG}"
+            ;;
+        account)
+          FLAGS_nnode="${OPTARG}"
+            ;;
+        mpirun)
+          FLAGS_mpirun="${FLAGS_TRUE}"
+            ;;
+        h|help)
+            ###echo "usage: $0 [--loglevel[=]<value>]" >&2
+            echo <<EOF
+Usage: bin/grappa_run [options]
+    -n, --nnode NODES                Number of nodes to run the Grappa job with
+    -p, --ppn CORES                  Number of cores/processes per node
+    -t, --time TIME                  Job time to pass to srun
+    -e, --test TEST                  Run boost unit test program with given name (e.g. Aggregator_tests)
+    -f, --[no-]freeze-on-error       Freeze all the jobs when there's an error
+        --[no-]backtrace             Enable/disable GASNet's backtrace functionality.
+    -v, --[no-]verbose               Verbose tests
+        --partition P                Slurm partition to run on.
+EOF
+            exit 2
+            ;;
+    esac
+break; done
+done
 
-# srun-only options
-DEFINE_string 'time' '15:00' '[Slurm only] Job time to pass to srun' 't'
-DEFINE_string 'partition' '' '[Slurm only] Partition to run on. Can also be set by the SLURM_PARTITION environment variable'
-DEFINE_string 'account' '' '[Slurm only] Account to use. Can also be set by the SLURM_ACCOUNT environment variable'
-DEFINE_boolean 'mpirun' false "Use mpirun even if 'srun' is present."
 
-# parse the command-line
-FLAGS "$@" || exit $?
-eval set -- "${FLAGS_ARGV}"
 
 # compute total number of MPI processes
 totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
