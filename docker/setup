@@ -3,7 +3,7 @@ DIR="${BASH_SOURCE%/*}"
 
 # setup data container with grappa source in volume '/grappa'
 # - pulls the grappa-base repository from the registry
-docker run --name grappa-src -v /grappa uwsampa/grappa-base
+docker run --name grappa-src -v /grappa uwsampa/grappa
 
 # share /grappa with host via Samba
 docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker.sock svendowideit/samba grappa-src
@@ -12,8 +12,8 @@ docker run --rm -v /usr/local/bin/docker:/docker -v /var/run/docker.sock:/docker
 # > $DIR/mount /grappa
 
 # then to run bash in a grappa environment, with this editable source code, do:
-# > docker run -ti --volumes-from=grappa-container uwsampa/grappa-base
+# > docker run -ti --volumes-from=grappa-container uwsampa/grappa
 # or for a fresh environment:
-# > docker run -ti uwsampa/grappa-base
+# > docker run -ti uwsampa/grappa
 
 # TODO: separate out 'uwsampa/grappa' to be the one with the VOLUME and latest grappa source, and have 'uwsampa/grappa-base' only have /grappa-third-party
