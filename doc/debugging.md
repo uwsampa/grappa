@@ -40,6 +40,10 @@ Tracing configurations have `+Tracing` in their name. Cd into the build director
 * `${exe}.otf`: main file that links other trace files together
 * `${exe}.*.events.z`: zipped trace events per process
 
+If you see the `${exe}.*.events.z` files but not the `${exe}.otf` file, then `vtunify` did not run at the end of your application. You can run it manually as:
+
+* `vtunify ${exe}`
+
 For now, tracing must be explicitly enabled for a particular region of execution, using `Metrics::start_tracing()` and `Metrics::stop_tracing()`. For example:
 
 ```cpp
