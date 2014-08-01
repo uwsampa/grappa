@@ -65,3 +65,20 @@ int main(int argc, char* argv[]) {
 }
 ```
 
+You can create a timeseries plot of a particular metric using the `otf2sqlite.exe` utility.
+**(TODO: how to get open-trace-format libraries)**
+First build the application.
+```bash
+cd build/...+Tracing/applications/util
+make otf2sqlite.exe
+```
+
+Now find the counter you want to use.
+```bash
+./otf2sqlite.exe --otf=${exe}.otf --list_counters=true
+```
+
+Create the table.
+```bash
+./otf2sqlite.exe --db=mytraces.db --otf=${exe}.otf --table=${exe}_rdma_message_bytes --counter=rdma_message_bytes
+```
