@@ -86,3 +86,5 @@ Create the table.
 ```bash
 ./otf2sqlite.exe --db=mytraces.db --otf=${exe}.otf --table=${exe}_rdma_message_bytes --counter=rdma_message_bytes
 ```
+
+The table has two value attributes `INT_VALUE` and `DOUBLE_VALUE`. Use the appropriate one depending on the type of that Metric.
