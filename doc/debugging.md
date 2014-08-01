@@ -66,8 +66,10 @@ int main(int argc, char* argv[]) {
 ```
 
 You can create a timeseries plot of a particular metric using the `otf2sqlite.exe` utility.
+
 **(TODO: how to get open-trace-format libraries)**
-First build the application.
+
+First build the utility.
 ```bash
 cd build/...+Tracing/applications/util
 make otf2sqlite.exe
