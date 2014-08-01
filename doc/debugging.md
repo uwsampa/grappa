@@ -65,6 +65,8 @@ int main(int argc, char* argv[]) {
 }
 ```
 
+### Create a timeseries plot
+
 You can create a timeseries plot of a particular metric using the `otf2sqlite.exe` utility.
 
 **(TODO: how to get open-trace-format libraries)**
