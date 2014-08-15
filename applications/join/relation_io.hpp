@@ -126,6 +126,69 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
+size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
+			     int64_t numfields ) {
+  // we get just the size of the fields (since T is a padded data type)
+  size_t row_size_bytes = sizeof(int64_t) * numfields;
+  VLOG(1) << "row_size_bytes=" << row_size_bytes; 
+  std::string data_path = FLAGS_relations+"/"+fn;
+  //  size_t file_size = fs::file_size( data_path );
+  size_t ntuples = (*vec).size() ; 
+  VLOG(1) << fn << " has " << ntuples << " rows"; 
+  //  auto tuples = Grappa::global_alloc<T>(ntuples);
+  
+  size_t offset_counter;
+  auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
+
+  // we will broadcast the file name as bytes
+  CHECK( data_path.size() <= 2040 );
+  char data_path_char[2048];
+  sprintf(data_path_char, "%s", data_path.c_str());
+
+  on_all_cores( [=] {
+    VLOG(5) << "opening addr next";
+    VLOG(5) << "opening addr " << &data_path_char; 
+    VLOG(5) << "opening " << data_path_char; 
+
+    // find my array split
+    auto local_start = vec;
+    auto local_end = vec + ntuples;
+    size_t local_count = local_end - local_start;
+
+    // reserve a file split
+    int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
+    VLOG(2) << "result offset " << offset;
+    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::binary);
+    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+    VLOG(5) << "writing";
+    /*
+    int i = 0;
+    while (i < local_count) {
+      data_file << *(local_start + i * row_size_bytes) );
+      i++;
+    }
+    */
+    int i = 0; 
+    while (i < local_count) {
+      data_file.write((char*)local_start, row_size_bytes);
+      i++;
+    }
+    /*    int i = 0; 
+    while (i < local_count * row_size_bytes) {
+      VLOG(1) << (char*)local_start + i;
+      i++;
+      }*/
+    data_file.close();
+    
+    VLOG(4) << "local first row: " << local_start;
+    });
+
+  return ntuples;
+}
+
+
+// assumes that for object T, the address of T is the address of its fields
+template <typename T>
 size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t numfields ) {
   /*
   std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
