@@ -130,10 +130,10 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
 			     int64_t numfields ) {
   // we get just the size of the fields (since T is a padded data type)
   size_t row_size_bytes = sizeof(int64_t) * numfields;
-  VLOG(1) << "row_size_bytes=" << row_size_bytes; 
+  VLOG(2) << "row_size_bytes=" << row_size_bytes; 
   std::string data_path = FLAGS_relations+"/"+fn;
   //  size_t file_size = fs::file_size( data_path );
-  size_t ntuples = (*vec).size() ; 
+  size_t ntuples = 1; //(*vec).size() ; 
   VLOG(1) << fn << " has " << ntuples << " rows"; 
   //  auto tuples = Grappa::global_alloc<T>(ntuples);
   
@@ -150,6 +150,8 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
     VLOG(5) << "opening addr " << &data_path_char; 
     VLOG(5) << "opening " << data_path_char; 
 
+    auto tuples = Grappa::global_alloc<T>(ntuples);
+    
     // find my array split
     auto local_start = vec;
     auto local_end = vec + ntuples;
@@ -158,26 +160,30 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
     // reserve a file split
     int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
     VLOG(2) << "result offset " << offset;
-    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::binary);
+    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
     CHECK( data_file.is_open() ) << data_path_char << " failed to open";
     VLOG(5) << "writing";
+    data_file.seekp( offset * row_size_bytes );
     /*
+    int j = 0;
     int i = 0;
-    while (i < local_count) {
-      data_file << *(local_start + i * row_size_bytes) );
-      i++;
+    while (j < local_count) {
+      while (i < (*local_start)[j].numFields()) {
+	//	data_file <<  (*local_start)[j].get(i) << " ";
+	//	int64_t val = (*local_start)[j].get(i);
+	data_file.write((char*) val, sizeof(int64_t));
+	i++;
+      }
+      j++;
     }
+    data_file << "\n";
     */
-    int i = 0; 
-    while (i < local_count) {
-      data_file.write((char*)local_start, row_size_bytes);
-      i++;
-    }
-    /*    int i = 0; 
-    while (i < local_count * row_size_bytes) {
-      VLOG(1) << (char*)local_start + i;
-      i++;
-      }*/
+    //    data_file << *local_start << "\n";
+
+    data_file.write((char*)local_start, sizeof(T)); //row_size_bytes);
+    //    VLOG(1) << local_start + 1;
+    //    VLOG(1) << (char*) (local_start + sizeof(T));
+
     data_file.close();
     
     VLOG(4) << "local first row: " << local_start;
