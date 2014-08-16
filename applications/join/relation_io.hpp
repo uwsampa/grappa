@@ -165,22 +165,32 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
     VLOG(5) << "writing";
     data_file.seekp( offset * row_size_bytes );
 
+
     int j = 0;
     int i = 0;
     while (j < local_count) {
       while (i < (*local_start)[j].numFields()) {
 	//	data_file <<  (*local_start)[j].get(i) << " ";
-		int64_t val = (*local_start)[j].get(i);
-	data_file.write((char*) val, sizeof(int64_t));
+	int64_t val = (*local_start)[j].get(i);
+	data_file.write(reinterpret_cast<char*> (&val), sizeof(val));
 	i++;
       }
       j++;
     }
     data_file << "\n";
 
+
+
+    /*
+    int i = 0;
+    while (i < (*local_start).size()) {
+      //      data_file << (*local_start)[i] << "\n";
+      data_file.write( (char*)(local_start + i), sizeof(T));
+      i++;
+    }
+    */
     //    data_file << *local_start << "\n";
 
-    //    data_file.write((char*)local_start, sizeof(T)); //row_size_bytes);
 
     data_file.close();
     
