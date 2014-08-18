@@ -132,10 +132,9 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
   size_t row_size_bytes = sizeof(int64_t) * numfields;
   VLOG(2) << "row_size_bytes=" << row_size_bytes; 
   std::string data_path = FLAGS_relations+"/"+fn;
-  //  size_t file_size = fs::file_size( data_path );
   size_t ntuples = 1; //(*vec).size() ; 
   VLOG(1) << fn << " has " << ntuples << " rows"; 
-  //  auto tuples = Grappa::global_alloc<T>(ntuples);
+
   
   size_t offset_counter;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
@@ -163,23 +162,20 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
     std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
     CHECK( data_file.is_open() ) << data_path_char << " failed to open";
     VLOG(5) << "writing";
-    data_file.seekp( offset * row_size_bytes );
 
 
     int j = 0;
     int i = 0;
-    while (j < local_count) {
+    while (j < offset) {
       while (i < (*local_start)[j].numFields()) {
 	//	data_file <<  (*local_start)[j].get(i) << " ";
 	int64_t val = (*local_start)[j].get(i);
-	data_file.write(reinterpret_cast<char*> (&val), sizeof(val));
+	data_file.write((char*)&val, sizeof(val));
+
 	i++;
       }
       j++;
     }
-    data_file << "\n";
-
-
 
     /*
     int i = 0;
@@ -189,9 +185,6 @@ size_t writeTuplesUnordered( std::string fn, std::vector<T> * vec,
       i++;
     }
     */
-    //    data_file << *local_start << "\n";
-
-
     data_file.close();
     
     VLOG(4) << "local first row: " << local_start;
