@@ -37,16 +37,69 @@ namespace Grappa {
 
 namespace Distribution {
 
-class Block {
-// public:
-  // static size_t core_for_index( size_t index, size_t total ) {
-  //   return 0;
-  // }
+struct Block {
+  size_t element_size;
+  size_t size;
+  size_t per_core;
+  size_t max;
+
+  Block(): element_size(0), size(0), per_core(0), max(0) {}
+  void set(size_t elem_size, size_t n) {
+    max = n;
+    element_size = elem_size;
+    size_t cores = Grappa::cores();
+    per_core = n / cores;
+    size = per_core * element_size;
+  }
+  size_t core_offset_for_index( size_t index ) {
+    return index / per_core;   // remember to mod
+  }
+  size_t offset_for_index( size_t index ) {
+    return index % per_core;
+  }
 };
 
-class Cyclic { };
+template< int block_size >
+struct BlockCyclic {
 
-class Local { };
+  size_t element_size;
+  size_t size;
+  size_t per_core;
+  
+  BlockCyclic(): element_size(0), size(0), per_core(0) {}
+  void set(size_t elem_size, size_t n) {
+    element_size = elem_size;
+    size_t cores = Grappa::cores();
+    per_core = (n / block_size) / cores;
+    size = per_core * element_size;
+  }
+  size_t core_offset_for_index( size_t index ) {
+    return index / block_size;  // remember to mod
+  }
+  size_t offset_for_index( size_t index ) {
+    return index % block_size;
+  }
+};
+
+struct Local {
+
+  size_t element_size;
+  size_t size;
+  size_t per_core;
+  
+  Local(): element_size(0), size(0), per_core(0) {}
+  void set(size_t elem_size, size_t n) {
+    element_size = elem_size;
+    per_core = n;
+    size = per_core * element_size;
+  }
+  size_t core_offset_for_index( size_t index ) {
+    return 0;
+  }
+  size_t offset_for_index( size_t index ) {
+    return index;
+  }
+};
 
 }
 
