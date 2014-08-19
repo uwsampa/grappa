@@ -119,8 +119,8 @@ constexpr bool templateStaticAssertFalse() {
 template< typename T, typename... D1toN >
 class ArrayDereferenceProxy;
 
-// GlobalArray element proxy object ase case. This overloads the & and
-// cast operators to allow use as a value.
+// GlobalArray element proxy object base case. This overloads the &
+// and cast operators to allow use as a value.
 template< typename T >
 class ArrayDereferenceProxy<T> {
 protected:
@@ -142,6 +142,8 @@ public:
   }
 };
 
+// GlobalArray element proxy object recursive case. This overloads the &
+// and cast operators to allow use as a value.
 template< typename T, typename D1, typename... D2toN >
 class ArrayDereferenceProxy<T,D1,D2toN...> {
 protected:
@@ -152,6 +154,9 @@ public:
   ArrayDereferenceProxy(GlobalAddress<T> ga): ga(ga) {}
 
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
+    Core c = ga.core();
+    T * p = ga.pointer();
+    //GlobalAddress<T> offset = 
     return ArrayDereferenceProxy<T,D2toN...>(ga);
   }
 };
