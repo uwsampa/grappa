@@ -186,6 +186,9 @@ private:
   T * local_chunk;
   
   size_t chunk_size;
+
+  Distribution::Block d1;
+  Distribution::Local d2;
   
   void collectiveAllocate( size_t x, size_t y ) {
   }
@@ -199,12 +202,19 @@ public:
   { }
   
   void allocate( size_t x, size_t y ) {
-    on_all_cores( [this,x,y] {
+    auto b = global_alloc<T>(x*y);
+    on_all_cores( [this,x,y,b] {
         CHECK_NULL( local_chunk );
 
-        chunk_size = x / Grappa::cores();
-        if( Grappa::mycore() < x % Grappa::cores() ) chunk_size++;
-        LOG(INFO) << "Chunk size is " << chunk_size;
+        d2.set( 1, y );
+        d1.set( d2.size, x );
+        
+        chunk_size = d1.size;
+        base = b;
+        local_chunk = b.localize();
+        auto end = (b+x*y).localize();
+        size_t cs = end - local_chunk;
+        LOG(INFO) << "Chunk size is " << chunk_size << " / " << cs;
       } );
   }
 
