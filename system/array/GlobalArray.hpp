@@ -1,3 +1,4 @@
+#pragma once
 ////////////////////////////////////////////////////////////////////////
 // This file is part of Grappa, a system for scaling irregular
 // applications on commodity clusters. 
@@ -30,90 +31,17 @@
 #include "GlobalAllocator.hpp"
 #include <type_traits>
 #include "Delegate.hpp"
+#include <common.hpp>
+
+#include <array/Distributions.hpp>
 
 #include <type_traits>
 
 namespace Grappa {
 
-namespace Distribution {
-
-struct Block {
-  size_t element_size;
-  size_t size;
-  size_t per_core;
-  size_t max;
-
-  Block(): element_size(0), size(0), per_core(0), max(0) {}
-  void set(size_t elem_size, size_t n) {
-    max = n;
-    element_size = elem_size;
-    size_t cores = Grappa::cores();
-    per_core = n / cores;
-    size = per_core * element_size;
-  }
-  size_t core_offset_for_index( size_t index ) {
-    return index / per_core;   // remember to mod
-  }
-  size_t offset_for_index( size_t index ) {
-    return index % per_core;
-  }
-};
-
-template< int block_size >
-struct BlockCyclic {
-
-  size_t element_size;
-  size_t size;
-  size_t per_core;
-  
-  BlockCyclic(): element_size(0), size(0), per_core(0) {}
-  void set(size_t elem_size, size_t n) {
-    element_size = elem_size;
-    size_t cores = Grappa::cores();
-    per_core = (n / block_size) / cores;
-    size = per_core * element_size;
-  }
-  size_t core_offset_for_index( size_t index ) {
-    return index / block_size;  // remember to mod
-  }
-  size_t offset_for_index( size_t index ) {
-    return index % block_size;
-  }
-};
-
-struct Local {
-
-  size_t element_size;
-  size_t size;
-  size_t per_core;
-  
-  Local(): element_size(0), size(0), per_core(0) {}
-  void set(size_t elem_size, size_t n) {
-    element_size = elem_size;
-    per_core = n;
-    size = per_core * element_size;
-  }
-  size_t core_offset_for_index( size_t index ) {
-    return 0;
-  }
-  size_t offset_for_index( size_t index ) {
-    return index;
-  }
-};
-
-}
 
 
 namespace impl {
-
-// Helper function to make it possible to use static assert to throw
-// an error only if a template is instantiated.
-template<typename T> 
-constexpr bool templateStaticAssertFalse() {
-  return false;
-}
-
-
 
 // forward declaration for GlobalArray element proxy object
 template< typename T, typename... D1toN >
@@ -208,8 +136,9 @@ public:
 
         d2.set( 1, y );
         d1.set( d2.size, x );
-        
-        chunk_size = d1.size;
+
+        CHECK_EQ( x*y, d1.size );
+        chunk_size = x * y;
         base = b;
         local_chunk = b.localize();
         auto end = (b+x*y).localize();
@@ -247,6 +176,13 @@ template< GlobalCompletionEvent * C = &impl::local_gce,
           typename F = nullptr_t >
 void forall(GlobalAddress<GlobalArray<T,D1,D2toN...>> arr, F loop_body) {
   arr->forall( loop_body );
+}
+template< GlobalCompletionEvent * C = &impl::local_gce,
+          int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+          typename T, typename D1, typename... D2toN,
+          typename F = nullptr_t >
+void forall(GlobalArray<T,D1,D2toN...>& arr, F loop_body) {
+  arr.forall( loop_body );
 }
 
 } // namespace Grappa

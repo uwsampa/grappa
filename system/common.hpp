@@ -402,7 +402,7 @@ namespace Grappa {
 /// @addtogroup Utility
 /// @{
 
-namespace impl{
+namespace impl {
 
 static inline void prefetcht0(const void *p) {
     __builtin_prefetch(p, 0, 3);
@@ -419,6 +419,17 @@ static inline void prefetcht2(const void *p) {
 }
 
 /// @}
+
+namespace impl {
+
+// Helper function to make it possible to use static assert to throw
+// an error only if a template is instantiated.
+template<typename T> 
+constexpr bool templateStaticAssertFalse() {
+  return false;
+}
+
+}
 
 }
 #endif
