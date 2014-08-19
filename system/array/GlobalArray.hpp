@@ -223,33 +223,30 @@ public:
     if( local_chunk ) local_chunk = NULL;
   }
 
+  template< typename F >
+  void forall( F body ) {
+    on_all_cores( [this,body] {
+        T * elem = local_chunk;
+        size_t first_block = d1.per_core * mycore();
+        for( size_t i = first_block; ((i < first_block + d1.per_core) &&
+                                      (i < d1.max)); ++i ) {
+          for( size_t j = 0; j < d2.per_core; ++j ) {
+            body(i, j, *elem );
+            elem++;
+          }
+        }
+      } );
+  }
+    
 };
 
-
-// namespace impl {
-
-// /// Parallel, localized iteration over elements of 2D array with their indices
-// template< GlobalCompletionEvent * C, int64_t Threshold, typename G, typename F >
-// void forall(GlobalAddress<G> g, F body,
-//             void (F::*mf)(int64_t,int64_t,typename G::Type&) const) {
-//   Grappa::forall<C,Threshold>(g->vs, g->nv,
-//                               [body](int64_t x, int64_t y, typename G::Type& d){
-                                
-//                                 if (v.valid) {
-//                                   body(i, v);
-//                                 }
-//                               });
-// }
-
-// }
-
-// /// Parallel iteration over GlobalArray, specialized by argument.
-// template< GlobalCompletionEvent * C = &impl::local_gce,
-//           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-//           typename T,
-//           typename F = nullptr_t >
-// void forall(GlobalAddress<GlobalArray<T>> arr, F loop_body) {
-//   impl::forall<C,Threshold>(arr, loop_body, &F::operator());
-// }
+/// Parallel iteration over GlobalArray
+template< GlobalCompletionEvent * C = &impl::local_gce,
+          int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+          typename T, typename D1, typename... D2toN,
+          typename F = nullptr_t >
+void forall(GlobalAddress<GlobalArray<T,D1,D2toN...>> arr, F loop_body) {
+  arr->forall( loop_body );
+}
 
 } // namespace Grappa
