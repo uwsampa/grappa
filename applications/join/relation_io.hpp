@@ -128,16 +128,8 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 template <typename T>
 void writeTuplesUnordered( std::string fn, std::vector<T> * vec,
 			     int64_t numfields ) {
-  // we get just the size of the fields (since T is a padded data type)
-  size_t row_size_bytes = sizeof(int64_t) * numfields;
-  VLOG(2) << "row_size_bytes=" << row_size_bytes; 
   std::string data_path = FLAGS_relations+"/"+fn;
-  size_t ntuples = (*vec).size(); 
-
   
-  size_t offset_counter;
-  auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
-
   // we will broadcast the file name as bytes
   CHECK( data_path.size() <= 2040 );
   char data_path_char[2048];
@@ -148,40 +140,25 @@ void writeTuplesUnordered( std::string fn, std::vector<T> * vec,
     VLOG(5) << "opening addr " << &data_path_char; 
     VLOG(5) << "opening " << data_path_char; 
 
-    //    auto tuples = Grappa::global_alloc<T>(ntuples);
-    
-    // find my array split
-    auto local_start = vec;
-    auto local_end = vec + ntuples;
-    size_t local_count = local_end - local_start;
-
-    VLOG(1) << *vec;
-    // reserve a file split
-    //    int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
     std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
     CHECK( data_file.is_open() ) << data_path_char << " failed to open";
     VLOG(5) << "writing";
 
-
-    int j = 0;
     int i = 0;
-    while (j < (*local_start).size()) {
-      while (i < (*local_start)[j].numFields()) {
-	//	data_file <<  (*local_start)[j].get(i) << " ";
-	int64_t val = (*local_start)[j].get(i);
+    int j = 0;
+    while (i < (*vec).size()) {
+      VLOG(1) << (*vec)[i];
+      while (j < (*vec)[i].numFields()) {
+	int64_t val = (*vec)[i].get(j);
 	data_file.write((char*)&val, sizeof(val));
 	VLOG(1) << val;
-	i++;
+	j++;
       }
-      //      VLOG(1) << (*local_start)[j];
-      j++;
-      i = 0;
+      i++;
+      j = 0;
     }
-    VLOG(1) << i << " " << j;
 
     data_file.close();
-    
-    VLOG(4) << "local first row: " << local_start;
     });
 }
 
