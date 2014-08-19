@@ -129,4 +129,16 @@ foreach(test_cpp ${TEST_SOURCES})
   target_link_libraries(${test} querylib)
 endforeach()
 
+# create a test, which will be run with the given number of nodes (nnode),
+# and processors per node (ppn), and added to the aggregate targets for 
+# passing or failing tests
+macro(add_check test_cpp nnode ppn target)
+  get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
+  set(test "${test_name}.test")
+  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
+  add_dependencies( check-all-${target} check-${test_name} )
+  add_dependencies( check-all-${target}-compile-only ${test})
+endmacro()
+
+add_check(Relation_io_tests.cpp 2 1 pass)
 

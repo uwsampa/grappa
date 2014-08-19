@@ -124,43 +124,6 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
   return tg;
 }
 
-// assumes that for object T, the address of T is the address of its fields
-template <typename T>
-void writeTuplesUnordered( std::string fn, std::vector<T> * vec,
-			     int64_t numfields ) {
-  std::string data_path = FLAGS_relations+"/"+fn;
-  
-  // we will broadcast the file name as bytes
-  CHECK( data_path.size() <= 2040 );
-  char data_path_char[2048];
-  sprintf(data_path_char, "%s", data_path.c_str());
-
-  on_all_cores( [=] {
-    VLOG(5) << "opening addr next";
-    VLOG(5) << "opening addr " << &data_path_char; 
-    VLOG(5) << "opening " << data_path_char; 
-
-    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
-    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
-    VLOG(5) << "writing";
-
-    int i = 0;
-    int j = 0;
-    while (i < (*vec).size()) {
-      VLOG(1) << (*vec)[i];
-      while (j < (*vec)[i].numFields()) {
-	int64_t val = (*vec)[i].get(j);
-	data_file.write((char*)&val, sizeof(val));
-	VLOG(1) << val;
-	j++;
-      }
-      i++;
-      j = 0;
-    }
-
-    data_file.close();
-    });
-}
 
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
@@ -180,9 +143,9 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   VLOG(2) << "row_size_bytes=" << row_size_bytes;
   std::string data_path = FLAGS_relations+"/"+fn;
   size_t file_size = fs::file_size( data_path );
-  size_t ntuples = file_size / row_size_bytes; 
+  size_t ntuples = file_size / row_size_bytes;
   CHECK( ntuples * row_size_bytes == file_size ) << "File is ill-formatted; perhaps not all rows have same columns?";
-  VLOG(1) << fn << " has " << ntuples << " rows"; 
+  VLOG(1) << fn << " has " << ntuples << " rows";
   
   auto tuples = Grappa::global_alloc<T>(ntuples);
   
@@ -233,7 +196,7 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   *buf_addr = tuples;
   return ntuples;
 }
-  
+
 // convenient version for Relation<T> type
 template <typename T>
 Relation<T> readTuplesUnordered( std::string fn ) {
@@ -247,6 +210,41 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   return r;
 }
 
+// assumes that for object T, the address of T is the address of its fields
+template <typename T>
+void writeTuplesUnordered( std::string fn, std::vector<T> * vec, int64_t numfields ) {
+  std::string data_path = FLAGS_relations+"/"+fn;
+  
+  // we will broadcast the file name as bytes
+  CHECK( data_path.size() <= 2040 );
+  char data_path_char[2048];
+  sprintf(data_path_char, "%s", data_path.c_str());
+
+  on_all_cores( [=] {
+    VLOG(5) << "opening addr next";
+    VLOG(5) << "opening addr " << &data_path_char; 
+    VLOG(5) << "opening " << data_path_char; 
+
+    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+    VLOG(5) << "writing";
+
+    int i = 0;
+    int j = 0;
+    while (i < (*vec).size()) {
+      while (j < (*vec)[i].numFields()) {
+	int64_t val = (*vec)[i].get(j);
+	data_file.write((char*)&val, sizeof(val));
+	j++;
+      }
+      i++;
+      j = 0;
+    }
+
+    data_file.close();
+    });
+}
+  
 int64_t toInt(std::string& s) {
   return std::stoi(s);
 }
