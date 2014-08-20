@@ -34,12 +34,10 @@ using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( Relation_io_tests );
 
-int64_t other_data __attribute__ ((aligned (2048))) = 0;
-
 class MaterializedTupleRef_V1_0_1 {
   public:
     int64_t _fields[2];
-    
+
     int64_t get(int field) const {
       return _fields[field];
     }
@@ -69,113 +67,85 @@ class MaterializedTupleRef_V1_0_1 {
       return o;
     }
 
-    
   } GRAPPA_BLOCK_ALIGNED;
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V1_0_1& t) {
     return t.dump(o);
   }
 
+int64_t other_data __attribute__ ((aligned (2048))) = 0;
+std::vector<MaterializedTupleRef_V1_0_1> more_data;
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
-    
+
     BOOST_CHECK_EQUAL( 2, Grappa::cores() );
-    
+
     // try read
-    Relation<MaterializedTupleRef_V1_0_1> results = 
+    Relation<MaterializedTupleRef_V1_0_1> results =
       readTuplesUnordered<MaterializedTupleRef_V1_0_1>( "test.bin");
 
     BOOST_CHECK_EQUAL( 5, results.numtuples );
 
+    MaterializedTupleRef_V1_0_1 expected;
+    expected.set(0, 0);
+    expected.set(1, 1);
+    BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0)) ;
+    BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1)) ;
 
-    //    MaterializedTupleRef_V1_0_1 expected;
-    //    expected.set(0, 0);
-    //    expected.set(1, 1);
-    
-    
-    /*
-    // write
-    Grappa::delegate::write( make_global(&some_data,1), 2345 );
-    BOOST_CHECK_EQUAL( 1111, some_data );
-  
+    // write to new file
+    MaterializedTupleRef_V1_0_1 one;
+    MaterializedTupleRef_V1_0_1 two;
+    one.set(0, 10);
+    one.set(1, 11);
+    two.set(0, 12);
+    two.set(1, 13);
+    more_data.push_back(one);
+    more_data.push_back(two);
+
+    size_t written =
+      writeTuplesUnordered<MaterializedTupleRef_V1_0_1>(&more_data, 2, "write.bin");
+    BOOST_CHECK_EQUAL( 2, written );
+
+
     // verify write
-    remote_data = delegate::read( make_global(&some_data,1) );
-    BOOST_CHECK_EQUAL( 2345, remote_data );
+    results =
+      readTuplesUnordered<MaterializedTupleRef_V1_0_1>( "write.bin");
 
-    // fetch and add
-    remote_data = delegate::fetch_and_add( make_global(&some_data,1), 1 );
-    BOOST_CHECK_EQUAL( 1111, some_data );
-    BOOST_CHECK_EQUAL( 2345, remote_data );
-  
+    BOOST_CHECK_EQUAL( 2, results.numtuples );
+
+    expected.set(0, 10);
+    expected.set(1, 11);
+    BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0)) ;
+    BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1)) ;
+
+
+    // write to existing file
+    MaterializedTupleRef_V1_0_1 three;
+    MaterializedTupleRef_V1_0_1 four;
+    three.set(0, 14);
+    three.set(1, 15);
+    four.set(0, 16);
+    four.set(1, 17);
+    more_data.clear();
+    more_data.push_back(three);
+    more_data.push_back(four);
+
+    written =
+      writeTuplesUnordered<MaterializedTupleRef_V1_0_1>(&more_data, 2, "write.bin");
+    BOOST_CHECK_EQUAL( 2, written );
+
     // verify write
-    remote_data = delegate::read( make_global(&some_data,1) );
-    BOOST_CHECK_EQUAL( 2346, remote_data );
+    results =
+      readTuplesUnordered<MaterializedTupleRef_V1_0_1>( "write.bin");
 
-    // check compare_and_swap
-    bool swapped;
-    swapped = delegate::compare_and_swap( make_global(&some_data,1), 123, 3333); // shouldn't swap
-    BOOST_CHECK_EQUAL( swapped, false );
-    // verify value is unchanged
-    remote_data = delegate::read( make_global(&some_data,1) );
-    BOOST_CHECK_EQUAL( 2346, remote_data );
-  
-    // now actually do swap
-    swapped = delegate::compare_and_swap( make_global(&some_data,1), 2346, 3333);
-    BOOST_CHECK_EQUAL( swapped, true );
-    // verify value is changed
-    remote_data = delegate::read( make_global(&some_data,1) );
-    BOOST_CHECK_EQUAL( 3333, remote_data );
-  
-    // try linear global address
-    
-    // initialize
-    auto i64_per_block = block_size / sizeof(int64_t);
-    
-    call_on_all_cores([]{ other_data = mycore(); });
-    
-    int * foop = new int;
-    *foop = 1234;
-    BOOST_MESSAGE( *foop );
-    
+    BOOST_CHECK_EQUAL( 4, results.numtuples );
 
-    // hack the test
-    // void* prev_base = Grappa::impl::global_memory_chunk_base;
-    call_on_all_cores([]{
-      Grappa::impl::global_memory_chunk_base = 0;
-    });
+    expected.set(0, 10);
+    expected.set(1, 11);
+    BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0)) ;
+    BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1)) ;
 
-    // make address
-    BOOST_MESSAGE( "pointer is " << &other_data );
-
-    GlobalAddress< int64_t > la = make_linear( &other_data );
-    
-    // check pointer computation
-    BOOST_CHECK_EQUAL( la.core(), 0 );
-    BOOST_CHECK_EQUAL( la.pointer(), &other_data );
-
-    // check data
-    BOOST_CHECK_EQUAL( 0, other_data );
-    remote_data = delegate::read( la );
-    BOOST_CHECK_EQUAL( 0, remote_data );
-    
-    // change pointer and check computation
-    ++la;
-    BOOST_CHECK_EQUAL( la.core(), 0 );
-    BOOST_CHECK_EQUAL( la.pointer(), &other_data + 1 );
-
-    // change pointer and check computation
-    la += (i64_per_block-1);
-    BOOST_CHECK_EQUAL( la.core(), 1 );
-    
-    // check remote data
-    remote_data = delegate::read( la );
-    BOOST_CHECK_EQUAL( 1, remote_data );
-
-    // check template read
-    // try read
-    remote_data = delegate::read( make_global(&some_data,1) );
-    BOOST_CHECK_EQUAL( 3333, remote_data );
-		 */    
   });
   Grappa::finalize();
 }
