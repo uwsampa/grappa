@@ -231,7 +231,7 @@ size_t writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
 
     int i = 0;
     int j = 0;
-    while (i < (*vec).size()) {
+    while (i < vec->size()) {
       while (j < (*vec)[i].numFields()) {
 	int64_t val = (*vec)[i].get(j);
 	data_file.write((char*)&val, sizeof(val));
@@ -244,7 +244,7 @@ size_t writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     data_file.close();
     });
 
-  return (*vec).size();
+  return vec->size();
 }
 
 void writeSchema(std::string names, std::string types, std::string fn ) {

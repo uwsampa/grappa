@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     more_data.push_back(two);
 
     size_t written =
-      writeTuplesUnordered<MaterializedTupleRef_V1_0_1>(&more_data, 2, "write.bin");
+      writeTuplesUnordered<MaterializedTupleRef_V1_0_1>(&more_data, "write.bin");
     BOOST_CHECK_EQUAL( 2, written );
 
 
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     more_data.push_back(four);
 
     written =
-      writeTuplesUnordered<MaterializedTupleRef_V1_0_1>(&more_data, 2, "write.bin");
+      writeTuplesUnordered<MaterializedTupleRef_V1_0_1>(&more_data, "write.bin");
     BOOST_CHECK_EQUAL( 2, written );
 
     // verify write
