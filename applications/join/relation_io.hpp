@@ -212,7 +212,7 @@ Relation<T> readTuplesUnordered( std::string fn ) {
 
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
-size_t writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
+void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   std::string data_path = FLAGS_relations+"/"+fn;
   
   // we will broadcast the file name as bytes
@@ -229,22 +229,15 @@ size_t writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     CHECK( data_file.is_open() ) << data_path_char << " failed to open";
     VLOG(5) << "writing";
 
-    int i = 0;
-    int j = 0;
-    while (i < vec->size()) {
-      while (j < (*vec)[i].numFields()) {
-	int64_t val = (*vec)[i].get(j);
+    for (auto it = (*vec).begin(); it < (*vec).end(); it++) {
+      for (int j = 0; j < (*it).numFields(); j++) {
+	int64_t val = (*it).get(j);
 	data_file.write((char*)&val, sizeof(val));
-	j++;
       }
-      i++;
-      j = 0;
     }
 
     data_file.close();
     });
-
-  return vec->size();
 }
 
 void writeSchema(std::string names, std::string types, std::string fn ) {
