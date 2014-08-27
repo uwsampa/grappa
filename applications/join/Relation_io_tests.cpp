@@ -81,18 +81,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     BOOST_CHECK_EQUAL( 2, Grappa::cores() );
 
-    // try read
-    Relation<MaterializedTupleRef_V1_0_1> results =
-      readTuplesUnordered<MaterializedTupleRef_V1_0_1>( "test.bin" );
-
-    BOOST_CHECK_EQUAL( 5, results.numtuples );
-
-    MaterializedTupleRef_V1_0_1 expected;
-    expected.set(0, 0);
-    expected.set(1, 1);
-    BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0) );
-    BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1) );
-
     // write to new file
     std::string write_file = "write.bin";
     MaterializedTupleRef_V1_0_1 one;
@@ -106,12 +94,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &more_data, write_file );
 
-    // verify write
-    results =
+    // try read
+    Relation<MaterializedTupleRef_V1_0_1> results =
       readTuplesUnordered<MaterializedTupleRef_V1_0_1>( write_file );
 
     BOOST_CHECK_EQUAL( 2, results.numtuples );
-
+    MaterializedTupleRef_V1_0_1 expected;
     expected.set(0, 10);
     expected.set(1, 11);
     BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0) );
