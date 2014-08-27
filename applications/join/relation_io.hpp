@@ -251,7 +251,7 @@ void writeSchema(std::string names, std::string types, std::string fn ) {
   CHECK( data_file.is_open() ) << data_path_char << " failed to open";
   VLOG(5) << "writing";
 
-  data_file << names << "\n" << types << "\n";
+  data_file << names << "\n" << types << std::endl;
   data_file.close();
 }
   
