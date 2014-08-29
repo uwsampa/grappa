@@ -73,7 +73,7 @@ class MaterializedTupleRef_V1_0_1 {
   }
 
 int64_t other_data __attribute__ ((aligned (2048))) = 0;
-std::vector<MaterializedTupleRef_V1_0_1> more_data;
+std::vector<MaterializedTupleRef_V1_0_1> data;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -83,50 +83,44 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     // write to new file
     std::string write_file = "write.bin";
-    MaterializedTupleRef_V1_0_1 one;
-    MaterializedTupleRef_V1_0_1 two;
-    one.set(0, 10);
-    one.set(1, 11);
-    two.set(0, 12);
-    two.set(1, 13);
-    more_data.push_back(one);
-    more_data.push_back(two);
-
-    writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &more_data, write_file );
+    for (int i = 0; i < 10; i++) {
+      MaterializedTupleRef_V1_0_1 a;
+      a.set(0, i);
+      a.set(1, i+1);
+      data.push_back(a);
+    }
+    writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &data, write_file );
 
     // try read
     Relation<MaterializedTupleRef_V1_0_1> results =
       readTuplesUnordered<MaterializedTupleRef_V1_0_1>( write_file );
 
-    BOOST_CHECK_EQUAL( 2, results.numtuples );
+    BOOST_CHECK_EQUAL( 10, results.numtuples );
     MaterializedTupleRef_V1_0_1 expected;
-    expected.set(0, 10);
-    expected.set(1, 11);
+    expected.set(0, 0);
+    expected.set(1, 1);
     BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0) );
     BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1) );
 
 
-    // write to existing file
-    MaterializedTupleRef_V1_0_1 three;
-    MaterializedTupleRef_V1_0_1 four;
-    three.set(0, 14);
-    three.set(1, 15);
-    four.set(0, 16);
-    four.set(1, 17);
-    more_data.clear();
-    more_data.push_back(three);
-    more_data.push_back(four);
-
-    writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &more_data, write_file );
+    // write to existing file, should replace
+    data.clear();
+    for (int i = 0; i < 30; i++) {
+      MaterializedTupleRef_V1_0_1 a;
+      a.set(0, i);
+      a.set(1, i);
+      data.push_back(a);
+    }
+    writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &data, write_file );
 
     // verify write
     results =
       readTuplesUnordered<MaterializedTupleRef_V1_0_1>( write_file );
 
-    BOOST_CHECK_EQUAL( 4, results.numtuples );
+    BOOST_CHECK_EQUAL( 30, results.numtuples );
 
-    expected.set(0, 10);
-    expected.set(1, 11);
+    expected.set(0, 0);
+    expected.set(1, 0);
     BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0) );
     BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1) );
 
