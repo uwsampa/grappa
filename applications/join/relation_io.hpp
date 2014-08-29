@@ -210,6 +210,7 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   Relation<T> r = { tuples, ntuples };
   return r;
 }
+
 /// helper function to write to a range of a file with POSIX range locking
 static void write_locked_range( const char * filename, size_t offset, const char * buf, size_t size ) {
   int fd;
@@ -252,7 +253,15 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
 
   size_t offset_counter;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
-  
+
+  std::ifstream f(data_path_char);
+  if (f.good()) {
+    f.close();
+    remove(data_path_char);
+    std::ofstream outfile(data_path_char);
+    outfile.close();
+  }
+
   on_all_cores( [=] {
     VLOG(5) << "opening addr next";
     VLOG(5) << "opening addr " << &data_path_char; 
@@ -263,7 +272,7 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     VLOG(5) << "writing";
     LOG(INFO) << vec->size() * dummy.numFields()* sizeof(int64_t);
     write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(), (char*)&vec[0], 
-		       vec->size() * dummy.numFields()* sizeof(int64_t));
+    		       vec->size() * dummy.numFields()* sizeof(int64_t));
     });
 }
 
