@@ -255,12 +255,12 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
   std::ifstream f(data_path_char);
-  if (f.good()) {
+  if (f.is_open()) {
     f.close();
     remove(data_path_char);
-    std::ofstream outfile(data_path_char);
-    outfile.close();
   }
+  std::ofstream outfile(data_path_char);
+  outfile.close();
 
   on_all_cores( [=] {
     VLOG(5) << "opening addr next";
@@ -268,10 +268,18 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     VLOG(5) << "opening " << data_path_char; 
     T dummy;
     int64_t row_offset = Grappa::delegate::fetch_and_add( offset_counter_addr, vec->size() );
+    int64_t tuples[vec->size()];
+    int i = 0;
+    for (auto it = vec->begin(); it != vec->end(); it++) {
+      for (int j = 0; j < it->numFields(); j++) {
+	int64_t val = it->get(j);
+	tuples[i] = val;
+	i++;
+      }
+    }
 
     VLOG(5) << "writing";
-    LOG(INFO) << vec->size() * dummy.numFields()* sizeof(int64_t);
-    write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(), (char*)&vec[0], 
+    write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(), (char*)&tuples[0], 
     		       vec->size() * dummy.numFields()* sizeof(int64_t));
     });
 }
