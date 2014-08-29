@@ -254,11 +254,13 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   size_t offset_counter;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
+  // removes the file if it already exists
   std::ifstream f(data_path_char);
   if (f.is_open()) {
     f.close();
     remove(data_path_char);
   }
+  // write_locked_range works only when file already existsp
   std::ofstream outfile(data_path_char);
   outfile.close();
 
@@ -268,7 +270,9 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     VLOG(5) << "opening " << data_path_char; 
     T dummy;
     int64_t row_offset = Grappa::delegate::fetch_and_add( offset_counter_addr, vec->size() );
-    int64_t tuples[vec->size()];
+
+    // transform vector tuples into actual values of size 64
+    int64_t tuples[vec->size() * dummy.numFields()];
     int i = 0;
     for (auto it = vec->begin(); it != vec->end(); it++) {
       for (int j = 0; j < it->numFields(); j++) {
@@ -280,7 +284,7 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
 
     VLOG(5) << "writing";
     write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(), (char*)&tuples[0], 
-    		       vec->size() * dummy.numFields()* sizeof(int64_t));
+		       vec->size() * dummy.numFields() * sizeof(int64_t));
     });
 }
 
