@@ -223,7 +223,9 @@ static void write_locked_range( const char * filename, size_t offset, const char
   lock.l_whence = SEEK_SET;
   lock.l_start = offset;
   lock.l_len = size;
-  PCHECK( fcntl( fd, F_SETLK, &lock ) >= 0 ) << "Could not obtain record lock on file";
+  while ( fcntl( fd, F_SETLK, &lock ) < 0 ) {
+    usleep(2);
+  }
 
   // seek to range
   int64_t new_offset = 0;
@@ -291,7 +293,6 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
 
 void writeSchema(std::string names, std::string types, std::string fn ) {
   std::string data_path = FLAGS_relations+"/"+fn;
-  
   CHECK( data_path.size() <= 2040 );
   char data_path_char[2048];
   sprintf(data_path_char, "%s", data_path.c_str());
