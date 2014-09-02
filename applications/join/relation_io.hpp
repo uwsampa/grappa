@@ -262,7 +262,8 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     f.close();
     remove(data_path_char);
   }
-  // write_locked_range works only when file already existsp
+
+  // write_locked_range works only when file already exists
   std::ofstream outfile(data_path_char);
   outfile.close();
 
@@ -285,12 +286,12 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     }
 
     VLOG(5) << "writing";
-    write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(), (char*)&tuples[0], 
-		       vec->size() * dummy.numFields() * sizeof(int64_t));
-    });
+    write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(),
+		       (char*)&tuples[0], vec->size() * dummy.numFields() * sizeof(int64_t));
+  });
 }
 
-
+// writes names and types to filename fn in ASCII separated by a newline
 void writeSchema(std::string names, std::string types, std::string fn ) {
   std::string data_path = FLAGS_relations+"/"+fn;
   CHECK( data_path.size() <= 2040 );
@@ -316,7 +317,7 @@ template< typename N=int64_t, typename Parser=decltype(toInt) >
 void convert2bin( std::string fn, Parser parser=&toInt, char * separators=" ", uint64_t burn=0 ) {
   std::ifstream infile(fn, std::ifstream::in);
   CHECK( infile.is_open() ) << fn << " failed to open";
-  
+
   std::string outpath = fn+".bin";
   std::ofstream outfile(outpath, std::ios_base::out | std::ios_base::binary );
   CHECK( outfile.is_open() ) << outpath << " failed to open";

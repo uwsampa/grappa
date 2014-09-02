@@ -67,10 +67,10 @@ class MaterializedTupleRef_V1_0_1 {
       return o;
     }
 
-  } GRAPPA_BLOCK_ALIGNED;
-  std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V1_0_1& t) {
-    return t.dump(o);
-  }
+} GRAPPA_BLOCK_ALIGNED;
+std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V1_0_1& t) {
+  return t.dump(o);
+}
 
 int64_t other_data __attribute__ ((aligned (2048))) = 0;
 std::vector<MaterializedTupleRef_V1_0_1> data;
