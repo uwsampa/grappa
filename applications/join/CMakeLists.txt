@@ -129,4 +129,28 @@ foreach(test_cpp ${TEST_SOURCES})
   target_link_libraries(${test} querylib)
 endforeach()
 
+# create a test, which will be run with the given number of nodes (nnode),
+# and processors per node (ppn), and added to the aggregate targets for 
+# passing or failing tests
+macro(add_check test_cpp nnode ppn target)
+  get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
+  set(test "${test_name}.test")
+
+  # Raco C++ environment
+  set(RACO_DIR "$ENV{RACO_HOME}")
+  if (RACO_DIR)
+    include_directories($ENV{RACO_HOME}/c_test_environment)
+    link_directories($ENV{RACO_HOME}/c_test_environment) # TODO: replace this with something nicer like find()
+  else()
+      # should only trigger if there exist any generated queries (i.e. applications/join/grappa_*.cpp files)
+      message(FATAL_ERROR "Undefined RACO_HOME environment variable, required for generated queries")
+  endif()
+
+  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
+  target_link_libraries(${test} generator querylib racoc)
+  add_dependencies( check-all-${target} check-${test_name} )
+  add_dependencies( check-all-${target}-compile-only ${test})
+endmacro()
+
+add_check(Relation_io_tests.cpp 2 1 pass)
 

@@ -124,6 +124,7 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
   return tg;
 }
 
+
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
 size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t numfields ) {
@@ -142,9 +143,9 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   VLOG(2) << "row_size_bytes=" << row_size_bytes;
   std::string data_path = FLAGS_relations+"/"+fn;
   size_t file_size = fs::file_size( data_path );
-  size_t ntuples = file_size / row_size_bytes; 
+  size_t ntuples = file_size / row_size_bytes;
   CHECK( ntuples * row_size_bytes == file_size ) << "File is ill-formatted; perhaps not all rows have same columns?";
-  VLOG(1) << fn << " has " << ntuples << " rows"; 
+  VLOG(1) << fn << " has " << ntuples << " rows";
   
   auto tuples = Grappa::global_alloc<T>(ntuples);
   
@@ -195,7 +196,7 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   *buf_addr = tuples;
   return ntuples;
 }
-  
+
 // convenient version for Relation<T> type
 template <typename T>
 Relation<T> readTuplesUnordered( std::string fn ) {
@@ -209,6 +210,51 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   return r;
 }
 
+// assumes that for object T, the address of T is the address of its fields
+template <typename T>
+void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
+  std::string data_path = FLAGS_relations+"/"+fn;
+  
+  // we will broadcast the file name as bytes
+  CHECK( data_path.size() <= 2040 );
+  char data_path_char[2048];
+  sprintf(data_path_char, "%s", data_path.c_str());
+
+  on_all_cores( [=] {
+    VLOG(5) << "opening addr next";
+    VLOG(5) << "opening addr " << &data_path_char; 
+    VLOG(5) << "opening " << data_path_char; 
+
+    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+    VLOG(5) << "writing";
+
+    for (auto it = vec->begin(); it < vec->end(); it++) {
+      for (int j = 0; j < it->numFields(); j++) {
+	int64_t val = it->get(j);
+	data_file.write((char*)&val, sizeof(val));
+      }
+    }
+
+    data_file.close();
+    });
+}
+
+void writeSchema(std::string names, std::string types, std::string fn ) {
+  std::string data_path = FLAGS_relations+"/"+fn;
+  
+  CHECK( data_path.size() <= 2040 );
+  char data_path_char[2048];
+  sprintf(data_path_char, "%s", data_path.c_str());
+
+  std::ofstream data_file(data_path_char, std::ios_base::out);
+  CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+  VLOG(5) << "writing";
+
+  data_file << names << "\n" << types << std::endl;
+  data_file.close();
+}
+  
 int64_t toInt(std::string& s) {
   return std::stoi(s);
 }
