@@ -223,9 +223,10 @@ static void write_locked_range( const char * filename, size_t offset, const char
   lock.l_whence = SEEK_SET;
   lock.l_start = offset;
   lock.l_len = size;
-  while ( fcntl( fd, F_SETLK, &lock ) < 0 ) {
-    usleep(2);
-  }
+
+  VLOG(4) << "acquiring lock";
+  PCHECK( fcntl( fd, F_SETLKW, &lock ) >=0 ) << "start " << offset << " end " << offset + size;
+  VLOG(4) << "acquiried lock";
 
   // seek to range
   int64_t new_offset = 0;
@@ -233,12 +234,12 @@ static void write_locked_range( const char * filename, size_t offset, const char
   CHECK_EQ( new_offset, offset );
       
   // write
-  PCHECK( write( fd, buf, size ) >= 0 );
+  PCHECK( write( fd, buf, size ) >= 0 ) << "addr " << ((void*)buf);
 
   // release lock on file range
   lock.l_type = F_UNLCK;
   PCHECK( fcntl( fd, F_SETLK, &lock ) >= 0 ) << "Could not release record lock on file";
-
+  VLOG(4) << "unlock";
   // close file
   PCHECK( close( fd ) >= 0 );
 }
@@ -275,7 +276,8 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     int64_t row_offset = Grappa::delegate::fetch_and_add( offset_counter_addr, vec->size() );
 
     // transform vector tuples into actual values of size 64
-    int64_t tuples[vec->size() * dummy.numFields()];
+    int64_t * tuples = new int64_t[vec->size() * dummy.numFields()];
+
     int i = 0;
     for (auto it = vec->begin(); it != vec->end(); it++) {
       for (int j = 0; j < it->numFields(); j++) {
@@ -286,8 +288,10 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     }
 
     VLOG(5) << "writing";
+    VLOG(4) << "tuples addr " << &tuples[0];
     write_locked_range(data_path_char, row_offset * sizeof(int64_t) * dummy.numFields(),
-		       (char*)&tuples[0], vec->size() * dummy.numFields() * sizeof(int64_t));
+		       (char*)tuples, vec->size() * dummy.numFields() * sizeof(int64_t));
+    delete tuples;
   });
 }
 
