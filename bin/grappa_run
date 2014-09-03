@@ -3,11 +3,14 @@
 # get directory of this script
 DIR="${BASH_SOURCE%/*}"
 if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
-
-UTILS="$DIR/../util"
+ROOT="$DIR/.."
 
 # source utils
-source "$UTILS/common.sh"
+source "$ROOT/util/common.sh"
+
+################
+# flag parsing
+source "$ROOT/third-party/bashflags/flags.bash"
 
 # declare command-line options
 define_flag 'nnode' 1 'Number of nodes to run the Grappa job with' 'n'
@@ -23,7 +26,7 @@ define_bool_flag 'mpirun' "Use mpirun even if 'srun' is present."
 define_bool_flag 'build_here' "Just configure into current directory rather than creating new build directories."
 
 parse_flags $@
-
+################
 
 # compute total number of MPI processes
 totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
@@ -35,14 +38,14 @@ totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
 
 #TODO: figure out way to set default Slurm partition (environment variable? make our own?)
 
-if has_srun && [ $FLAGS_mpirun = true ]; then
+if has_srun && [ $FLAGS_mpirun = false ]; then
   
   srun_flags=""
   
   [ -n "$FLAGS_partition" ] && srun_flags+=" --partition=$FLAGS_partition"
   [ -n "$FLAGS_account" ] && srun_flags+=" --account=$FLAGS_account"
   
-  cmd="srun --cpu_bind=rank --label --kill-on-bad-exit --nodes=$FLAGS_nnode --ntasks-per-node=$FLAGS_ppn --time=$FLAGS_time $srun_flags -- $@"
+  cmd="srun --cpu_bind=rank --label --kill-on-bad-exit --nodes=$FLAGS_nnode --ntasks-per-node=$FLAGS_ppn --time=$FLAGS_time $srun_flags -- $FLAGS_extra"
   
 else
   case `mpirun --version` in
@@ -50,12 +53,12 @@ else
   # OpenMPI v1.8
   mpirun*1.8*)
     [ $FLAGS_verbose = true ] && echo "# OpenMPI 1.8"
-    cmd="mpirun --n $totaln --map-by ppr:$FLAGS_ppn:node -- $@"
+    cmd="mpirun --n $totaln --map-by ppr:$FLAGS_ppn:node -- $FLAGS_extra"
     ;;
     
   # OpenMPI v < 1.8
   mpirun*1.*)
-    cmd="mpirun --n $totaln --npernode $FLAGS_ppn -- $@"
+    cmd="mpirun --n $totaln --npernode $FLAGS_ppn -- $FLAGS_extra"
     ;;
   
   *)
