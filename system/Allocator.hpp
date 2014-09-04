@@ -41,6 +41,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <exception>
+
 #include <boost/tuple/tuple.hpp>
 
 typedef intptr_t AllocatorAddress;
@@ -158,6 +160,8 @@ private:
   
 
 public:
+  class Exception : public std::exception {};
+  
   Allocator( void * base, int64_t size )
     : base_( reinterpret_cast< AllocatorAddress >( base ) )
     , size_( size )
@@ -207,6 +211,13 @@ public:
 
     // find a chunk large enough to start splitting.
     FreeListMap::iterator flit = free_lists_.lower_bound( allocation_size );
+    if( flit == free_lists_.end() ) {
+      LOG(ERROR) << "Out of memory in the global heap: couldn't find a chunk of size " << allocation_size
+                 << " to hold an allocation of " << size << " bytes. Can you increase --global_heap_fraction?";
+      // do this with an exception rather than CHECK_NE() so the test fixture can catch it.
+      throw Allocator::Exception();
+    }
+
     int64_t chunk_size = flit->first;
     DVLOG(5) << "chunk_size is " << chunk_size;
     DVLOG(5) << "free list size is " << flit->second.size();
