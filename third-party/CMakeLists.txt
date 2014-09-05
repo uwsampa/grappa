@@ -144,3 +144,5 @@ add_custom_target(clean-third-party
   rm -rf ${THIRD_PARTY_ROOT}
 )
 set_property(TARGET clean-third-party PROPERTY FOLDER "Third Party")
+
+file(COPY bashflags DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
