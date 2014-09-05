@@ -71,5 +71,5 @@ fi
 [ $FLAGS_verbose = true ] && echo "# $cmd"
 
 # setup environment variables
-source "$UTILS/env.sh"
+source "$ROOT/util/env.sh"
 exec $cmd
