@@ -35,9 +35,5 @@ namespace Grappa {
   // TODO: see TODO above  
   const int StringMetric::vt_type = VT_COUNT_TYPE_SIGNED;
 #endif
-
-  // force instantiation of merge_all()
-  void StringMetric::merge_all(impl::MetricBase*);
-
 }
 
