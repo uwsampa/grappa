@@ -8,6 +8,7 @@ opt.generator = 'Make'
 opt.mode      = 'Release'
 opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
+opt.third_party = ENV['GRAPPA_THIRD_PARTY']
 
 case `hostname`
 when /n[\d+]/
@@ -30,6 +31,7 @@ OptionParser.new{|p|
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
   p.on('--shmmax=SIZE',"Manually set maximum SysV shared memory size"){|n| opt.shmmax = n }
+  p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -128,13 +130,17 @@ def configure(generator, mode, opt)
     args << "-DBOOST_ROOT=#{opt.boost}"
   end
   
-  build_dir = "build/#{generator}"
-  build_dir << "+#{mode}" if mode
-  build_dir << "+Tracing" if opt.tracing
-  build_dir << "+Profiling" if opt.profiling
-  build_dir << "+#{opt.name}" if opt.name
+  if opt.build_here
+    build_dir = "."
+  else
+    build_dir = "build/#{generator}"
+    build_dir << "+#{mode}" if mode
+    build_dir << "+Tracing" if opt.tracing
+    build_dir << "+Profiling" if opt.profiling
+    build_dir << "+#{opt.name}" if opt.name
+    mkdir_p build_dir
+  end
   
-  mkdir_p build_dir
   cd build_dir do
     
     puts "cmake #{args.join(' ')} #{ARGV.join(' ')}"
@@ -142,9 +148,11 @@ def configure(generator, mode, opt)
     
     if $?.success?
       puts "-------------------------------------"
-      puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
-        {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
-      puts "-------------------------------------"
+      unless opt.build_here
+        puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
+          {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+        puts "-------------------------------------"
+      end
     end
   end
 end
