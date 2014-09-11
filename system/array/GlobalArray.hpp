@@ -39,6 +39,9 @@
 
 namespace Grappa {
 
+// forward declaration for global array
+template< typename T, typename... D1toN  >
+class GlobalArray;
 
 
 namespace impl {
@@ -57,7 +60,7 @@ protected:
 public:
   ArrayDereferenceProxy( ): ga() { }
   ArrayDereferenceProxy(GlobalAddress<T> ga): ga(ga) {}
-  void set(GlobalAddress<T> ga_arg) { ga = ga_arg; }
+  //void set(GlobalAddress<T> ga_arg) { ga = ga_arg; }
 
   // return global address instead of local address
   GlobalAddress<T> operator&() {
@@ -76,16 +79,25 @@ template< typename T, typename D1, typename... D2toN >
 class ArrayDereferenceProxy<T,D1,D2toN...> {
 protected:
   GlobalAddress<T> ga;
-
+  size_t dim1_percore;
+  size_t dim2_size;
+  
 public:
-  ArrayDereferenceProxy( ): ga() { }
-  ArrayDereferenceProxy(GlobalAddress<T> ga): ga(ga) {}
+  ArrayDereferenceProxy( ): ga(), dim1_percore(), dim2_size() { }
+  ArrayDereferenceProxy(GlobalAddress<T> ga): ga(ga), dim1_percore(0), dim2_size(0) { }
 
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
     Core c = ga.core();
     T * p = ga.pointer();
-    //GlobalAddress<T> offset = 
-    return ArrayDereferenceProxy<T,D2toN...>(ga);
+    if( dim1_percore ) {
+      size_t core_offset = i / dim1_percore;
+      size_t dim_offset = dim2_size * (i % dim1_percore);
+      c += core_offset;
+      p += dim_offset;
+    } else {
+      p += i;
+    }
+    return ArrayDereferenceProxy<T,D2toN...>(make_global(p,c));
   }
 };
 
@@ -95,7 +107,7 @@ public:
 
 
 // placeholder for more general global array
-template< typename T, typename D1, typename... D2toN  >
+template< typename T, typename... D1toN  >
 class GlobalArray {
   static_assert(impl::templateStaticAssertFalse<T>(),
                 "GlobalArray with these parameters not supported yet.");
@@ -109,41 +121,45 @@ template< typename T >
 class GlobalArray< T, Distribution::Block, Distribution::Local > 
   : public ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local > {
 private:
-
   GlobalAddress<T> & base;
-  T * local_chunk;
-  
-  size_t chunk_size;
+  size_t & dim1_percore;
+  size_t & dim2_size;
 
-  Distribution::Block d1;
-  Distribution::Local d2;
-  
-  void collectiveAllocate( size_t x, size_t y ) {
-  }
+  T * local_chunk;
+  size_t dim1_size;
+
+  size_t dim1_max;
+
 public:
   typedef T Type;
   
   GlobalArray()
     : base(ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local >::ga)
+    , dim1_percore(ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local >::dim1_percore)
+    , dim2_size(ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local >::dim2_size)
     , local_chunk(NULL)
-    , chunk_size()
+    , dim1_size(0)
+    , dim1_max(0)
   { }
   
   void allocate( size_t x, size_t y ) {
-    auto b = global_alloc<T>(x*y);
-    on_all_cores( [this,x,y,b] {
+    size_t cores = Grappa::cores();
+    size_t corrected_x = x + ((x % cores) != 0);
+    auto b = global_alloc<T>(y * corrected_x);
+
+    on_all_cores( [this,x,corrected_x,y,b] {
         CHECK_NULL( local_chunk );
+        dim1_size = corrected_x;
+        dim2_size = y;
+        dim1_percore = corrected_x / Grappa::cores();
 
-        d2.set( 1, y );
-        d1.set( d2.size, x );
-
-        CHECK_EQ( x*y, d1.size );
-        chunk_size = x * y;
-        base = b;
+        LOG(INFO) << "per core: " << dim1_percore;
+        
+        base = make_global( b.pointer(), b.core() );
         local_chunk = b.localize();
-        auto end = (b+x*y).localize();
+        auto end = (b+corrected_x*y).localize();
         size_t cs = end - local_chunk;
-        LOG(INFO) << "Chunk size is " << chunk_size << " / " << cs;
+        LOG(INFO) << "Chunk size is " << corrected_x * y << " / " << cs;
       } );
   }
 
@@ -156,10 +172,10 @@ public:
   void forall( F body ) {
     on_all_cores( [this,body] {
         T * elem = local_chunk;
-        size_t first_block = d1.per_core * mycore();
-        for( size_t i = first_block; ((i < first_block + d1.per_core) &&
-                                      (i < d1.max)); ++i ) {
-          for( size_t j = 0; j < d2.per_core; ++j ) {
+        size_t first_block = dim1_percore * mycore();
+        for( size_t i = first_block; ((i < first_block + dim1_percore) &&
+                                      (i < dim1_size * dim2_size)); ++i ) {
+          for( size_t j = 0; j < dim2_size; ++j ) {
             body(i, j, *elem );
             elem++;
           }
