@@ -7,8 +7,8 @@ define_bool_flag 'bar' 'useless flag'
 
 parse_flags $@
 
-if $FLAGS_foo; then
-  echo "foo"
+if flags_true $FLAGS_foo && [ $FLAGS_foo = true ] && $FLAGS_foo; then
+  echo "$FLAGS_foo"
 else
-  echo "not foo"
+  echo "$FLAGS_foo"
 fi

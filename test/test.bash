@@ -23,14 +23,24 @@ test "./echo.bash -- extra" "text=default,extra=extra"
 
 test "./echo.bash --help 2>&1" "*help text*"
 
-test "./bool.bash" "not foo"
+test "./bool.bash" "false"
 
-test "./bool.bash --foo" "foo"
+test "./bool.bash --foo" "true"
 
-test "./bool.bash --foo=true" "foo"
+test "./bool.bash --no-foo" "false"
 
-test "./bool.bash --foo=false" "not foo"
+test "./bool.bash --foo=true" "true"
 
-test "./bool.bash --foo --bar" "foo"
+test "./bool.bash --foo=false" "false"
+
+test "./bool.bash --foo=yes" "true"
+
+test "./bool.bash --foo=1" "true"
+
+test "./bool.bash --foo=no" "false"
+
+test "./bool.bash --foo=0" "false"
+
+test "./bool.bash --foo --bar" "true"
 
 echo "All tests successful!"
