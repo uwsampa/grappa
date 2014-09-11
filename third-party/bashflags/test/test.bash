@@ -31,4 +31,6 @@ test "./bool.bash --foo=true" "foo"
 
 test "./bool.bash --foo=false" "not foo"
 
+test "./bool.bash --foo --bar" "foo"
+
 echo "All tests successful!"
