@@ -37,9 +37,9 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, gce_incomplete, []{
   return impl::local_gce.incomplete();
 });
 
-std::vector<GlobalCompletionEvent&> GlobalCompletionEvent::user_tracked_gces;
+std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::user_tracked_gces;
 
-std::vector<GlobalCompletionEvent&> GlobalCompletionEvent::get_user_tracked() {
+std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::get_user_tracked() {
   // returns a copy of the vector to preserve integrity
   return GlobalCompletionEvent::user_tracked_gces;
 }
@@ -47,6 +47,7 @@ std::vector<GlobalCompletionEvent&> GlobalCompletionEvent::get_user_tracked() {
 GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, gce_app_incomplete, []{
   int64_t sum = 0;
   for (auto g : Grappa::GlobalCompletionEvent::get_user_tracked()) {
-    sum += g.incomplete();
+    sum += g->incomplete();
   }
+  return sum;
 });

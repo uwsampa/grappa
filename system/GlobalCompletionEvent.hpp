@@ -84,7 +84,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
 
-  static std::vector<GlobalCompletionEvent&> user_tracked_gces;
+  static std::vector<GlobalCompletionEvent*> user_tracked_gces;
   
   struct DoComplete {
     GlobalCompletionEvent * gce;
@@ -149,7 +149,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
-  static std::vector<GlobalCompletionEvent&> get_user_tracked();
+  static std::vector<GlobalCompletionEvent*> get_user_tracked();
 
   int64_t incomplete() const { return count; }
   
@@ -179,7 +179,7 @@ public:
     reset();
 
     if (user_track) {
-      user_tracked_gces.add(*this);
+      user_tracked_gces.push_back(this);
     } 
   }
 
