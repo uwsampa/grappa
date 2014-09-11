@@ -153,6 +153,12 @@ list(APPEND SYSTEM_SOURCES
 )
 include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
+################
+# GlobalArray sources
+list(APPEND SYSTEM_SOURCES
+  array/GlobalArray.hpp
+)
+
 if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")
 endif()
@@ -224,6 +230,7 @@ add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
+add_check( array/GlobalArray_tests.cpp       1 1  pass )
 
 
 #
