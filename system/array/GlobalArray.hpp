@@ -153,13 +153,13 @@ public:
         dim2_size = y;
         dim1_percore = corrected_x / Grappa::cores();
 
-        LOG(INFO) << "per core: " << dim1_percore;
+        DVLOG(2) << "per core: " << dim1_percore;
         
         base = make_global( b.pointer(), b.core() );
         local_chunk = b.localize();
-        auto end = (b+corrected_x*y).localize();
+        auto end = (b + (corrected_x * y)).localize();
         size_t cs = end - local_chunk;
-        LOG(INFO) << "Chunk size is " << corrected_x * y << " / " << cs;
+        DVLOG(2) << "Chunk size is " << dim1_percore * y << " / " << cs;
       } );
   }
 
