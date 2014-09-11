@@ -46,7 +46,7 @@ std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::get_user_tracked() {
 
 GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, gce_user_incomplete, []{
   int64_t sum = 0;
-  for (auto g : Grappa::GlobalCompletionEvent::get_user_tracked()) {
+  for (auto g : GlobalCompletionEvent::get_user_tracked()) {
     sum += g->incomplete();
   }
   return sum;
