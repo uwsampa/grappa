@@ -115,8 +115,10 @@ namespace Grappa {
       // (note: must do `reg_new`=false so we don't re-register this stat)
       StringMetric x(name, std::string(value_), false);
 #if DEBUG
-      this->json(VLOG(4) << "cloned is ");
-      x.json(VLOG(4) << "clone is "); 
+      if (VLOG_IS_ON(2)) {
+        this->json(LOG(INFO) << "cloned is ");
+        x.json(LOG(INFO) << "cloned is ");
+      }
 #endif
       return new StringMetric(name, std::string(value_), false);
     }
