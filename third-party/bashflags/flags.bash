@@ -47,7 +47,7 @@ function parse_flags {
         flag=${1/--/}
         # don't use next arg as value if it's a flag
         if [[ "$2" =~ \s*-.* ]]; then
-          val=""
+          val=
         else
           val="$2"
         fi
@@ -131,6 +131,11 @@ function define_flag {
 #
 #   define_bool_flag <long_name> <description> [<short_name>]
 #
+# # To test a flag in a script:
+#   if $FLAGS_foo; then echo 'foo'; fi
+# # Or to check for false:
+#   if [ $FLAGS_foo = false ]; then echo 'not foo'; fi
+#
 ###################################################################
 function define_bool_flag {
   long_name=$1
@@ -144,8 +149,12 @@ function define_bool_flag {
   eval "FLAGS_${long_name}=$default"
   
   eval "__handle_flag_${long_name}() {
-    if [ -n \$1 ]; then
-      FLAGS_${long_name}=\$1
+    if [ -n \"\$1\" ]; then
+      if flags_true \$1; then
+        FLAGS_${long_name}=true
+      else
+        FLAGS_${long_name}=false
+      fi
     else
       FLAGS_${long_name}=true
     fi
@@ -167,3 +176,17 @@ function __handle_flag_help {
   exit 1
 }
 function __handle_flag_h { __handle_flag_help; }
+
+function flags_true {
+  if [ -n "$1" ]; then
+    [ "$1" = "true" ] && return 0
+    [ "$1" = "yes" ] && return 0
+    [ "$1" = "1" ] && return 0
+    
+    [ "$1" = "false" ] && return 1
+    [ "$1" = "0" ] && return 1
+    [ "$1" = "no" ] && return 1
+  else
+    return 1
+  fi
+}
