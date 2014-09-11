@@ -31,6 +31,7 @@
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
+#include <vector>
 #include "Metrics.hpp"
 
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
@@ -82,6 +83,8 @@ class GlobalCompletionEvent : public CompletionEvent {
   
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
+
+  static std::vector<GlobalCompletionEvent&> user_tracked_gces;
   
   struct DoComplete {
     GlobalCompletionEvent * gce;
@@ -146,7 +149,9 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
-  int64_t incomplete() { return count; }
+  static std::vector<GlobalCompletionEvent&> get_user_tracked();
+
+  int64_t incomplete() const { return count; }
   
   /// Send a completion message to the originating core. Uses the local instance of the gce to
   /// keep track of information in order to flatten completions automatically.
@@ -170,9 +175,14 @@ public:
     }
   }
   
-  GlobalCompletionEvent(): master_core(0), completion_msgs(nullptr) {
+  GlobalCompletionEvent(bool user_track=false): master_core(0), completion_msgs(nullptr) {
     reset();
+
+    if (user_track) {
+      user_tracked_gces.add(*this);
+    } 
   }
+
   ~GlobalCompletionEvent() {
     if (completion_msgs != nullptr) locale_free(completion_msgs);
   }
