@@ -30,22 +30,27 @@ function fn_exists { declare -f $1 >/dev/null; }
 #   remaining args -> -extra
 #
 #####################################################################
-function parse_flags {  
+function parse_flags {
   while (( "$#" )); do
     flag=
     case $1 in
-      --)
+      --) # stop parsing when we reach '--'
         shift
         break
         ;;
-      --*=*)
+      --*=*) # match flags with val after an '=' (e.g. --num=3)
         a=${1##--}
         flag=${a%%=*};
         val=${a##*=}
         ;;
-      --*)
+      --*) # match flags with val and space (e.g. --num 3)
         flag=${1/--/}
-        val=$2
+        # don't use next arg as value if it's a flag
+        if [[ "$2" =~ \s*-.* ]]; then
+          val=""
+        else
+          val="$2"
+        fi
         ;;
       # -*)
       #   echo "short: ${1/-/}"
@@ -59,7 +64,7 @@ function parse_flags {
         eval "__handle_flag_$flag $val"
       else
         echo ">> invalid flag: $flag";
-        exit 1
+        exit 0
       fi
     fi
     shift
