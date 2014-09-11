@@ -23,7 +23,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <Grappa.hpp>
-//#include <GlobalArray.hpp>
+#include <array/GlobalArray.hpp>
 
 BOOST_AUTO_TEST_SUITE( GlobalArray_tests );
 
@@ -38,8 +38,8 @@ GlobalArray< double, Distribution::Block, Distribution::Local > ga;
 BOOST_AUTO_TEST_CASE( test1 ) {
   init( GRAPPA_TEST_ARGS );
   run([]{
-      size_t s = static_cast<int64_t>(Grappa::cores());
-      ga.allocate( s*1000, s*1000 );
+      size_t s = static_cast<int64_t>(Grappa::cores()) * 1000;
+      ga.allocate( s, s );
       
       DVLOG(1) << typename_of(ga);
       DVLOG(1) << typename_of(ga[1]);
@@ -49,13 +49,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       
       // initialize with localized iteration
       auto gaga = make_global( &ga );
-      forall( gaga, [] (size_t x, size_t y, double& d) {
-          d = x * FLAGS_y + y;
+      forall( gaga, [s] (size_t x, size_t y, double& d) {
+          d = x * s + y;
         } );
       
       // check and increment with dereferences
-      forall( 0, FLAGS_x, [] (int64_t x) {
-          forall<async>( 0, FLAGS_y, [x] (int64_t y) {
+      forall( 0, s, [s] (int64_t x) {
+          forall<async>( 0, s, [x] (int64_t y) {
               auto addr = &ga[x][y];
               DVLOG(1) << "At (" << x << "," << y << ") &d == " << addr;
               delegate::call<async>( addr, [x,y] (double & d) {
@@ -66,8 +66,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         } );
       
       // verify increment with localized iteration
-      forall( ga, [] (size_t x, size_t y, double& d) {
-          CHECK_EQ( d, x * FLAGS_y + y + 1);
+      forall( ga, [s] (size_t x, size_t y, double& d) {
+          CHECK_EQ( d, x * s + y + 1);
+          BOOST_CHECK_EQUAL( d, x * s + y + 1);
         } );
       
       ga.deallocate( );
