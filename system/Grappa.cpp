@@ -227,6 +227,125 @@ static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
 
 
 DECLARE_bool( global_memory_use_hugepages );
+DECLARE_double(locale_heap_fraction);
+
+struct MemoryManager {
+  
+  size_t locale_total, core_total;
+  
+  struct {
+    size_t communicator, aggregator, tasks, global_heap;
+  } core;
+  
+  MemoryManager() {
+    auto nloc = global_communicator.locales;
+    auto ncore = global_communicator.locale_cores;
+    
+    locale_total = SHMMAX;
+    core_total = locale_total / ncore;
+    
+    // (FLAGS_locale_shared_size either set manually or computed from fraction of SHMMAX)
+    auto locale_heap_bytes = FLAGS_locale_shared_size;
+    auto global_heap_bytes = FLAGS_global_heap_fraction * SHMMAX;
+    
+    // memory left for Grappa components
+    auto grappa_bytes = SHMMAX - global_heap_bytes - locale_heap_bytes;
+    CHECK_GT(grappa_bytes, 0) 
+      << "Must leave some memory for Grappa system components!\n" 
+      << " - locale_heap_bytes: " << locale_heap_bytes << "\n"
+      << " - global_heap_bytes: " << global_heap_bytes << "\n"
+      << " - total (SHMMAX):    " << SHMMAX;
+        
+    if (Grappa::mycore() == 0) dump(LOG(INFO));
+  }
+  
+  std::ostream& dump(std::ostream& o) {
+    
+    auto gb = [](size_t bytes){
+      double gb = static_cast<double>(bytes)/(1L<<30);
+      std::stringstream ss;
+      ss << gb << " GB";
+      return ss.str();
+    };
+    
+    std::stringstream ss;
+    ss << "\n";
+    ss << "MemoryManager {\n";
+    ss << "  SHMMAX: " << SHMMAX << "\n";
+    ss << "  locale_total: " << gb(locale_total) << "\n";
+    ss << "  core_total:   " << gb(core_total) << "\n";
+    ss << "}";
+    o << ss.str();
+    return o;
+  }
+};
+
+void adjust_footprints() {
+  auto locale_cores = global_communicator.locale_cores;
+  auto locale_total = SHMMAX;
+  auto core_total = locale_total / locale_cores;
+  
+  // (FLAGS_locale_shared_size either set manually or computed from fraction of SHMMAX)
+  auto locale_heap_bytes = FLAGS_locale_shared_size;
+  auto global_heap_bytes = static_cast<size_t>(FLAGS_global_heap_fraction * SHMMAX);
+  
+  // memory left for Grappa components
+  auto grappa_bytes = (SHMMAX - global_heap_bytes - locale_heap_bytes) / locale_cores;
+  CHECK_GT(grappa_bytes, 0)
+    << "\nMust leave some memory for Grappa system components!\n"
+    << " - locale_heap_bytes: " << locale_heap_bytes << "\n"
+    << " - global_heap_bytes: " << global_heap_bytes << "\n"
+    << " - total (SHMMAX):    " << SHMMAX;
+  
+  auto total_footprint = []{
+    return global_communicator.estimate_footprint()
+    + global_rdma_aggregator.estimate_footprint()
+    + global_task_manager.estimate_footprint();
+  };
+  
+  if (total_footprint() < grappa_bytes) return;
+  
+  // otherwise try to get all the grappa components to play along
+  long remaining = grappa_bytes;
+  
+  try {
+    
+    remaining -= global_communicator.adjust_footprint(remaining / 3);
+    if (remaining < 0) throw "Communicator";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    MASTER_ONLY VLOG(2) << "adjusting aggregator";
+    
+    remaining -= global_rdma_aggregator.adjust_footprint(remaining / 2);
+    if (remaining < 0) throw "RDMA Aggregator";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_task_manager.adjust_footprint(remaining);
+    if (remaining < 0) throw "TaskManager";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+  } catch (bool success) {
+    
+    MASTER_ONLY LOG(INFO) << "\nFootprint estimates: "
+    << "\n- locale_heap_bytes: " << locale_heap_bytes
+    << "\n- global_heap_bytes: " << global_heap_bytes
+    << "\n- total for Grappa:  " << grappa_bytes
+    << "\n  - global_communicator:    " << global_communicator.estimate_footprint()
+    << "\n  - global_rdma_aggregator: " << global_rdma_aggregator.estimate_footprint()
+    << "\n  - global_task_manager:    " << global_task_manager.estimate_footprint();
+
+  } catch (char const* component) {
+    MASTER_ONLY LOG(ERROR)
+      << "\nUnable to fit Grappa components in memory. Failed at " << component
+      << "\n  locale_heap_bytes:      " << locale_heap_bytes
+      << "\n  global_heap_bytes:      " << global_heap_bytes
+      << "\n  total for Grappa:       " << grappa_bytes
+      << "\n  global_communicator:    " << global_communicator.estimate_footprint()
+      << "\n  global_rdma_aggregator: " << global_rdma_aggregator.estimate_footprint()
+      << "\n  global_task_manager:    " << global_task_manager.estimate_footprint();
+    exit(1);
+  }
+}
 
 /// Initialize Grappa components. We are not ready to run until the
 /// user calls Grappa_activate().
@@ -362,7 +481,11 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // initialize node shared memory
   locale_shared_memory.init();
-
+  
+  //////////////////////////
+  // MARK: Memory Manager
+  adjust_footprints();
+  
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
   if (global_memory_size_bytes == -1) {
@@ -543,14 +666,6 @@ bool Grappa_global_queue_isInit() {
 ///
 /// Job exit routines
 ///
-
-//// termination fork join declaration
-//LOOP_FUNCTION(signal_task_termination_func,nid) {
-//    global_task_manager.signal_termination();
-//}
-static void signal_task_termination_am( int * ignore, size_t isize, void * payload, size_t payload_size ) {
-    global_task_manager.signal_termination();
-}
 
 /// User main done
 void Grappa_end_tasks() {

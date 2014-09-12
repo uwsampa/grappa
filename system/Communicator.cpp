@@ -43,7 +43,12 @@ extern HeapLeakChecker * Grappa_heapchecker;
 DEFINE_int64( log2_concurrent_receives, 7, "How many receive requests do we keep active at a time?" );
 DEFINE_int64( log2_concurrent_sends, 7, "How many send requests do we keep active at a time?" );
 
+static const int MIN_CONCURRENT_BUFFERS = 2;
+
+/// Size of communication buffers (2^log2_buffer_size)
 DEFINE_int64( log2_buffer_size, 19, "Size of Communicator buffers" );
+
+static const int MIN_LOG2_BUFFER_SIZE = 15;
 
 #ifndef COMMUNICATOR_TEST
 // // other metrics
@@ -236,6 +241,39 @@ void Communicator::activate() {
   DVLOG(3) << "Entering activation barrier";
   MPI_CHECK( MPI_Barrier( grappa_comm ) );
   DVLOG(3) << "Leaving activation barrier";
+}
+
+size_t Communicator::estimate_footprint() const {
+  auto buf_size = (1L << FLAGS_log2_buffer_size);
+  auto n = (1L << FLAGS_log2_concurrent_sends) + (1L << FLAGS_log2_concurrent_receives);
+  return buf_size * n;
+}
+
+size_t Communicator::adjust_footprint(size_t target) {
+  
+  auto& sends = FLAGS_log2_concurrent_sends;
+  auto& recvs = FLAGS_log2_concurrent_receives;
+  auto& size  =  FLAGS_log2_buffer_size;
+  
+  if (estimate_footprint() > target) {
+    if (mycore == 0) LOG(WARNING) << "Adjusting to fit in target footprint: " << target << " bytes";
+    while (estimate_footprint() > target) {
+      // first try adjusting number of concurrent buffers
+      if (sends > MIN_CONCURRENT_BUFFERS && sends >= recvs) sends--;
+      else if (recvs > MIN_CONCURRENT_BUFFERS && recvs >= sends) recvs--;
+      // next try making buffers smaller
+      else if (size > MIN_LOG2_BUFFER_SIZE) size--;
+      // otherwise we just have to return what we've got (we're at the minimum allowable footprint)
+      else break;
+    }
+  }
+  
+  if (mycore == 0) VLOG(2) << "Adjusted:"
+    << "\n  estimated footprint:      " << estimate_footprint()
+    << "\n  log2_concurrent_sends:    " << sends
+    << "\n  log2_concurrent_receives: " << recvs
+    << "\n  log2_buffer_size:         " << size;
+  return estimate_footprint();
 }
 
 

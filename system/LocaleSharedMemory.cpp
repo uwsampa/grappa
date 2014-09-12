@@ -29,8 +29,8 @@
 
 DEFINE_int64( locale_shared_size, 0, "Total shared memory between cores on node (when 0, defaults to locale_heap_fraction * SHMMAX)" );
 
-DEFINE_double( locale_heap_fraction, 1.0, "Fraction of SHMMAX to use for locale shared heap" );
-DEFINE_double( global_heap_fraction, 0.25, "Fraction of locale shared memory to use for global shared heap" );
+DEFINE_double( locale_heap_fraction, 0.10, "Fraction of SHMMAX to leave free for user to allocate from locale shared heap" );
+DEFINE_double( global_heap_fraction, 0.25, "Fraction of SHMMAX to set aside for global shared heap" );
 
 DECLARE_bool( global_memory_use_hugepages );
 

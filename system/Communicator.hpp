@@ -154,13 +154,22 @@ public:
   /// most methods may be called.
   Communicator( );
 
+  /// Adjust parameters to attempt to make this component use a given amount of memory.
+  ///
+  /// @param target  memory footprint (in bytes) that this should try to fit in
+  /// @return actual size estimate (may be larger than target)
+  size_t adjust_footprint(size_t target);
+  
+  /// Estimate amount of memory the communicator will use when 'activate()' is called
+  size_t estimate_footprint() const;
+  
   /// Begin setting up communicator.
   void init( int * argc_p, char ** argv_p[] );
 
   /// Finish setting up communicator. After this, all communicator
   /// methods can be called.
   void activate();
-
+  
   /// Tear down communicator.
   void finish( int retval = 0 );
 
@@ -308,5 +317,7 @@ inline const Locale locale_of(Core c) { return global_communicator.locale_of(c);
 /// @}
 
 }
+
+#define MASTER_ONLY if (Grappa::mycore() == 0)
 
 #endif
