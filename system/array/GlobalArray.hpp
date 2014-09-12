@@ -59,7 +59,7 @@ protected:
 
 public:
   ArrayDereferenceProxy( ): ga() { }
-  ArrayDereferenceProxy(GlobalAddress<T> ga): ga(ga) {}
+  ArrayDereferenceProxy(GlobalAddress<T> ga, size_t percore, size_t size): ga(ga) { }
   //void set(GlobalAddress<T> ga_arg) { ga = ga_arg; }
 
   // return global address instead of local address
@@ -79,25 +79,25 @@ template< typename T, typename D1, typename... D2toN >
 class ArrayDereferenceProxy<T,D1,D2toN...> {
 protected:
   GlobalAddress<T> ga;
-  size_t dim1_percore;
+  size_t dim2_percore;
   size_t dim2_size;
   
 public:
-  ArrayDereferenceProxy( ): ga(), dim1_percore(), dim2_size() { }
-  ArrayDereferenceProxy(GlobalAddress<T> ga): ga(ga), dim1_percore(0), dim2_size(0) { }
+  ArrayDereferenceProxy( ): ga(), dim2_percore(), dim2_size() { }
+  ArrayDereferenceProxy(GlobalAddress<T> ga, size_t percore, size_t size): ga(ga), dim2_percore(percore), dim2_size(size) { }
 
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
     Core c = ga.core();
     T * p = ga.pointer();
-    if( dim1_percore ) {
-      size_t core_offset = i / dim1_percore;
-      size_t dim_offset = dim2_size * (i % dim1_percore);
+    if( sizeof...(D2toN) == 0 ) {
+      size_t core_offset = i / dim2_percore;
+      size_t dim_offset = i % dim2_percore;
       c += core_offset;
       p += dim_offset;
     } else {
-      p += i;
+      p += i * dim2_percore;
     }
-    return ArrayDereferenceProxy<T,D2toN...>(make_global(p,c));
+    return ArrayDereferenceProxy<T,D2toN...>(make_global(p,c),dim2_percore,dim2_size);
   }
 };
 
@@ -118,11 +118,11 @@ class GlobalArray {
 
 // specialization of global 2D array block-distributed in first dimension
 template< typename T >
-class GlobalArray< T, Distribution::Block, Distribution::Local > 
-  : public ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local > {
+class GlobalArray< T, Distribution::Local, Distribution::Block > 
+  : public ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block > {
 private:
   GlobalAddress<T> & base;
-  size_t & dim1_percore;
+  size_t & dim2_percore;
   size_t & dim2_size;
 
   T * local_chunk;
@@ -134,9 +134,9 @@ public:
   typedef T Type;
   
   GlobalArray()
-    : base(ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local >::ga)
-    , dim1_percore(ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local >::dim1_percore)
-    , dim2_size(ArrayDereferenceProxy< T, Distribution::Block, Distribution::Local >::dim2_size)
+    : base(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::ga)
+    , dim2_percore(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::dim2_percore)
+    , dim2_size(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::dim2_size)
     , local_chunk(NULL)
     , dim1_size(0)
     , dim1_max(0)
@@ -151,15 +151,15 @@ public:
         CHECK_NULL( local_chunk );
         dim1_size = corrected_x;
         dim2_size = y;
-        dim1_percore = corrected_x / Grappa::cores();
+        dim2_percore = corrected_x / Grappa::cores();
 
-        DVLOG(2) << "per core: " << dim1_percore;
+        DVLOG(2) << "per core: " << dim2_percore;
         
         base = make_global( b.pointer(), b.core() );
         local_chunk = b.localize();
         auto end = (b + (corrected_x * y)).localize();
         size_t cs = end - local_chunk;
-        DVLOG(2) << "Chunk size is " << dim1_percore * y << " / " << cs;
+        DVLOG(2) << "Chunk size is " << dim2_percore * y << " / " << cs;
       } );
   }
 
@@ -172,10 +172,9 @@ public:
   void forall( F body ) {
     on_all_cores( [this,body] {
         T * elem = local_chunk;
-        size_t first_block = dim1_percore * mycore();
-        for( size_t i = first_block; ((i < first_block + dim1_percore) &&
-                                      (i < dim1_size * dim2_size)); ++i ) {
-          for( size_t j = 0; j < dim2_size; ++j ) {
+        size_t first_j = dim2_percore * mycore();
+        for( size_t i = 0; i < dim1_size; ++i ) {
+          for( size_t j = first_j; j < first_j + dim2_percore; ++j ) {
             body(i, j, *elem );
             elem++;
           }

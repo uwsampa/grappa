@@ -33,7 +33,7 @@ using namespace Grappa;
 //DEFINE_uint64(y, 1000, "size of array in Y dimension");
 //DEFINE_uint64(iterations, 1, "number of iterations");
 
-GlobalArray< double, Distribution::Block, Distribution::Local > ga;
+GlobalArray< double, Distribution::Local, Distribution::Block > ga;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   init( GRAPPA_TEST_ARGS );
