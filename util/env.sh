@@ -31,5 +31,8 @@ export OMPI_MCA_mpi_leave_pinned="0"
 export OMPI_MCA_mpi_yield_when_idle="0"
 
 ## Clean up any leftover shared memory regions
-`ipcs -m | grep $USER | awk '{print $2}' | xargs -n1 -r ipcrm -m`
-`rm -f /dev/shm/GrappaLocaleSharedMemory`
+if [ `ipcs -m | grep $USER | wc -l` != "0" ]; then
+  `ipcs -m | grep $USER | awk '{print $2}' | xargs -n1 -r ipcrm -m`
+fi
+shm="/dev/shm/GrappaLocaleSharedMemory"
+[ -e $shm ] `rm -f $shm`
