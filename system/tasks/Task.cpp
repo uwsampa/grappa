@@ -113,14 +113,14 @@ size_t TaskManager::estimate_footprint() const {
     
 size_t TaskManager::adjust_footprint(size_t target) {
   if (estimate_footprint() > target) {
-    LOG(WARNING) << "Adjusting to fit in target footprint: " << target << " bytes";
+    MASTER_ONLY LOG(WARNING) << "Adjusting to fit in target footprint: " << target << " bytes";
     while (estimate_footprint() > target) {
       // first try making the steal queue smaller
       if (steal_queue_size > 4) steal_queue_size /= 2;
       // otherwise we have to start removing workers
       else if (FLAGS_num_starting_workers > 4) FLAGS_num_starting_workers--;
     }
-    MASTER_ONLY VLOG(2) << "Adjusted:"
+    MASTER_ONLY VLOG(2) << "\nAdjusted:"
       << "\n  estimated footprint:  " << estimate_footprint()
       << "\n  steal_queue_size:     " << steal_queue_size
       << "\n  num_starting_workers: " << FLAGS_num_starting_workers;

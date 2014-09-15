@@ -268,7 +268,7 @@ size_t Communicator::adjust_footprint(size_t target) {
     }
   }
   
-  if (mycore == 0) VLOG(2) << "Adjusted:"
+  if (mycore == 0) VLOG(2) << "\nAdjusted:"
     << "\n  estimated footprint:      " << estimate_footprint()
     << "\n  log2_concurrent_sends:    " << sends
     << "\n  log2_concurrent_receives: " << recvs

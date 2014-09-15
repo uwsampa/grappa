@@ -27,10 +27,13 @@
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
 #endif
 
-DEFINE_int64( locale_shared_size, 0, "Total shared memory between cores on node (when 0, defaults to locale_heap_fraction * SHMMAX)" );
+DEFINE_int64( locale_shared_size, 0, "Total shared memory between cores on node (when 0, defaults to locale_shared_fraction * SHMMAX)" );
 
-DEFINE_double( locale_heap_fraction, 0.10, "Fraction of SHMMAX to leave free for user to allocate from locale shared heap" );
-DEFINE_double( global_heap_fraction, 0.25, "Fraction of SHMMAX to set aside for global shared heap" );
+DEFINE_double( locale_shared_fraction, 1.0, "Fraction of SHMMAX to allocate for Grappa" );
+
+DEFINE_double( locale_user_heap_fraction, 0.1, "Fraction of locale shared memory to set aside for the user" );
+
+DEFINE_double( global_heap_fraction, 0.25, "Fraction of locale shared memory to set aside for global shared heap" );
 
 DECLARE_bool( global_memory_use_hugepages );
 
@@ -153,7 +156,7 @@ LocaleSharedMemory::~LocaleSharedMemory() {
 
 void LocaleSharedMemory::init() {
   if( 0 == FLAGS_locale_shared_size ) {
-    double locale_shared_size = FLAGS_locale_heap_fraction * static_cast< double >( SHMMAX );
+    double locale_shared_size = FLAGS_locale_shared_fraction * static_cast< double >( SHMMAX );
     region_size = static_cast< int64_t >( locale_shared_size );
     FLAGS_locale_shared_size = region_size;
   }

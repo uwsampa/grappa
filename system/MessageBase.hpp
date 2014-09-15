@@ -38,12 +38,12 @@ typedef int16_t Core;
 
 namespace Grappa {
   
+  // forward declarations
+  namespace impl { class MessageBase; }
+  namespace SharedMessagePool { void free(impl::MessageBase * m, size_t sz); }
+  
   /// Internal messaging functions
   namespace impl {
-
-  class MessageBase;
-  void _shared_pool_free(MessageBase * m, size_t sz);
-
   
   union MessageFPAddr {
     struct {
@@ -113,7 +113,7 @@ namespace Grappa {
           if( delete_after_send_ ) {
             size_t sz = this->size();
             this->~MessageBase();
-            _shared_pool_free(this, sz);
+            SharedMessagePool::free(this, sz);
           }
         }
       }
