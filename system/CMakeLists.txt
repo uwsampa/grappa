@@ -230,7 +230,7 @@ add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
-add_check( array/GlobalArray_tests.cpp       2 1  pass )
+add_check( array/GlobalArray_tests.cpp       3 1  pass )
 
 
 #

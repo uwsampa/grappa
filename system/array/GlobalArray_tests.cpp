@@ -38,7 +38,7 @@ GlobalArray< double, Distribution::Local, Distribution::Block > ga;
 BOOST_AUTO_TEST_CASE( test1 ) {
   init( GRAPPA_TEST_ARGS );
   run([]{
-      size_t s = static_cast<int64_t>(Grappa::cores()) * 1000;
+      size_t s = 10; //static_cast<int64_t>(Grappa::cores()) * 10 - 1;
       ga.allocate( s, s );
       
       DVLOG(1) << typename_of(ga);
@@ -46,6 +46,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       DVLOG(1) << typename_of(ga[1][2]);
       DVLOG(1) << typename_of(&ga[1][2]);
       DVLOG(1) << typename_of(static_cast<double>(ga[1][2]));
+      
+      // verify that indexing results in the same addresses as iteration
+      forall( ga, [s] (size_t x, size_t y, double& d) {
+          BOOST_CHECK_EQUAL( make_global(&d), &ga[x][y] );
+          CHECK_EQ( make_global(&d), &ga[x][y] );
+        } );
       
       // initialize with localized iteration
       auto gaga = make_global( &ga );
@@ -67,8 +73,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       
       // verify increment with localized iteration
       forall( ga, [s] (size_t x, size_t y, double& d) {
-          CHECK_EQ( d, x * s + y + 1);
           BOOST_CHECK_EQUAL( d, x * s + y + 1);
+          CHECK_EQ( d, x * s + y + 1);
         } );
       
       ga.deallocate( );
