@@ -121,6 +121,7 @@ template< typename T >
 class GlobalArray< T, Distribution::Local, Distribution::Block > 
   : public ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block > {
 private:
+  GlobalAddress<char> block;
   GlobalAddress<T> & base;
   size_t & dim2_percore;
   size_t & dim2_size;
@@ -134,7 +135,8 @@ public:
   typedef T Type;
   
   GlobalArray()
-    : base(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::ga)
+    : block()
+    , base(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::ga)
     , dim2_percore(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::dim2_percore)
     , dim2_size(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::dim2_size)
     , local_chunk(NULL)
@@ -144,14 +146,33 @@ public:
   
   void allocate( size_t x, size_t y ) {
     size_t cores = Grappa::cores();
-    size_t corrected_x = x + ((x % cores) != 0);
-    auto b = global_alloc<T>(y * corrected_x);
+    size_t corrected_x = x; // + ((x % cores) != 0);
+    size_t corrected_y = y + ((y % cores) != 0);
+    size_t y_percore = corrected_y / Grappa::cores();
 
-    on_all_cores( [this,x,corrected_x,y,b] {
+    LOG(INFO) << "x: " << x << " / " << corrected_x << ", "
+              << "y: " << y << " / " << corrected_y;
+
+    // TODO: once we've fixed messaging, replace this with better symmetric allocation.
+    // allocate one extra block per core so we can have a consistent base address
+    size_t bytes_percore = x * y_percore * sizeof(T);
+    size_t block_count = (bytes_percore + block_size - 1) / block_size;
+    block = global_alloc<char>( cores * ((block_count + 1) * block_size) );
+
+    // find base that's valid everywhere
+    auto bb = block;
+    const Core MASTER_CORE = 0;
+    while (bb.core() != MASTER_CORE) bb++;
+
+    // now make it a pointer of the right type
+    auto b = static_cast< GlobalAddress<T> >( bb );
+
+
+    on_all_cores( [this,x,corrected_x,y,corrected_y,b] {
         CHECK_NULL( local_chunk );
-        dim1_size = corrected_x;
+        dim1_size = x; 
         dim2_size = y;
-        dim2_percore = corrected_x / Grappa::cores();
+        dim2_percore = corrected_y / Grappa::cores();
 
         DVLOG(2) << "per core: " << dim2_percore;
         
@@ -159,12 +180,12 @@ public:
         local_chunk = b.localize();
         auto end = (b + (corrected_x * y)).localize();
         size_t cs = end - local_chunk;
-        DVLOG(2) << "Chunk size is " << dim2_percore * y << " / " << cs;
+        DVLOG(2) << "Chunk at " << local_chunk << " size is " << dim2_percore * y << " / " << cs;
       } );
   }
 
   void deallocate( ) {
-    if( base ) global_free( base );
+    if( block ) global_free( block );
     if( local_chunk ) local_chunk = NULL;
   }
 
@@ -172,9 +193,11 @@ public:
   void forall( F body ) {
     on_all_cores( [this,body] {
         T * elem = local_chunk;
+        LOG(INFO) << "Base: " << elem;
         size_t first_j = dim2_percore * mycore();
         for( size_t i = 0; i < dim1_size; ++i ) {
-          for( size_t j = first_j; j < first_j + dim2_percore; ++j ) {
+          for( size_t j = first_j; (j < first_j + dim2_percore) && (j < dim2_size); ++j ) {
+            LOG(INFO) << "At " << i << ", " << j << ": " << elem;
             body(i, j, *elem );
             elem++;
           }
