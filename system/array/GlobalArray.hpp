@@ -64,7 +64,7 @@ public:
 
   // return global address instead of local address
   GlobalAddress<T> operator&() {
-    LOG(INFO) << "Returning address " << ga;
+    // LOG(INFO) << "Returning address " << ga;
     return ga;
   }
 
@@ -91,17 +91,17 @@ public:
   //ArrayDereferenceProxy<T,D2toN...> operator[]( N index ) {
   //size_t i = static_cast< size_t >( index );
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
-    LOG(INFO) << "Depth " << sizeof...(D2toN) << " Indexing with index " << i;
+    // LOG(INFO) << "Depth " << sizeof...(D2toN) << " Indexing with index " << i;
     Core c = ga.core();
     T * p = ga.pointer();
     if( sizeof...(D2toN) == 0 ) {
       size_t core_offset = i / dim2_percore;
       size_t dim_offset = i % dim2_percore;
-      LOG(INFO) << "Index " << i << " base: " << ga << " core_offset: " << core_offset << " dim_offset: " << dim_offset;
+      // LOG(INFO) << "Index " << i << " base: " << ga << " core_offset: " << core_offset << " dim_offset: " << dim_offset;
       c += core_offset;
       p += dim_offset;
     } else {
-      LOG(INFO) << "Index " << i << " base: " << ga << " dim_offset: " << i * dim2_percore;
+      // LOG(INFO) << "Index " << i << " base: " << ga << " dim_offset: " << i * dim2_percore;
       p += i * dim2_percore;
     }
     return ArrayDereferenceProxy<T,D2toN...>(make_global(p,c),dim2_percore,dim2_size);
@@ -171,6 +171,7 @@ public:
               << " block_count: " << block_count
               << " byte_count: " << byte_count;
     block = global_alloc<char>( byte_count );
+    auto block_end = block + byte_count;
 
     // find base that's valid everywhere
     auto bb = block;
@@ -181,7 +182,7 @@ public:
     auto b = static_cast< GlobalAddress<T> >( bb );
 
 
-    on_all_cores( [this,x,y,corrected_y,y_percore,b] {
+    on_all_cores( [this,x,y,corrected_y,y_percore,b,block_end] {
         CHECK_NULL( local_chunk );
         dim1_size = x; 
         dim2_size = y;
@@ -191,9 +192,8 @@ public:
         
         base = make_global( b.pointer(), b.core() );
         local_chunk = b.localize();
-        auto end = (b + (x * y_percore)).localize();
-        size_t cs = end - local_chunk;
-        VLOG(2) << "Chunk at " << local_chunk << " size is " << dim2_percore * y << " / " << cs;
+        size_t cs = (b + x * dim2_percore * Grappa::cores()).localize() - b.localize();
+        VLOG(2) << "Chunk at " << local_chunk << " size is " << dim2_percore * x << " / " << cs;
       } );
   }
 
@@ -206,15 +206,15 @@ public:
   void forall( F body ) {
     on_all_cores( [this,body] {
         T * elem = local_chunk;
-        LOG(INFO) << "Base: " << elem << " percore: " << dim2_percore;
+        // LOG(INFO) << "Base: " << elem << " percore: " << dim2_percore;
         size_t first_j = dim2_percore * mycore();
-        LOG(INFO) << "first_j: " << first_j 
-                  << " last_j: " << first_j + dim2_percore
-                  << " max_j: " << dim2_size;
+        // LOG(INFO) << "first_j: " << first_j 
+        //           << " last_j: " << first_j + dim2_percore
+        //           << " max_j: " << dim2_size;
         for( size_t i = 0; i < dim1_size; ++i ) {
           elem = local_chunk + i * dim2_percore;
           for( size_t j = first_j; (j < first_j + dim2_percore) && (j < dim2_size); ++j ) {
-            LOG(INFO) << "At " << i << ", " << j << ": " << elem;
+            //LOG(INFO) << "At " << i << ", " << j << ": " << elem;
             body(i, j, *elem );
             elem++;
           }
