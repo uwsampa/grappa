@@ -64,6 +64,7 @@ public:
 
   // return global address instead of local address
   GlobalAddress<T> operator&() {
+    LOG(INFO) << "Returning address " << ga;
     return ga;
   }
 
@@ -86,15 +87,21 @@ public:
   ArrayDereferenceProxy( ): ga(), dim2_percore(), dim2_size() { }
   ArrayDereferenceProxy(GlobalAddress<T> ga, size_t percore, size_t size): ga(ga), dim2_percore(percore), dim2_size(size) { }
 
+  //template< typename N >
+  //ArrayDereferenceProxy<T,D2toN...> operator[]( N index ) {
+  //size_t i = static_cast< size_t >( index );
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
+    LOG(INFO) << "Depth " << sizeof...(D2toN) << " Indexing with index " << i;
     Core c = ga.core();
     T * p = ga.pointer();
     if( sizeof...(D2toN) == 0 ) {
       size_t core_offset = i / dim2_percore;
       size_t dim_offset = i % dim2_percore;
+      LOG(INFO) << "Index " << i << " base: " << ga << " core_offset: " << core_offset << " dim_offset: " << dim_offset;
       c += core_offset;
       p += dim_offset;
     } else {
+      LOG(INFO) << "Index " << i << " base: " << ga << " dim_offset: " << i * dim2_percore;
       p += i * dim2_percore;
     }
     return ArrayDereferenceProxy<T,D2toN...>(make_global(p,c),dim2_percore,dim2_size);
@@ -146,18 +153,24 @@ public:
   
   void allocate( size_t x, size_t y ) {
     size_t cores = Grappa::cores();
-    size_t corrected_x = x; // + ((x % cores) != 0);
-    size_t corrected_y = y + ((y % cores) != 0);
-    size_t y_percore = corrected_y / Grappa::cores();
+    size_t corrected_x = x;
+    size_t corrected_y = y + ((y % cores) != 0) * cores;
+    size_t y_percore2 = y / cores;
+    size_t y_percore = y / cores + ((y % cores) != 0);
 
-    LOG(INFO) << "x: " << x << " / " << corrected_x << ", "
-              << "y: " << y << " / " << corrected_y;
+    VLOG(2) << "x: " << x << " / " << corrected_x << ", "
+            << "y: " << y << " / " << corrected_y
+            << " percore: " << y_percore2 << " / " << y_percore;
 
     // TODO: once we've fixed messaging, replace this with better symmetric allocation.
     // allocate one extra block per core so we can have a consistent base address
     size_t bytes_percore = x * y_percore * sizeof(T);
     size_t block_count = (bytes_percore + block_size - 1) / block_size;
-    block = global_alloc<char>( cores * ((block_count + 1) * block_size) );
+    size_t byte_count = cores * ((block_count + 1) * block_size);
+    LOG(INFO) << "bytes_percore: " << bytes_percore
+              << " block_count: " << block_count
+              << " byte_count: " << byte_count;
+    block = global_alloc<char>( byte_count );
 
     // find base that's valid everywhere
     auto bb = block;
@@ -168,19 +181,19 @@ public:
     auto b = static_cast< GlobalAddress<T> >( bb );
 
 
-    on_all_cores( [this,x,corrected_x,y,corrected_y,b] {
+    on_all_cores( [this,x,y,corrected_y,y_percore,b] {
         CHECK_NULL( local_chunk );
         dim1_size = x; 
         dim2_size = y;
-        dim2_percore = corrected_y / Grappa::cores();
+        dim2_percore = y_percore;
 
-        DVLOG(2) << "per core: " << dim2_percore;
+        VLOG(2) << "per core: " << dim2_percore;
         
         base = make_global( b.pointer(), b.core() );
         local_chunk = b.localize();
-        auto end = (b + (corrected_x * y)).localize();
+        auto end = (b + (x * y_percore)).localize();
         size_t cs = end - local_chunk;
-        DVLOG(2) << "Chunk at " << local_chunk << " size is " << dim2_percore * y << " / " << cs;
+        VLOG(2) << "Chunk at " << local_chunk << " size is " << dim2_percore * y << " / " << cs;
       } );
   }
 
@@ -193,9 +206,13 @@ public:
   void forall( F body ) {
     on_all_cores( [this,body] {
         T * elem = local_chunk;
-        LOG(INFO) << "Base: " << elem;
+        LOG(INFO) << "Base: " << elem << " percore: " << dim2_percore;
         size_t first_j = dim2_percore * mycore();
+        LOG(INFO) << "first_j: " << first_j 
+                  << " last_j: " << first_j + dim2_percore
+                  << " max_j: " << dim2_size;
         for( size_t i = 0; i < dim1_size; ++i ) {
+          elem = local_chunk + i * dim2_percore;
           for( size_t j = first_j; (j < first_j + dim2_percore) && (j < dim2_size); ++j ) {
             LOG(INFO) << "At " << i << ", " << j << ": " << elem;
             body(i, j, *elem );
