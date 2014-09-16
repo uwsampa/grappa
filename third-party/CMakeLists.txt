@@ -59,7 +59,7 @@ if(APPLE)
   # set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
 
-find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib")
+find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
 if( NOT THIRD_PARTY_GFLAGS )
   message("     gflags: <building>")
   ExternalProject_Add( third-party-gflags
@@ -76,6 +76,7 @@ if( NOT THIRD_PARTY_GFLAGS )
   )
   list(APPEND tool_list third-party-gflags)
 else()
+  add_custom_target(third-party-gflags)
   message("     gflags: ${THIRD_PARTY_GFLAGS}")
 endif()
 
