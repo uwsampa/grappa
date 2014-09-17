@@ -52,9 +52,16 @@ function parse_flags {
           val="$2"
         fi
         ;;
-      # -*)
-      #   echo "short: ${1/-/}"
-      #   ;;
+      -*)
+        flag=${1:1:1} # substr(1:2)
+        if [[ "${#1}" > "2" ]]; then # has a value 'attached'
+          val=${1:2} # substr(2:-)
+        elif [[ "$2" =~ \s*-.* ]]; then # if next is a flag, don't use as val
+          val=
+        else # try taking the next arg as this flag's value
+          val="$2"
+        fi
+        ;;
       # *)
       #   echo "pos: $1"
       #   ;;
@@ -120,7 +127,7 @@ function define_flag {
   
   eval "__handle_flag_${long_name}() { FLAGS_${long_name}=\$1; declare -x FLAGS_${long_name}; }"
   if [ -n "$short_name" ]; then
-    eval "__handle_flag_${short_name}() { FLAGS_${long_name}=\$1; }"
+    eval "__handle_flag_${short_name}() { __handle_flag_${long_name} \$1; }"
   fi
 }
 
@@ -139,12 +146,12 @@ function define_flag {
 ###################################################################
 function define_bool_flag {
   long_name=$1
-  desc=$3
-  short_name=$4
+  desc=$2
+  short_name=$3
   default=false
   
   FLAGS_help_msg="$FLAGS_help_msg
-  --$long_name=$default  $desc" 
+  --[no-]$long_name=$default  $desc" 
   
   eval "FLAGS_${long_name}=$default"
   
@@ -165,7 +172,7 @@ function define_bool_flag {
     declare -x FLAGS_${long_name}
   }"
   if [ -n "$short_name" ]; then
-    eval "__handle_flag_${short_name}() { FLAGS_${long_name}=\$1; }"
+    eval "__handle_flag_${short_name}() { __handle_flag_${long_name} \$1; }"
   fi
 }
 
@@ -173,7 +180,7 @@ function define_bool_flag {
 function __handle_flag_help {
   echo "usage:
   --help,-h  print this help message$FLAGS_help_msg" >&2
-  exit 1
+  exit 0
 }
 function __handle_flag_h { __handle_flag_help; }
 
