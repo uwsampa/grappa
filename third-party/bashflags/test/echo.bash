@@ -2,7 +2,7 @@
 DIR="${BASH_SOURCE%/*}"
 source $DIR/../flags.bash
 
-define_flag 'text' 'default' 'help text'
+define_flag 'text' 'default' 'sample description' 't'
 
 parse_flags $@
 
