@@ -55,14 +55,14 @@ class DHT_symmetric {
       return object;
     }
 
-    template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(V oldval, UV incVal), V Init, SyncMode S = SyncMode::Async >
+    template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(V oldval, UV incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
     void update( K key, UV val ) {
       uint64_t index = computeIndex( key );
       auto target = this->self;
 
       Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
         // inserts initial value only if the key is not yet present
-        std::pair<K,V> entry(key, Init);
+        std::pair<K,V> entry(key, Init());
         auto res = target->local_map->insert(entry); auto resIt = res.first; //auto resNew = res.second;
 
         // perform the update in place
