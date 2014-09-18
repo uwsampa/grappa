@@ -59,7 +59,9 @@ protected:
 
 public:
   ArrayDereferenceProxy( ): ga() { }
-  ArrayDereferenceProxy(GlobalAddress<T> ga, size_t percore, size_t size): ga(ga) { }
+  ArrayDereferenceProxy(GlobalAddress<T> base, size_t percore, size_t size)
+    : ga(base)
+  { }
 
   // return global address instead of local address
   GlobalAddress<T> operator&() {
@@ -83,20 +85,69 @@ protected:
   
 public:
   ArrayDereferenceProxy( ): ga(), dim2_percore(), dim2_size() { }
-  ArrayDereferenceProxy(GlobalAddress<T> ga, size_t percore, size_t size): ga(ga), dim2_percore(percore), dim2_size(size) { }
+  ArrayDereferenceProxy(GlobalAddress<T> base, size_t percore, size_t size)
+    : ga(base)
+    , dim2_percore(percore)
+    , dim2_size(size)
+  { }
 
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
-    Core c = ga.core();
-    T * p = ga.pointer();
-    if( sizeof...(D2toN) == 0 ) {
-      size_t core_offset = i / dim2_percore;
-      size_t dim_offset = i % dim2_percore;
-      c += core_offset;
-      p += dim_offset;
-    } else {
-      p += i * dim2_percore;
+    auto p = ga;
+    if( sizeof...(D2toN) == 0 ) { // second dimension
+      size_t core = i / dim2_percore; // which core is this element on?
+      size_t dim = i % dim2_percore;  // which element on this core is it?
+      size_t byte_dim = dim * sizeof(T);
+      size_t byte_offset = p.raw_bits() % block_size;
+
+      // convert to block-cyclic index
+      size_t core_block_index = core * block_size;       // base address of correct core
+      size_t dim_block_index = ((byte_dim + byte_offset) / block_size) * block_size; // index for base address of correct block on this core
+      size_t dim_block_offset = byte_dim % block_size;               // offset within block
+
+      p += (core_block_index + dim_block_index + dim_block_offset) / sizeof(T);
+
+      LOG(INFO) << "Dim 2 Index " << i
+                << " core " << core
+                << " dim " << dim
+                << " core_block_index " << core_block_index
+                << " dim_block_index " << dim_block_index
+                << " dim_block_offset " << dim_block_offset
+                << " base " << ga
+                << " new pointer " << p;
+
+    } else { // first dimension
+
+      size_t core = 0; // which core is this element on?
+      size_t dim = i * dim2_percore;  // which element on this core is it?
+      size_t byte_dim = dim * sizeof(T);
+      size_t byte_offset = p.raw_bits() % block_size;
+
+      // convert to block-cyclic index
+      size_t core_block_index = core * block_size;       // base address of correct core
+      size_t dim_block_index = ((byte_offset + byte_dim) / block_size) * block_size * Grappa::cores(); // index for base address of correct block on this core
+      size_t dim_block_offset = byte_dim % block_size;               // offset within block
+
+      p += (dim_block_index + dim_block_offset) / sizeof(T);
+
+      LOG(INFO) << "Dim 1 Index " << i
+                << " core " << core
+                << " dim " << dim
+                << " byte_offset " << byte_offset
+                << " core_block_index " << core_block_index
+                << " dim_block_index " << dim_block_index
+                << " dim_block_offset " << dim_block_offset
+                << " base " << ga
+                << " new pointer " << p;
+
+
+
+      //p += i * Grappa::cores() * dim2_percore;
+      // LOG(INFO) << "Dim 1 Index " << i
+      //           << " offset " << i * Grappa::cores() * dim2_percore
+      //           << " base " << ga
+      //           << " new pointer " << p;
     }
-    return ArrayDereferenceProxy<T,D2toN...>(make_global(p,c),dim2_percore,dim2_size);
+    return ArrayDereferenceProxy<T,D2toN...>(p,dim2_percore,dim2_size);
   }
 };
 
@@ -167,8 +218,9 @@ public:
         dim1_size = m; 
         dim2_size = n;
         dim2_percore = n_percore;
-        base = make_global( b.pointer(), b.core() );
+        base = b;
         local_chunk = b.localize();
+        LOG(INFO) << "base is " << local_chunk;
       } );
   }
 

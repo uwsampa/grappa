@@ -49,8 +49,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       
       // verify that indexing results in the same addresses as iteration
       forall( ga, [s] (size_t x, size_t y, double& d) {
-          BOOST_CHECK_EQUAL( make_global(&d), &ga[x][y] );
-          CHECK_EQ( make_global(&d), &ga[x][y] );
+          Core mycore = Grappa::mycore();
+          LOG(INFO) << "x " << x << " y " << y << " core " << mycore << " addr " << &d;
+          auto p = &ga[x][y];
+          CHECK_EQ( mycore, p.core() ) << "at x=" << x << " y=" << y << " with pointer " << p;
+          CHECK_EQ( &d, p.pointer() ) << "at x=" << x << " y=" << y << " with pointer " << p;
+          //CHECK_EQ( make_linear(&d), &ga[x][y] ) << "at x=" << x << " y=" << y;
+          //BOOST_CHECK_EQUAL( make_linear(&d), &ga[x][y] );
+          BOOST_CHECK_EQUAL( &d, p.pointer() );
+          BOOST_CHECK_EQUAL( mycore, p.core() );
         } );
       
       // initialize with localized iteration
