@@ -150,7 +150,7 @@ public:
 
   /// Construct a linear global address from a local pointer.
   /// TODO: the pool argument is currenly unused
-  static GlobalAddress Linear( T * t, Pool p = 0 )
+  static GlobalAddress Linear( T * t, Core n = global_communicator.mycore )
   {
     // adjust for chunk offset
     intptr_t tt = reinterpret_cast< intptr_t >( t ) - 
@@ -160,7 +160,7 @@ public:
     intptr_t block = tt / block_size;
     // intptr_t core_from_address = block % global_communicator.cores;
     // CHECK_EQ( core_from_address, 0 ) << "Core from address should be zero. (Check alignment?)";
-    intptr_t ga = ( block * global_communicator.cores + global_communicator.mycore ) * block_size + offset;
+    intptr_t ga = ( block * global_communicator.cores + n ) * block_size + offset;
     
     T * ttt = reinterpret_cast< T * >( ga );
     
@@ -169,7 +169,7 @@ public:
                    //( ( n & core_mask) << core_shift_val ) |
                    ( reinterpret_cast<intptr_t>( ttt ) ) );
 
-    CHECK_EQ( g.core(), global_communicator.mycore ) << "converted linear address core doesn't match";
+    CHECK_EQ( g.core(), n ) << "converted linear address core doesn't match";
     CHECK_EQ( g.pointer(), t ) << "converted linear address local pointer doesn't match";
     
     return g;
@@ -429,8 +429,8 @@ GlobalAddress< T > make_global( T * t, Core n = global_communicator.mycore ) {
 /// memory allocated at the same base address on all cores, and makes
 /// a linear global pointer pointing to that byte.
 template< typename T >
-GlobalAddress< T > make_linear( T * t ) {
-  return GlobalAddress< T >::Linear( t );
+GlobalAddress< T > make_linear( T * t, Core n = global_communicator.mycore ) {
+  return GlobalAddress< T >::Linear( t, n );
 }
 
 /// output human-readable version of global address
