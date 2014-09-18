@@ -350,7 +350,7 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
         readFields.push_back(f);
       }
 
-      T val( readFields );
+      T val( readFields, false, false );
       
       VLOG(5) << val;
 
