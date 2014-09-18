@@ -93,59 +93,15 @@ public:
 
   ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
     auto p = ga;
-    if( sizeof...(D2toN) == 0 ) { // second dimension
+    auto base_pointer = ga.pointer();
+    auto base_core = ga.core();
+    if( sizeof...(D2toN) != 0 ) { // first dimension
+      size_t dim = i * dim2_percore;  // which element on this core is it?
+      p = make_linear( base_pointer + dim, base_core );
+    } else { // second dimension
       size_t core = i / dim2_percore; // which core is this element on?
       size_t dim = i % dim2_percore;  // which element on this core is it?
-      size_t byte_dim = dim * sizeof(T);
-      size_t byte_offset = p.raw_bits() % block_size;
-
-      // convert to block-cyclic index
-      size_t core_block_index = core * block_size;       // base address of correct core
-      size_t dim_block_index = ((byte_dim + byte_offset) / block_size) * block_size; // index for base address of correct block on this core
-      size_t dim_block_offset = byte_dim % block_size;               // offset within block
-
-      p += (core_block_index + dim_block_index + dim_block_offset) / sizeof(T);
-
-      LOG(INFO) << "Dim 2 Index " << i
-                << " core " << core
-                << " dim " << dim
-                << " core_block_index " << core_block_index
-                << " dim_block_index " << dim_block_index
-                << " dim_block_offset " << dim_block_offset
-                << " base " << ga
-                << " new pointer " << p;
-
-    } else { // first dimension
-
-      size_t core = 0; // which core is this element on?
-      size_t dim = i * dim2_percore;  // which element on this core is it?
-      size_t byte_dim = dim * sizeof(T);
-      size_t byte_offset = p.raw_bits() % block_size;
-
-      // convert to block-cyclic index
-      size_t core_block_index = core * block_size;       // base address of correct core
-      size_t dim_block_index = ((byte_offset + byte_dim) / block_size) * block_size * Grappa::cores(); // index for base address of correct block on this core
-      size_t dim_block_offset = byte_dim % block_size;               // offset within block
-
-      p += (dim_block_index + dim_block_offset) / sizeof(T);
-
-      LOG(INFO) << "Dim 1 Index " << i
-                << " core " << core
-                << " dim " << dim
-                << " byte_offset " << byte_offset
-                << " core_block_index " << core_block_index
-                << " dim_block_index " << dim_block_index
-                << " dim_block_offset " << dim_block_offset
-                << " base " << ga
-                << " new pointer " << p;
-
-
-
-      //p += i * Grappa::cores() * dim2_percore;
-      // LOG(INFO) << "Dim 1 Index " << i
-      //           << " offset " << i * Grappa::cores() * dim2_percore
-      //           << " base " << ga
-      //           << " new pointer " << p;
+      p = make_linear( base_pointer + dim, base_core + core );
     }
     return ArrayDereferenceProxy<T,D2toN...>(p,dim2_percore,dim2_size);
   }
