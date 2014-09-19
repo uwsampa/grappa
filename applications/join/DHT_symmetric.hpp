@@ -55,7 +55,7 @@ class DHT_symmetric {
       return object;
     }
 
-    template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(V oldval, UV incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
+    template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
     void update( K key, UV val ) {
       uint64_t index = computeIndex( key );
       auto target = this->self;

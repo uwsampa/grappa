@@ -2,12 +2,12 @@
 
 namespace Aggregates {
   template < typename State, typename UV >
-    State SUM(State sofar, UV nextval) {
+    State SUM(const State& sofar, const UV& nextval) {
       return sofar + nextval;
     }
 
   template < typename State, typename UV >
-    State COUNT(State sofar, UV nextval) {
+    State COUNT(const State& sofar, const UV& nextval) {
       return sofar + 1;
     }
 
