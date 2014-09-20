@@ -39,7 +39,7 @@ class DHT_symmetric {
     DHT_symmetric( GlobalAddress<DHT_symmetric_T> self ) 
       : self(self)
       , partitions(Grappa::cores())
-      , local_map(new std::unordered_map<K,V>())
+      , local_map(new std::unordered_map<K,V,Hash>())
       {}
 
   public:
