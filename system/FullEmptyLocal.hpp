@@ -51,7 +51,7 @@ namespace Grappa {
       intptr_t raw_; // unnecessary; just to ensure alignment
     };
     
-  private:
+    //private:
     T t_;
     
     void block_until( State desired_state ) {
@@ -119,6 +119,37 @@ namespace Grappa {
     }
 
   };
+
+  template< typename T >
+  T writeXF( FullEmpty<T> * fe_addr, T t ) {
+    return fe_addr->writeXF(t);
+  }
+
+  template< typename T >
+  T writeEF( FullEmpty<T> * fe_addr, T t ) {
+    return fe_addr->writeEF(t);
+  }
+
+  template< typename T >
+  T writeFF( FullEmpty<T> * fe_addr, T t ) {
+    return fe_addr->writeFF(t);
+  }
+
+  template< typename T >
+  T readXX( FullEmpty<T> * fe_addr) {
+    return fe_addr->readXX();
+  }
+
+  template< typename T >
+  T readFF( FullEmpty<T> * fe_addr) {
+    return fe_addr->readFF();
+  }
+
+  template< typename T >
+  T readFE( FullEmpty<T> * fe_addr) {
+    return fe_addr->readFE();
+  }
+
   /// @}
   
 }
