@@ -25,12 +25,12 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_inserts);
 
 
 // for naming the types scoped in MatchesDHT
-#define MDHT_TYPE(type) typename MatchesDHT<K,V,HF>::type
+#define MDHT_TYPE(type) typename MatchesDHT<K,V,Hash>::type
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename V, uint64_t (*HF)(K)> 
+template <typename K, typename V, typename Hash> 
 class MatchesDHT {
 
   private:
@@ -58,8 +58,8 @@ class MatchesDHT {
     GlobalAddress< Cell > base;
     size_t capacity;
 
-    uint64_t computeIndex( K key ) {
-      return HF(key) & (capacity - 1);
+    size_t computeIndex( K key ) {
+      return Hash()(key) & (capacity - 1);
     }
 
     // for creating local MatchesDHT
@@ -94,14 +94,14 @@ class MatchesDHT {
     // for static construction
     MatchesDHT( ) {}
 
-    static void init_global_DHT( MatchesDHT<K,V,HF> * globally_valid_local_pointer, size_t capacity ) {
+    static void init_global_DHT( MatchesDHT<K,V,Hash> * globally_valid_local_pointer, size_t capacity ) {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
       GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = MatchesDHT<K,V,HF>( base, capacity_powerof2 );
+        *globally_valid_local_pointer = MatchesDHT<K,V,Hash>( base, capacity_powerof2 );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, Cell& c ) {
@@ -135,7 +135,7 @@ class MatchesDHT {
    }
 
 
-    static void set_RO_global( MatchesDHT<K,V,HF> * globally_valid_local_pointer ) {
+    static void set_RO_global( MatchesDHT<K,V,Hash> * globally_valid_local_pointer ) {
       Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = c.entries;
@@ -159,7 +159,7 @@ class MatchesDHT {
     }
 
     uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
@@ -186,7 +186,7 @@ class MatchesDHT {
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup_iter ( K key, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
@@ -220,7 +220,7 @@ class MatchesDHT {
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup ( K key, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       Grappa::delegate::call<async>( target.core(), [key, target, f]() {
@@ -239,7 +239,7 @@ class MatchesDHT {
     //
     // returns true if the set already contains the key
     void insert_unique( K key, V val ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
       Grappa::delegate::call( target.core(), [key,val,target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
@@ -277,7 +277,7 @@ class MatchesDHT {
 
     template< Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert_async( K key, V val ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       if (target.core() == Grappa::mycore()) {

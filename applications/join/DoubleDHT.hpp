@@ -15,15 +15,15 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
 // for naming the types scoped in DoubleDHT
-#define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,HF>::type
-#define _DDHT_TYPE(type) DoubleDHT<K,VL,VR,HF>::type
+#define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,Hash>::type
+#define _DDHT_TYPE(type) DoubleDHT<K,VL,VR,Hash>::type
 
 enum class Direction { LEFT, RIGHT };
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename VL, typename VR, uint64_t (*HF)(K)> 
+template <typename K, typename VL, typename VR, typename Hash> 
 class DoubleDHT {
 
   private:
@@ -54,8 +54,8 @@ class DoubleDHT {
     GlobalAddress< PairCell > base;
     size_t capacity;
 
-    uint64_t computeIndex( K key ) {
-      return HF(key) & (capacity - 1);
+    size_t computeIndex( K key ) {
+      return Hash()(key) & (capacity - 1);
     }
 
     // for creating local DoubleDHT
@@ -138,14 +138,14 @@ class DoubleDHT {
     // for static construction
     DoubleDHT( ) {}
 
-    static void init_global_DHT( DoubleDHT<K,VL,VR,HF> * globally_valid_local_pointer, size_t capacity ) {
+    static void init_global_DHT( DoubleDHT<K,VL,VR,Hash> * globally_valid_local_pointer, size_t capacity ) {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
       GlobalAddress<PairCell> base = Grappa::global_alloc<PairCell>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = DoubleDHT<K,VL,VR,HF>( base, capacity_powerof2 );
+        *globally_valid_local_pointer = DoubleDHT<K,VL,VR,Hash>( base, capacity_powerof2 );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, PairCell& c ) {
@@ -154,7 +154,7 @@ class DoubleDHT {
       });
     }
 
-    static void set_RO_global( DoubleDHT<K,VL,VR,HF> * globally_valid_local_pointer ) {
+    static void set_RO_global( DoubleDHT<K,VL,VR,Hash> * globally_valid_local_pointer ) {
           //noop
       //Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
       //});
@@ -203,7 +203,7 @@ class DoubleDHT {
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_left ( K key, VL val, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
@@ -242,7 +242,7 @@ class DoubleDHT {
 
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_right ( K key, VR val, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7

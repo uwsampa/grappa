@@ -7,6 +7,7 @@
 #include <Metrics.hpp>
 
 #include <cmath>
+#include <unordered_map>
 
 
 //GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
@@ -15,23 +16,23 @@ GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
 
 // for naming the types scoped in DHT_symmetric
-#define DHT_symmetric_TYPE(type) typename DHT_symmetric<K,V,HF>::type
-#define DHT_symmetric_T DHT_symmetric<K,V,HF>
+#define DHT_symmetric_TYPE(type) typename DHT_symmetric<K,V,Hash>::type
+#define DHT_symmetric_T DHT_symmetric<K,V,Hash>
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename V, uint64_t (*HF)(K)> 
+template <typename K, typename V, typename Hash> 
 class DHT_symmetric {
 
   private:
     // private members
     GlobalAddress< DHT_symmetric_T > self;
-    std::unordered_map<K, V> * local_map;
+    std::unordered_map<K, V, Hash > * local_map;
     size_t partitions;
 
-    uint64_t computeIndex( K key ) {
-      return HF(key) % partitions;
+    size_t computeIndex( K key ) {
+      return Hash()(key) % partitions;
     }
 
     // for creating local DHT_symmetric
@@ -57,7 +58,7 @@ class DHT_symmetric {
 
     template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
     void update( K key, UV val ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       auto target = this->self;
 
       Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
@@ -72,7 +73,7 @@ class DHT_symmetric {
 
     template< GlobalCompletionEvent * GCE, SyncMode S = SyncMode::Async >
     void insert_unique( K key, V val ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       auto target = this->self;
 
       Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
