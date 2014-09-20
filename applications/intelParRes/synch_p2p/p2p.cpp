@@ -62,52 +62,80 @@ int main( int argc, char * argv[] ) {
         // clear inner array cells
         forall( ga, [] (size_t i, size_t j, FullEmpty<double>& d) {
             if( i > 0 && j > 0 ) {
-              d.reset();
+              if( FLAGS_pattern == "blocking_reads_local_only" ) {
+                d.writeXF(0.0);
+              } else {
+                d.reset();
+              }
             }
           } );
         
         // execute kernel
-        LOG(INFO) << "Starting iteration " << iter;
+        VLOG(2) << "Starting iteration " << iter;
         double start = Grappa::walltime();
 
         if( FLAGS_pattern == "blocking_reads" ) {
           forall( ga, [] (size_t i, size_t j, FullEmpty<double>& d) {
               if( i > 0 && j > 0 ) {
-                CHECK_EQ( make_global(&d), &ga[i][j] ) << "At (" << i << "," << j << ")";
-                LOG(INFO) << "Accessing cell (" << i << "," << j << ")";
-                d.writeXF( readFF( &ga[i-1][j  ] ) +
-                           readFF( &ga[i  ][j-1] ) -
-                           readFF( &ga[i-1][j-1] ) );
-                LOG(INFO) << "Cell (" << i << "," << j << ") @ " << make_global(&d) << " == " << d.readFF();
+                writeXF( &d, ( readFF( &ga[i-1][j  ] ) +
+                               readFF( &ga[i  ][j-1] ) -
+                               readFF( &ga[i-1][j-1] ) ) );
               }
             } );
 
-        // } else if ( FLAGS_pattern == "spawns" ) {
-        //   forall( ga, [] (size_t i, size_t j, FullEmpty<double>& d) {
-        //       // once we're here, this cell (i,j) must have seen
-        //       // updates from all three neighbors.
-        //       double data = d.readFF();
+        } else if( FLAGS_pattern == "blocking_reads_local_only" ) {
+          CHECK_EQ( Grappa::cores(), 1 ) << "This only works on a single core";
+          forall( ga, [] (size_t i, size_t j, FullEmpty<double>& d) {
+              if( i > 0 && j > 0 ) {
 
-        //       if( i < FLAGS_m-1 ) {
-        //         // block until cell below us has gotten updates from its
-        //         // left and diag neighbors
-        //         double i_plus_1_data = ga[i+1][j]->readFF();
+                // good only for local iteration
+                double left = ((&d)-1)->t_;
+                double up = ((&d)-FLAGS_n)->t_;
+                double diag = (((&d)-1)-FLAGS_n)->t_;
+
+                d.t_ = left + up - diag;
+
+                // writeXF( &d, (
+                //               up + 
+                //               left -
+                //               diag
+                //               ) );
+              }
+            } );
+
+        } else if ( FLAGS_pattern == "forward" ) {
+          forall( ga, [] (size_t i, size_t j, FullEmpty<double>& d) {
+              // once we're here, this cell (i,j) must have seen
+              // updates from all three neighbors.
+              double data = readFF( &d );
+              //LOG(INFO) << "At (" << i << "," << j << ") value is " << data;
+
+              if( i < FLAGS_m-1 ) {
+                // block until cell below us has gotten updates from its
+                // left and diag neighbors
+                double i_plus_1_data = readFF( &ga[i+1][j] );
+                //LOG(INFO) << "Read " << i_plus_1_data << " from (" << i+1 << "," << j << ")";
                 
-        //         // add in our data (down neighbor). 
-        //         i_plus_1_data += data;
+                if( j > 0 ) { // leftmost column is already done.
+                  // add in our data (we're the up neighbor). 
+                  i_plus_1_data += data;
+                
+                  // fill in cell (i+1,j); it's now complete.
+                  writeXF( &ga[i+1][j], i_plus_1_data );
+                  //LOG(INFO) << "Writing " << i_plus_1_data << " to (" << i+1 << "," << j << ")";
+                }
 
-        //         // fill in cell (i+1,j); it's now complete.
-        //         ga[i+1][j]->writeFF( i_plus_1_data );
-
-        //         // now generate (combined) left and diag dependences for cell (i+1,j+1).
-        //         if( j < FLAGS_n-1 ) {
-        //           call<async>( &ga[i+1][j+1], [=] (FullEmpty<double>& dd) {
-        //               dd.writeXF( i_plus_1_data - data );  // now cell waits for down dependence.
-        //           } );
-        //         }
-        //       }
-        //     } );
-
+                // now generate (combined) left and diag dependences for cell (i+1,j+1).
+                if( j < FLAGS_n-1 ) {
+                  auto combined_value = i_plus_1_data - data;
+                  //LOG(INFO) << "Sending " << combined_value << " to (" << i+1 << "," << j+1 << ")";
+                  delegate::call<async>( &ga[i+1][j+1], [combined_value] (FullEmpty<double>& dd) {
+                      writeXF( &dd, combined_value );  // now cell waits for down dependence.
+                    } );
+                }
+              }
+            } );
+          
         } else {
           LOG(FATAL) << "unknown kernel pattern " << FLAGS_pattern << "!";
         }
@@ -121,37 +149,34 @@ int main( int argc, char * argv[] ) {
         }
         
         on_all_cores( [] {
-            LOG(INFO) << "done with this iteration";
+            VLOG(2) << "done with this iteration";
           } );
 
         // copy top right corner value to bottom left corner to create dependency
-        LOG(INFO) << "Adding end-to-end dependence for iteration " << iter;
+        VLOG(2) << "Adding end-to-end dependence for iteration " << iter;
         //writeXF( &ga[0][0], -1.0 * readFF( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] ) );
         size_t last_m = FLAGS_m-1;
         size_t last_n = FLAGS_n-1;
-        auto a = &ga[ FLAGS_m-1 ][ FLAGS_n-1 ];
-          //double val = readFF( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] );
+        //auto a = &ga[ FLAGS_m-1 ][ FLAGS_n-1 ];
+        double val = readFF( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] );
         //double val = readFF( &ga[ 1 ][ 9 ] );
-          double val = readFF( a );
+          //double val = readFF( a );
         writeXF( &ga[0][0], -1.0 * val );
-        LOG(INFO) << "Done with iteration " << iter;
+        VLOG(2) << "Done with iteration " << iter;
       }
       
-      // verify result
-      LOG(INFO) << "Verify";
-      double expected_corner_val = (double) FLAGS_iterations * ( FLAGS_m + FLAGS_n - 2 );
-      //double actual_corner_val = readFF( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] );
-      //double actual_corner_val = readFF( &ga[ 1 ][ 9 ] );
-      auto aa = &ga[ 1 ][ 9 ];
-      double actual_corner_val = readFF( aa );
-      CHECK_DOUBLE_EQ( actual_corner_val, expected_corner_val );
-
       avgtime /= (double) std::max( FLAGS_iterations, static_cast<google::uint64>(1) );
       LOG(INFO) << "Rate (MFlops/s): " << 1.0E-06 * 2 * ((double)(FLAGS_m-1)*(FLAGS_n-1)) / mintime
                 << ", Avg time (s): " << avgtime
                 << ", Min time (s): " << mintime
                 << ", Max time (s): " << maxtime;
       
+      // verify result
+      VLOG(2) << "Verifying result";
+      double expected_corner_val = (double) FLAGS_iterations * ( FLAGS_m + FLAGS_n - 2 );
+      double actual_corner_val = readFF( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] );
+      CHECK_DOUBLE_EQ( actual_corner_val, expected_corner_val );
+
       ga.deallocate( );
       
       LOG(INFO) << "Done.";

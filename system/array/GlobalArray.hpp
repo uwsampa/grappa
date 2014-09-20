@@ -176,7 +176,7 @@ public:
         dim2_percore = n_percore;
         base = b;
         local_chunk = b.localize();
-        LOG(INFO) << "base is " << local_chunk;
+        VLOG(2) << "base is " << local_chunk;
       } );
   }
 
@@ -185,9 +185,11 @@ public:
     if( local_chunk ) local_chunk = NULL;
   }
 
-  template< typename F >
+    template< typename F, GlobalCompletionEvent * GCE = &impl::local_gce>
   void forall( F body ) {
-    on_all_cores( [this,body] {
+    Core origin = mycore();
+    if (GCE) GCE->enroll(Grappa::cores());
+    on_all_cores( [this,body,origin] {
         T * elem = local_chunk;
         size_t first_j = dim2_percore * mycore();
         for( size_t i = 0; i < dim1_size; ++i ) {
@@ -197,8 +199,10 @@ public:
             elem++;
           }
         }
+        if (GCE) complete(make_global(GCE,origin));
       } );
-  }
+    if (GCE) GCE->wait();
+    }
     
 };
 
