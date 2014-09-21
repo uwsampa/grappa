@@ -144,7 +144,7 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   std::string data_path = FLAGS_relations+"/"+fn;
   size_t file_size = fs::file_size( data_path );
   size_t ntuples = file_size / row_size_bytes;
-  CHECK( ntuples * row_size_bytes == file_size ) << "File is ill-formatted; perhaps not all rows have same columns?";
+  CHECK( ntuples * row_size_bytes == file_size ) << "File " << data_path << " is ill-formatted; perhaps not all rows have same columns? file size = " << file_size << " row_size_bytes = " << row_size_bytes;
   VLOG(1) << fn << " has " << ntuples << " rows";
   
   auto tuples = Grappa::global_alloc<T>(ntuples);
@@ -261,6 +261,8 @@ int64_t toInt(std::string& s) {
 double toDouble(std::string& s) {
   return std::stod(s);
 }
+
+
 #include <boost/tokenizer.hpp>
 template< typename N=int64_t, typename Parser=decltype(toInt) >
 void convert2bin( std::string fn, Parser parser=&toInt, char * separators=" ", uint64_t burn=0 ) {
@@ -336,22 +338,11 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
     for (int ignore=s; ignore<s+n; ignore++) {
       CHECK( testfile.good() );
       std::getline( testfile, line );
+      if(line.length()==0) break; //takes care of EOF
 
-      std::vector<int64_t> readFields;
-      
-      // TODO: compiler should use catalog to statically insert num fields
-      std::stringstream ss(line);
-      while (true) {
-        std::string buf;
-        ss >> buf; 
-        if (buf.compare("") == 0) break;
+      std::istringstream iss(line);
+      auto val = T::fromIStream(iss);
 
-        auto f = std::stoi(buf);
-        readFields.push_back(f);
-      }
-
-      T val( readFields, false, false );
-      
       VLOG(5) << val;
 
       // write edge to location
