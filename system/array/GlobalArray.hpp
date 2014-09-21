@@ -40,26 +40,26 @@
 namespace Grappa {
 
 // forward declaration for global array
-template< typename T, typename... D1toN  >
+template< typename T, typename INDEX, typename... D1toN  >
 class GlobalArray;
 
 
 namespace impl {
 
 // forward declaration for GlobalArray element proxy object
-template< typename T, typename... D1toN >
+template< typename T, typename INDEX, typename... D1toN >
 class ArrayDereferenceProxy;
 
 // GlobalArray element proxy object base case. This overloads the &
 // and cast operators to allow use as a value.
-template< typename T >
-class ArrayDereferenceProxy<T> {
+template< typename T, typename INDEX >
+class ArrayDereferenceProxy<T,INDEX> {
 protected:
   GlobalAddress<T> ga;
 
 public:
   ArrayDereferenceProxy( ): ga() { }
-  ArrayDereferenceProxy(GlobalAddress<T> base, size_t percore, size_t size)
+  ArrayDereferenceProxy(GlobalAddress<T> base, INDEX percore, INDEX size)
     : ga(base)
   { }
 
@@ -76,34 +76,34 @@ public:
 
 // GlobalArray element proxy object recursive case. This overloads the &
 // and cast operators to allow use as a value.
-template< typename T, typename D1, typename... D2toN >
-class ArrayDereferenceProxy<T,D1,D2toN...> {
+template< typename T, typename INDEX, typename D1, typename... D2toN >
+class ArrayDereferenceProxy<T,INDEX,D1,D2toN...> {
 protected:
   GlobalAddress<T> ga;
-  size_t dim2_percore;
-  size_t dim2_size;
+  INDEX dim2_percore;
+  INDEX dim2_size;
   
 public:
   ArrayDereferenceProxy( ): ga(), dim2_percore(), dim2_size() { }
-  ArrayDereferenceProxy(GlobalAddress<T> base, size_t percore, size_t size)
+  ArrayDereferenceProxy(GlobalAddress<T> base, INDEX percore, INDEX size)
     : ga(base)
     , dim2_percore(percore)
     , dim2_size(size)
   { }
 
-  ArrayDereferenceProxy<T,D2toN...> operator[]( size_t i ) {
+  ArrayDereferenceProxy<T,INDEX,D2toN...> operator[]( INDEX i ) {
     auto p = ga;
     auto base_pointer = ga.pointer();
     auto base_core = ga.core();
     if( sizeof...(D2toN) != 0 ) { // first dimension
-      size_t dim = i * dim2_percore;  // which element on this core is it?
+      INDEX dim = i * dim2_percore;  // which element on this core is it?
       p = make_linear( base_pointer + dim, base_core );
     } else { // second dimension
-      size_t core = i / dim2_percore; // which core is this element on?
-      size_t dim = i % dim2_percore;  // which element on this core is it?
+      INDEX core = i / dim2_percore; // which core is this element on?
+      INDEX dim = i % dim2_percore;  // which element on this core is it?
       p = make_linear( base_pointer + dim, base_core + core );
     }
-    return ArrayDereferenceProxy<T,D2toN...>(p,dim2_percore,dim2_size);
+    return ArrayDereferenceProxy<T,INDEX,D2toN...>(p,dim2_percore,dim2_size);
   }
 };
 
@@ -113,7 +113,7 @@ public:
 
 
 // placeholder for more general global array
-template< typename T, typename... D1toN  >
+template< typename T, typename INDEX, typename... D1toN  >
 class GlobalArray {
   static_assert(impl::templateStaticAssertFalse<T>(),
                 "GlobalArray with these parameters not supported yet.");
@@ -123,36 +123,37 @@ class GlobalArray {
 
 
 // specialization of global 2D array block-distributed in first dimension
-template< typename T >
-class GlobalArray< T, Distribution::Local, Distribution::Block > 
-  : public ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block > {
+template< typename T, typename INDEX >
+class GlobalArray< T, INDEX, Distribution::Local, Distribution::Block > 
+  : public ArrayDereferenceProxy< T, INDEX, Distribution::Local, Distribution::Block > {
 private:
   GlobalAddress<char> block;
   GlobalAddress<T> & base;
-  size_t & dim2_percore;
-  size_t & dim2_size;
+
+public:
 
   T * local_chunk;
-  size_t dim1_size;
 
-  size_t dim1_max;
+  INDEX & dim2_percore;
+  INDEX & dim2_size;
+
+  INDEX dim1_size;
 
 public:
   typedef T Type;
   
   GlobalArray()
     : block()
-    , base(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::ga)
-    , dim2_percore(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::dim2_percore)
-    , dim2_size(ArrayDereferenceProxy< T, Distribution::Local, Distribution::Block >::dim2_size)
+    , base(ArrayDereferenceProxy< T, INDEX, Distribution::Local, Distribution::Block >::ga)
     , local_chunk(NULL)
+    , dim2_percore(ArrayDereferenceProxy< T, INDEX, Distribution::Local, Distribution::Block >::dim2_percore)
+    , dim2_size(ArrayDereferenceProxy< T, INDEX, Distribution::Local, Distribution::Block >::dim2_size)
     , dim1_size(0)
-    , dim1_max(0)
   { }
   
-  void allocate( size_t m, size_t n ) {
-    size_t cores = Grappa::cores();
-    size_t n_percore = n / cores + ((n % cores) != 0);
+  void allocate( INDEX m, INDEX n ) {
+    INDEX cores = Grappa::cores();
+    INDEX n_percore = n / cores + ((n % cores) != 0);
 
     // TODO: once we've fixed messaging, replace this with better symmetric allocation.
     // allocate one extra block per core so we can have a consistent base address
@@ -183,7 +184,7 @@ public:
   void deallocate( ) {
     if( block ) global_free( block );
     if( local_chunk ) local_chunk = NULL;
-  }
+   }
 
     template< typename F, GlobalCompletionEvent * GCE = &impl::local_gce>
   void forall( F body ) {
@@ -191,10 +192,10 @@ public:
     if (GCE) GCE->enroll(Grappa::cores());
     on_all_cores( [this,body,origin] {
         T * elem = local_chunk;
-        size_t first_j = dim2_percore * mycore();
-        for( size_t i = 0; i < dim1_size; ++i ) {
+        INDEX first_j = dim2_percore * mycore();
+        for( INDEX i = 0; i < dim1_size; ++i ) {
           elem = local_chunk + i * dim2_percore;
-          for( size_t j = first_j; (j < first_j + dim2_percore) && (j < dim2_size); ++j ) {
+          for( INDEX j = first_j; (j < first_j + dim2_percore) && (j < dim2_size); ++j ) {
             body(i, j, *elem );
             elem++;
           }
@@ -209,16 +210,16 @@ public:
 /// Parallel iteration over GlobalArray
 template< GlobalCompletionEvent * C = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-          typename T, typename D1, typename... D2toN,
+          typename T, typename INDEX, typename D1, typename... D2toN,
           typename F = nullptr_t >
-void forall(GlobalAddress<GlobalArray<T,D1,D2toN...>> arr, F loop_body) {
+void forall(GlobalAddress<GlobalArray<T,INDEX,D1,D2toN...>> arr, F loop_body) {
   arr->forall( loop_body );
 }
 template< GlobalCompletionEvent * C = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-          typename T, typename D1, typename... D2toN,
+          typename T, typename INDEX, typename D1, typename... D2toN,
           typename F = nullptr_t >
-void forall(GlobalArray<T,D1,D2toN...>& arr, F loop_body) {
+void forall(GlobalArray<T,INDEX,D1,D2toN...>& arr, F loop_body) {
   arr.forall( loop_body );
 }
 
