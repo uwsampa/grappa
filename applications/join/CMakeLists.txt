@@ -23,11 +23,14 @@ set(QUERYLIB_SOURCES
   stats.cpp
   MapReduce.cpp
   MapReduce.hpp
-  HashJoin.hpp
-  HashJoin.cpp
   Aggregates.hpp
   DHT_symmetric.hpp
 )
+#FIXME: these MapReduce Hash joins belong in the above sources
+  #HashJoin.hpp
+  #HashJoin.cpp
+
+  
 set(QUERYIO_SOURCES
   relation_io.hpp
   relation_io.cpp
