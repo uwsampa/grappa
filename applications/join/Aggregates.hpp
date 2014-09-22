@@ -11,7 +11,8 @@ namespace Aggregates {
       return sofar + 1;
     }
 
-  int64_t Zero() {
+  template <typename N>
+  N Zero() {
     return 0;
   }
 }
