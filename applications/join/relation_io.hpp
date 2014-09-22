@@ -230,14 +230,11 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
     VLOG(5) << "writing";
 
     for (auto it = vec->begin(); it < vec->end(); it++) {
-      for (int j = 0; j < it->numFields(); j++) {
-	int64_t val = it->get(j);
-	data_file.write((char*)&val, sizeof(val));
-      }
+      it->toOStream(data_file);
     }
 
     data_file.close();
-    });
+  });
 }
 
 void writeSchema(std::string names, std::string types, std::string fn ) {
@@ -336,7 +333,7 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
   Grappa::forall_here<&Grappa::impl::local_gce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
     std::string line;
     for (int ignore=s; ignore<s+n; ignore++) {
-      CHECK( testfile.good() );
+      CHECK( testfile.good() ) << "index=" << ignore << " start=" << s;
       std::getline( testfile, line );
       if(line.length()==0) break; //takes care of EOF
 
