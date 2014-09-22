@@ -237,7 +237,7 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   });
 }
 
-void writeSchema(std::string names, std::string types, std::string fn ) {
+void writeSchema(std::string scheme, std::string fn ) {
   std::string data_path = FLAGS_relations+"/"+fn;
   
   CHECK( data_path.size() <= 2040 );
@@ -248,7 +248,7 @@ void writeSchema(std::string names, std::string types, std::string fn ) {
   CHECK( data_file.is_open() ) << data_path_char << " failed to open";
   VLOG(5) << "writing";
 
-  data_file << names << "\n" << types << std::endl;
+  data_file << scheme << std::endl;
   data_file.close();
 }
   
