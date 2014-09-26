@@ -37,6 +37,7 @@
 #include <functional>
 #include <string>
 #include <cstdio>
+#include <sstream>
 
 
 namespace Grappa {
@@ -115,10 +116,10 @@ namespace Grappa {
       // (note: must do `reg_new`=false so we don't re-register this stat)
       StringMetric x(name, std::string(value_), false);
 #if DEBUG
-      if (VLOG_IS_ON(2)) {
-        this->json(LOG(INFO) << "cloned is ");
-        x.json(LOG(INFO) << "cloned is ");
-      }
+      std::ostringstream o;
+      this->json(o << "cloned is ");
+      x.json(o << "clone is ");
+      VLOG(4) << o.str();
 #endif
       return new StringMetric(name, std::string(value_), false);
     }
