@@ -52,6 +52,8 @@ else
   
   [ "$GRAPPA_ALLOW_RUN_AS_ROOT" = "1" ] && mpi_flags+="--allow-run-as-root"
   
+  mpi_exports=`perl -ne'/^\s*export\s+(\w+)=.*$/ && print "-x $1 "' <$ROOT/util/env.sh`
+  
   ###################################
   # Flags determined by MPI version
   ###################################
@@ -62,16 +64,16 @@ else
   
     # OpenMPI v1.8
     mpirun*1.8*)
-      cmd="mpirun --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags -- $FLAGS_extra"
+      cmd="mpirun --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
     
     # OpenMPI v < 1.8
     mpirun*1.*)
-      cmd="mpirun --n $totaln --npernode $FLAGS_ppn $mpi_flags -- $FLAGS_extra"
+      cmd="mpirun --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
   
     *)
-      echo "Unsupported version."
+      echo "Unsupported MPI version: $mpi_version."
       exit 1
   esac
 fi
@@ -79,6 +81,7 @@ fi
 # if verbose, echo command to be executed
 $FLAGS_verbose && echo "# $cmd"
 
-# setup environment variables
+# set environment variables in local environment
 source "$ROOT/util/env.sh"
+
 exec $cmd
