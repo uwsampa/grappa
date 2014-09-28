@@ -6,7 +6,9 @@ include(ExternalProject)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
-set(SHMMAX 0 CACHE STRING "Size of SysV shared memory")
+set(SHMMAX "" CACHE STRING "Size of SysV shared memory")
+set(THIRD_PARTY_ROOT "" CACHE STRING "Directory to look for/install third-party stuff to.")
+
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
