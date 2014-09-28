@@ -85,6 +85,9 @@ include_directories(${INCLUDE_DIRS})
 add_library(querylib STATIC EXCLUDE_FROM_ALL ${QUERYLIB_SOURCES})
 add_library(queryio STATIC EXCLUDE_FROM_ALL ${QUERYIO_SOURCES})
 
+add_dependencies(queryio all-third-party)
+add_dependencies(querylib all-third-party)
+
 # exe targets for standalone query codes
 foreach(query ${QUERIES_IND})
   get_filename_component(query_name ${query}, NAME_WE)
