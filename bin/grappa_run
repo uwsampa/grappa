@@ -22,7 +22,7 @@ define_bool_flag 'verbose' "Verbose mode (prints info about job run. Not to be c
 define_flag 'time' '15:00' '[Slurm only] Job time to pass to srun' 't'
 define_flag 'partition' '' '[Slurm only] Partition to run on. Can also be set by the SLURM_PARTITION environment variable'
 define_flag 'account' '' '[Slurm only] Account to use. Can also be set by the SLURM_ACCOUNT environment variable'
-define_bool_flag 'mpirun' "Use mpirun even if 'srun' is present."
+define_bool_flag 'mpi' "Use mpiexec even if 'srun' is present."
 
 parse_flags $@
 ################
@@ -57,21 +57,22 @@ else
   ###################################
   # Flags determined by MPI version
   ###################################
-  mpi_version=$(mpirun $mpi_flags --version 2>&1 | head -n 1)
+  
+  mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 1)
   $FLAGS_verbose && echo "# $mpi_version"
-  
+
   case $mpi_version in
-  
+
     # OpenMPI v1.8
-    mpirun*1.8*)
-      cmd="mpirun --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
+    mpiexec*1.8*)
+      cmd="mpiexec --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
-    
+
     # OpenMPI v < 1.8
-    mpirun*1.*)
-      cmd="mpirun --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
+    mpiexec*1.*)
+      cmd="mpiexec --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
-  
+
     *)
       echo "Unsupported MPI version: $mpi_version."
       exit 1
