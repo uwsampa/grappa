@@ -149,7 +149,7 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   
   auto tuples = Grappa::global_alloc<T>(ntuples);
   
-  size_t offset_counter;
+  size_t offset_counter = 0;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
   // we will broadcast the file name as bytes
