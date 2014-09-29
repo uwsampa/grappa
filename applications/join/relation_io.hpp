@@ -219,22 +219,29 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   CHECK( data_path.size() <= 2040 );
   char data_path_char[2048];
   sprintf(data_path_char, "%s", data_path.c_str());
+    
+  std::ofstream for_trunc(data_path_char, std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
+  //no writes
+  for_trunc.close();
 
-  on_all_cores( [=] {
-    VLOG(5) << "opening addr next";
-    VLOG(5) << "opening addr " << &data_path_char; 
-    VLOG(5) << "opening " << data_path_char; 
+  // sequentiall open for append and write
+  for (int i=0; i<Grappa::cores(); i++) {
+    int ignore = delegate::call(i, [=] {
+        VLOG(5) << "opening addr next";
+        VLOG(5) << "opening addr " << &data_path_char; 
+        VLOG(5) << "opening " << data_path_char; 
+        std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+        CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+        VLOG(4) << "writing";
 
-    std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
-    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
-    VLOG(5) << "writing";
+        for (auto it = vec->begin(); it < vec->end(); it++) {
+        it->toOStream(data_file);
+        }
 
-    for (auto it = vec->begin(); it < vec->end(); it++) {
-      it->toOStream(data_file);
-    }
-
-    data_file.close();
-  });
+        data_file.close();
+        return 1;
+        });
+  }
 }
 
 void writeSchema(std::string scheme, std::string fn ) {
