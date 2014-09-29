@@ -275,8 +275,8 @@ class MatchesDHT {
      });
     }
 
-
-    void insert( K key, V val ) {
+    template< Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    void insert_async( K key, V val ) {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
@@ -285,7 +285,7 @@ class MatchesDHT {
       } else {
         hash_remote_inserts++;
       }
-      Grappa::delegate::call( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
         hash_called_inserts++;
 
         // list of entries in this cell
@@ -305,7 +305,7 @@ class MatchesDHT {
             // key found so add to matches
             e.vs->push_back( val );
             hash_tables_size+=1;
-            return 0;
+            return;
           }
         }
 
@@ -315,7 +315,7 @@ class MatchesDHT {
         newe.vs->push_back( val );
         entries->push_back( newe );
 
-        return 0; 
+        return; 
       });
     }
 

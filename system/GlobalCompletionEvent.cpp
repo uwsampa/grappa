@@ -23,6 +23,8 @@
 
 #include "GlobalCompletionEvent.hpp"
 
+using namespace Grappa;
+
 DEFINE_bool(flatten_completions, true, "Flatten GlobalCompletionEvents.");
 
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, gce_total_remote_completions, 0);
@@ -32,5 +34,20 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ce_remote_completions, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, ce_completions, 0);
 
 GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, gce_incomplete, []{
-  return Grappa::impl::local_gce.incomplete();
+  return impl::local_gce.incomplete();
+});
+
+std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::user_tracked_gces;
+
+std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::get_user_tracked() {
+  // returns a copy of the vector to preserve integrity
+  return GlobalCompletionEvent::user_tracked_gces;
+}
+
+GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, gce_user_incomplete, []{
+  int64_t sum = 0;
+  for (auto g : GlobalCompletionEvent::get_user_tracked()) {
+    sum += g->incomplete();
+  }
+  return sum;
 });
