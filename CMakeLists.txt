@@ -230,7 +230,7 @@ macro(add_grappa_test name nnode ppn)
   math(EXPR n "${nnode}*${ppn}")
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} -- ${base}.test
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} --verbose -- ${base}.test
     DEPENDS Grappa ${name}
   )
   
