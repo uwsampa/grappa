@@ -150,7 +150,7 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   
   auto tuples = Grappa::global_alloc<T>(ntuples);
   
-  size_t offset_counter;
+  size_t offset_counter = 0;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
   // we will broadcast the file name as bytes
@@ -254,7 +254,7 @@ void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   char data_path_char[2048];
   sprintf(data_path_char, "%s", data_path.c_str());
 
-  size_t offset_counter;
+  size_t offset_counter = 0;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
   // removes the file if it already exists
