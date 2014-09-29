@@ -57,7 +57,7 @@ else
   ###################################
   # Flags determined by MPI version
   ###################################
-  mpi_version=$(mpirun $mpi_flags --version | head -n 1)
+  mpi_version=$(mpirun $mpi_flags --version 2>&1 | head -n 1)
   $FLAGS_verbose && echo "# $mpi_version"
   
   case $mpi_version in
