@@ -7,8 +7,6 @@ option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
 set(SHMMAX "" CACHE STRING "Size of SysV shared memory")
-set(THIRD_PARTY_ROOT "" CACHE STRING "Directory to look for/install third-party stuff to.")
-
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -55,8 +53,10 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 #########################################
 # Determine third party tools to build
-if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE TYPE PATH)
+if(NOT THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE PATH)
+else()
+  set(THIRD_PARTY_ROOT "${THIRD_PARTY_ROOT}" CACHE PATH "Directory to look for/install third-party stuff to.")
 endif()
 
 ###########################
