@@ -233,12 +233,20 @@ macro(add_grappa_test name nnode ppn)
     COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} -- ${base}.test
     DEPENDS Grappa ${name}
   )
-  add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} -- ${base}.test
-  )
   
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
   list(APPEND GRAPPA_TESTS "check-${base}")
+  
+  # Add test target with dependent build command
+  set(target "test-${name}")
+  add_test(
+    NAME ${target}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_run" -n1 -p${n} -- ${name}
+  )
+  add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${name})
+  set_tests_properties(${target} PROPERTIES DEPENDS ${target}.build)
+  
 endmacro(add_grappa_test)
 
 ####################
