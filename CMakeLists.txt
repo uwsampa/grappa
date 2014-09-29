@@ -53,10 +53,11 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 #########################################
 # Determine third party tools to build
+set(third_party_docstring "Directory to look for/install third-party stuff to.")
 if(NOT THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE PATH)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE PATH "${third_party_docstring}")
 else()
-  set(THIRD_PARTY_ROOT "${THIRD_PARTY_ROOT}" CACHE PATH "Directory to look for/install third-party stuff to.")
+  set(THIRD_PARTY_ROOT "${THIRD_PARTY_ROOT}" CACHE PATH "${third_party_docstring}")
 endif()
 
 ###########################
