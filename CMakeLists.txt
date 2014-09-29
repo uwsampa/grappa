@@ -227,13 +227,14 @@ macro(add_grappa_test name nnode ppn)
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )
   
+  math(EXPR n "${nnode}*${ppn}")
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} -- ${base}.test
     DEPENDS Grappa ${name}
   )
   add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} -- ${base}.test
   )
   
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
