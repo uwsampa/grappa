@@ -58,7 +58,7 @@ else
   # Flags determined by MPI version
   ###################################
   
-  mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 1)
+  mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 2)
   $FLAGS_verbose && echo "# $mpi_version"
 
   case $mpi_version in
@@ -72,7 +72,12 @@ else
     mpiexec*1.*)
       cmd="mpiexec --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
-
+    
+    # MPICH
+    HYDRA*)
+      cmd="mpiexec --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
+      ;;
+    
     *)
       echo "Unsupported MPI version: $mpi_version."
       exit 1
