@@ -58,6 +58,8 @@ else
   # Flags determined by MPI version
   ###################################
   
+  mpiexe=${MPIEXEC:-mpiexec}
+  
   mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 2)
   $FLAGS_verbose && echo "# $mpi_version"
 
@@ -65,17 +67,17 @@ else
 
     # OpenMPI v1.8
     mpiexec*1.8*)
-      cmd="mpiexec --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
+      cmd="$mpiexe --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
 
     # OpenMPI v < 1.8
     mpiexec*1.*)
-      cmd="mpiexec --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
+      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
     
     # MPICH
     HYDRA*)
-      cmd="mpiexec --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
+      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
       ;;
     
     *)
