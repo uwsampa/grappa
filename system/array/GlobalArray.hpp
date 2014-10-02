@@ -186,7 +186,7 @@ public:
     if( local_chunk ) local_chunk = NULL;
    }
 
-    template< typename F, GlobalCompletionEvent * GCE = &impl::local_gce>
+  template< typename F, GlobalCompletionEvent * GCE = &impl::local_gce>
   void forall( F body ) {
     Core origin = mycore();
     if (GCE) GCE->enroll(Grappa::cores());
@@ -200,6 +200,25 @@ public:
             elem++;
           }
         }
+        if (GCE) complete(make_global(GCE,origin));
+      } );
+    if (GCE) GCE->wait();
+    }
+    
+  template< typename F, GlobalCompletionEvent * GCE = &impl::local_gce>
+  void forallx( F body ) {
+    Core origin = mycore();
+    if (GCE) GCE->enroll(Grappa::cores());
+    on_all_cores( [this,body,origin] {
+        T * base = local_chunk;
+        INDEX first_j = dim2_percore * mycore();
+        forall_here<async,GCE,1>( 0, dim1_size, [this,first_j,body] (int64_t start, int64_t iters) {
+            T * elem = local_chunk + start * dim2_percore;
+            for( INDEX j = first_j; (j < first_j + dim2_percore) && (j < dim2_size); ++j ) {
+              body(start, j, *elem );
+              elem++;
+            }
+          } );
         if (GCE) complete(make_global(GCE,origin));
       } );
     if (GCE) GCE->wait();
