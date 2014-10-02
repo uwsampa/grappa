@@ -23,7 +23,7 @@ before_install:
   # - sudo dpkg -i mpich_3.1-1ubuntu_amd64.deb || true
   # - sudo apt-get -f install -y
 script:
-  - "./configure && cd build/Make+Release && make -j1 VERBOSE=1 check-all-pass"
+  - "./configure && cd build/Make+Release && make -j1 VERBOSE=1 check-all-pass-compile-only"
 branches:
   only:
     - master
