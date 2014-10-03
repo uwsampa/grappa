@@ -77,9 +77,9 @@ int main( int argc, char * argv[] ) {
         if( FLAGS_pattern == "blocking_reads" ) {
           forall( ga, [] (int i, int j, FullEmpty<double>& d) {
               if( i > 0 && j > 0 ) {
-                writeXF( &d, ( readFF( &ga[i-1][j  ] ) +
-                               readFF( &ga[i  ][j-1] ) -
-                               readFF( &ga[i-1][j-1] ) ) );
+                writeXF( &d, ( future::readFF( &ga[i-1][j  ] ) +
+                               future::readFF( &ga[i  ][j-1] ) -
+                               future::readFF( &ga[i-1][j-1] ) ) );
               }
             } );
 
