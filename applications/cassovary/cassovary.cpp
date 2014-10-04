@@ -76,7 +76,9 @@ struct RandomWalk {
     auto& v = *(g->vs+start).pointer()
     
     for (int i=0; i<FLAGS_num_steps/FLAGS_max_depth; i++) {
-      visit(random_index(v.nadj), walker, 1);
+      delegate::call<async,nullptr>(g->vs+target, [=](Vertex& v){
+        visit(random_index(v.nadj), walker, 1);
+      });
     }
     
     c.wait();
@@ -85,20 +87,21 @@ struct RandomWalk {
   // TODO: thread visited verts through this. I'm imagining sending around a list of nodes that have been visited (having it grow as we go, so the first one only sends one VertexID, etc). To do this, we need some easier way to send variable-sized things in delegates.
   static void visit(VertexID target, VisitedMap& visits, 
                     GlobalAddress<RandomWalk> walker, int depth) {
-    delegate::call<async,nullptr>(g->vs+target, [=](Vertex& v){
-      if (random_float() < FLAGS_reset_probability ||
-          depth == FLAGS_max_depth) {
-        // go home
-        delegate::call<async,nullptr>(walker, [=](RandomWalk& w){
-          // merge accumulated visits with what's there
-          for (VertexID& v : visits) w.visits[v]++;
-          w.c.complete(1);
-        });
-      } else {
-        // visit random
-        visit(random_index(v.nadj), walker, depth+1);
-      }
-    });
+    if (random_float() < FLAGS_reset_probability ||
+        depth == FLAGS_max_depth) {
+      // go home
+      delegate::call<async,nullptr>(walker, [=](RandomWalk& w){
+        // merge accumulated visits with what's there
+        for (VertexID& v : visits) w.visits[v]++;
+        w.c.complete(1);
+      });
+    } else {
+      // visit random
+      auto idx = random_index(v.nadj);
+      send_message(g->vs+idx, [=]{
+        visit(idx, walker, depth+1);
+      });
+    }
   }
   
 };
