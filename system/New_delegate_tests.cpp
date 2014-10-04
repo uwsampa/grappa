@@ -274,7 +274,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     auto r = delegate::call(xa, [](int& x){ BOOST_CHECK_EQUAL(x, 0); x = 1; return true; });
     BOOST_CHECK(r);
     
-    auto r2 = on(xa) >> [](int& x){ BOOST_CHECK_EQUAL(x, 0); x = 1; return true; };
+    auto r2 = on(xa) >> [](int& x){ BOOST_CHECK_EQUAL(x, 1); x = 1; return true; };
     BOOST_CHECK(r2);
     
     delegate::call(xa, [](int* x){ BOOST_CHECK_EQUAL(*x, 1); *x = 2; });
@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         });
       }
     });
-        
+    
     Grappa::Metrics::stop_tracing();
     Grappa::Metrics::merge_and_dump_to_file();
   });

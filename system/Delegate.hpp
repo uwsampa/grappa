@@ -456,13 +456,17 @@ namespace Grappa {
   }
   
   
-  template< class T >
+  template< SyncMode S = SyncMode::Blocking,
+            GlobalCompletionEvent * C = &impl::local_gce,
+            class T = nullptr_t >
   struct DelegateOn {
     GlobalAddress<T> a;
     DelegateOn(GlobalAddress<T> a): a(a) {}
     
     template< typename F >
-    auto operator>>(F f) -> AUTO_INVOKE( delegate::call(a,f) );
+    auto operator>>(F f) -> decltype(delegate::call<S,C>(a,f)) {
+      return delegate::call<S,C>(a,f);
+    }
   };
   
   /// Alternate 'on' syntax for delegates:
@@ -473,11 +477,12 @@ namespace Grappa {
   /// // is equivalent to:
   /// delegate::call(xa, [](T& x){ /* do something */ });
   /// ~~~
-  template< class T >
-  DelegateOn<T> on(GlobalAddress<T> a) { return DelegateOn<T>(a); }
+  template< SyncMode S = SyncMode::Blocking,
+            GlobalCompletionEvent * C = &impl::local_gce,
+            class T = nullptr_t >
+  DelegateOn<S,C,T> on(GlobalAddress<T> a) { return DelegateOn<S,C,T>(a); }
   
 } // namespace Grappa
 /// @}
 
 #undef AUTO_INVOKE
-
