@@ -134,9 +134,7 @@ namespace Grappa {
               typename F = decltype(nullptr) >
     inline auto call(GlobalAddress<T> t, F func) ->
       AUTO_INVOKE((impl::call<S,C>(t,func,&F::operator())));
-    
-#undef AUTO_INVOKE
-    
+        
     /// Try lock on remote mutex. Does \b not lock or unlock, creates a SuspendedDelegate if lock has already
     /// been taken, which is triggered on unlocking of the Mutex.
     template< typename M, typename F >
@@ -456,8 +454,30 @@ namespace Grappa {
   void spawnRemote(Core dest, F f) {
     spawnRemote<B, C, F>( dest, f );
   }
+  
+  
+  template< class T >
+  struct DelegateOn {
+    GlobalAddress<T> a;
+    DelegateOn(GlobalAddress<T> a): a(a) {}
     
+    template< typename F >
+    auto operator>>(F f) -> AUTO_INVOKE( delegate::call(a,f) );
+  };
+  
+  /// Alternate 'on' syntax for delegates:
+  ///
+  /// ~~~
+  /// GlobalAddress<T> xa;
+  /// on(xa) >> [](T& x){ /* do something */ };
+  /// // is equivalent to:
+  /// delegate::call(xa, [](T& x){ /* do something */ });
+  /// ~~~
+  template< class T >
+  DelegateOn<T> on(GlobalAddress<T> a) { return DelegateOn<T>(a); }
+  
 } // namespace Grappa
 /// @}
 
+#undef AUTO_INVOKE
 

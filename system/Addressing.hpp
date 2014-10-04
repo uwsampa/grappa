@@ -49,12 +49,10 @@ typedef int Pool;
 
 /// this core's base pointer
 namespace Grappa {
-namespace impl {
-extern void * global_memory_chunk_base;
+  namespace impl {
+    extern void * global_memory_chunk_base;
+  }
 }
-}
-
-
 
 /// assumes user data will have the top 16 bits all 0.
 
@@ -377,7 +375,7 @@ public:
     void * u = reinterpret_cast< void * >( storage_ );
     return u;
   }
-
+  
 };
 
 
