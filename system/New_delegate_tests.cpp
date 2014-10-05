@@ -277,6 +277,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     auto r2 = on(xa) >> [](int& x){ BOOST_CHECK_EQUAL(x, 1); x = 1; return true; };
     BOOST_CHECK(r2);
     
+    auto r3 = on(xa.core()) >> [=]{
+      auto& x = *xa.pointer();
+      BOOST_CHECK_EQUAL(x, 1);
+      x = 1;
+      return true;
+    };
+    BOOST_CHECK(r3);
+    
     delegate::call(xa, [](int* x){ BOOST_CHECK_EQUAL(*x, 1); *x = 2; });
     
     finish([xa]{

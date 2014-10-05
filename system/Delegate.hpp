@@ -460,8 +460,8 @@ namespace Grappa {
             GlobalCompletionEvent * C = &impl::local_gce,
             class T = nullptr_t >
   struct DelegateOn {
-    GlobalAddress<T> a;
-    DelegateOn(GlobalAddress<T> a): a(a) {}
+    T a;
+    DelegateOn(T a): a(a) {}
     
     template< typename F >
     auto operator>>(F f) -> decltype(delegate::call<S,C>(a,f)) {
@@ -480,7 +480,23 @@ namespace Grappa {
   template< SyncMode S = SyncMode::Blocking,
             GlobalCompletionEvent * C = &impl::local_gce,
             class T = nullptr_t >
-  DelegateOn<S,C,T> on(GlobalAddress<T> a) { return DelegateOn<S,C,T>(a); }
+  DelegateOn<S,C,GlobalAddress<T>> on(GlobalAddress<T> a) {
+    return DelegateOn<S,C,GlobalAddress<T>>(a);
+  }
+  
+  /// Alternate 'on' syntax for delegates:
+  ///
+  /// ~~~
+  /// Core c = 3;
+  /// on(c)>>[=]{ /* do something */ };
+  /// // is equivalent to:
+  /// delegate::call(c, []{ /* do something */ });
+  /// ~~~
+  template< SyncMode S = SyncMode::Blocking,
+            GlobalCompletionEvent * C = &impl::local_gce >
+  DelegateOn<S,C,Core> on(Core c) {
+    return DelegateOn<S,C,Core>(c);
+  }
   
 } // namespace Grappa
 /// @}
