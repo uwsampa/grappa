@@ -76,16 +76,11 @@ else
 
   case $mpi_version in
 
-    # OpenMPI v1.8
-    mpiexec*OpenRTE*1.8*)
+    # OpenMPI v1.7 or greater
+    mpiexec*OpenRTE*1.[789]*|mpiexec*OpenRTE*[^1].*)
       cmd="$mpiexe --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
 
-    # OpenMPI v < 1.8
-    mpiexec*OpenRTE*1.*)
-      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
-      ;;
-    
     # MPICH / MVAPICH
     HYDRA*)
       cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
