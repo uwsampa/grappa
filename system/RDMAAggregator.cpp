@@ -273,7 +273,23 @@ namespace Grappa {
         }
       }
     }
+    
+    size_t RDMAAggregator::estimate_footprint() const {
+      return (core_partner_locale_count_ + FLAGS_rdma_workers_per_core + 1) * FLAGS_stack_size
+        + (sizeof(Core)*2 + sizeof(CoreData)) * global_communicator.locales;
+    }
+    
+    size_t RDMAAggregator::adjust_footprint(size_t target) {
+      if (estimate_footprint() > target) {
+        MASTER_ONLY LOG(WARNING) << "Adjusting to fit in target footprint: " << target << " bytes";
+        while (estimate_footprint() > target) {
+          if (FLAGS_rdma_workers_per_core > 1) FLAGS_rdma_workers_per_core--;
+        }
+      }
+      return estimate_footprint();
+    }
 
+    
     void RDMAAggregator::activate() {
 #ifdef ENABLE_RDMA_AGGREGATOR
       // one core on each locale initializes shared data

@@ -67,9 +67,13 @@ DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operati
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
 DECLARE_int64( locale_shared_size );
-DECLARE_double( locale_heap_fraction );
+DECLARE_double( locale_shared_fraction );
+DECLARE_double( locale_user_heap_fraction );
 DECLARE_double( global_heap_fraction );
 DECLARE_int64( shared_pool_max_size );
+DECLARE_bool( global_memory_use_hugepages );
+DECLARE_double(locale_shared_fraction);
+
 
 using namespace Grappa::impl;
 using namespace Grappa::Metrics;
@@ -98,19 +102,65 @@ namespace Grappa {
   IODescriptor * aio_completed_stack;
   
   namespace impl {
-
+    
     int64_t global_memory_size_bytes = 0;
     int64_t global_bytes_per_core = 0;
     int64_t global_bytes_per_locale = 0;
-
+    
     /// Tell all nodes that we are ready to exit.
     /// This will terminate the automatic portions of the communication layer
-    void signal_done() { 
+    void signal_done() {
       VLOG(5) << "mark done";
       Grappa_done_flag = true;
     }
   }
-
+  
+  void global_heap_init(size_t init_size) {
+    // by default, will allocate as much shared memory as it is
+    // possible to evenly split among the processors on a node
+    if (init_size != -1) {
+      impl::global_memory_size_bytes = init_size;
+      impl::global_bytes_per_core = init_size / cores();
+      impl::global_bytes_per_locale = init_size / locales();
+      return;
+    }
+    
+    // Decide how much memory we should allocate for global shared heap.
+    // this uses the locale shared size calculated in LocaleSharedMemory.cpp
+    auto sz = static_cast<int64_t>(FLAGS_locale_shared_size * FLAGS_global_heap_fraction);
+    
+    int64_t nnode = global_communicator.locales;
+    int64_t ppn = global_communicator.locale_cores;
+    
+    int64_t bytes_per_core = sz / ppn;
+    // round down to page size so we don't ask for too much
+    bytes_per_core &= ~( (1L << 12) - 1 );
+    
+    // be aware of hugepages
+    // Each core should ask for a multiple of 1GB hugepages
+    // and the whole node should ask for no more than the total pages available
+    if ( FLAGS_global_memory_use_hugepages ) {
+      int64_t pages_per_core = bytes_per_core / (1L << 30);
+      int64_t new_bpp = pages_per_core * (1L << 30);
+      if (new_bpp == 0) {
+        MASTER_ONLY VLOG(1) << "Allocating 1GB per core anyway.";
+        new_bpp = 1L << 30;
+      }
+      MASTER_ONLY VLOG_IF(1, bytes_per_core != new_bpp) << "With ppn=" << ppn << ", can only allocate "
+      << pages_per_core*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
+      bytes_per_core = new_bpp;
+    }
+    
+    int64_t bytes = nnode * ppn * bytes_per_core;
+    int64_t bytes_per_node = ppn * bytes_per_core;
+    MASTER_ONLY DVLOG(2) << "bpp = " << bytes_per_core << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
+    << ", SHMMAX = " << SHMMAX << ", heap_size = " << sz;
+    MASTER_ONLY VLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
+    
+    impl::global_memory_size_bytes = bytes;
+    impl::global_bytes_per_core = bytes_per_core;
+    impl::global_bytes_per_locale = bytes_per_node;
+  }
   
 }
 
@@ -225,8 +275,75 @@ static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
 }
 }
 
+void adjust_footprints() {
+  auto locale_cores = global_communicator.locale_cores;
+  auto locale_total = FLAGS_locale_shared_size;
+  
+  // (FLAGS_locale_shared_size either set manually or computed from fraction of SHMMAX)
+  auto locale_heap_bytes = static_cast<size_t>(FLAGS_locale_user_heap_fraction * (double)locale_total);
+  auto global_heap_bytes = Grappa::impl::global_memory_size_bytes;
+  
+  // memory left for Grappa components
+  auto grappa_bytes = (locale_total - global_heap_bytes - locale_heap_bytes) / locale_cores;
+  CHECK_GT(grappa_bytes, 0)
+    << "\nMust leave some memory for Grappa system components!\n"
+    << " - locale_heap_bytes: " << locale_heap_bytes << "\n"
+    << " - global_heap_bytes: " << global_heap_bytes << "\n"
+    << " - total (SHMMAX):    " << locale_total;
+  
+  auto total_footprint = []{
+    return global_communicator.estimate_footprint()
+    + global_rdma_aggregator.estimate_footprint()
+    + global_task_manager.estimate_footprint()
+    + SharedMessagePool::estimate_footprint();
+  };
+  
+  if (total_footprint() < grappa_bytes) return;
+  
+  // otherwise try to get all the grappa components to play along
+  long remaining = grappa_bytes;
+  
+  try {
+    
+    remaining -= SharedMessagePool::adjust_footprint(remaining / 4);
+    if (remaining < 0) throw "SharedMessagePool";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_communicator.adjust_footprint(remaining / 3);
+    if (remaining < 0) throw "Communicator";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_rdma_aggregator.adjust_footprint(remaining / 2);
+    if (remaining < 0) throw "RDMA Aggregator";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_task_manager.adjust_footprint(remaining);
+    if (remaining < 0) throw "TaskManager";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+  } catch (bool success) {
+    
+    MASTER_ONLY LOG(INFO) << "\nFootprint estimates: "
+    << "\n- locale_heap_bytes: " << locale_heap_bytes
+    << "\n- global_heap_bytes: " << global_heap_bytes
+    << "\n- total for Grappa:  " << grappa_bytes
+    << "\n  - global_communicator:    " << global_communicator.estimate_footprint()
+    << "\n  - global_rdma_aggregator: " << global_rdma_aggregator.estimate_footprint()
+    << "\n  - global_task_manager:    " << global_task_manager.estimate_footprint();
 
-DECLARE_bool( global_memory_use_hugepages );
+  } catch (char const* component) {
+    MASTER_ONLY LOG(ERROR)
+      << "\nUnable to fit Grappa components in memory. Failed at " << component
+      << "\n  locale_heap_bytes:      " << locale_heap_bytes
+      << "\n  global_heap_bytes:      " << global_heap_bytes
+      << "\n  total for Grappa:       " << grappa_bytes
+      << "\n  global_communicator:    " << global_communicator.estimate_footprint()
+      << "\n  global_rdma_aggregator: " << global_rdma_aggregator.estimate_footprint()
+      << "\n  global_task_manager:    " << global_task_manager.estimate_footprint()
+      << "\n  shared_message_pool:    " << SharedMessagePool::estimate_footprint();
+    exit(1);
+  }
+}
 
 /// Initialize Grappa components. We are not ready to run until the
 /// user calls Grappa_activate().
@@ -236,7 +353,11 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // for( int i = 0; i < *argc_p; ++i ) {
   //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
   // }
-
+  
+  if (global_memory_size_bytes == -1) {
+    
+  }
+  
   // help generate unique profile filename
   Grappa::impl::set_exe_name( (*argv_p)[0] );
 
@@ -268,6 +389,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
+  
+  LOG(INFO) << "@> MPI Core " << mycore() << " / " << cores();
   
   MPI_Errhandler mpi_error_handler;
   MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
@@ -362,58 +485,14 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // initialize node shared memory
   locale_shared_memory.init();
-
-  // by default, will allocate as much shared memory as it is
-  // possible to evenly split among the processors on a node
-  if (global_memory_size_bytes == -1) {
-
-    // Decide how much memory we should allocate for global shared heap.
-    // this uses the locale shared size calculated in LocaleSharedMemory.cpp
-    double shmmax_fraction = static_cast< double >( FLAGS_locale_shared_size ) * FLAGS_global_heap_fraction;
-    int64_t shmmax_adjusted_floor = static_cast< int64_t >( shmmax_fraction );
-
-    int64_t nnode = global_communicator.locales;
-    int64_t ppn = global_communicator.locale_cores;
-    
-    int64_t bytes_per_core = shmmax_adjusted_floor / ppn;
-    // round down to page size so we don't ask for too much
-    bytes_per_core &= ~( (1L << 12) - 1 );
-    
-    // be aware of hugepages
-    // Each core should ask for a multiple of 1GB hugepages
-    // and the whole node should ask for no more than the total pages available
-    if ( FLAGS_global_memory_use_hugepages ) {
-      int64_t pages_per_core = bytes_per_core / (1L << 30);
-      int64_t new_bpp = pages_per_core * (1L << 30);
-      if (new_bpp == 0) {
-        VLOG(1) << "Allocating 1GB per core anyway.";
-        new_bpp = 1L << 30;
-      }
-      VLOG_IF(1, bytes_per_core != new_bpp) << "With ppn=" << ppn << ", can only allocate " 
-                                            << pages_per_core*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
-      bytes_per_core = new_bpp;
-    }
-
-    int64_t bytes = nnode * ppn * bytes_per_core;
-    int64_t bytes_per_node = ppn * bytes_per_core;
-    DVLOG(2) << "bpp = " << bytes_per_core << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
-             << ", SHMMAX = " << SHMMAX << ", shmmax_adjusted_floor = " << shmmax_adjusted_floor;
-    VLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
-    global_memory_size_bytes = bytes;
-
-    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
-    Grappa::impl::global_bytes_per_core = bytes_per_core;
-    Grappa::impl::global_bytes_per_locale = bytes_per_node;
-  } else {
-    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
-    Grappa::impl::global_bytes_per_core = global_memory_size_bytes / cores();
-    Grappa::impl::global_bytes_per_locale = global_memory_size_bytes / locales();
-  }
   
-  VLOG(2) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
-  VLOG(2) << "global_bytes_per_core = " << Grappa::impl::global_bytes_per_core;
-  VLOG(2) << "global_bytes_per_locale = " << Grappa::impl::global_bytes_per_locale;
-
+  // initialize shared message pool
+  SharedMessagePool::init();
+  
+  global_heap_init(global_memory_size_bytes);
+  
+  adjust_footprints();
+  
   Grappa_done_flag = false;
 
   // process command line args for Tau
@@ -484,7 +563,7 @@ void Grappa_activate()
   global_rdma_aggregator.activate();
   auto aggregator_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
-  Grappa::init_shared_pool();
+  SharedMessagePool::activate();
   auto shared_pool_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
   if (Grappa::mycore() == 0) {
@@ -543,14 +622,6 @@ bool Grappa_global_queue_isInit() {
 ///
 /// Job exit routines
 ///
-
-//// termination fork join declaration
-//LOOP_FUNCTION(signal_task_termination_func,nid) {
-//    global_task_manager.signal_termination();
-//}
-static void signal_task_termination_am( int * ignore, size_t isize, void * payload, size_t payload_size ) {
-    global_task_manager.signal_termination();
-}
 
 /// User main done
 void Grappa_end_tasks() {

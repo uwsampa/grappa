@@ -214,7 +214,10 @@ class TaskManager {
     TaskManager();
     void init (Core localId, Core* neighbors, Core numLocalNodes);
     void activate();
-
+  
+    size_t estimate_footprint() const;
+    size_t adjust_footprint(size_t target);
+    
     /// @return true if work is considered finished and
     ///         the task system is terminating
     bool isWorkDone() {

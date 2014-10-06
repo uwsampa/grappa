@@ -59,7 +59,7 @@ if(APPLE)
   # set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
 
-find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib")
+find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
 if( NOT THIRD_PARTY_GFLAGS )
   message("     gflags: <building>")
   ExternalProject_Add( third-party-gflags
@@ -76,12 +76,12 @@ if( NOT THIRD_PARTY_GFLAGS )
   )
   list(APPEND tool_list third-party-gflags)
 else()
+  add_custom_target(third-party-gflags)
   message("     gflags: ${THIRD_PARTY_GFLAGS}")
 endif()
 
-find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib")
+find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
 if( NOT THIRD_PARTY_GLOG )
-
   message("     glog:   <building>")
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
@@ -94,7 +94,7 @@ if( NOT THIRD_PARTY_GLOG )
     BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
     CONFIGURE_COMMAND
-    CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${THIRD_PARTY_ROOT}/include LDFLAGS=-L${THIRD_PARTY_ROOT}/lib
+      CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} ${APPLE_CXXFLAGS} CFLAGS=-g CXXFLAGS=-g CFLAGS=-I${THIRD_PARTY_ROOT}/include CXXFLAGS=-I${THIRD_PARTY_ROOT}/include LDFLAGS=-L${THIRD_PARTY_ROOT}/lib <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
     BUILD_COMMAND      make -j 4
     INSTALL_COMMAND    make install
     DEPENDS third-party-gflags
@@ -144,3 +144,5 @@ add_custom_target(clean-third-party
   rm -rf ${THIRD_PARTY_ROOT}
 )
 set_property(TARGET clean-third-party PROPERTY FOLDER "Third Party")
+
+file(COPY bashflags DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

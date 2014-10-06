@@ -253,12 +253,8 @@ namespace Grappa {
 
       /// buffers for message transmission
       RDMABuffer * rdma_buffers_;
-      
 
-
-      
-
-      inline CoreData * coreData( Core c ) const { 
+      inline CoreData * coreData( Core c ) const {
         return &cores_[ Grappa::locale_mycore() * Grappa::cores() + c ]; 
       }
 
@@ -473,7 +469,16 @@ namespace Grappa {
       {
         CHECK_LE( FLAGS_target_size, max_size_ );
       }
-
+      
+      /// Adjust parameters to attempt to make this component use a given amount of memory.
+      ///
+      /// @param target  memory footprint (in bytes) that this should try to fit in
+      /// @return actual size estimate (may be larger than target)
+      size_t adjust_footprint(size_t target);
+      
+      /// Estimate amount of memory the communicator will use when 'activate()' is called
+      size_t estimate_footprint() const;
+      
       /// initialize and register with communicator
       void init();
       void activate();

@@ -47,8 +47,6 @@ GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, shared_pool_alloc_toobig, 0 );
 
 namespace Grappa {
 
-namespace impl {
-
 /// messages larger than this size will be malloced directly.
 /// this should be a multiple of the cacheline size.
 #define MAX_POOL_MESSAGE_SIZE (1 << 10)
@@ -60,11 +58,25 @@ namespace impl {
 /// number of cachelines in largest pool message
 #define MAX_POOL_CACHELINE_COUNT (MAX_POOL_MESSAGE_SIZE / CACHE_LINE_SIZE)
 
+namespace SharedMessagePool {
+  
 /// storage for message pools
 struct aligned_pool_allocator message_pool[ MAX_POOL_CACHELINE_COUNT ];
 
+size_t estimate_footprint() {
+  return FLAGS_shared_pool_max_size;
+}
+
+size_t adjust_footprint(size_t target) {
+  if (estimate_footprint() > target) {
+    while (estimate_footprint() > target) FLAGS_shared_pool_max_size /= 2;
+    MASTER_ONLY VLOG(2) << "\nAdjusted:" << "- shared_message_pool: " << estimate_footprint();
+  }
+  return estimate_footprint();
+}
+  
 /// set up shared pool for basic message sizes
-void init_shared_pool() {
+void init() {
   if( 0 == FLAGS_shared_pool_max_size ) {
     double size = FLAGS_locale_shared_size;
     size /= Grappa::locale_cores();
@@ -72,6 +84,9 @@ void init_shared_pool() {
     FLAGS_shared_pool_max_size = size;
   }
 
+}
+
+void activate() {
   for( int i = 0; i < MAX_POOL_CACHELINE_COUNT; ++i ) {
     auto message_size = (i+1) * CACHE_LINE_SIZE;
     auto chunk_count = FLAGS_shared_pool_chunk_size / message_size;
@@ -88,8 +103,7 @@ void init_shared_pool() {
   }
 }
 
-
-void* _shared_pool_alloc(size_t sz) {
+void* alloc(size_t sz) {
   size_t cacheline_count = sz / CACHE_LINE_SIZE;
   CHECK_EQ( cacheline_count * CACHE_LINE_SIZE, sz ) << "Message size not a multiple of cacheline size?";
   
@@ -99,16 +113,16 @@ void* _shared_pool_alloc(size_t sz) {
   } else {
     // record the pool allocation (bucketed by number of cachelines)
     switch( cacheline_count ) {
-    case 1: shared_pool_alloc_1cl++; break;
-    case 2: shared_pool_alloc_2cl++; break;
-    case 3: shared_pool_alloc_3cl++; break;
-    default: shared_pool_alloc_ncl++; break;
+      case 1: shared_pool_alloc_1cl++; break;
+      case 2: shared_pool_alloc_2cl++; break;
+      case 3: shared_pool_alloc_3cl++; break;
+      default: shared_pool_alloc_ncl++; break;
     }
     return aligned_pool_allocator_alloc( &message_pool[cacheline_count] );
   }
 }
 
-void _shared_pool_free(MessageBase * m, size_t sz) {
+void free(MessageBase * m, size_t sz) {
   size_t cacheline_count = sz / CACHE_LINE_SIZE;
   
   if( sz > MAX_POOL_MESSAGE_SIZE ) {
@@ -118,6 +132,6 @@ void _shared_pool_free(MessageBase * m, size_t sz) {
   }
 }
 
-}
+} // namespace SharedMessagePool
 
 } // namespace Grappa

@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# get directory of this script
+DIR="${BASH_SOURCE%/*}"
+if [[ ! -d "$DIR" ]]; then DIR="$PWD"; fi
+ROOT="$DIR/.."
+
+# source utils
+source "$ROOT/util/common.sh"
+
+################
+# flag parsing
+source "$ROOT/third-party/bashflags/flags.bash"
+
+# declare command-line options
+define_flag 'nnode' 1 'Number of nodes to run the Grappa job with' 'n'
+define_flag 'ppn' 2 'Number of cores/processes per node' 'p'
+define_bool_flag 'freeze' "Freeze all the jobs when there's an error" 'f'
+define_bool_flag 'verbose' "Verbose mode (prints info about job run. Not to be confused with --v option after '--' which sets the logging level for the job itself." 'v'
+
+# srun-only options
+define_flag 'time' '15:00' '[Slurm only] Job time to pass to srun' 't'
+define_flag 'partition' '' '[Slurm only] Partition to run on. Can also be set by the SLURM_PARTITION environment variable'
+define_flag 'account' '' '[Slurm only] Account to use. Can also be set by the SLURM_ACCOUNT environment variable'
+define_bool_flag 'mpi' "Use mpiexec even if 'srun' is present."
+
+parse_flags $@
+################
+
+# compute total number of MPI processes
+totaln="$(( $FLAGS_nnode * $FLAGS_ppn ))"
+
+# set freeze-on-error
+$FLAGS_freeze && export GRAPPA_FREEZE_ON_ERROR=1
+
+#TODO: test for if 'resv-ports' or 'OMPI_leave_pinned' should be set
+
+#TODO: figure out way to set default Slurm partition (environment variable? make our own?)
+
+if has_srun && [ $FLAGS_mpirun = false ]; then
+  
+  srun_flags=""
+  
+  [ -n "$FLAGS_partition" ] && srun_flags+=" --partition=$FLAGS_partition"
+  [ -n "$FLAGS_account" ] && srun_flags+=" --account=$FLAGS_account"
+  
+  cmd="srun --cpu_bind=rank --label --kill-on-bad-exit --nodes=$FLAGS_nnode --ntasks-per-node=$FLAGS_ppn --time=$FLAGS_time $srun_flags -- $FLAGS_extra"
+  
+else
+  
+  mpi_flags=""
+  
+  [ "$GRAPPA_ALLOW_RUN_AS_ROOT" = "1" ] && mpi_flags+="--allow-run-as-root"
+  
+  mpi_exports=`perl -ne'/^\s*export\s+(\w+)=.*$/ && print "-x $1 "' <$ROOT/util/env.sh`
+  
+  ###################################
+  # Flags determined by MPI version
+  ###################################
+  
+  mpiexe=${MPIEXEC:-mpiexec}
+  
+  mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 2)
+  $FLAGS_verbose && echo "# $mpi_version"
+
+  case $mpi_version in
+
+    # OpenMPI v1.8
+    mpiexec*1.8*)
+      cmd="$mpiexe --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
+      ;;
+
+    # OpenMPI v < 1.8
+    mpiexec*1.*)
+      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
+      ;;
+    
+    # MPICH
+    HYDRA*)
+      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
+      ;;
+    
+    *)
+      echo "Unsupported MPI version: $mpi_version."
+      exit 1
+  esac
+fi
+
+# if verbose, echo command to be executed
+$FLAGS_verbose && echo "# $cmd"
+
+# set environment variables in local environment
+source "$ROOT/util/env.sh"
+
+exec $cmd

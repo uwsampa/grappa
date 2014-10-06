@@ -35,7 +35,7 @@ DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" )
 DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
-#define MAXQUEUEDEPTH (1L<<19)   // previous values: 500000
+size_t steal_queue_size = 1L<<19;  // previous values: 500000
 
 /// local queue for being part of global task pool
 #define publicQ StealQueue<Task>::steal_queue
@@ -106,6 +106,27 @@ TaskManager global_task_manager;
     
 }
 
+size_t TaskManager::estimate_footprint() const {
+  return FLAGS_stack_size * FLAGS_num_starting_workers
+    + sizeof(Task) * steal_queue_size;
+}
+    
+size_t TaskManager::adjust_footprint(size_t target) {
+  if (estimate_footprint() > target) {
+    MASTER_ONLY LOG(WARNING) << "Adjusting to fit in target footprint: " << target << " bytes";
+    while (estimate_footprint() > target) {
+      // first try making the steal queue smaller
+      if (steal_queue_size > 4) steal_queue_size /= 2;
+      // otherwise we have to start removing workers
+      else if (FLAGS_num_starting_workers > 4) FLAGS_num_starting_workers--;
+    }
+    MASTER_ONLY VLOG(2) << "\nAdjusted:"
+      << "\n  estimated footprint:  " << estimate_footprint()
+      << "\n  steal_queue_size:     " << steal_queue_size
+      << "\n  num_starting_workers: " << FLAGS_num_starting_workers;
+  }
+  return estimate_footprint();
+}
 
 /// Initialize the task manager with runtime parameters.
 void TaskManager::init ( Core localId_arg, Core * neighbors_arg, Core numLocalNodes_arg ) {
@@ -142,7 +163,7 @@ void TaskManager::init ( Core localId_arg, Core * neighbors_arg, Core numLocalNo
 
 void TaskManager::activate () {
   // initialization of public task queue during system activate()
-  publicQ.activate( MAXQUEUEDEPTH );
+  publicQ.activate( steal_queue_size );
 }
 
 // GlobalQueue instantiations
