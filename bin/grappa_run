@@ -82,8 +82,8 @@ else
       ;;
 
     # MPICH / MVAPICH
-    HYDRA*)
-      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
+    HYDRA*Version:*[^12].*Release*)
+      cmd="$mpiexe -n $totaln -ppn $FLAGS_ppn -envall $FLAGS_extra"
       ;;
     
     *)
