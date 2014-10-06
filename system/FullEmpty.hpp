@@ -27,6 +27,12 @@
 #include "FullEmptyLocal.hpp"
 #include "Delegate.hpp"
 
+#include <tuple>
+#include <type_traits>
+using std::tuple;
+using std::make_tuple;
+using namespace Grappa;
+
 namespace Grappa {
   
   /// @addtogroup Synchronization
@@ -94,98 +100,301 @@ namespace Grappa {
     }
   }
   
-  template< typename T, typename F >
-  struct Future {
-    using Delegate = T (*)(Core,F);
-    
+} // namespace Grappa
+
+
+#ifdef GRAPPA_CXX14
+
+  // template< typename T, typename F >
+  // struct Future {
+  //   using Delegate = T (*)(Core,F);
+  //
+  //   Core target;
+  //   F apply; // local operation to get the value
+  //   Delegate del;
+  //
+  //   Future(Core target, F apply, Delegate del): target(target), apply(apply), del(del) {}
+  //
+  //   // T operator*() { del(target, apply); }
+  //
+  //   T operator*() {
+  //     if (mycore() == target) {
+  //       return apply();
+  //     } else {
+  //       return delegate::call(target, [=]{ return apply(); });
+  //     }
+  //   }
+  //
+  // };
+  
+  template< class F >
+  struct Delegate {
     Core target;
-    F apply; // local operation to get the value
-    Delegate del;
-    
-    Future(Core target, F apply, Delegate del): target(target), apply(apply), del(del) {}
-    
-    T operator*() { del(target, apply); }
-    
+    F apply;
+    Delegate(Core target, F apply): target(target), apply(apply) {}
+    // auto operator()() const { return apply(); }
   };
   
-  template< typename T, typename F >
-  T basic_delegate(Core target, F apply) {
-    if (mycore() == target) {
-      return apply();
-    } else {
-      return delegate::call(target, [=]{ return apply(); });
-    }
-  }
+  template<class F> auto make_delegate(Core c, F f) { return Delegate<F>(c,f); }
   
-  template< typename T, typename F,  >
-  Future<T,F> basic_future(Core target, F apply) {
-    return Future<T,F>(target, apply, &basic_delegate<T,F>);
-  }
+  // // declare Future class
+  // template< class... Fs > struct Future;
+  //
+  // // base case
+  // template< class F >
+  // struct Future<F> {
+  //   Delegate<F> d;
+  //   Future(Delegate<F> d): d(d) {}
+  //   auto operator*() { return delegate::call(d.target, [a=d.apply]{ return a(); }); }
+  // };
+  //
+  // template< class F, class... Fs >
+  // struct Future<F,Fs...> : private Future<Fs...> {
+  //   Delegate<F> d;
+  //   Future(Delegate<F> d, Delegate<Fs...> ds): Future<Fs...>(ds...), d(d) {}
+  //
+  //   auto operator*() {
+  //     VLOG(0) << "@> combined!";
+  //     return on(d.target)>>[apply=d.apply]{ return apply(); };
+  //   }
+  // };
   
-  namespace impl {
-    
-    template< typename A, typename B >
-    struct FuncSum {
-      A a;
-      B b;
-      
-      FuncSum(const A& a, const B& b): a(a), b(b) {}
-      
-      FuncSum(A&& a, B&& b):
-      a(std::forward<A>(a)),
-      b(std::forward<B>(b)){}
-      
-      auto operator()() -> decltype(a()+b()) {
-        return a() + b();
-      }
-    };
-    
-    template< typename T, typename A, typename B >
-    struct FutureSum {
-      Future<T,A> fa;
-      Future<T,B> fb;
-      
-      FutureSum(const Future<T,A>& fa, const Future<T,B>& fb): fa(fa), fb(fb) {}
-      
-      T operator*() {
-        auto a = fa.apply;
-        auto b = fb.apply;
+  template<class T> struct Result { T val; };
+  template<class T> Result<T> _r(T val) { return Result<T>{val}; }
+  
+  template< class T >
+  auto _apply(Result<T> o) { return o.val; }
 
-        if (fa.core() == fb.core()) {
-          return delegate::call(fa.core(), [=]{
-            return a() + b();
-          });
-        } else {
-          FullEmpty<T> _r;
-          auto r = make_global(&_r);
-          send_message(fa.core(), [a,fb,r]{
-            auto ar = a.apply();
-            auto b = fb.apply;
-            send_message(fb.core(), [ar,b,r]{
-              auto sum = ar + b();
-              send_message(r.core(), [r,sum]{
-                r->writeXF(sum);
-              });
-            });
-          });
-          return _r.readFF();
-        }
-      }
-      
+  template< class T, class F, class... Fs >
+  auto _apply(Result<T> o, Delegate<F> d, Delegate<Fs>... ds) {
+    return _apply(_r(d.apply(o.val)), ds...);
+  }
+
+  template< class F, class... Fs >
+  auto _apply(Delegate<F> d, Delegate<Fs>... ds) {
+    return _apply(_r(d.apply()), ds...);
+  }
+  
+  // template< class T, class F >
+  // auto _apply(T o, Delegate<F> d) { return d(o); }
+  
+  template< class T, class U >
+  auto _delegate(GlobalAddress<FullEmpty<T>> r, U o) {
+    send_message(r.core(), [r,o]{
+      r->writeXF(o);
+    });
+  }
+  
+  template< class T, class U, class F, class... Fs>
+  void _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d, Delegate<Fs>...ds) {
+    auto f = [r,o,apply=d.apply,ds...]{
+      auto oo = apply(o);
+      _delegate(r, oo, ds...);
     };
+    if (mycore() == d.target) f();
+    else send_message(d.target, f);
+  }
+  
+  template< class F, class... Fs>
+  auto _delegate(Delegate<F> d, Delegate<Fs>...ds) {
+    using T = decltype(_apply(d,ds...));
+    FullEmpty<T> _r; auto r = make_global(&_r);
+    send_message(d.target, [r,apply=d.apply,ds...]{
+      auto o = apply();
+      _delegate(r, o, ds...);
+    });
+    return _r.readFF();
+  }
     
-    template< typename T, typename A, typename B >
-    auto operator+(Future<T,A>&& a, Future<T,B>&& b) -> Future<T>,FuncSum<A,B>> {
-      if (a.target == b.target) {
-        return Future<T,FuncSum<A,B>>(a.target, FuncSum<A,B>(a.apply, b.apply));
-      } else {
-        auto aa = a.apply;
-        auto f = [=]{
-          // on(a.target)
-          aa();
-        };
-      }
+  // template< class T, class U, class F >
+  // auto _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d) {
+  //   send_message(d.target, [r,o,apply=d.apply]{
+  //     auto oo = apply(o);
+  //     send_message(r.core(), [r,oo]{
+  //       r->writeXF(oo);
+  //     });
+  //   });
+  // }
+  
+  
+  template<int ...> struct seq {};
+  template<int N, int ...S> struct gens : gens<N-1, N-1, S...> {};
+  template<int ...S> struct gens<0, S...>{ typedef seq<S...> type; };
+  
+  // template< class... Fs >
+  // auto _delegate(tuple<Delegate<Fs...>> ds) {
+  //   return _delegate(typename gens<sizeof...(Fs)>::type());
+  // }
+  
+  template< class... Fs >
+  struct Future {
+    tuple<Delegate<Fs>...> ds;
+    
+    Future(Delegate<Fs>... ds): ds(make_tuple(ds...)) {}
+    Future(tuple<Delegate<Fs>...>&& ds): ds(std::forward(ds)) {}
+    Future(const tuple<Delegate<Fs>...>& ds): ds(ds) {}
+    
+    auto operator*() { return invoke(); }
+    
+    auto invoke() { return _invoke(typename gens<sizeof...(Fs)>::type()); }
+            
+    auto get_first() { return std::get<0>(ds); }
+    auto get_rest() { return _cdr(ds); }
+            
+  private:
+    
+    template< class B, class...Bs >
+    auto _cdr(tuple<Delegate<B>,Delegate<Bs>...>& t) {
+      return _cdr(t, typename gens<sizeof...(Bs)>::type());
     }
+    
+    template< class B, class...Bs, int...I >
+    auto _cdr(tuple<Delegate<B>,Delegate<Bs>...>& t, seq<I...> idx) {
+      return tuple<Delegate<Bs>...>{ std::get<I+1>(t)... };
+    }
+    
+    template< int...I >
+    auto _invoke(seq<I...> idx) {
+      return _delegate( std::get<I>(ds)... );
+    }
+  };
+  
+  template< class... Fs >
+  Future<Fs...> make_future(Delegate<Fs>...ds) { return Future<Fs...>(ds...); }
+
+  template< class... Fs >
+  Future<Fs...> make_future(tuple<Delegate<Fs>...> t) { return Future<Fs...>(t); }
+
+  template< class F >
+  Future<F> make_future(Core c, F f) { return Future<F>(Delegate<F>(c,f)); }
+  
+  template< class...As, class...Bs >
+  auto operator+(Future<As...>&& fa, Future<Bs...>&& fb) {
+    using T = decltype(fa.invoke());
+    auto b = fb.get_first();
+    auto new_b = make_delegate(
+      b.target, 
+      [ba=b.apply](const T& a){ return a + ba(); }
+    );
+    return make_future(std::tuple_cat( fa.ds, make_tuple(new_b), fb.get_rest() ));
+  }
+
+  template< class...As, class...Bs >
+  auto operator-(Future<As...>&& fa, Future<Bs...>&& fb) {
+    using T = decltype(fa.invoke());
+    auto b = fb.get_first();
+    auto new_b = make_delegate(
+      b.target, 
+      [ba=b.apply](const T& a){ return a - ba(); }
+    );
+    return make_future(std::tuple_cat( fa.ds, make_tuple(new_b), fb.get_rest() ));
+  }
+
+  // template< typename A, typename B >
+  // auto operator+(Future<A>&& a, Future<B>&& b) {
+  //   // using T = decltype(a.d.apply() + b.d.apply());
+  //   // FullEmpty<T> _r; auto r = make_global(&_r);
+  //   // send_message(a.d.target, [a=a.d.apply,b,r]{
+  //   //   auto ra = a();
+  //   //   send_message(b.d.target, [ra,b=b.d.apply,r]{
+  //   //     auto rr = ra + b();
+  //   //     send_message(ra.core(),[r,rr]{
+  //   //       r->writeXF(rr);
+  //   //     });
+  //   //   });
+  //   // });
+  //   // return r->readFF();
+  //   using T = decltype(a.invoke());
+  //   auto bb = [b=b.d.apply](const T& a) { return a + b(); };
+  //
+  //   return make_future(a.d, make_delegate(b.d.target, bb));
+  // }
+  //
+  // template< typename A, typename B >
+  // auto operator-(Future<A>&& a, Future<B>&& b) {
+  //   using T = decltype(a.d.apply());
+  //   auto bb = [b=b.d.apply](const T& a) { return a - b(); };
+  //   return make_future(a.d, make_delegate(b.d.target, bb));
+  // }
+  //
+  // template< typename T, typename F >
+  // T basic_delegate(Core target, F apply) {
+  //   if (mycore() == target) {
+  //     return apply();
+  //   } else {
+  //     return delegate::call(target, [=]{ return apply(); });
+  //   }
+  // }
+  
+  // template< typename T, typename F,  >
+  // Future<T,F> basic_future(Core target, F apply) {
+  //   return Future<T,F>(target, apply, &basic_delegate<T,F>);
+  // }
+  
+  // namespace impl {
+  //
+  //   template< typename A, typename B >
+  //   struct FuncSum {
+  //     A a;
+  //     B b;
+  //
+  //     FuncSum(const A& a, const B& b): a(a), b(b) {}
+  //
+  //     FuncSum(A&& a, B&& b):
+  //     a(std::forward<A>(a)),
+  //     b(std::forward<B>(b)){}
+  //
+  //     auto operator()() -> decltype(a()+b()) {
+  //       return a() + b();
+  //     }
+  //   };
+  //
+  //   template< typename T, typename A, typename B >
+  //   struct FutureComposition {
+  //     Future<T,A> fa;
+  //     Future<T,B> fb;
+  //
+  //     FutureSum(const Future<T,A>& fa, const Future<T,B>& fb): fa(fa), fb(fb) {}
+  //
+  //     T operator*() {
+  //       auto a = fa.apply;
+  //       auto b = fb.apply;
+  //
+  //       if (fa.core() == fb.core()) {
+  //         return delegate::call(fa.core(), [=]{
+  //           return a() + b();
+  //         });
+  //       } else {
+  //         FullEmpty<T> _r;
+  //         auto r = make_global(&_r);
+  //         send_message(fa.core(), [a,fb,r]{
+  //           auto ar = a.apply();
+  //           auto b = fb.apply;
+  //           send_message(fb.core(), [ar,b,r]{
+  //             auto sum = ar + b();
+  //             send_message(r.core(), [r,sum]{
+  //               r->writeXF(sum);
+  //             });
+  //           });
+  //         });
+  //         return _r.readFF();
+  //       }
+  //     }
+  //
+  //   };
+  //
+  //   template< typename T, typename A, typename B >
+  //   auto operator+(Future<T,A>&& a, Future<T,B>&& b) -> Future<T>,FuncSum<A,B>> {
+  //     if (a.target == b.target) {
+  //       return Future<T,FuncSum<A,B>>(a.target, FuncSum<A,B>(a.apply, b.apply));
+  //     } else {
+  //       auto aa = a.apply;
+  //       auto f = [=]{
+  //         // on(a.target)
+  //         aa();
+  //       };
+  //     }
+  //   }
     
     // template< typename T >
     // struct Get {
@@ -206,18 +415,23 @@ namespace Grappa {
     //     return fe->readFF();
     //   }
     // };
-  }
+  // }
   
   namespace future {
     
-    template< typename T >
-    Future<T,ReadFF<T>> readFF(GlobalAddress<FullEmpty<T>> fe_addr) {
-      return basic_future(fe_addr.core(), ReadFF<T>(fe_addr));
+    // template< typename T >
+    // Future<T,ReadFF<T>> readFF(GlobalAddress<FullEmpty<T>> fe_addr) {
+    //   return basic_future(fe_addr.core(), ReadFF<T>(fe_addr));
+    // }
+    
+    template< class T >
+    auto readFF(GlobalAddress<FullEmpty<T>> fe) {
+      return make_future(fe.core(), [fe]{ return fe->readFF(); });
     }
     
   }
   
-  
+#endif // GRAPPA_CXX14
   
   /// @}
-}
+// }

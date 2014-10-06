@@ -6,6 +6,8 @@ include(ExternalProject)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
+option(CXX14 "Enable C++14 features" OFF)
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )
@@ -16,11 +18,19 @@ set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
 
 project(Grappa)
 
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
-
-set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+if(CXX14)
+  message("-- Enabled C++14 features")
+  add_definitions(-DGRAPPA_CXX14)
+  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG")
+  set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -DGUARD_PAGES_ON_STACK")
+  set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -DGUARD_PAGES_ON_STACK")
+else()
+  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+  set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+  set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
@@ -44,7 +54,7 @@ if(PROFILING)
 endif()
 
 # global C++ flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Winline -Wno-inline -mno-red-zone -Wno-pointer-bool-conversion")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 # TODO: use -stdlib=libc++ too?
