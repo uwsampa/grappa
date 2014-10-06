@@ -21,11 +21,13 @@ project(Grappa)
 if(CXX14)
   message("-- Enabled C++14 features")
   add_definitions(-DGRAPPA_CXX14)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wno-pointer-bool-conversion")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -DNDEBUG")
   set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -DGUARD_PAGES_ON_STACK")
   set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -DGUARD_PAGES_ON_STACK")
 else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
   set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
@@ -54,7 +56,7 @@ if(PROFILING)
 endif()
 
 # global C++ flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Winline -Wno-inline -mno-red-zone -Wno-pointer-bool-conversion")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Winline -Wno-inline -mno-red-zone")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 # TODO: use -stdlib=libc++ too?
