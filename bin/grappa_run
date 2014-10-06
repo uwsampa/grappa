@@ -37,7 +37,7 @@ $FLAGS_freeze && export GRAPPA_FREEZE_ON_ERROR=1
 
 #TODO: figure out way to set default Slurm partition (environment variable? make our own?)
 
-if has_srun && [ "$FLAGS_mpirun" = "false" ]; then
+if has_srun && [ "$FLAGS_mpi" = "false" ]; then
   
   srun_flags=""
   
