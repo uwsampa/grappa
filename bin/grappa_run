@@ -65,10 +65,11 @@ else
       exit 1
   }
 
-  mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 2)
+  mpi_version=$(mpiexec $mpi_flags --version 2>&1)
   if [ $? -ne 0 ]
   then
-      echo "Error $? checking MPI version using " $(command -v mpiexec) "; got output: $mpi_version"
+      echo "Error $? checking MPI version using" $(command -v mpiexec) "with output: $mpi_version"
+      exit 1
   fi
 
   $FLAGS_verbose && echo "# $mpi_version"
