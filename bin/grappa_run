@@ -59,23 +59,33 @@ else
   ###################################
   
   mpiexe=${MPIEXEC:-mpiexec}
-  
+
+  command -v mpiexec >/dev/null 2>&1 || { 
+      echo >&2 "Cannot find mpiexec to check MPI version; perhaps you have an unsupported MPI version.  Aborting."
+      exit 1
+  }
+
   mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 2)
+  if [ $? -ne 0 ]
+  then
+      echo "Error $? checking MPI version using " $(command -v mpiexec) "; got output: $mpi_version"
+  fi
+
   $FLAGS_verbose && echo "# $mpi_version"
 
   case $mpi_version in
 
     # OpenMPI v1.8
-    mpiexec*1.8*)
+    mpiexec*OpenRTE*1.8*)
       cmd="$mpiexe --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
 
     # OpenMPI v < 1.8
-    mpiexec*1.*)
+    mpiexec*OpenRTE*1.*)
       cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
     
-    # MPICH
+    # MPICH / MVAPICH
     HYDRA*)
       cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
       ;;
