@@ -143,6 +143,7 @@ void test_push_buffer() {
   Grappa::global_free(xs);
 }
 
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
@@ -153,7 +154,22 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     test_complex();
     // test_prefix_sum(); // (not implemented yet)
     test_push_buffer();
-
+    
+    BOOST_MESSAGE("Testing memcpy on 2D addresses");
+    
+    int v[] = {1, 2, 3};
+    auto sz = 3;
+    auto gv = make_global(v);
+    
+    spawnRemote<&gce>(1, [=]{
+      std::vector<int> v2(sz);
+      memcpy(make_global(&v2[0]), gv, sz);
+      BOOST_CHECK_EQUAL(v2[0], 1);
+      BOOST_CHECK_EQUAL(v2[1], 2);
+      BOOST_CHECK_EQUAL(v2[2], 3);
+    });
+    gce.wait();
+    
   });
   Grappa::finalize();
 }
