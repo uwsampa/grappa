@@ -158,28 +158,30 @@ static inline double nanless_double_ratio( T x, U y ) {
   Name( const Name & );				\
   void operator=( const Name & )
 
-/// Sign extension.
-/// From Stanford bit-twiddling hacks.
-template <typename T, unsigned B>
-inline T signextend(const T x)
-{
-  struct {T x:B;} s;
-  return s.x = x;
-}
+namespace bittwiddle {
+  /// Sign extension.
+  /// From Stanford bit-twiddling hacks.
+  template <typename T, unsigned B>
+    inline T signextend(const T x)
+    {
+      struct {T x:B;} s;
+      return s.x = x;
+    }
 
-/// Base 2 log of 32-bit number.
-/// Modified from Stanford bit twiddling hacks.
-inline unsigned int log2( unsigned int v ) {
-  unsigned int r; // result of log2(v) will go here
-  unsigned int shift;
+  /// Base 2 log of 32-bit number.
+  /// Modified from Stanford bit twiddling hacks.
+  inline unsigned int log2( unsigned int v ) {
+    unsigned int r; // result of log2(v) will go here
+    unsigned int shift;
 
-  r =     (v > 0xFFFF) << 4; v >>= r;
-  shift = (v > 0xFF  ) << 3; v >>= shift; r |= shift;
-  shift = (v > 0xF   ) << 2; v >>= shift; r |= shift;
-  shift = (v > 0x3   ) << 1; v >>= shift; r |= shift;
-  r |= (v >> 1);
+    r =     (v > 0xFFFF) << 4; v >>= r;
+    shift = (v > 0xFF  ) << 3; v >>= shift; r |= shift;
+    shift = (v > 0xF   ) << 2; v >>= shift; r |= shift;
+    shift = (v > 0x3   ) << 1; v >>= shift; r |= shift;
+    r |= (v >> 1);
 
-  return r;
+    return r;
+  }
 }
 
 /// Read 64-bit timestamp counter.

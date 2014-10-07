@@ -35,20 +35,25 @@
 template <typename T, T (*ReduceOp)(const T&, const T&)>
 class AllReducer {
   private:
-    T localSum;
+    T * const localSum;
+    const T * const init;
     bool finished;
-    const T init;
 
   public:
-    AllReducer(T init) : init(init) {}
+    AllReducer(T initV) : init(new T(initV))
+                       , localSum(new T) {}
+    ~AllReducer() {
+      delete init;
+      delete localSum;
+    }
 
     void reset() {
       finished = false;
-      localSum = init;
+      *localSum = *init;
     }
 
     void accumulate(T val) {
-      localSum = ReduceOp(localSum, val);
+      *localSum = ReduceOp(*localSum, val);
     } 
 
     /// Finish the reduction and return the final value.
@@ -61,16 +66,42 @@ class AllReducer {
       if (!finished) {
         finished = true;
         //TODO init version and specialized version for non-template allowed
-        localSum = Grappa::allreduce<T,ReduceOp> (localSum);
+        *localSum = Grappa::allreduce<T,ReduceOp> (*localSum);
       }
-      return localSum;
+      return *localSum;
     }
 
 
     //TODO, a non collective call to finish would be nice
     //any such scheme will require knowing where each participant's
     //value lives (e.g. process-global variable)
-};
+} GRAPPA_BLOCK_ALIGNED;
+
+template <typename T, typename AllReducerType, typename CF>
+T reduction(T init, CF f) {
+  Core master = Grappa::mycore();
+  auto r = Grappa::symmetric_global_alloc<AllReducerType>();
+  Grappa::on_all_cores( [=] {
+      // call the constructor 
+      new (r.localize()) AllReducerType(init);
+      r->reset();
+  });
+  
+  // user code, calling accumulate
+  f(r);
+
+  T result;
+  Grappa::on_all_cores( [master,r,&result] {
+    T localcopy = r->finish();
+    if (Grappa::mycore() == master) 
+      result = localcopy;
+  });
+
+  // FIXME: memory leak on r; but free is problematic with symmetric_global_alloc
+  // Grappa::global_free(r);
+
+  return result;
+}       
 
 namespace Grappa {
 

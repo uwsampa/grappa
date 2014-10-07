@@ -21,8 +21,6 @@ GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, cell_traversal_length);
 AllReducer<uint64_t, collective_add> size_reducer(0);
 
 // Hash table for joins
-// * allows multiple copies of a Key
-// * lookups return all Key matches
 template <typename K, uint64_t (*HF)(K), Grappa::GlobalCompletionEvent * GCE=&Grappa::impl::local_gce> // TODO: pick GCE on insert call 
 class HashSet {
 

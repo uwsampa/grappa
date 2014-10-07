@@ -79,6 +79,49 @@ TEST(int_max) {
     BOOST_CHECK( result == expected );
   });
 }
+
+
+TEST(reduction) {
+  int64_t nc = Grappa::cores();
+  int64_t expected = 6 * nc;
+
+  auto dummy = global_alloc<int64_t>(expected);
+  int64_t result = reduction<int64_t,AllReducer<int64_t,collective_add>>(0, [=](GlobalAddress<AllReducer<int64_t,collective_add>> r) {
+    forall(dummy, expected, [=](int64_t i, int64_t& ignore) {
+        r->accumulate( 1 );
+        });
+    });
+    BOOST_CHECK( result == expected );
+}
+
+struct BigT {
+  int64_t x;
+  BigT() : x(0) {}
+  BigT(int64_t y) : x(y) {}
+  BigT operator+=(const BigT& rhs) {
+    this->x += rhs.x;
+  }
+  BigT operator+(const BigT& rhs) const {
+    BigT r(*this);
+    r += rhs;
+    return r;
+  }
+} GRAPPA_BLOCK_ALIGNED;
+
+TEST(reduction_big) {
+  int64_t nc = Grappa::cores();
+  int64_t expected = 6 * nc;
+
+  auto dummy = global_alloc<BigT>(expected);
+  BigT result = reduction<BigT,AllReducer<BigT,collective_add>>(BigT(0), [=](GlobalAddress<AllReducer<BigT,collective_add>> r) {
+    forall(dummy, expected, [=](int64_t i, BigT& ignore) {
+        r->accumulate( BigT(1) );
+        });
+    });
+    BOOST_CHECK( result.x == expected );
+}
+
+
   
 SimpleSymmetric<bool> s_active;
 SimpleSymmetric<int> s_count;
@@ -97,6 +140,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     RUNTEST(int_add);
     RUNTEST(int_add_more);
     RUNTEST(int_max);
+    RUNTEST(reduction);
+    RUNTEST(reduction_big);
     
     BOOST_MESSAGE("== Test SimpleSymmetric<T> ==");
     set(s_active, false);

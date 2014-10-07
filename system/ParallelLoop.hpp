@@ -34,6 +34,8 @@
 #include "Collective.hpp"
 #include "function_traits.hpp"
 
+#include <algorithm>
+
 /// Flag: loop_threshold
 ///
 /// Iterations of `forall` loops *may* be run in parallel. A complete loop is decomposed into
@@ -332,7 +334,7 @@ namespace Grappa {
     auto end = base+nelem;
     if (nelem > 0) { fc = 1; }
   
-    size_t block_elems = block_size / sizeof(T);
+    size_t block_elems = std::max<size_t>(1, block_size / sizeof(T));
     int64_t nfirstcore = base.block_max() - base;
     int64_t n = nelem - nfirstcore;
     

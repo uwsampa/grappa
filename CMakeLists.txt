@@ -187,6 +187,11 @@ add_definitions(-DSHMMAX=${SHMMAX})
 # add_definitions(-DSHMMAX=12884901888) # 12 GB
 # add_definitions(-DSHMMAX=6442450944) # 6 GB
 
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  # clang doesn't have this flag it seems, needed for Relation_io_tests.cpp in Travis
+  add_definitions( -D__extern_always_inline=inline )
+endif()
+
 if(NOT APPLE)
   list(APPEND GRAPPA_LIBS pthread rt)
 endif()
