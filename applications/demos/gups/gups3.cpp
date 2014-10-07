@@ -50,12 +50,17 @@ int main(int argc, char * argv[]) {
     });
 
     double start = walltime();
-
+    
+    Metrics::start_tracing();
+    
     forall(B, FLAGS_sizeB, [=](int64_t& b){
       delegate::increment<async>( A + b, 1);
     });
 
     gups_runtime = walltime() - start;
+    
+    Metrics::stop_tracing();
+    
     gups_throughput = FLAGS_sizeB / gups_runtime;
 
     LOG(INFO) << gups_throughput.value() << " UPS in " << gups_runtime.value() << " seconds";

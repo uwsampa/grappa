@@ -38,8 +38,20 @@ typedef int16_t Core;
 
 namespace Grappa {
   
+  // forward declarations
+  namespace impl { class MessageBase; }
+  namespace SharedMessagePool { void free(impl::MessageBase * m, size_t sz); }
+  
   /// Internal messaging functions
   namespace impl {
+  
+  union MessageFPAddr {
+    struct {
+      Core dest : 16;
+      intptr_t fp : 48;
+    };
+    intptr_t raw;
+  };
 
     /// @addtogroup Communication
     /// @{
@@ -58,19 +70,15 @@ namespace Grappa {
 
       union {
         struct {
+          bool delete_after_send_ : 1; ///< Is this a heap message? Should it be deleted after it's sent?
           bool is_enqueued_ : 1;       ///< Have we been added to the send queue?
           bool is_sent_ : 1;           ///< Is our payload no longer needed?
           bool is_delivered_ : 1;      ///< Are we waiting to mark the message sent?
-          bool is_moved_ : 1;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
-          Core source_ : 16;            ///< What core is this message coming from? (TODO: probably unneccesary)
-          Core destination_ : 16;       ///< What core is this message aimed at?
+          bool is_moved_ : 1;          ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+          Core source_ : 16;           ///< What core is this message coming from? (TODO: probably unneccesary)
+          Core destination_ : 16;      ///< What core is this message aimed at?
         };
         uint64_t raw_;
-      };
-      
-      union {
-        void* pool;
-        intptr_t extra;
       };
       
       //uint64_t reset_count_;    ///< How many times have we been reset? (for debugging only)
@@ -103,8 +111,9 @@ namespace Grappa {
           }
 
           if( delete_after_send_ ) {
+            size_t sz = this->size();
             this->~MessageBase();
-            Grappa::impl::locale_shared_memory.deallocate( this );
+            SharedMessagePool::free(this, sz);
           }
         }
       }
@@ -119,19 +128,12 @@ namespace Grappa {
 
 
 
-      union FPAddr {
-        struct {
-          Core dest : 16;
-          intptr_t fp : 48;
-        };
-        intptr_t raw;
-      };
-
       /// Interface for message serialization.
       ///  @param p Address in buffer at which to write:
       ///    -# A 2D global address of a function that knows how to
       ///       deserialize and execute the message functor/payload
       ///    -# the message functor/payload
+      /// @param max_size  Largest possible serialized size
       /// @return address of the byte following the serialized message in the buffer
       inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
         DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
@@ -153,20 +155,18 @@ namespace Grappa {
 
         // buffer = fp( buffer + sizeof( Deserializer ) );
 
-        FPAddr gfp = *(reinterpret_cast< FPAddr* >(buffer));
+        MessageFPAddr gfp = *(reinterpret_cast< MessageFPAddr* >(buffer));
         Deserializer fp = reinterpret_cast< Deserializer >( gfp.fp );
 
         DVLOG(5) << "Receiving message from " << gfp.dest << " with deserializer " << (void*) fp;
-
+        
+        CHECK_NOTNULL( fp );
         CHECK_EQ( gfp.dest, Grappa::mycore() ) << "Delivered to wrong core! buffer=" << (void*) buffer;
 
-        buffer = fp( buffer + sizeof( FPAddr ) );
+        buffer = fp( buffer + sizeof( MessageFPAddr ) );
 
         return buffer;
       }
-
-    protected:
-      bool delete_after_send_;  ///< Is this a heap message? Should it be deleted after it's sent?
 
     public:
       MessageBase( )

@@ -50,6 +50,8 @@ extern int thread_last_tau_taskid;
 DECLARE_int64(stack_size);
 #define STACK_SIZE FLAGS_stack_size
 
+const size_t MIN_STACK_SIZE = 1L<<15;
+
 #include <sys/mman.h> // mprotect
 #include <errno.h>
 

@@ -8,6 +8,7 @@ opt.generator = 'Make'
 opt.mode      = 'Release'
 opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
+opt.third_party = ENV['GRAPPA_THIRD_PARTY']
 
 # hard-coded host-specific defaults
 case `hostname`
@@ -27,10 +28,12 @@ OptionParser.new{|p|
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to #{line_break}distinguish it (i.e. compiler version)"){|n| opt.name = n }
   p.on('--tracing',"Enable VampirTrace/gperftools-based sampled tracing. #{line_break}Looks for VampirTrace build in 'third-party' dir."){|b| opt.tracing = true }
+  p.on('--profiling',"Enable gperftools-based sampled profiling."){|b| opt.profiling = true }
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
   p.on('--shmmax=SIZE',"Manually set maximum SysV shared memory size"){|n| opt.shmmax = n }
   p.on('--llvm=/path/to/llvm/install',"Location where LLVM is installed (if same as --cc, )."){|_| opt.llvm = _ }
+  p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
 }.parse!(ARGV)
 
 # automatically determine cxx from --cc
@@ -63,6 +66,10 @@ end
 
 if not opt.llvm
   puts "note: disabling custom compiler optimizations; specify '--llvm' (or use clang as C compiler) to enable"
+end
+
+if opt.tracing && opt.profiling
+  abort "Please choose one of profiling or tracing."
 end
 
 if opt.tracing && not(opt.vampir) && opt.third_party
@@ -102,12 +109,6 @@ def configure(generator, mode, opt)
   end
   args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
   
-  `which ibv_devinfo`
-  if not $?.success?
-    puts "-- Unable to find `ibv_devinfo`, disabling IBV support."
-    args << "-DGASNET_USE_UDP:BOOL=ON"
-  end
-  
   if opt.tracing
     vtcc = "#{opt.vampir}/bin/vtcc"
     abort("error: Unable to find VampirTrace wrappers at #{vtcc}") if not File.exists?(vtcc)
@@ -120,7 +121,10 @@ def configure(generator, mode, opt)
     args << "-DCMAKE_C_FLAGS:STRING='-vt:cc #{opt.cc}'"
     args << "-DCMAKE_CXX_FLAGS:STRING='-vt:cxx #{opt.cxx}'"
     args << "-DTRACING:BOOL=ON"
-  else  
+  else
+    if opt.profiling
+      args << "-DPROFILING:BOOL=ON"
+    end
     args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
     args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
     args << "-DBASE_C_COMPILER=#{opt.cc}"
@@ -142,12 +146,17 @@ def configure(generator, mode, opt)
   
   args << "-DLLVM_ROOT=#{opt.llvm}" if opt.llvm
   
-  build_dir = "build/#{generator}"
-  build_dir << "+#{mode}" if mode
-  build_dir << "+Tracing" if opt.vampir
-  build_dir << "+#{opt.name}" if opt.name
+  if opt.build_here
+    build_dir = "."
+  else
+    build_dir = "build/#{generator}"
+    build_dir << "+#{mode}" if mode
+    build_dir << "+Tracing" if opt.tracing
+    build_dir << "+Profiling" if opt.profiling
+    build_dir << "+#{opt.name}" if opt.name
+    mkdir_p build_dir
+  end
   
-  mkdir_p build_dir
   cd build_dir do
     
     puts "cmake #{args.join(' ')} #{ARGV.join(' ')}"
@@ -155,9 +164,11 @@ def configure(generator, mode, opt)
     
     if $?.success?
       puts "-------------------------------------"
-      puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
-        {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
-      puts "-------------------------------------"
+      unless opt.build_here
+        puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
+          {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+        puts "-------------------------------------"
+      end
     end
   end
 end

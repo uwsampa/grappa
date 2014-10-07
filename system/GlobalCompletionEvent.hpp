@@ -27,16 +27,17 @@
 #include "CompletionEvent.hpp"
 #include "Tasking.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "DelegateBase.hpp"
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
+#include <vector>
 #include "Metrics.hpp"
 
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
 
 DECLARE_bool( flatten_completions );
+DECLARE_bool( enable_aggregation );
 
 /// total number of times "complete" has to be called on another core
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, gce_total_remote_completions);
@@ -82,6 +83,8 @@ class GlobalCompletionEvent : public CompletionEvent {
   
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
+
+  static std::vector<GlobalCompletionEvent*> user_tracked_gces;
   
   struct DoComplete {
     GlobalCompletionEvent * gce;
@@ -116,7 +119,10 @@ class GlobalCompletionEvent : public CompletionEvent {
           DVLOG(5) << "re-sending -- " << completes_to_send << " to Core[" << dest << "] " << PRINT_MSG(*this);
           (*this)->dec = completes_to_send;
           completes_to_send = 0;
+          auto prev = Grappa::impl::global_scheduler.in_no_switch_region();
+          Grappa::impl::global_scheduler.set_no_switch_region( true );
           this->enqueue(target);
+          Grappa::impl::global_scheduler.set_no_switch_region( prev );
         }
       }
     }
@@ -143,6 +149,10 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
+  static std::vector<GlobalCompletionEvent*> get_user_tracked();
+
+  int64_t incomplete() const { return count; }
+  
   /// Send a completion message to the originating core. Uses the local instance of the gce to
   /// keep track of information in order to flatten completions automatically.
   void send_completion(Core owner, int64_t dec = 1) {
@@ -165,9 +175,14 @@ public:
     }
   }
   
-  GlobalCompletionEvent(): master_core(0), completion_msgs(nullptr) {
+  GlobalCompletionEvent(bool user_track=false): master_core(0), completion_msgs(nullptr) {
     reset();
+
+    if (user_track) {
+      user_tracked_gces.push_back(this);
+    } 
   }
+
   ~GlobalCompletionEvent() {
     if (completion_msgs != nullptr) locale_free(completion_msgs);
   }
@@ -351,7 +366,9 @@ namespace Grappa {
   template< GlobalCompletionEvent * C = &impl::local_gce,
             typename F = decltype(nullptr) >
   void finish(F f) {
+    C->enroll();
     f();
+    C->complete();
     C->wait();
   }
   

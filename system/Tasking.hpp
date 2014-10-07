@@ -116,7 +116,7 @@ namespace Grappa {
   ///
   /// @tparam TF type of task functor
   ///
-  /// @param func functor the new task.
+  /// @param tf functor the new task.
   ///
   /// Example:
   /// @code
@@ -217,7 +217,7 @@ void run(FP fp) {
   //Grappa_Grappa::impl::take_tracing_sample();
 #endif
 
-  if( global_communicator.mycore() == 0 ) {
+  if( global_communicator.mycore == 0 ) {
     CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
@@ -225,6 +225,7 @@ void run(FP fp) {
     Grappa::spawn( [&fp] {
         Grappa_global_queue_initialize();
         fp();
+        Metrics::dump_stats_blob();
         Grappa_end_tasks();
       } );
 
@@ -283,8 +284,8 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
 /// @tparam A1 type of second task argument
 ///
 /// @param fn_p function pointer for the new task
-/// @param arg0 first task argument
-/// @param arg1 second task argument
+/// @param arg main task argument
+/// @param shared_arg second task argument, intended for common read-only data
 template < typename A0, typename A1 >
 void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg) 
 {
@@ -298,7 +299,7 @@ void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
 /// @tparam A0 type of first task argument
 ///
 /// @param fn_p function pointer for the new task
-/// @param arg0 first task argument
+/// @param arg main task argument
 template < typename T >
 inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
   Grappa_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
@@ -336,8 +337,8 @@ void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2)
 /// @tparam A1 type of second task argument
 ///
 /// @param fn_p function pointer for the new task
-/// @param arg0 first task argument
-/// @param arg1 second task argument
+/// @param arg main task argument
+/// @param shared_arg second task argument, intended for common read-only data
 template < typename A0, typename A1 >
 void Grappa_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg) 
 {
@@ -352,7 +353,7 @@ void Grappa_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
 /// @tparam A0 type of first task argument
 ///
 /// @param fn_p function pointer for the new task
-/// @param arg0 first task argument
+/// @param arg main task argument
 template < typename A0 >
 void Grappa_publicTask( void (*fn_p)(A0), A0 arg) {
   Grappa_publicTask(reinterpret_cast<void (*)(A0,void*)>(fn_p), arg, (void*)NULL);
@@ -375,7 +376,7 @@ static void user_main_wrapper( void (*fp)(T), T args ) {
 ///
 /// @tparam A type of task argument
 ///
-/// @param fn_p function pointer for the user main task
+/// @param fp function pointer for the user main task
 /// @param args task argument
 ///
 /// @return 0 if completed without errors
@@ -414,7 +415,7 @@ static void remote_task_spawn_am( remote_task_spawn_args<A0,A1,A2> * args, size_
 /// @tparam A1 type of second task argument
 /// @tparam A2 type of third task argument
 ///
-/// @param f function pointer for the new task
+/// @param fn_p function pointer for the new task
 /// @param arg0 first task argument
 /// @param arg1 second task argument
 /// @param arg2 third task argument
@@ -425,8 +426,11 @@ void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
 
-  remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
-  Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
+  //remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
+  //Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
+  send_heap_message( target, [fn_p,arg0,arg1,arg2] {
+      Grappa::impl::global_task_manager.spawnRemotePrivate(fn_p, arg0, arg1, arg2 );
+    } );
   DVLOG(5) << "Sent AM to spawn private task on Core " << target;
 }
 

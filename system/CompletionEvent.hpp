@@ -28,7 +28,6 @@
 #include "ConditionVariableLocal.hpp"
 #include "Message.hpp"
 #include "Tasking.hpp"
-#include "MessagePool.hpp"
 #include "DelegateBase.hpp"
 
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, ce_remote_completions);

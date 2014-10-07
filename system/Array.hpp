@@ -56,6 +56,14 @@ void memset(GlobalAddress<T> base, S value, size_t count) {
   });
 }
 
+/// Type-based memset for local arrays to match what is provided for distributed arrays.
+template< typename T, typename S >
+void memset(T* base, S value, size_t count) {
+  for (size_t i=0; i < count; i++) {
+    base[i] = value;
+  }
+}
+
 namespace impl {
   /// Copy elements of array (src..src+nelem) that are local to corresponding locations in dst
   template< typename T >
@@ -147,20 +155,9 @@ void prefix_sum(GlobalAddress<T> array, size_t nelem) {
 }
 
 namespace util {
-  /// String representation of a local array, matches form of Grappa::array_str that takes a global array.
-  template<typename T>
-  inline std::string array_str(const char * name, T * base, size_t nelem, int width = 10) {
-    std::stringstream ss; ss << "\n" << name << ": [";
-    for (size_t i=0; i<nelem; i++) {
-      if (i % width == 0) ss << "\n  ";
-      ss << " " << base[i];
-    }
-    ss << "\n]";
-    return ss.str();
-  }
   
   /// String representation of a global array.
-  /// @example
+  /// 
   /// @code
   ///   GlobalAddress<int> xs;
   ///   DVLOG(2) << array_str("x", xs, 4);
@@ -180,18 +177,29 @@ namespace util {
     return ss.str();
   }
 
-  template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
-  inline std::string array_str(const char * name, ArrayT array, int width = 10) {
-    std::stringstream ss; ss << "\n" << name << ": [";
+  template< int width = 10, typename ArrayT = nullptr_t >
+  inline std::string array_str(const char * name, const ArrayT& array) {
+    bool multiline = array.size() > width;
+    std::stringstream ss;
+    if (name) {
+      ss << name << ": ";
+    }
+    ss << "[";
     long i=0;
     for (auto e : array) {
-      if (i % width == 0) ss << "\n  ";
+      if (i % width == 0 && multiline) ss << "\n  ";
       ss << " " << e;
       i++;
     }
-    ss << "\n]";
+    ss << (multiline ? "\n" : " ") << "]";
     return ss.str();
   }
+  
+  template< int width = 10, typename ArrayT = nullptr_t >
+  inline std::string array_str(const ArrayT& array) {
+    return array_str(nullptr, array);
+  }
+  
   
   template<typename T>
   struct SimpleIterator {
@@ -199,6 +207,9 @@ namespace util {
     size_t nelem;
     T * begin() { return base; }
     T * end()   { return base+nelem; }
+    const T * begin() const { return base; }
+    const T * end() const { return base+nelem; }
+    size_t size() const { return nelem; }
   };
   
   /// Easier C++11 iteration over local array. Similar idea to Addressing::iterate_local().
@@ -212,7 +223,19 @@ namespace util {
   template<typename T>
   SimpleIterator<T> iterate(T* base = nullptr, size_t nelem = 0) { return SimpleIterator<T>{base, nelem}; }
   
+  /// String representation of a local array, matches form of Grappa::array_str that takes a global array.
+  template< int width = 10, typename T = nullptr_t >
+  inline std::string array_str(const char * name, T * base, size_t nelem) {
+    return array_str(name, iterate(base, nelem));
+  }
+  
 } // namespace util
 
 /// @}
 } // namespace Grappa
+
+template< typename T >
+std::ostream& operator<<(std::ostream& o, std::vector<T> v) {
+  o << Grappa::util::array_str(nullptr, &v[0], v.size());
+  return o;
+}

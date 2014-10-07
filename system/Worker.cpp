@@ -30,7 +30,7 @@
 #include <stdlib.h> // valloc
 #include "LocaleSharedMemory.hpp"
 
-DEFINE_int64( stack_size, 1<<19, "Default stack size" );
+DEFINE_int64( stack_size, MIN_STACK_SIZE, "Default stack size" );
 
 namespace Grappa {
 namespace impl {

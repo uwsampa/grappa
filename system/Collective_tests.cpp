@@ -32,6 +32,8 @@
 
 BOOST_AUTO_TEST_SUITE( Collective_tests );
 
+using namespace Grappa;
+
 static int global_x;
 
 struct TestObj {
@@ -98,6 +100,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
       for (int i=0; i<N; i++) BOOST_CHECK_EQUAL(xs[i], Grappa::cores() * i);
     });
+    
+    Grappa::call_on_all_cores([]{ global_x = 1; });
+    
+    auto total = Grappa::sum_all_cores([]{ return global_x; });
+    CHECK_EQ(total, cores());
+    
   });
   Grappa::finalize();
 }

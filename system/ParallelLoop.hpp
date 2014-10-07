@@ -26,7 +26,6 @@
 #include "CompletionEvent.hpp"
 #include "ConditionVariable.hpp"
 #include "Message.hpp"
-#include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "Addressing.hpp"
 #include "Communicator.hpp"
@@ -368,13 +367,12 @@ namespace Grappa {
     auto nc = cores();
     
     Core origin = mycore();
-    MessagePool pool(cores() * sizeof(Message<std::function<void(GlobalAddress<T>,int64_t,F)>>));
     
     if (GCE) GCE->enroll(fc);
     struct { int64_t nelems : 48, origin : 16; } packed = { nelems, mycore() };
     
     for (Core i=0; i<fc; i++) {
-      pool.send_message((r.first+i)%nc, [base,packed,do_on_core] {
+      send_heap_message((r.first+i)%nc, [base,packed,do_on_core] {
         spawn([base,packed,do_on_core] {
           T* local_base = base.localize();
           T* local_end = (base+packed.nelems).localize();
@@ -473,7 +471,7 @@ namespace Grappa {
   ///   GlobalAddress<double> array, dest;
   ///   forall<&gce>(array, N, [dest](int64_t start, int64_t niters, double * first){
   ///     for (int64_t i=0; i<niters; i++) {
-  ///       delegate::write<async,&gce>(shared_pool, dest+start+i, 2.0*first+i);
+  ///       delegate::write<async,&gce>(dest+start+i, 2.0*first+i);
   ///     }
   ///   });
   /// @endcode
@@ -492,7 +490,7 @@ namespace Grappa {
   ///   // GlobalCompletionEvent gce declared in global scope
   ///   GlobalAddress<double> array, dest;
   ///   forall<&gce>(array, N, [dest](int64_t i, double& v){
-  ///     delegate::write<async,&gce>(shared_pool, dest+i, 2.0*v);
+  ///     delegate::write<async,&gce>(dest+i, 2.0*v);
   ///   });
   /// @endcode
 #define OVERLOAD(BaseType, BaseTransform, ...) \
