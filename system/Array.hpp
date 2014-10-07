@@ -119,9 +119,14 @@ namespace impl {
 /// elements.
 template< typename T >
 void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
-  on_all_cores([dst,src,nelem]{
-    impl::do_memcpy_locally(dst,src,nelem);
-  });
+  if (src.is_2D() && dst.is_2D()) {
+    typename Incoherent<T>::RO c(src, nelem, dst.pointer());
+    c.block_until_acquired();
+  } else {
+    on_all_cores([dst,src,nelem]{
+      impl::do_memcpy_locally(dst,src,nelem);
+    });
+  }
 }
 
 /// Helper so we don't have to change the code if we change a Global pointer to a normal pointer (in theory).

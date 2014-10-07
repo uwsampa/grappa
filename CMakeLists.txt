@@ -6,13 +6,15 @@ include(ExternalProject)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
+set(SHMMAX "" CACHE STRING "Size of SysV shared memory")
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )
 #   message(FATAL_ERROR "you must set CC & CXX environment variables!")
 # endif()
 
-set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
+# set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
 
 project(Grappa)
 
@@ -51,8 +53,11 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 #########################################
 # Determine third party tools to build
-if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE TYPE PATH)
+set(third_party_docstring "Directory to look for/install third-party stuff to.")
+if(NOT THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE PATH "${third_party_docstring}")
+else()
+  set(THIRD_PARTY_ROOT "${THIRD_PARTY_ROOT}" CACHE PATH "${third_party_docstring}")
 endif()
 
 ###########################
@@ -182,6 +187,11 @@ add_definitions(-DSHMMAX=${SHMMAX})
 # add_definitions(-DSHMMAX=12884901888) # 12 GB
 # add_definitions(-DSHMMAX=6442450944) # 6 GB
 
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  # clang doesn't have this flag it seems, needed for Relation_io_tests.cpp in Travis
+  add_definitions( -D__extern_always_inline=inline )
+endif()
+
 if(NOT APPLE)
   list(APPEND GRAPPA_LIBS pthread rt)
 endif()
@@ -222,17 +232,26 @@ macro(add_grappa_test name nnode ppn)
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )
   
+  math(EXPR n "${nnode}*${ppn}")
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} --verbose -- ${base}.test
     DEPENDS Grappa ${name}
-  )
-  add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
   )
   
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
   list(APPEND GRAPPA_TESTS "check-${base}")
+  
+  # Add test target with dependent build command
+  set(target "test-${name}")
+  add_test(
+    NAME ${target}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_run" -n1 -p${n} -- ${name}
+  )
+  add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${name})
+  set_tests_properties(${target} PROPERTIES DEPENDS ${target}.build)
+  
 endmacro(add_grappa_test)
 
 ####################
@@ -263,3 +282,4 @@ add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(doc)
+add_subdirectory(util)

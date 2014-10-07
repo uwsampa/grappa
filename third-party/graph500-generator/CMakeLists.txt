@@ -18,5 +18,4 @@ set_target_properties(graph500-generator PROPERTIES
   COMPILE_FLAGS "-Drestrict=__restrict__ -DGRAPH_GENERATOR_SEQ -ffast-math ${STATIC_FLAGS}"
   FOLDER "Third Party"
 )
-get_property(generator_loc TARGET graph500-generator PROPERTY LOCATION)
-set(GRAPPA_LIBS ${GRAPPA_LIBS} ${generator_loc} PARENT_SCOPE)
+set(GRAPPA_LIBS graph500-generator PARENT_SCOPE)

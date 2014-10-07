@@ -34,16 +34,21 @@ namespace Grappa {
 /// @addtogroup Communication
 /// @{
 
-namespace impl {
-void init_shared_pool();
-void* _shared_pool_alloc(size_t sz);
-void _shared_pool_free(MessageBase * m, size_t sz);
+namespace SharedMessagePool {
+  void init();
+  void activate();
+  
+  size_t estimate_footprint();
+  size_t adjust_footprint(size_t target);
+  
+  void* alloc(size_t sz);
+  void free(MessageBase * m, size_t sz);
 }
 
 // Same as message, but allocated on heap
 template< typename T >
 inline Message<T> * heap_message(Core dest, T t) {
-  auto *m = new (_shared_pool_alloc(sizeof(Message<T>))) Message<T>(dest, t);
+  auto *m = new (SharedMessagePool::alloc(sizeof(Message<T>))) Message<T>(dest, t);
   m->delete_after_send();
   return m;
 }
@@ -51,7 +56,7 @@ inline Message<T> * heap_message(Core dest, T t) {
 /// Message with payload, allocated on heap
 template< typename T >
 inline PayloadMessage<T> * heap_message(Core dest, T t, void * payload, size_t payload_size) {
-  auto *m = new (_shared_pool_alloc(sizeof(PayloadMessage<T>)))
+  auto *m = new (SharedMessagePool::alloc(sizeof(PayloadMessage<T>)))
     PayloadMessage<T>(dest, t, payload, payload_size);
   m->delete_after_send();
   return m;
@@ -60,7 +65,7 @@ inline PayloadMessage<T> * heap_message(Core dest, T t, void * payload, size_t p
 /// Same as message, but allocated on heap and immediately enqueued to be sent.
 template< typename T >
 inline Message<T> * send_heap_message(Core dest, T t) {
-  auto *m = new (_shared_pool_alloc(sizeof(Message<T>))) Message<T>(dest, t);
+  auto *m = new (SharedMessagePool::alloc(sizeof(Message<T>))) Message<T>(dest, t);
   m->delete_after_send();
   m->enqueue();
   return m;
@@ -69,7 +74,7 @@ inline Message<T> * send_heap_message(Core dest, T t) {
 /// Message with payload, allocated on heap and immediately enqueued to be sent.
 template< typename T >
 inline PayloadMessage<T> * send_heap_message(Core dest, T t, void * payload, size_t payload_size) {
-  auto *m = new (_shared_pool_alloc(sizeof(PayloadMessage<T>)))
+  auto *m = new (SharedMessagePool::alloc(sizeof(PayloadMessage<T>)))
     PayloadMessage<T>(dest, t, payload, payload_size);
   m->delete_after_send();
   m->enqueue();
