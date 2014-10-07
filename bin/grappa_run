@@ -37,7 +37,7 @@ $FLAGS_freeze && export GRAPPA_FREEZE_ON_ERROR=1
 
 #TODO: figure out way to set default Slurm partition (environment variable? make our own?)
 
-if has_srun && [ $FLAGS_mpirun = false ]; then
+if has_srun && [ "$FLAGS_mpi" = "false" ]; then
   
   srun_flags=""
   
@@ -59,25 +59,31 @@ else
   ###################################
   
   mpiexe=${MPIEXEC:-mpiexec}
-  
-  mpi_version=$(mpiexec $mpi_flags --version 2>&1 | head -n 2)
+
+  command -v mpiexec >/dev/null 2>&1 || { 
+      echo >&2 "Cannot find mpiexec to check MPI version; perhaps you have an unsupported MPI version.  Aborting."
+      exit 1
+  }
+
+  mpi_version=$(mpiexec $mpi_flags --version 2>&1)
+  if [ $? -ne 0 ]
+  then
+      echo "Error $? checking MPI version using" $(command -v mpiexec) "with output: $mpi_version"
+      exit 1
+  fi
+
   $FLAGS_verbose && echo "# $mpi_version"
 
   case $mpi_version in
 
-    # OpenMPI v1.8
-    mpiexec*1.8*)
+    # OpenMPI v1.7 or greater
+    mpiexec*OpenRTE*1.[789]*|mpiexec*OpenRTE*[^1].*)
       cmd="$mpiexe --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
 
-    # OpenMPI v < 1.8
-    mpiexec*1.*)
-      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_flags $mpi_exports -- $FLAGS_extra"
-      ;;
-    
-    # MPICH
-    HYDRA*)
-      cmd="$mpiexe --n $totaln --npernode $FLAGS_ppn $mpi_exports -- $FLAGS_extra"
+    # MPICH / MVAPICH
+    HYDRA*Version:*[^12].*Release*)
+      cmd="$mpiexe -n $totaln -ppn $FLAGS_ppn -envall $FLAGS_extra"
       ;;
     
     *)
