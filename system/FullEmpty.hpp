@@ -163,15 +163,15 @@ namespace Grappa {
   template<class T> Result<T> _r(T val) { return Result<T>{val}; }
   
   template< class T >
-  auto _apply(Result<T> o) { return o.val; }
+  constexpr auto _apply(Result<T> o) { return o.val; }
 
   template< class T, class F, class... Fs >
-  auto _apply(Result<T> o, Delegate<F> d, Delegate<Fs>... ds) {
+  constexpr auto _apply(Result<T> o, Delegate<F> d, Delegate<Fs>... ds) {
     return _apply(_r(d.apply(o.val)), ds...);
   }
 
   template< class F, class... Fs >
-  auto _apply(Delegate<F> d, Delegate<Fs>... ds) {
+  constexpr auto _apply(Delegate<F> d, Delegate<Fs>... ds) {
     return _apply(_r(d.apply()), ds...);
   }
   
@@ -179,14 +179,14 @@ namespace Grappa {
   // auto _apply(T o, Delegate<F> d) { return d(o); }
   
   template< class T, class U >
-  auto _delegate(GlobalAddress<FullEmpty<T>> r, U o) {
+  constexpr auto _delegate(GlobalAddress<FullEmpty<T>> r, U o) {
     send_message(r.core(), [r,o]{
       r->writeXF(o);
     });
   }
   
   template< class T, class U, class F, class... Fs>
-  void _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d, Delegate<Fs>...ds) {
+  constexpr void _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d, Delegate<Fs>...ds) {
     auto f = [r,o,apply=d.apply,ds...]{
       auto oo = apply(o);
       _delegate(r, oo, ds...);
@@ -196,7 +196,7 @@ namespace Grappa {
   }
   
   template< class F, class... Fs>
-  auto _delegate(Delegate<F> d, Delegate<Fs>...ds) {
+  constexpr auto _delegate(Delegate<F> d, Delegate<Fs>...ds) {
     using T = decltype(_apply(d,ds...));
     FullEmpty<T> _r; auto r = make_global(&_r);
     send_message(d.target, [r,apply=d.apply,ds...]{
@@ -234,59 +234,53 @@ namespace Grappa {
     Future(tuple<Delegate<Fs>...>&& ds): ds(std::forward(ds)) {}
     Future(const tuple<Delegate<Fs>...>& ds): ds(ds) {}
     
-    auto operator*() { return invoke(); }
+    constexpr auto operator*() { return invoke(); }
     
-    auto invoke() { return _invoke(typename gens<sizeof...(Fs)>::type()); }
+    constexpr auto invoke() { return _invoke(typename gens<sizeof...(Fs)>::type()); }
             
-    auto get_first() { return std::get<0>(ds); }
-    auto get_rest() { return _cdr(ds); }
+    constexpr auto get_first() { return std::get<0>(ds); }
+    constexpr auto get_rest() { return _cdr(ds); }
             
   private:
     
-    template< class B, class...Bs >
+    template< class B, class...Bs > constexpr
     auto _cdr(tuple<Delegate<B>,Delegate<Bs>...>& t) {
       return _cdr(t, typename gens<sizeof...(Bs)>::type());
     }
     
-    template< class B, class...Bs, int...I >
+    template< class B, class...Bs, int...I > constexpr
     auto _cdr(tuple<Delegate<B>,Delegate<Bs>...>& t, seq<I...> idx) {
       return tuple<Delegate<Bs>...>{ std::get<I+1>(t)... };
     }
     
-    template< int...I >
+    template< int...I > constexpr
     auto _invoke(seq<I...> idx) {
       return _delegate( std::get<I>(ds)... );
     }
   };
   
-  template< class... Fs >
+  template< class... Fs > constexpr
   Future<Fs...> make_future(Delegate<Fs>...ds) { return Future<Fs...>(ds...); }
 
-  template< class... Fs >
+  template< class... Fs > constexpr
   Future<Fs...> make_future(tuple<Delegate<Fs>...> t) { return Future<Fs...>(t); }
 
-  template< class F >
+  template< class F > constexpr
   Future<F> make_future(Core c, F f) { return Future<F>(Delegate<F>(c,f)); }
   
-  template< class...As, class...Bs >
+  template< class...As, class...Bs > constexpr
   auto operator+(Future<As...>&& fa, Future<Bs...>&& fb) {
     using T = decltype(fa.invoke());
     auto b = fb.get_first();
-    auto new_b = make_delegate(
-      b.target, 
-      [ba=b.apply](const T& a){ return a + ba(); }
-    );
+    auto new_b = make_delegate(b.target, [ba=b.apply](const T& a){ return a + ba(); });
     return make_future(std::tuple_cat( fa.ds, make_tuple(new_b), fb.get_rest() ));
   }
 
   template< class...As, class...Bs >
-  auto operator-(Future<As...>&& fa, Future<Bs...>&& fb) {
+  constexpr auto operator-(Future<As...>&& fa, Future<Bs...>&& fb) {
     using T = decltype(fa.invoke());
     auto b = fb.get_first();
-    auto new_b = make_delegate(
-      b.target, 
-      [ba=b.apply](const T& a){ return a - ba(); }
-    );
+    auto new_b = make_delegate(b.target, [ba=b.apply](const T& a){ return a - ba(); });
     return make_future(std::tuple_cat( fa.ds, make_tuple(new_b), fb.get_rest() ));
   }
 
