@@ -147,16 +147,17 @@ Igor do
                     target_size 2**12
           rdma_buffers_per_core 16
                  rdma_threshold 64
-               shared_pool_size 2**16
-                shared_pool_max 2**14
+         shared_pool_chunk_size 2**13
                      stack_size 2**19
-             locale_shared_size SHMMAX
+             # locale_shared_size SHMMAX
            global_heap_fraction 0.5
+    shared_pool_memory_fraction 0.25
             flatten_completions 1
                  flat_combining 1
+       log2_concurrent_receives 7
   }
   
-  params { grappa_version 'asplos14' }
+  params { grappa_version 'osdi14'; version 'grappa' }
   
   class << GFLAGS
     def expand
@@ -234,5 +235,23 @@ Igor do
 
     h # return hash
   }
-
+  
+  @cols = [
+    :id,
+    :nnode,
+    :loop_threshold,
+    :num_starting_workers,
+  ]
+  
+  @order = :id
+  
+  def selected
+    c = @cols
+    o = @order
+    results{select *c}.order(o)
+  end
+  
 end
+
+$twitter = '/pic/projects/grappa/twitter/bintsv4/twitter-all.bintsv4'
+$friendster = '/pic/projects/grappa/friendster/bintsv4/friendster.bintsv4'

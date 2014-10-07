@@ -4,7 +4,9 @@ cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
-option(GASNET_USE_UDP "Force Gasnet to use UDP (typically set by configure script)" OFF)
+option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
+
+set(SHMMAX "" CACHE STRING "Size of SysV shared memory")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -12,12 +14,12 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 #   message(FATAL_ERROR "you must set CC & CXX environment variables!")
 # endif()
 
-set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
+# set(CMAKE_XCODE_ATTRIBUTE_GCC_VERSION "com.apple.compilers.clang.3_4")
 
 project(Grappa)
 
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
 
 set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
 set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
@@ -38,6 +40,11 @@ if(TRACING)
   
 endif()
 
+if(PROFILING)
+  set(GOOGLE_PROFILER ON)
+  add_definitions(-DGOOGLE_PROFILER)
+endif()
+
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
@@ -46,8 +53,11 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 #########################################
 # Determine third party tools to build
-if(NOT DEFINED THIRD_PARTY_ROOT)
-  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE TYPE PATH)
+set(third_party_docstring "Directory to look for/install third-party stuff to.")
+if(NOT THIRD_PARTY_ROOT)
+  set(THIRD_PARTY_ROOT "${CMAKE_BINARY_DIR}/third-party" CACHE PATH "${third_party_docstring}")
+else()
+  set(THIRD_PARTY_ROOT "${THIRD_PARTY_ROOT}" CACHE PATH "${third_party_docstring}")
 endif()
 
 ###########################
@@ -83,6 +93,10 @@ if(TRACING)
   endif()
 endif()
 
+if(PROFILING)
+  message("-- Profiling enabled.")
+endif()
+
 ##### </RUNPATH> ########
 
 
@@ -113,8 +127,7 @@ if( GOOGLE_PROFILER )
   add_definitions( -DGOOGLE_PROFILER )
 endif()
 
-# pre-compiled external dependencies
-# TODO: make CMake build these (see GraphLab's CMake)
+# External dependencies (built automatically if not found, see third-party/CMakeLists.txt)
 include_directories("${THIRD_PARTY_ROOT}/include")
 link_directories("${THIRD_PARTY_ROOT}/lib")
 list(APPEND GRAPPA_LIBS
@@ -122,9 +135,24 @@ list(APPEND GRAPPA_LIBS
   glog
 )
 
+# TODO: actually check if PMI is available for this platform, possibly build it
+find_library(PMI_FOUND pmi)
+if(PMI_FOUND)
+  link_directories(${PMI_FOUND})
+  list(APPEND GRAPPA_LIBS pmi)
+endif()
+# if(NOT APPLE)
+#   list(APPEND GRAPPA_LIBS pmi)
+# endif()
+
 #####################################
 # Boost
 #####################################
+if(VERBOSE)
+  set(Boost_DETAILED_FAILURE_MSG ON)
+  set(Boost_DEBUG ON)
+endif()
+
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
 set(Boost_USE_MULTITHREADED OFF)
@@ -148,38 +176,6 @@ else()
   message("-- Boost not found.")
   message("   !! Will download and build Boost, which may take a while.")
 endif()
-
-######################################
-# Gasnet
-######################################
-if(DEFINED APPLE OR GASNET_USE_UDP)
-  set(GASNET_CONDUIT "udp")
-else()
-  set(GASNET_CONDUIT "ibv") # values: ibv,mpi
-endif()
-
-set(GASNET_THREAD "seq")  # values: seq,par,parsync -- seq recommended
-list(APPEND GRAPPA_LIBS "gasnet-${GASNET_CONDUIT}-${GASNET_THREAD}")
-
-if( ${GASNET_CONDUIT} MATCHES "ibv")
-  list(APPEND GRAPPA_LIBS "ibverbs")
-endif()
-if( ${GASNET_CONDUIT} MATCHES "mpi")
-  list(APPEND GRAPPA_LIBS "ammpi")
-endif()
-if( ${GASNET_CONDUIT} MATCHES "udp")
-  list(APPEND GRAPPA_LIBS "amudp")
-endif()
-
-string(TOUPPER ${GASNET_CONDUIT} GASNET_CONDUIT_UP)
-string(TOUPPER ${GASNET_THREAD} GASNET_THREAD_UP)
-
-add_definitions(
-  "-DGASNET_${GASNET_THREAD_UP}"
-  "-DGASNET_${GASNET_CONDUIT_UP}"
-  "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
-)
-include_directories("${THIRD_PARTY_ROOT}/include/${GASNET_CONDUIT}-conduit")
 
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
@@ -231,17 +227,26 @@ macro(add_grappa_test name nnode ppn)
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )
   
+  math(EXPR n "${nnode}*${ppn}")
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${base}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_run --nnode=1 --ppn=${n} --verbose -- ${base}.test
     DEPENDS Grappa ${name}
-  )
-  add_test(NAME "test-${base}" WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun --test=${base} --nnode=${nnode} --ppn=${ppn}
   )
   
   set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
   list(APPEND GRAPPA_TESTS "check-${base}")
+  
+  # Add test target with dependent build command
+  set(target "test-${name}")
+  add_test(
+    NAME ${target}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND "${CMAKE_BINARY_DIR}/bin/grappa_run" -n1 -p${n} -- ${name}
+  )
+  add_test(${target}.build "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${name})
+  set_tests_properties(${target} PROPERTIES DEPENDS ${target}.build)
+  
 endmacro(add_grappa_test)
 
 ####################
@@ -272,3 +277,4 @@ add_subdirectory(applications)
 add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(doc)
+add_subdirectory(util)

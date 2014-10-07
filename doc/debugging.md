@@ -5,7 +5,7 @@ First of all, Grappa is a very young system, so there are likely to be many bugs
 
 * Build with `./configure --mode=Debug` to get better stack traces (note, you'll have to use a different CMake-generated build directory, but this prevents confusing situations where not all files were built for debug).
 * The Google logging library we use is *really* good at getting things in order and flushing correctly. Use them and trust them. Debugging verbosity can be changed per-file with `--vmodule`. See [their documentation](http://google-glog.googlecode.com/svn/trunk/doc/glog.html).
-* GASNet has support for suspending applications to allow you to attach to them in gdb. Calling `grappa_srun` with `--freeze-on-error` will enable this feature.
+* **(TODO: update note for MPI)** GASNet has support for suspending applications to allow you to attach to them in gdb. Calling `grappa_srun` with `--freeze-on-error` will enable this feature.
 * **(TO BE FIXED SOON)** `system/grappa_gdb.macros`: Some useful macros for introspection into grappa data structures. Also allows you to switch to a running task and see its stack. Add the macro to your `.gdbinit` and type `help grappa` in gdb to see commands and usage.
 
 Performance debugging tips
@@ -19,10 +19,14 @@ Tracing
 
 Grappa supports sampled tracing via VampirTrace. These traces can be visualized using the commercial tool, [Vampir](http://www.vampir.eu/). When tracing, what happens is all of the metrics specified with `GRAPPA_DEFINE_METRIC()` are sampled at a regular interval using sampling interrupts by Google's `gperftools` library, and saved to a compressed trace using the VampirTrace open source library. This results in a trace with the individual values of all of the Grappa statistics on all cores, over the execution.
 
-Before configuring, ensure you have VampirTrace built somewhere. If VampirTrace is not built anywhere, there is a script to download and build it in `tools/`. Make sure to specify where to install it with the `--prefix` flag:
+Before configuring, ensure you have a recent version of VampirTrace built somewhere.
+
+*Note: many MPI builds come with an older version of VampirTrace which is incompatible.* We recommend using the steps below to build the version we use (5.14.4).
+
+ If VampirTrace is not built anywhere, there is a script to download and build it in `tools/`. *Make sure to do this with the compiler you will use to build the rest of Grappa*. Also make sure to specify where to install it with the `--prefix` flag:
 
 ```bash
-> ./third-party/vampirtrace.rb --prefix=/sampa/share/grappa-third-party
+> ./third-party/vampirtrace.rb --prefix=/opt/vampirtrace
 ```
 
 To use tracing, a separate Grappa build configuration must be made using either the '--tracing' or '--vampir' flags. If Vampir was installed in your `third-party` directory, just use '--tracing'; otherwise, use '--vampir' to specify the path to a separate VampirTrace install. For example:
@@ -35,6 +39,12 @@ Tracing configurations have `+Tracing` in their name. Cd into the build director
 
 * `${exe}.otf`: main file that links other trace files together
 * `${exe}.*.events.z`: zipped trace events per process
+
+If you see the `${exe}.*.events.z` files but not the `${exe}.otf` file, then `vtunify` did not run at the end of your application. You can run it manually as:
+
+```bash
+> vtunify ${exe}
+```
 
 For now, tracing must be explicitly enabled for a particular region of execution, using `Metrics::start_tracing()` and `Metrics::stop_tracing()`. For example:
 
@@ -55,3 +65,26 @@ int main(int argc, char* argv[]) {
 }
 ```
 
+### Create a timeseries plot
+
+You can create a timeseries plot of a particular metric using the `otf2sqlite.exe` utility.
+
+**(TODO: how to get open-trace-format libraries)**
+
+First build the utility.
+```bash
+cd build/...+Tracing/applications/util
+make otf2sqlite.exe
+```
+
+Now find the counter you want to use.
+```bash
+./otf2sqlite.exe --otf=${exe}.otf --list_counters=true
+```
+
+Create the table.
+```bash
+./otf2sqlite.exe --db=mytraces.db --otf=${exe}.otf --table=${exe}_rdma_message_bytes --counter=rdma_message_bytes
+```
+
+The table has two value columns, `INT_VALUE` and `DOUBLE_VALUE`. Use the appropriate one depending on the type of that Metric.

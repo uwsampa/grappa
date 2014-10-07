@@ -41,12 +41,13 @@
 #include "FileIO.hpp"
 
 #include "RDMAAggregator.hpp"
-#include "Barrier.hpp"
 #include "LocaleSharedMemory.hpp"
 #include "SharedMessagePool.hpp"
 #include "Metrics.hpp"
 
 #include <fstream>
+
+#include <mpi.h>
 
 #include "Grappa.hpp"
 
@@ -61,14 +62,18 @@
 // command line arguments
 DEFINE_uint64( num_starting_workers, 512, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
-DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
-DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
 DECLARE_int64( locale_shared_size );
+DECLARE_double( locale_shared_fraction );
+DECLARE_double( locale_user_heap_fraction );
 DECLARE_double( global_heap_fraction );
+DECLARE_int64( shared_pool_max_size );
+DECLARE_bool( global_memory_use_hugepages );
+DECLARE_double(locale_shared_fraction);
+
 
 using namespace Grappa::impl;
 using namespace Grappa::Metrics;
@@ -90,8 +95,6 @@ namespace Grappa {
   
   double tick_rate = 0.0;
   
-  static Worker * barrier_thread = NULL;
-
   Worker * master_thread;
   static Worker * user_main_thr;
   
@@ -99,19 +102,65 @@ namespace Grappa {
   IODescriptor * aio_completed_stack;
   
   namespace impl {
-
+    
     int64_t global_memory_size_bytes = 0;
     int64_t global_bytes_per_core = 0;
     int64_t global_bytes_per_locale = 0;
-
+    
     /// Tell all nodes that we are ready to exit.
     /// This will terminate the automatic portions of the communication layer
-    void signal_done() { 
+    void signal_done() {
       VLOG(5) << "mark done";
       Grappa_done_flag = true;
     }
   }
-
+  
+  void global_heap_init(size_t init_size) {
+    // by default, will allocate as much shared memory as it is
+    // possible to evenly split among the processors on a node
+    if (init_size != -1) {
+      impl::global_memory_size_bytes = init_size;
+      impl::global_bytes_per_core = init_size / cores();
+      impl::global_bytes_per_locale = init_size / locales();
+      return;
+    }
+    
+    // Decide how much memory we should allocate for global shared heap.
+    // this uses the locale shared size calculated in LocaleSharedMemory.cpp
+    auto sz = static_cast<int64_t>(FLAGS_locale_shared_size * FLAGS_global_heap_fraction);
+    
+    int64_t nnode = global_communicator.locales;
+    int64_t ppn = global_communicator.locale_cores;
+    
+    int64_t bytes_per_core = sz / ppn;
+    // round down to page size so we don't ask for too much
+    bytes_per_core &= ~( (1L << 12) - 1 );
+    
+    // be aware of hugepages
+    // Each core should ask for a multiple of 1GB hugepages
+    // and the whole node should ask for no more than the total pages available
+    if ( FLAGS_global_memory_use_hugepages ) {
+      int64_t pages_per_core = bytes_per_core / (1L << 30);
+      int64_t new_bpp = pages_per_core * (1L << 30);
+      if (new_bpp == 0) {
+        MASTER_ONLY VLOG(1) << "Allocating 1GB per core anyway.";
+        new_bpp = 1L << 30;
+      }
+      MASTER_ONLY VLOG_IF(1, bytes_per_core != new_bpp) << "With ppn=" << ppn << ", can only allocate "
+      << pages_per_core*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
+      bytes_per_core = new_bpp;
+    }
+    
+    int64_t bytes = nnode * ppn * bytes_per_core;
+    int64_t bytes_per_node = ppn * bytes_per_core;
+    MASTER_ONLY DVLOG(2) << "bpp = " << bytes_per_core << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
+    << ", SHMMAX = " << SHMMAX << ", heap_size = " << sz;
+    MASTER_ONLY VLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
+    
+    impl::global_memory_size_bytes = bytes;
+    impl::global_bytes_per_core = bytes_per_core;
+    impl::global_bytes_per_locale = bytes_per_node;
+  }
   
 }
 
@@ -129,9 +178,6 @@ static void poller( Worker * me, void * args ) {
 
     Grappa::impl::poll();
     
-    // poll global barrier
-    Grappa::impl::barrier_poll();
-
     // check async. io completions
     if (aio_completed_stack) {
       // atomically grab the stack, replacing it with an empty stack again
@@ -156,11 +202,6 @@ static void poller( Worker * me, void * args ) {
   // master will be scheduled upon exit of poller thread
 }
 
-/// handler to redirect SIGABRT override to activate a GASNet backtrace
-static void gasnet_pause_sighandler( int signum ) {
-  raise( SIGUSR1 );
-}
-
 // from google
 namespace google {
 typedef void (*override_handler_t)(int);
@@ -182,20 +223,127 @@ static void stats_dump_sighandler( int signum ) {
   LOG(INFO) << global_task_manager;
 }
 
-// function to call when google logging library detect a failure
+
+bool freeze_flag = false;
+
 namespace Grappa {
-  namespace impl {
-    /// called on failures to backtrace and pause for debugger
-    void failure_function() {
-      google::FlushLogFiles(google::GLOG_INFO);
-      google::DumpStackTrace();
-      gasnett_freezeForDebuggerErr();
-      gasnet_exit(1);
-    }
+namespace impl {
+
+void freeze_for_debugger() {
+  auto pid = getpid();
+  LOG(INFO) << global_communicator.hostname() << ":" << pid << " freezing for debugger. Set freeze_flag=false to continue.";
+  google::FlushLogFiles(google::GLOG_INFO);
+  fflush(stdout);
+  fflush(stderr);
+
+  while( freeze_flag ) {
+    sleep(1);
   }
 }
 
-DECLARE_bool( global_memory_use_hugepages );
+/// called on failures to backtrace and pause for debugger
+void failure_function() {
+  google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
+  if( freeze_flag ) {
+    freeze_for_debugger();
+  }
+  LOG(INFO) << "Exiting via failure function";
+  google::FlushLogFiles(google::GLOG_INFO);
+  exit(1);
+}
+
+static void failure_sighandler( int signum ) {
+  google::FlushLogFiles(google::GLOG_INFO);
+  google::DumpStackTrace();
+  if( freeze_flag ) {
+    freeze_for_debugger();
+  }
+  LOG(INFO) << "Exiting due to signal " << signum;
+  google::FlushLogFiles(google::GLOG_INFO);
+  exit(1);
+}
+
+static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
+  char error_string[MPI_MAX_ERROR_STRING];
+  int length;
+  MPI_Error_string( *error_code, error_string, &length);
+  LOG(FATAL) << "MPI call failed: " << error_string;
+  failure_function();
+}
+
+}
+}
+
+void adjust_footprints() {
+  auto locale_cores = global_communicator.locale_cores;
+  auto locale_total = FLAGS_locale_shared_size;
+  
+  // (FLAGS_locale_shared_size either set manually or computed from fraction of SHMMAX)
+  auto locale_heap_bytes = static_cast<size_t>(FLAGS_locale_user_heap_fraction * (double)locale_total);
+  auto global_heap_bytes = Grappa::impl::global_memory_size_bytes;
+  
+  // memory left for Grappa components
+  auto grappa_bytes = (locale_total - global_heap_bytes - locale_heap_bytes) / locale_cores;
+  CHECK_GT(grappa_bytes, 0)
+    << "\nMust leave some memory for Grappa system components!\n"
+    << " - locale_heap_bytes: " << locale_heap_bytes << "\n"
+    << " - global_heap_bytes: " << global_heap_bytes << "\n"
+    << " - total (SHMMAX):    " << locale_total;
+  
+  auto total_footprint = []{
+    return global_communicator.estimate_footprint()
+    + global_rdma_aggregator.estimate_footprint()
+    + global_task_manager.estimate_footprint()
+    + SharedMessagePool::estimate_footprint();
+  };
+  
+  if (total_footprint() < grappa_bytes) return;
+  
+  // otherwise try to get all the grappa components to play along
+  long remaining = grappa_bytes;
+  
+  try {
+    
+    remaining -= SharedMessagePool::adjust_footprint(remaining / 4);
+    if (remaining < 0) throw "SharedMessagePool";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_communicator.adjust_footprint(remaining / 3);
+    if (remaining < 0) throw "Communicator";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_rdma_aggregator.adjust_footprint(remaining / 2);
+    if (remaining < 0) throw "RDMA Aggregator";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+    remaining -= global_task_manager.adjust_footprint(remaining);
+    if (remaining < 0) throw "TaskManager";
+    if (total_footprint() < grappa_bytes) throw true;
+    
+  } catch (bool success) {
+    
+    MASTER_ONLY LOG(INFO) << "\nFootprint estimates: "
+    << "\n- locale_heap_bytes: " << locale_heap_bytes
+    << "\n- global_heap_bytes: " << global_heap_bytes
+    << "\n- total for Grappa:  " << grappa_bytes
+    << "\n  - global_communicator:    " << global_communicator.estimate_footprint()
+    << "\n  - global_rdma_aggregator: " << global_rdma_aggregator.estimate_footprint()
+    << "\n  - global_task_manager:    " << global_task_manager.estimate_footprint();
+
+  } catch (char const* component) {
+    MASTER_ONLY LOG(ERROR)
+      << "\nUnable to fit Grappa components in memory. Failed at " << component
+      << "\n  locale_heap_bytes:      " << locale_heap_bytes
+      << "\n  global_heap_bytes:      " << global_heap_bytes
+      << "\n  total for Grappa:       " << grappa_bytes
+      << "\n  global_communicator:    " << global_communicator.estimate_footprint()
+      << "\n  global_rdma_aggregator: " << global_rdma_aggregator.estimate_footprint()
+      << "\n  global_task_manager:    " << global_task_manager.estimate_footprint()
+      << "\n  shared_message_pool:    " << SharedMessagePool::estimate_footprint();
+    exit(1);
+  }
+}
 
 /// Initialize Grappa components. We are not ready to run until the
 /// user calls Grappa_activate().
@@ -205,10 +353,11 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // for( int i = 0; i < *argc_p; ++i ) {
   //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
   // }
-
-  // make sure gasnet is ready to backtrace
-  gasnett_backtrace_init( (*argv_p)[0] );
-
+  
+  if (global_memory_size_bytes == -1) {
+    
+  }
+  
   // help generate unique profile filename
   Grappa::impl::set_exe_name( (*argv_p)[0] );
 
@@ -218,9 +367,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &Grappa::impl::failure_function );
-  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
+  
+  DVLOG(2) << "Initializing Grappa library....";
 
-  DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
   VLOG(1) << "heap check enabled";
   Grappa_heapchecker = new HeapLeakChecker("Grappa");
@@ -238,17 +387,60 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   double start = Grappa::walltime();
   // now go do other stuff for a while
   
+  // initializes system_wide global_communicator
+  global_communicator.init( argc_p, argv_p );
+  
+  MPI_Errhandler mpi_error_handler;
+  MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
+  MPI_Comm_set_errhandler( global_communicator.grappa_comm, mpi_error_handler );
+
+
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
+
+  // check to see if we should freeze for the debugger on error
+  char * freeze_on_error = getenv("GRAPPA_FREEZE_ON_ERROR");
+  if( freeze_on_error && ( (strncmp(freeze_on_error,"1",1) == 0) ||
+                           (strncmp(freeze_on_error,"true",4) == 0) ||
+                           (strncmp(freeze_on_error,"True",4) == 0) ||
+                           (strncmp(freeze_on_error,"TRUE",4) == 0) ||
+                           (strncmp(freeze_on_error,"yes",3) == 0) ||
+                           (strncmp(freeze_on_error,"Yes",3) == 0) ||
+                           (strncmp(freeze_on_error,"YES",3) == 0) ) ) {
+    freeze_flag = true;
+  }
+
+  // check to see if we should freeze for the debugger now
+  char * freeze_now = getenv("GRAPPA_FREEZE");
+  if( freeze_now && ( (strncmp(freeze_now,"1",1) == 0) ||
+                           (strncmp(freeze_now,"true",4) == 0) ||
+                           (strncmp(freeze_now,"True",4) == 0) ||
+                           (strncmp(freeze_now,"TRUE",4) == 0) ||
+                           (strncmp(freeze_now,"yes",3) == 0) ||
+                           (strncmp(freeze_now,"Yes",3) == 0) ||
+                           (strncmp(freeze_now,"YES",3) == 0) ) ) {
+    freeze_flag = true;
+    freeze_for_debugger();
+  }
+
+
   // set up stats dump signal handler
   struct sigaction stats_dump_sa;
   sigemptyset( &stats_dump_sa.sa_mask );
   stats_dump_sa.sa_flags = 0;
   stats_dump_sa.sa_handler = &stats_dump_sighandler;
   CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
-  struct sigaction sigabrt_sa;
-  sigemptyset( &sigabrt_sa.sa_mask );
-  sigabrt_sa.sa_flags = 0;
-  sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
-  CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+
+  // struct sigaction sigabrt_sa;
+  // sigemptyset( &sigabrt_sa.sa_mask );
+  // sigabrt_sa.sa_flags = 0;
+  // sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
+  // CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+
+  struct sigaction sigsegv_sa;
+  sigemptyset( &sigsegv_sa.sa_mask );
+  sigsegv_sa.sa_flags = 0;
+  sigsegv_sa.sa_handler = &Grappa::impl::failure_sighandler;
+  CHECK_EQ( 0, sigaction( SIGSEGV, &sigsegv_sa, 0 ) ) << "SIGSEGV signal handler installation failed.";
 
   // Asynchronous IO
   // initialize completed stack
@@ -265,14 +457,16 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   }
 #endif
 
-  // initializes system_wide global_communicator
-  global_communicator.init( argc_p, argv_p );
   
-  CHECK( global_communicator.locale_cores() <= MAX_CORES_PER_LOCALE );
+  VLOG(2) << "Communicator initialized.";
+  
+  CHECK( global_communicator.locale_cores <= MAX_CORES_PER_LOCALE );
   
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
+  VLOG(2) << "Aggregator initialized.";
+  
   // set CPU affinity if requested
 #ifdef CPU_SET
   if( FLAGS_set_affinity ) {
@@ -289,58 +483,14 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   // initialize node shared memory
   locale_shared_memory.init();
-
-  // by default, will allocate as much shared memory as it is
-  // possible to evenly split among the processors on a node
-  if (global_memory_size_bytes == -1) {
-
-    // Decide how much memory we should allocate for global shared heap.
-    // TODO: this should be a long literal
-    double shmmax_fraction = static_cast< double >( SHMMAX ) * FLAGS_global_heap_fraction;
-    int64_t shmmax_adjusted_floor = static_cast< int64_t >( shmmax_fraction );
-
-    int64_t nnode = global_communicator.locales();
-    int64_t ppn = global_communicator.locale_cores();
-    
-    int64_t bytes_per_proc = shmmax_adjusted_floor / ppn;
-    // round down to page size so we don't ask for too much?
-    bytes_per_proc &= ~( (1L << 12) - 1 );
-    
-    // be aware of hugepages
-    // Each core should ask for a multiple of 1GB hugepages
-    // and the whole node should ask for no more than the total pages available
-    if ( FLAGS_global_memory_use_hugepages ) {
-      int64_t pages_per_proc = bytes_per_proc / (1L << 30);
-      int64_t new_bpp = pages_per_proc * (1L << 30);
-      if (new_bpp == 0) {
-        VLOG(1) << "Allocating 1GB per core anyway.";
-        new_bpp = 1L << 30;
-      }
-      VLOG_IF(1, bytes_per_proc != new_bpp) << "With ppn=" << ppn << ", can only allocate " 
-                                            << pages_per_proc*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
-      bytes_per_proc = new_bpp;
-    }
-
-    int64_t bytes = nnode * ppn * bytes_per_proc;
-    int64_t bytes_per_node = ppn * bytes_per_proc;
-    DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
-             << ", SHMMAX = " << SHMMAX << ", shmmax_adjusted_floor = " << shmmax_adjusted_floor;
-    VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
-    global_memory_size_bytes = bytes;
-
-    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
-    Grappa::impl::global_bytes_per_core = bytes_per_proc;
-    Grappa::impl::global_bytes_per_locale = bytes_per_node;
-  } else {
-    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
-    Grappa::impl::global_bytes_per_core = global_memory_size_bytes / cores();
-    Grappa::impl::global_bytes_per_locale = global_memory_size_bytes / locales();
-  }
   
-  VLOG(1) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
-  VLOG(1) << "global_bytes_per_core = " << Grappa::impl::global_bytes_per_core;
-  VLOG(1) << "global_bytes_per_locale = " << Grappa::impl::global_bytes_per_locale;
-
+  // initialize shared message pool
+  SharedMessagePool::init();
+  
+  global_heap_init(global_memory_size_bytes);
+  
+  adjust_footprints();
+  
   Grappa_done_flag = false;
 
   // process command line args for Tau
@@ -357,13 +507,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   // start threading layer
   master_thread = convert_to_master();
-  VLOG(1) << "Initializing tasking layer."
+  VLOG(2) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa::mycore(), node_neighbors, Grappa::cores() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   
+  VLOG(2) << "Scheduler initialized.";
+  
   // start RDMA Aggregator *after* threading layer
   global_rdma_aggregator.init();
+  
+  VLOG(2) << "RDMA aggregator initialized.";
   
   // collect some stats on this job
   Grappa::force_tick();
@@ -383,35 +537,65 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 /// arbitrary communication is allowed.
 void Grappa_activate() 
 {
-  DVLOG(1) << "Activating Grappa library....";
+  DVLOG(2) << "Activating Grappa library....";
+  
+  locale_shared_memory.activate(); // do this before communicator
+  auto base_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
+
   global_communicator.activate();
-  locale_shared_memory.activate();
+  auto communicator_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
+
   global_task_manager.activate();
-  Grappa::comm_barrier();
+  auto tasks_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
+
+  global_communicator.barrier();
 
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
+  auto heap_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
 
   // fire up polling thread
   global_scheduler.periodic( impl::worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
-
+  auto polling_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
 
   global_rdma_aggregator.activate();
+  auto aggregator_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
-  Grappa::init_shared_pool(); // (must be after locale-heap is initialized in RDMAAggregator)
+  SharedMessagePool::activate();
+  auto shared_pool_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
   if (Grappa::mycore() == 0) {
-    size_t stack_sz = FLAGS_stack_size * FLAGS_num_starting_workers;
-    double stack_sz_gb = static_cast<double>(stack_sz) / (1L<<30);
-    double gheap_sz_gb = static_cast<double>(global_bytes_per_core) / (1L<<30);
-    size_t shpool_sz = FLAGS_shared_pool_max * FLAGS_shared_pool_size;
-    double shpool_sz_gb = static_cast<double>(shpool_sz) / (1L<<30);
-    size_t free_sz = Grappa::impl::locale_shared_memory.get_free_memory() / Grappa::locale_cores();
+    double locale_sz_gb = static_cast<double>(FLAGS_locale_shared_size) / (1L<<30);
+    double locale_core_sz_gb = static_cast<double>(FLAGS_locale_shared_size) / Grappa::locale_cores() / (1L<<30);
+    double communicator_sz_gb = static_cast<double>( communicator_locale_shared_memory_allocated - base_locale_shared_memory_allocated ) / (1L<<30);
+    double tasks_sz_gb = static_cast<double>( tasks_locale_shared_memory_allocated - communicator_locale_shared_memory_allocated ) / (1L<<30);
+    double heap_sz_gb = static_cast<double>( heap_locale_shared_memory_allocated - tasks_locale_shared_memory_allocated ) / (1L<<30);
+    tasks_sz_gb += static_cast<double>( polling_locale_shared_memory_allocated - heap_locale_shared_memory_allocated ) / (1L<<30);
+    double aggregator_sz_gb = static_cast<double>( aggregator_locale_shared_memory_allocated - polling_locale_shared_memory_allocated ) / (1L<<30);
+    double shared_pool_sz_gb = static_cast<double>( shared_pool_locale_shared_memory_allocated - aggregator_locale_shared_memory_allocated ) / (1L<<30);
+    double shared_pool_max_sz_gb = static_cast<double>( FLAGS_shared_pool_max_size ) / (1L<<30);
+    
+    size_t free_sz = static_cast<double>(Grappa::impl::locale_shared_memory.get_free_memory());
     double free_sz_gb = static_cast<double>(free_sz) / (1L<<30);
-    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  rdma_aggregator: ??\n  shared_message_pool: " << shpool_sz << " (" << shpool_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
+    double free_core_sz_gb = static_cast<double>(free_sz) / Grappa::locale_cores() / (1L<<30);
+    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n"
+            << "  locale shared heap total:     " << locale_sz_gb << " GB\n"
+            << "  locale shared heap per core:  " << locale_core_sz_gb << " GB\n"
+            << "  communicator per core:        " << communicator_sz_gb << " GB\n"
+            << "  tasks per core:               " << tasks_sz_gb << " GB\n"
+            << "  global heap per core:         " << heap_sz_gb << " GB\n"
+            << "  aggregator per core:          " << aggregator_sz_gb << " GB\n"
+            << "  shared_pool current per core: " << shared_pool_sz_gb << " GB\n"
+            << "  shared_pool max per core:     " << shared_pool_max_sz_gb << " GB\n"
+            << "  free per locale:              " << free_sz_gb << " GB\n"
+            << "  free per core:                " << free_core_sz_gb << " GB\n"
+            << "-------------------------";
+
+    CHECK_GT( free_core_sz_gb, shared_pool_max_sz_gb ) 
+      << "Not enough free locale shared heap for fully-allocated shared message pool";
   }
   
-  Grappa::comm_barrier();
+  global_communicator.barrier();
 }
 
 
@@ -437,24 +621,16 @@ bool Grappa_global_queue_isInit() {
 /// Job exit routines
 ///
 
-//// termination fork join declaration
-//LOOP_FUNCTION(signal_task_termination_func,nid) {
-//    global_task_manager.signal_termination();
-//}
-static void signal_task_termination_am( int * ignore, size_t isize, void * payload, size_t payload_size ) {
-    global_task_manager.signal_termination();
-}
-
 /// User main done
 void Grappa_end_tasks() {
   // send task termination signal
   CHECK( Grappa::mycore() == 0 );
-  for ( Core n = 1; n < Grappa::cores(); n++ ) {
-      int ignore = 0;
-      Grappa_call_on( n, &signal_task_termination_am, &ignore );
-      Grappa::flush( n );
+  // TODO: we should really flush the aggregator here.
+  for ( Core n = 0; n < Grappa::cores(); n++ ) {
+    global_communicator.send_immediate( n, [] {
+        global_task_manager.signal_termination();
+      } );
   }
-  signal_task_termination_am( NULL, 0, NULL, 0 );
 }
 
 
@@ -474,7 +650,7 @@ int Grappa_finish( int retval )
   Grappa::impl::signal_done(); // this may be overkill (just set done bit?)
 
   //TAU_PROFILE_EXIT("Tau_profile_exit called");
-  Grappa::comm_barrier();
+  global_communicator.barrier();
 
   DVLOG(1) << "Cleaning up Grappa library....";
 

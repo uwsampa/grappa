@@ -52,25 +52,6 @@ if(NOT Boost_FOUND)
   
 endif()
 
-find_library(THIRD_PARTY_GASNET "gasnet_tools-seq" "${THIRD_PARTY_ROOT}/lib")
-if( NOT THIRD_PARTY_GASNET )
-  message("     gasnet: <building>")
-  ExternalProject_Add( third-party-gasnet
-    PREFIX             ${EXTERN_BUILD_DIR}/gasnet
-    STAMP_DIR          ${EXTERN_STAMP_DIR}/gasnet
-    BINARY_DIR         ${EXTERN_BUILD_DIR}/gasnet
-    SOURCE_DIR         ${CMAKE_CURRENT_SOURCE_DIR}/GASNet-1.18.2
-    INSTALL_DIR        ${THIRD_PARTY_ROOT}
-    CONFIGURE_COMMAND  
-      CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-segment-everything --disable-par --disable-parsync
-    BUILD_COMMAND      make -j
-    INSTALL_COMMAND    make install
-  )
-  list(APPEND tool_list third-party-gasnet)
-else()
-  message("     gasnet: ${THIRD_PARTY_GASNET}")
-endif()
-
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
 # URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
 
@@ -78,7 +59,7 @@ if(APPLE)
   # set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
 
-find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib")
+find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
 if( NOT THIRD_PARTY_GFLAGS )
   message("     gflags: <building>")
   ExternalProject_Add( third-party-gflags
@@ -90,17 +71,17 @@ if( NOT THIRD_PARTY_GFLAGS )
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
     CONFIGURE_COMMAND
       CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-    BUILD_COMMAND      make -j
+    BUILD_COMMAND      make -j 4
     INSTALL_COMMAND    make install
   )
   list(APPEND tool_list third-party-gflags)
 else()
+  add_custom_target(third-party-gflags)
   message("     gflags: ${THIRD_PARTY_GFLAGS}")
 endif()
 
-find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib")
+find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
 if( NOT THIRD_PARTY_GLOG )
-
   message("     glog:   <building>")
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
@@ -113,8 +94,8 @@ if( NOT THIRD_PARTY_GLOG )
     BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
     CONFIGURE_COMMAND
-    CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${THIRD_PARTY_ROOT}/include LDFLAGS=-L${THIRD_PARTY_ROOT}/lib
-    BUILD_COMMAND      make -j
+      CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} ${APPLE_CXXFLAGS} CFLAGS=-g CXXFLAGS=-g CFLAGS=-I${THIRD_PARTY_ROOT}/include CXXFLAGS=-I${THIRD_PARTY_ROOT}/include LDFLAGS=-L${THIRD_PARTY_ROOT}/lib <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    BUILD_COMMAND      make -j 4
     INSTALL_COMMAND    make install
     DEPENDS third-party-gflags
   )
@@ -141,7 +122,7 @@ if(TRACING)
       INSTALL_DIR        ${THIRD_PARTY_ROOT}
       CONFIGURE_COMMAND  
         CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-frame-pointers
-      BUILD_COMMAND      make -j
+      BUILD_COMMAND      make -j 4
       INSTALL_COMMAND    make install
     )
     list(APPEND tool_list third-party-gperftools)
@@ -163,3 +144,5 @@ add_custom_target(clean-third-party
   rm -rf ${THIRD_PARTY_ROOT}
 )
 set_property(TARGET clean-third-party PROPERTY FOLDER "Third Party")
+
+file(COPY bashflags DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

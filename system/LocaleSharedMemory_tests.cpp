@@ -33,9 +33,12 @@
 BOOST_AUTO_TEST_SUITE( LocaleSharedMemory_tests );
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-  Grappa::init( GRAPPA_TEST_ARGS, 1<<23 );
+  Grappa::init( GRAPPA_TEST_ARGS, 1<<10 );
   Grappa::run([]{
 
+    CHECK_EQ( Grappa::locales(), 1 );
+    CHECK_GE( Grappa::cores(), 2 );
+      
     int64_t * arr = NULL;
 
     LOG(INFO) << "Allocating";

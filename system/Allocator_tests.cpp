@@ -160,4 +160,11 @@ BOOST_AUTO_TEST_CASE( small ) {
   BOOST_MESSAGE( "after free: " << a );
 }
 
+BOOST_AUTO_TEST_CASE( toobig ) {
+  char foo[ 1024 ];
+  Allocator a( &foo[0], 1024 );
+
+  BOOST_CHECK_THROW( a.malloc( 1024 + 64 ), Allocator::Exception );
+}
+
 BOOST_AUTO_TEST_SUITE_END();
