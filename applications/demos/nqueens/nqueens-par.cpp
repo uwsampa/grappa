@@ -41,78 +41,94 @@ GlobalCompletionEvent gce;      // tasks synchronization
 
 
 /*
- * Checks whether it is safe to put a queen in row 'row' in the current 
- * column. Vector 'cols' has the row position for the queens in the previous
- * columns.
+ * The main board class.
+ *
+ * The board is represented as a column array specifying the row position of the
+ * Queen on each column.
  */
-bool nqIsSafe(int row, vector<int> &cols)
-{
-  int n = cols.size();
+class Board {
+public:
+  Board(size_t size): size(size), columns(new int[size]) {}
 
-  /* we check if putting a queen on row 'row' will cause any of the previous
-   * queens (in 'cols') to capture it.
+  /* creates a new board, copies the content of 'source' and
+   * insert 'newItem' into the last column
    */
-  for (auto i=0; i<n; i++) {
-    if (row == cols[i] || abs(n-i) == abs(row-cols[i]))
-      return false;  // captured - not safe
+  Board(Board &source, int newItem): Board(source.size+1)
+  {
+    memcpy(columns, source.columns, source.size);
+    columns[size-1] = newItem;
   }
 
-  return true;
-}
+  ~Board() { delete[] columns; }
+
+
+  /*
+   * Checks whether it is safe to put a queen in row 'row'. 
+   */
+  bool isSafe(int row)
+  { 
+
+    /* we check if putting a queen on row 'row' will cause any of the previous
+     * queens (in 'columns') to capture it. */
+    for (auto i=0; i<size; i++) {
+      if (row == columns[i] || abs(size-i) == abs(row-columns[i]))
+        return false;  // captured - not safe
+    }
+
+    return true;
+  }
+
+  int *columns; /* has the row position for the queen on each column */
+  size_t size;  /* board size */
+};
 
 
 /*
  * This is basically a brute force solution using recursion.
  *
- * Vector 'cols' stores, for each column, the row number of a queen. We start
- * with an empty vector (i.e., placing queens on the first column), check if
- * it is safe to place a queen on a specific row and recursively call nqSearch
- * to check for the next column.
+ * We start with an empty Board (i.e., placing queens on the first column), 
+ * check if it is safe to place a queen on a specific row and recursively call
+ * nqSearch() to check for the next column.
  */
-void nqSearch(GlobalAddress< vector<int> > cols)
+void nqSearch(GlobalAddress<Board> remoteBoard)
 {
+  /* read the remote board size */
+  int size = delegate::call(remoteBoard, [](Board &b) { return b.size; });
+  
+  Board localBoard(size);  // create a local board
 
-  /* get the size of the vector */
-  int vsize = delegate::call(cols, [](vector<int> &v) { return v.size(); });
+  /* copy the contents of the remote board to the local one */
+  for (auto k=0; k<size; k++)
+    localBoard.columns[k] = delegate::call(remoteBoard, [k](Board &b) {
+          return b.columns[k];
+         });
+
+  /* don't need the remote board anymore: delete it */
+  delegate::call(remoteBoard, [](Board &b) { delete &b; });
 
   /* are we done yet? */
-  if (vsize == nqBoardSize) {
+  if (localBoard.size == nqBoardSize) {
     nqSolutions++;
     return;
   }
-
   
-  /* check whether it is safe to consider a queen for the next column */
+  /* check whether it is safe to have a queen on row 'i' */
   for (int i=0; i<nqBoardSize; i++) {
 
-    /* safe? code is executed at the core that owns the vector */
-    bool safe = delegate::call(cols, [i](vector<int> &v) {
-      bool safe = nqIsSafe(i, v);
-      return safe;
-      });
+    if (localBoard.isSafe(i)) {
 
-    /* if not safe we are done - otherwise create a new vector and do
-     * a recursive call to nqSearch */
-    if (safe) {
+      /* safe - we create a brand new board (with size+1), copying the contents
+       * of the local board, add the queen in row 'i', and spawn a new
+       * task to check for the next column */
+      Board *newBoard = new Board(localBoard, i);
 
-      vector<int> *mv = new vector<int>(0);
-
-      /* copy the original vector to the new one we just created */
-      for (auto k=0; k<vsize; k++) {
-        mv->push_back(delegate::call(cols, [k](vector<int> &v) { return v[k]; }));
-      }
-      mv->push_back(i);
-
-      GlobalAddress< vector<int> > g_mv = make_global(mv);
+      GlobalAddress<Board> g_newBoard = make_global(newBoard);
 
       /* spawn a recursive search */
-      spawn<unbound,&gce>([g_mv] { nqSearch(g_mv); });
+      spawn<unbound,&gce>([g_newBoard] { nqSearch(g_newBoard); });
     }
   }
-     
-  /* delete original vector */
-  delegate::call(cols, [](vector<int> &v) { delete &v; });
-
+      
 }
 
 
@@ -127,16 +143,17 @@ int main(int argc, char * argv[]) {
   nqBoardSize = FLAGS_n; 
   nqSolutions = 0;
 
+
   run([=]{
 
     double start = walltime();
 
+    /* initial empty board */
+    Board *board = new Board(0);
+    GlobalAddress<Board> g_board = make_global(board);
 
-    vector<int> *cols = new vector<int>(0);
-    GlobalAddress< vector<int> > g_cols = make_global(cols);
-
-    finish<&gce>([g_cols]{
-      nqSearch(g_cols);
+    finish<&gce>([g_board]{
+      nqSearch(g_board);
     });
 
 
@@ -152,7 +169,6 @@ int main(int argc, char * argv[]) {
       LOG(INFO) << "NQueens (" << nqBoardSize << ") = " << total;
 
     LOG(INFO) << "Elapsed time: " << nqueens_runtime.value() << " seconds";
-    
     
   });
   finalize();
