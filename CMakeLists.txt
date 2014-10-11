@@ -152,9 +152,12 @@ endif()
 #   list(APPEND GRAPPA_LIBS pmi)
 # endif()
 
-#####################################
+#####################################################################
 # Boost
-#####################################
+# - Searches standard places for Boost, or BOOST_ROOT if specified
+# - Bug (?) in CMake makes it so it can only link properly if Boost
+#   is installed somewhere different than where libstdc++ is.
+#####################################################################
 if(VERBOSE)
   set(Boost_DETAILED_FAILURE_MSG ON)
   set(Boost_DEBUG ON)
@@ -163,6 +166,8 @@ endif()
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
 set(Boost_USE_MULTITHREADED OFF)
+
+# if BOOST_ROOT is defined, it should only search there
 find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
 
 if(NOT Boost_FOUND)
