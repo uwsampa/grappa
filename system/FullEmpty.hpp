@@ -159,6 +159,7 @@ namespace Grappa {
   //   }
   // };
   
+  // need this `Result` wrapper type to distinguish between T as a value and T as a Delegate<U> (otherwise we have an ambiguous match)
   template<class T> struct Result { T val; };
   template<class T> Result<T> _r(T val) { return Result<T>{val}; }
   
@@ -169,7 +170,8 @@ namespace Grappa {
   constexpr auto _apply(Result<T> o, Delegate<F> d, Delegate<Fs>... ds) {
     return _apply(_r(d.apply(o.val)), ds...);
   }
-
+  
+  // helper for computing the final type if the output of each `Fs` is applied to the next
   template< class F, class... Fs >
   constexpr auto _apply(Delegate<F> d, Delegate<Fs>... ds) {
     return _apply(_r(d.apply()), ds...);
@@ -178,13 +180,15 @@ namespace Grappa {
   // template< class T, class F >
   // auto _apply(T o, Delegate<F> d) { return d(o); }
   
+  // end base case (final step in expansion)
   template< class T, class U >
   constexpr auto _delegate(GlobalAddress<FullEmpty<T>> r, U o) {
-    send_message(r.core(), [r,o]{
+    send_heap_message(r.core(), [r,o]{
       r->writeXF(o);
     });
   }
   
+  // intermediate case
   template< class T, class U, class F, class... Fs>
   constexpr void _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d, Delegate<Fs>...ds) {
     auto f = [r,o,apply=d.apply,ds...]{
@@ -192,14 +196,17 @@ namespace Grappa {
       _delegate(r, oo, ds...);
     };
     if (mycore() == d.target) f();
-    else send_message(d.target, f);
+    else send_heap_message(d.target, f);
   }
   
+  // initial case (called by initial thread, blocks waiting for the final result)
   template< class F, class... Fs>
   constexpr auto _delegate(Delegate<F> d, Delegate<Fs>...ds) {
+    // figure out the type that will be returned in the end
     using T = decltype(_apply(d,ds...));
+    
     FullEmpty<T> _r; auto r = make_global(&_r);
-    send_message(d.target, [r,apply=d.apply,ds...]{
+    send_heap_message(d.target, [r,apply=d.apply,ds...]{
       auto o = apply();
       _delegate(r, o, ds...);
     });
