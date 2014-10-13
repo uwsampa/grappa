@@ -170,6 +170,7 @@ namespace Grappa {
               // lock(l);
               CHECK(is_unlocked(l));
               set_result(func(l));
+              return true;
             }));
           }
         });

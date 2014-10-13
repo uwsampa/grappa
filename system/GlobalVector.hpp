@@ -144,6 +144,7 @@ public:
               m->combining = false;
             }
             DVLOG(2) << "woken: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
+            return true;
           }));
         }
         return;
@@ -182,7 +183,9 @@ public:
           } else {
             m->combining = false;
           }
+          return true;
         }));
+        return true;
       }));
     }
     
@@ -201,6 +204,7 @@ public:
           
           if (result_addr.core() == mycore()) set_result();
           else send_heap_message(result_addr.core(), set_result);
+          return true;
         }));
         if (!m->combining) master_combine(self); // try becoming combiner
       };

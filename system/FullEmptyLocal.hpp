@@ -117,7 +117,17 @@ namespace Grappa {
       //Grappa::signal( this );
       return tt;
     }
-
+    
+    template< class F >
+    void onFull(F f) {
+      if (full()) f();
+      else add_waiter(this, SuspendedDelegate::create([fe=this,f]{
+        if (!fe.full()) return false;
+        f();
+        return true;
+      }));
+    }
+    
   };
 
   template< typename T >

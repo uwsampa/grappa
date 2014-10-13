@@ -105,7 +105,7 @@ namespace Grappa {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
       if (is_suspended_delegate(to_wake)) {
-        invoke(reinterpret_cast<SuspendedDelegate*>(to_wake));
+        invoke(reinterpret_cast<SuspendedDelegate*>(to_wake), cv);
       } else {
         impl::global_scheduler.thread_wake( to_wake );
       }
@@ -120,7 +120,7 @@ namespace Grappa {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
       if (is_suspended_delegate(to_wake)) {
-        invoke(reinterpret_cast<SuspendedDelegate*>(to_wake));
+        invoke(reinterpret_cast<SuspendedDelegate*>(to_wake), cv);
       } else {
         impl::global_scheduler.thread_wake( to_wake );
       }

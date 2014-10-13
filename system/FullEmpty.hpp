@@ -66,8 +66,10 @@ namespace Grappa {
       
       VLOG(2) << "setting up to block (" << fe_addr << ")";
       auto* c = SuspendedDelegate::create([&fe,result_addr]{
-          //VLOG(0) << __PRETTY_FUNCTION__ << ": suspended_delegate for " << &fe << "!";
+        if (!fe.full()) return false;
+        //VLOG(0) << __PRETTY_FUNCTION__ << ": suspended_delegate for " << &fe << "!";
         fill_remote(result_addr, fe.readFF());
+        return true;
       });
       add_waiter(&fe, c);
     });

@@ -30,18 +30,19 @@ namespace Grappa {
 
   namespace impl {
     template< typename F >
-    void func_proxy(F* f) { (*f)(); }
+    bool func_proxy(F* f) { return (*f)(); }
   }
 
 class SuspendedDelegate : public Worker {
-  
-  void(*func_fn)(void*);
+public:
+  using Callback = bool(void*);
+
+  Callback* func_fn;
   
   char func_storage[64];
   
   // std::function<void()> saved_func;
   
-public:
   SuspendedDelegate() {
     this->stack = nullptr;
     this->next = nullptr;
@@ -55,7 +56,7 @@ public:
     static_assert(sizeof(func) < 64, "func too large to store in suspended_delegate");
     new (func_storage) F(func);
     
-    func_fn = reinterpret_cast<void(*)(void*)>(impl::func_proxy<F>);
+    func_fn = reinterpret_cast<Callback*>(impl::func_proxy<F>);
     
     // F* my_func = reinterpret_cast<F*>(func_storage);
     // saved_func = [my_func]{ (*my_func)(); };
@@ -82,18 +83,24 @@ SuspendedDelegate* SuspendedDelegate::create(F f) {
   return c;
 }
 
-inline void invoke(SuspendedDelegate * c) {
+template< typename Sync >
+inline void invoke(SuspendedDelegate * c, Sync* sync) {
   // invoke
   // c->saved_func();
-  c->func_fn(c->func_storage);
+  bool done = c->func_fn(c->func_storage);
   
-  // add back into freelist
-  c->next = nullptr;
-  if (cont_freelist == nullptr) {
-    cont_freelist = c;
+  if (done) {
+    // add back into freelist
+    c->next = nullptr;
+    if (cont_freelist == nullptr) {
+      cont_freelist = c;
+    } else {
+      c->next = reinterpret_cast<Worker*>(cont_freelist);
+      cont_freelist = c;
+    }
   } else {
-    c->next = reinterpret_cast<Worker*>(cont_freelist);
-    cont_freelist = c;
+    // block again
+    add_waiter(sync, c);
   }
 }
 
