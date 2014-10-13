@@ -36,7 +36,7 @@ using namespace Grappa;
 namespace Grappa {
   
   /// @addtogroup Synchronization
-  /// @{
+  /// @{  
   
   template< typename T >
   void fill_remote(GlobalAddress<FullEmpty<T>> result_addr, const T& val) {
@@ -44,7 +44,7 @@ namespace Grappa {
       result_addr->writeXF(val);
     });
   }
-  
+    
   template< typename T >
   T readFF(GlobalAddress<FullEmpty<T>> fe_addr) {
     if (fe_addr.core() == mycore()) {
@@ -190,7 +190,7 @@ namespace Grappa {
   
   // intermediate case
   template< class T, class U, class F, class... Fs>
-  constexpr void _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d, Delegate<Fs>...ds) {
+  constexpr void _delegate(GlobalAddress<FullEmpty<T>> r, U o, Delegate<F> d, Delegate<Fs>... ds) {
     auto f = [r,o,apply=d.apply,ds...]{
       auto oo = apply(o);
       _delegate(r, oo, ds...);
@@ -201,7 +201,7 @@ namespace Grappa {
   
   // initial case (called by initial thread, blocks waiting for the final result)
   template< class F, class... Fs>
-  constexpr auto _delegate(Delegate<F> d, Delegate<Fs>...ds) {
+  constexpr auto _delegate(Delegate<F> d, Delegate<Fs>... ds) {
     // figure out the type that will be returned in the end
     using T = decltype(_apply(d,ds...));
     
@@ -282,6 +282,23 @@ namespace Grappa {
     auto new_b = make_delegate(b.target, [ba=b.apply](const T& a){ return a + ba(); });
     return make_future(std::tuple_cat( fa.ds, make_tuple(new_b), fb.get_rest() ));
   }
+  
+  // template< class A, class B > constexpr
+  // auto operator+(Future<A>&& fa, Future<B>&& fb) {
+  //   using T = decltype(fa.invoke());
+  //   auto a = fa.get_first();
+  //   auto b = fb.get_first();
+  //   return make_future(fa.target, [a,b,target=fb.target]{
+  //     auto o = a();
+  //     if (mycore() == target) {
+  //       return o + b();
+  //     } else {
+  //
+  //     }
+  //   });
+  //   auto new_b = make_delegate(b.target, [ba=b.apply](const T& a){ return a + ba(); });
+  //   return make_future(std::tuple_cat( fa.ds, make_tuple(new_b), fb.get_rest() ));
+  // }
 
   template< class...As, class...Bs >
   constexpr auto operator-(Future<As...>&& fa, Future<Bs...>&& fb) {
