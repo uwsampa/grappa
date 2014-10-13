@@ -32,12 +32,17 @@ DEFINE_int64( n, 8, "Board size" );
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, nqueens_runtime, 0.0 );
 
 
+// helper to ease the deletion of the boards
+#define DELETE(board) if (!(board)->Release()) delete board
+
+
 /*
  * Each core maintains the number of solutions it has found + the board size
  */
 int64_t nqSolutions;
 int nqBoardSize;
 GlobalCompletionEvent gce;      // tasks synchronization
+
 
 
 /*
@@ -47,27 +52,49 @@ GlobalCompletionEvent gce;      // tasks synchronization
  * Queen on each column.
  */
 class Board {
-public:
-  Board(size_t size): size(size), columns(new int[size]) {}
-
-  /* creates a new board, copies the content of 'source' and
-   * insert 'newItem' into the last column
-   */
-  Board(Board &source, int newItem): Board(source.size+1)
+private:
+  void init(size_t size)
   {
-    memcpy(columns, source.columns, source.size);
+    this->size = size;
+    columns = new int[size];
+    ref_count = 1;
+  }
+  
+public:
+  Board(size_t size) { init(size); }
+
+  /* Creates a new board, copies the content of 'source' and
+   * insert 'newItem' into the last column.
+   */
+  Board(GlobalAddress<Board> source, int newItem)
+  {
+    /* read the remote board size */
+    int remsize = delegate::call(source, [](Board &b) { return b.size; });
+
+   /* Add an extra column. */
+    init(remsize+1);
+
+    /* copy the contents of the remote board to the local one */
+    for (auto k=0; k<remsize; k++)
+      columns[k] = delegate::call(source, [k](Board &b) {
+            return b.columns[k];
+          });
+    
+    /* Insert the new item */
     columns[size-1] = newItem;
   }
 
   ~Board() { delete[] columns; }
 
+  /* Called whenever the object must be erased. If returned value is 0, it is
+   * safe to call the destructor (i.e. delete) */
+  int Release() { return --ref_count; }
 
   /*
    * Checks whether it is safe to put a queen in row 'row'. 
    */
   bool isSafe(int row)
-  { 
-
+  {
     /* we check if putting a queen on row 'row' will cause any of the previous
      * queens (in 'columns') to capture it. */
     for (auto i=0; i<size; i++) {
@@ -78,59 +105,58 @@ public:
     return true;
   }
 
+  /* Called explitictly whenever the object is copied. */
+  void shared() { ref_count++; }
+
   int *columns; /* has the row position for the queen on each column */
   size_t size;  /* board size */
+
+private:
+  int ref_count; /* reference counter to keep track of memory deallocation */
 };
+
 
 
 /*
  * This is basically a brute force solution using recursion.
  *
- * We start with an empty Board (i.e., placing queens on the first column), 
- * check if it is safe to place a queen on a specific row and recursively call
- * nqSearch() to check for the next column.
+ * Given a board ('remoteBoard') we check if placing a queen in any of the
+ * rows of the column given by 'columnIndex' is safe. In such cases a new task
+ * is spawned recursively for the next column.
  */
-void nqSearch(GlobalAddress<Board> remoteBoard)
+void nqSearch(GlobalAddress<Board> remoteBoard, int columnIndex)
 {
-  /* read the remote board size */
-  int size = delegate::call(remoteBoard, [](Board &b) { return b.size; });
-  
-  Board localBoard(size);  // create a local board
+  /* create a new copy of remoteBoard, adding a new column */
+  Board *newBoard = new Board(remoteBoard, columnIndex);
+      
+  GlobalAddress<Board> g_newBoard = make_global(newBoard);
 
-  /* copy the contents of the remote board to the local one */
-  for (auto k=0; k<size; k++)
-    localBoard.columns[k] = delegate::call(remoteBoard, [k](Board &b) {
-          return b.columns[k];
-         });
-
-  /* don't need the remote board anymore: delete it */
-  delegate::call(remoteBoard, [](Board &b) { delete &b; });
+  /* don't need the remote board anymore: try to delete it */
+  delegate::call(remoteBoard, [](Board &b) { DELETE(&b); });
 
   /* are we done yet? */
-  if (localBoard.size == nqBoardSize) {
+  if (newBoard->size == nqBoardSize) {
     nqSolutions++;
+    DELETE(newBoard);
     return;
   }
   
   /* check whether it is safe to have a queen on row 'i' */
   for (int i=0; i<nqBoardSize; i++) {
 
-    if (localBoard.isSafe(i)) {
+    if (newBoard->isSafe(i)) {
+      
+      /* safe - spawn a new task to check for the next column */
 
-      /* safe - we create a brand new board (with size+1), copying the contents
-       * of the local board, add the queen in row 'i', and spawn a new
-       * task to check for the next column */
-      Board *newBoard = new Board(localBoard, i);
-
-      GlobalAddress<Board> g_newBoard = make_global(newBoard);
+      newBoard->shared();  // board is being shared
 
       /* spawn a recursive search */
-      spawn<unbound,&gce>([g_newBoard] { nqSearch(g_newBoard); });
+      spawn<unbound,&gce>([g_newBoard,i] { nqSearch(g_newBoard, i); });
     }
   }
-      
-}
 
+  DELETE(newBoard);
+}
 
 
 int main(int argc, char * argv[]) {
@@ -152,11 +178,17 @@ int main(int argc, char * argv[]) {
     Board *board = new Board(0);
     GlobalAddress<Board> g_board = make_global(board);
 
-    finish<&gce>([g_board]{
-      nqSearch(g_board);
+    finish<&gce>([g_board,board]{
+      for (auto i=0; i<nqBoardSize; i++)
+      {
+        board->shared();
+        spawn<unbound, &gce>([g_board,i] { nqSearch(g_board,i); }); 
+      }
     });
 
+    DELETE(board);
 
+    
     int64_t total = reduce<int64_t,collective_add<int64_t>>(&nqSolutions);
 
     nqueens_runtime = walltime() - start;
