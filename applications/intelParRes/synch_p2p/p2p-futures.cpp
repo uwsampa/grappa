@@ -30,7 +30,7 @@ using namespace Grappa;
 DEFINE_uint64(m, 4, "number of rows in array");
 DEFINE_uint64(n, 4, "number of columns in array");
 DEFINE_uint64(iterations, 1, "number of iterations");
-DEFINE_string(pattern, "blocking_reads", "what pattern of kernel should we run?");
+DEFINE_string(pattern, "futures", "what pattern of kernel should we run?");
 
 GlobalArray< FullEmpty< double >, int, Distribution::Local, Distribution::Block > ga;
 
@@ -74,7 +74,7 @@ int main( int argc, char * argv[] ) {
         VLOG(2) << "Starting iteration " << iter;
         double start = Grappa::walltime();
 
-        if( FLAGS_pattern == "blocking_reads" ) {
+        if( FLAGS_pattern == "futures" ) {
           forall( ga, [] (int i, int j, FullEmpty<double>& d) {
               if( i > 0 && j > 0 ) {
                 writeXF( &d,*( future::readFF( &ga[i-1][j  ] ) +
@@ -83,58 +83,29 @@ int main( int argc, char * argv[] ) {
               }
             } );
 
-        } else if( FLAGS_pattern == "blocking_reads_local_only" ) {
-          CHECK_EQ( Grappa::cores(), 1 ) << "This only works on a single core";
-          forall( ga, [] (int i, int j, FullEmpty<double>& d) {
-              if( i > 0 && j > 0 ) {
-
-                // good only for local iteration
-                double left = ((&d)-1)->t_;
-                double up = ((&d)-FLAGS_n)->t_;
-                double diag = (((&d)-1)-FLAGS_n)->t_;
-
-                d.t_ = left + up - diag;
-
-                // writeXF( &d, (
-                //               up + 
-                //               left -
-                //               diag
-                //               ) );
-              }
-            } );
-
-        } else if ( FLAGS_pattern == "forward" ) {
-          forall( ga, [] (int i, int j, FullEmpty<double>& d) {
-              // once we're here, this cell (i,j) must have seen
-              // updates from all three neighbors.
-              double data = readFF( &d );
-              //LOG(INFO) << "At (" << i << "," << j << ") value is " << data;
-
-              if( i < FLAGS_m-1 ) {
-                // block until cell below us has gotten updates from its
-                // left and diag neighbors
-                double i_plus_1_data = readFF( &ga[i+1][j] );
-                //LOG(INFO) << "Read " << i_plus_1_data << " from (" << i+1 << "," << j << ")";
-                
-                if( j > 0 ) { // leftmost column is already done.
-                  // add in our data (we're the up neighbor). 
-                  i_plus_1_data += data;
-                
-                  // fill in cell (i+1,j); it's now complete.
-                  writeXF( &ga[i+1][j], i_plus_1_data );
-                  //LOG(INFO) << "Writing " << i_plus_1_data << " to (" << i+1 << "," << j << ")";
-                }
-
-                // now generate (combined) left and diag dependences for cell (i+1,j+1).
-                if( j < FLAGS_n-1 ) {
-                  auto combined_value = i_plus_1_data - data;
-                  //LOG(INFO) << "Sending " << combined_value << " to (" << i+1 << "," << j+1 << ")";
-                  delegate::call<async>( &ga[i+1][j+1], [combined_value] (FullEmpty<double>& dd) {
-                      writeXF( &dd, combined_value );  // now cell waits for down dependence.
-                    } );
-                }
-              }
-            } );
+        } else if( FLAGS_pattern == "manual" ) {
+          
+          forall(ga, [](int i, int j, FullEmpty<double>& d) {
+            if( i > 0 && j > 0 ) {
+              auto a1 = &ga[i-1][j  ];
+              auto a2 = &ga[i  ][j-1];
+              auto a3 = &ga[i-1][j-1];
+              auto da = make_global(&d);
+              send_heap_message(a1.core(), [=]{
+                auto v1 = a1->readFF();
+                send_heap_message(a2.core(), [=]{
+                  auto v2 = v1 + a2->readFF();
+                  send_heap_message(a3.core(), [=]{
+                    auto v3 = v2 + a3->readFF();
+                    send_heap_message(da.core(), [=]{
+                      da->writeXF(v3);
+                    });
+                  });
+                });
+              });
+              d.readFF();
+            }
+          });
           
         } else {
           LOG(FATAL) << "unknown kernel pattern " << FLAGS_pattern << "!";
