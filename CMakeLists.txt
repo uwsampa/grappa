@@ -8,6 +8,11 @@ option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
 option(CXX14 "Enable C++14 features" OFF)
 
+option(DEBUG_MODE "CMake building for debug." OFF)
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+  set(DEBUG_MODE TRUE)
+endif()
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )
@@ -211,6 +216,13 @@ endif()
 # MPI (mostly for booting, but we also use MPI communication in some places now)
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
+
+if(DEBUG_MODE)
+  # include 'libmpi_cxx.so' if in DEBUG mode (??? not sure why it thinks it needs it)
+  list(GET MPI_CXX_LIBRARIES 0 MPI_EXAMPLE_LIB)
+  get_filename_component(MPI_LIB_DIR ${MPI_EXAMPLE_LIB} DIRECTORY)
+  list(APPEND MPI_CXX_LIBRARIES "${MPI_LIB_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}mpi_cxx${CMAKE_SHARED_LIBRARY_SUFFIX}")
+endif()
 
 macro(add_grappa_exe target exe )
   add_executable(${target} EXCLUDE_FROM_ALL ${ARGN})
