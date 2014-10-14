@@ -389,6 +389,13 @@ namespace Grappa {
   }
   
   template< typename G >
+  AdjIterator<G> adj(GlobalAddress<G> g, const typename G::Vertex& v) {
+          //auto vv = const_cast<typename G::Vertex&>(v);
+          auto vv = v;
+    return AdjIterator<G>(g, make_linear(&vv) - g->vs);
+  }
+  
+  template< typename G >
   AdjIterator<G> adj(GlobalAddress<G> g, GlobalAddress<typename G::Vertex> v) {
     return AdjIterator<G>(g, v - g->vs);
   }
