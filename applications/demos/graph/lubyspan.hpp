@@ -21,7 +21,7 @@ struct LubyData {
   }
 };
 
-using LubyVertex = Vertex<LubyData>;
+using LubyGraph = Graph<LubyData,Empty>;
 
 // template <typename T = LubyVertex>
 // class Verificator : public VerificatorBase <T> {
