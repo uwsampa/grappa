@@ -1,6 +1,8 @@
 #ifndef __LUBY_HPP__
 #define __LUBY_HPP__
-#include "verificator.hpp"
+//#include "verificator.hpp"
+
+using namespace Grappa;
 
 extern int64_t nedge_traversed;
 
@@ -21,13 +23,13 @@ struct LubyData {
 
 using LubyVertex = Vertex<LubyData>;
 
-template <typename T = LubyVertex>
-class Verificator : public VerificatorBase <T> {
-public:
-  static inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<T>> g, int64_t root) {
-    VerificatorBase<T>::verify(tg,g,root);
-    return nedge_traversed;
-  }
-};
+// template <typename T = LubyVertex>
+// class Verificator : public VerificatorBase <T> {
+// public:
+//   static inline int64_t verify(TupleGraph tg, GlobalAddress<Graph<T>> g, int64_t root) {
+//     VerificatorBase<T>::verify(tg,g,root);
+//     return nedge_traversed;
+//   }
+// };
 
 #endif
