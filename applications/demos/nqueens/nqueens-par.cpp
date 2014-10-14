@@ -32,8 +32,6 @@ DEFINE_int64( n, 8, "Board size" );
 GRAPPA_DEFINE_METRIC( SimpleMetric<double>, nqueens_runtime, 0.0 );
 
 
-// helper to ease the deletion of the boards
-#define DELETE(board) if (!(board)->Release()) delete board
 
 
 /*
@@ -84,11 +82,8 @@ public:
     columns[size-1] = newItem;
   }
 
-  ~Board() { delete[] columns; }
-
-  /* Called whenever the object must be erased. If returned value is 0, it is
-   * safe to call the destructor (i.e. delete) */
-  int Release() { return --ref_count; }
+  /* Called whenever the object must be erased (i.e., memory freed) */
+  void Release() { if (!--ref_count) delete[] columns; }
 
   /*
    * Checks whether it is safe to put a queen in row 'row'. 
@@ -106,12 +101,13 @@ public:
   }
 
   /* Called explitictly whenever the object is copied. */
-  void shared() { ref_count++; }
+  void Shared() { ref_count++; }
 
-  int *columns; /* has the row position for the queen on each column */
-  size_t size;  /* board size */
+  size_t Size() const { return size; }   // getter method
 
 private:
+  int *columns; /* has the row position for the queen on each column */
+  size_t size;  /* board size */
   int ref_count; /* reference counter to keep track of memory deallocation */
 };
 
@@ -129,33 +125,33 @@ void nqSearch(GlobalAddress<Board> remoteBoard, int columnIndex)
   /* create a new copy of remoteBoard, adding a new column */
   Board *newBoard = new Board(remoteBoard, columnIndex);
       
-  GlobalAddress<Board> g_newBoard = make_global(newBoard);
-
-  /* don't need the remote board anymore: try to delete it */
-  delegate::call(remoteBoard, [](Board &b) { DELETE(&b); });
-
   /* are we done yet? */
-  if (newBoard->size == nqBoardSize) {
-    nqSolutions++;
-    DELETE(newBoard);
-    return;
-  }
+  if (newBoard->Size() == nqBoardSize) 
+    nqSolutions++; // yes, solution found
+  else
+  { /* not done yet */
   
-  /* check whether it is safe to have a queen on row 'i' */
-  for (int i=0; i<nqBoardSize; i++) {
+    GlobalAddress<Board> g_newBoard = make_global(newBoard);
+    
+    /* check whether it is safe to have a queen on row 'i' */
+    for (int i=0; i<nqBoardSize; i++) {
 
-    if (newBoard->isSafe(i)) {
+      if (newBoard->isSafe(i)) {
       
-      /* safe - spawn a new task to check for the next column */
+        /* safe - spawn a new task to check for the next column */
 
-      newBoard->shared();  // board is being shared
+        newBoard->Shared();  // board is being shared
 
-      /* spawn a recursive search */
-      spawn<unbound,&gce>([g_newBoard,i] { nqSearch(g_newBoard, i); });
+        /* spawn a recursive search */
+        spawn<unbound,&gce>([g_newBoard,i] { nqSearch(g_newBoard, i); });
+      }
     }
   }
+  
+  /* don't need the remote board anymore: try to delete it */
+  delegate::call(remoteBoard, [](Board &b) { b.Release(); });
 
-  DELETE(newBoard);
+  newBoard->Release();
 }
 
 
@@ -171,6 +167,9 @@ int main(int argc, char * argv[]) {
 
 
   run([=]{
+    
+    Metrics::reset_all_cores();
+    Metrics::start_tracing();
 
     double start = walltime();
 
@@ -181,17 +180,19 @@ int main(int argc, char * argv[]) {
     finish<&gce>([g_board,board]{
       for (auto i=0; i<nqBoardSize; i++)
       {
-        board->shared();
+        board->Shared();
         spawn<unbound, &gce>([g_board,i] { nqSearch(g_board,i); }); 
       }
     });
 
-    DELETE(board);
+    board->Release();
 
     
     int64_t total = reduce<int64_t,collective_add<int64_t>>(&nqSolutions);
 
     nqueens_runtime = walltime() - start;
+    
+    Metrics::stop_tracing();
 
     if (nqBoardSize <= 16) {
       LOG(INFO) << "NQueens (" << nqBoardSize << ") = " << total << \
@@ -201,6 +202,8 @@ int main(int argc, char * argv[]) {
       LOG(INFO) << "NQueens (" << nqBoardSize << ") = " << total;
 
     LOG(INFO) << "Elapsed time: " << nqueens_runtime.value() << " seconds";
+    
+    Metrics::merge_and_dump_to_file();
     
   });
   finalize();
