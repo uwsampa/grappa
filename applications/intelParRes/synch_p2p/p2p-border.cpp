@@ -127,39 +127,37 @@ int main( int argc, char * argv[] ) {
 
                   iter_time = Grappa::walltime();
                   for( int i = 1; i < dim1_size; ++i ) {
-                    // double left = readFF( &leftsa[i][Grappa::mycore()] );
-                    // double diag = readFF( &leftsa[i-1][Grappa::mycore()] );
+
+                    // prepare to iterate over this segment      
                     double left = readFF( &lefts[i] );
                     double diag = readFF( &lefts[i-1] );
                     double up = 0.0;
                     double current = 0.0;
-                    // LOG(INFO) << i << ": left=" << left << " diag=" << diag;
+
                     for( int j = 0; j < dim2_percore; ++j ) {
                       int actual_j = j + first_j;
                       if( actual_j > 0 ) {
+                        // compute this cell's value
                         up = local[ (i-1)*dim2_percore + j ];
                         current = up + left - diag;
-                        // LOG(INFO) << "(" << i << "," << actual_j << ")"
-                        //           << " up " << up
-                        //           << " left " << left
-                        //           << " diag " << diag
-                        //           << " current " << current;
+
+                        // update for next iteration
                         diag = up;
                         left = current;
+
+                        // write value
                         local[ (i)*dim2_percore + j ] = current;
                       }
                     }
 
+                    // if we're at the end of a segment, write to corresponding full bit
                     if( Grappa::mycore()+1 < Grappa::cores() ) {
                       delegate::call<async>( Grappa::mycore()+1,
-                                             [i,current] () {
+                                             [=] () {
                                                writeXF( &lefts[i], current );
                                              } );
-                      // delegate::call<async>( &leftsa[i][Grappa::mycore()+1],
-                      //                        [current] (FullEmpty<double>& d) {
-                      //                          writeXF( &d, current );
-                      //                        } );
                     }
+
                   }
                   iter_time = Grappa::walltime() - iter_time;
                   iter_time = reduce<double,collective_min<double>>( &iter_time );
