@@ -135,9 +135,24 @@ namespace Grappa {
     F apply;
     Delegate(Core target, F apply): target(target), apply(apply) {}
     // auto operator()() const { return apply(); }
+    bool check() { return true; }
+  };
+  
+  template< class T, class F >
+  struct FullEmptyDelegate: Delegate<F> {
+    GlobalAddress<T> fe;
+    FullEmptyDelegate(GlobalAddress<T> fe, F&& apply):
+      Delegate(fe.core(), std::forward(apply)),
+      fe(fe) {}
+    bool check() { return fe->full(); }
   };
   
   template<class F> auto make_delegate(Core c, F f) { return Delegate<F>(c,f); }
+
+  template<class T, class F>
+  auto make_delegate(GlobalAddress<FullEmpty<T>> fe, F f) {
+    return FullEmptyDelegate<F>(fe,f);
+  }
   
   // // declare Future class
   // template< class... Fs > struct Future;
