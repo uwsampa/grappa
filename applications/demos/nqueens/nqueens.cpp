@@ -116,14 +116,15 @@ private:
 /*
  * This is basically a brute force solution using recursion.
  *
- * Given a board ('remoteBoard') we check if placing a queen in any of the
- * rows of the column given by 'columnIndex' is safe. In such cases a new task
- * is spawned recursively for the next column.
+ * Given a board ('remoteBoard') we add a queen at the row given by 'rowIndex'
+ * in the last column, and check whether it is safe to add a new queen in any 
+ * of the rows of the next column. In such cases a new task is spawned 
+ * recursively for the next column.
  */
-void nqSearch(GlobalAddress<Board> remoteBoard, int columnIndex)
+void nqSearch(GlobalAddress<Board> remoteBoard, int rowIndex)
 {
   /* create a new copy of remoteBoard, adding a new column */
-  Board *newBoard = new Board(remoteBoard, columnIndex);
+  Board *newBoard = new Board(remoteBoard, rowIndex);
       
   /* are we done yet? */
   if (newBoard->Size() == nqBoardSize) 
