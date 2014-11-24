@@ -82,7 +82,7 @@ public:
     return refcnt;
   }
 
-//  size_t numRefs() const { return refcnt; }
+  size_t numRefs() const { return refcnt; }
 };
 
 
@@ -135,6 +135,10 @@ public:
     return SmtPtr<T>(local);
   }
 
+  size_t getNumRefs()
+  {
+    return delegate::call(refMan, [](RefManager<T> *ref) { return ref->numRefs(); });
+  }
 
   // destructor
   ~SmtPtr()
