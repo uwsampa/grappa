@@ -120,7 +120,7 @@ public:
 
   T* operator->() 
   {
-    // assert it is not called from remote node
+    // TODO: assert it is not called from remote node
     return refMan->getPtr();
   }
 
@@ -136,12 +136,6 @@ public:
   }
 
 
-//  size_t getNumRefs() const 
-//  { 
-//    return delegate::call(refMan, [](RefManager<T> *ref) { return ref->numRefs(); }); 
-//  }
- 
-
   // destructor
   ~SmtPtr()
   {
@@ -152,8 +146,6 @@ public:
   }
 
 };
-
-
 
 
 
