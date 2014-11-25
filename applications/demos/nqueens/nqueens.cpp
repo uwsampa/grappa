@@ -83,7 +83,7 @@ public:
   }
 
   /* Called whenever the object must be erased (i.e., memory freed) */
-  void Release() { if (!--ref_count) delete[] columns; }
+  void release() { if (!--ref_count) delete[] columns; }
 
   /*
    * Checks whether it is safe to put a queen in row 'row'. 
@@ -101,9 +101,9 @@ public:
   }
 
   /* Called explitictly whenever the object is copied. */
-  void Shared() { ref_count++; }
+  void shared() { ref_count++; }
 
-  size_t Size() const { return size; }   // getter method
+  size_t getSize() const { return size; }   // getter method
 
 private:
   int *columns; /* has the row position for the queen on each column */
@@ -121,13 +121,13 @@ private:
  * of the rows of the next column. In such cases a new task is spawned 
  * recursively for the next column.
  */
-void nqSearch(GlobalAddress<Board> remoteBoard, int rowIndex)
+void nq_search(GlobalAddress<Board> remoteBoard, int rowIndex)
 {
   /* create a new copy of remoteBoard, adding a new column */
   Board *newBoard = new Board(remoteBoard, rowIndex);
       
   /* are we done yet? */
-  if (newBoard->Size() == nqBoardSize) 
+  if (newBoard->getSize() == nqBoardSize) 
     nqSolutions++; // yes, solution found
   else
   { /* not done yet */
@@ -141,18 +141,18 @@ void nqSearch(GlobalAddress<Board> remoteBoard, int rowIndex)
       
         /* safe - spawn a new task to check for the next column */
 
-        newBoard->Shared();  // board is being shared
+        newBoard->shared();  // board is being shared
 
         /* spawn a recursive search */
-        spawn<unbound,&gce>([g_newBoard,i] { nqSearch(g_newBoard, i); });
+        spawn<unbound,&gce>([g_newBoard,i] { nq_search(g_newBoard, i); });
       }
     }
   }
   
   /* don't need the remote board anymore: try to delete it */
-  delegate::call(remoteBoard, [](Board &b) { b.Release(); });
+  delegate::call(remoteBoard, [](Board &b) { b.release(); });
 
-  newBoard->Release();
+  newBoard->release();
 }
 
 
@@ -181,12 +181,12 @@ int main(int argc, char * argv[]) {
     finish<&gce>([g_board,board]{
       for (auto i=0; i<nqBoardSize; i++)
       {
-        board->Shared();
-        spawn<unbound, &gce>([g_board,i] { nqSearch(g_board,i); }); 
+        board->shared();
+        spawn<unbound, &gce>([g_board,i] { nq_search(g_board,i); }); 
       }
     });
 
-    board->Release();
+    board->release();
 
     
     int64_t total = reduce<int64_t,collective_add<int64_t>>(&nqSolutions);

@@ -226,6 +226,7 @@ add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
+add_check( SmartPointer_tests.cpp            4 2  pass )
 
 #
 # begin hack for dealing with communicator test

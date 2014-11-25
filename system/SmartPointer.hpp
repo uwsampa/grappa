@@ -22,22 +22,14 @@
 ////////////////////////////////////////////////////////////////////////
 
 
-#ifndef _SMTPTR_HPP__
-#define _SMTPTR_HPP__
+#pragma once
 
 #include <Grappa.hpp>
 
 using namespace Grappa;
 
-#if 0
-# include <iomanip>
-using namespace std;
-# define DPRINT(m) cout << setw(14) << (this) << ": " << m << endl
-# define DPRINT2(m,n) cout << setw(14) << (this) << ": " << m << n << endl
-#else
-# define DPRINT(m)
-# define DPRINT2(m,n)
-#endif
+# define DPRINT(m) DVLOG(2) << (this) << ": " << m << std::endl
+# define DPRINT2(m,n) DVLOG(2) << (this) << ": " << m << n << std::endl
 
 /*
  * Reference manager class.
@@ -65,13 +57,13 @@ public:
   T& getRef() { return *ptr; }
   T* getPtr() { return ptr; }
 
-  void Increment() 
+  void increment() 
   { 
     refcnt++; 
     DPRINT2("   -> RefManager incremented: ", refcnt); 
   }
 
-  size_t Decrement() 
+  size_t decrement() 
   { 
     refcnt--; 
     DPRINT2("   -> RefManager decremented: ", refcnt);
@@ -113,7 +105,7 @@ public:
   {
     DPRINT("*** SmtPtr copy constructor ***");
 
-    delegate::call(refMan, [](RefManager<T> *ref) { ref->Increment(); });
+    delegate::call(refMan, [](RefManager<T> *rm) { rm->increment(); });
   }
 
 //  T& operator*() { return reference_->getRef(); }
@@ -129,24 +121,23 @@ public:
   {
     DPRINT("   -> SmtPtr clone");
 
-    T *local = ::clone(delegate::call(refMan, [](RefManager<T> *ref) 
-          { return make_global(ref->getPtr()); }));
+    T *local = ::clone(delegate::call(refMan, [](RefManager<T> *rm) 
+          { return make_global(rm->getPtr()); }));
  
     return SmtPtr<T>(local);
   }
 
   size_t getNumRefs()
   {
-    return delegate::call(refMan, [](RefManager<T> *ref) { return ref->numRefs(); });
+    return delegate::call(refMan, [](RefManager<T> *rm) { return rm->numRefs(); });
   }
 
   // destructor
   ~SmtPtr()
   {
     DPRINT("*** SmtPtr destructor ***");
-    
-    RefManager<T> *ref = (RefManager<T> *)refMan.pointer();
-    delegate::call(refMan.core(), [ref] { if (!ref->Decrement()) delete ref; });
+  
+    delegate::call(refMan, [](RefManager<T> *rm) { if (!rm->decrement()) delete rm; });
   }
 
 };
@@ -154,4 +145,3 @@ public:
 
 
 
-#endif /* _SMTPTR_HPP_ */
