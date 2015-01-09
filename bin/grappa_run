@@ -86,6 +86,11 @@ else
       cmd="$mpiexe -n $totaln -ppn $FLAGS_ppn -envall $FLAGS_extra"
       ;;
     
+    # Intel MPI
+    Intel*Version*[^1234].*Update*)
+      cmd="mpiexec.hydra -n $totaln -ppn $FLAGS_ppn -envall $FLAGS_extra"
+      ;;
+    
     *)
       echo "Unsupported MPI version: $mpi_version."
       exit 1
