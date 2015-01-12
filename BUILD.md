@@ -74,7 +74,8 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
     --vampir=path/to/vampirtrace/root
                                  Specify path to VampirTrace build (enables tracing).
     --no-downloads
-                                 Can optionally skip downloading of third-party dependencies, expecting to find the source archives in ```third-party/downloads``` instead.
+                                 Can optionally skip downloading of third-party dependencies, expecting
+                                   to find the source archives in ```third-party/downloads``` instead.
     --third-party=path/to/built/deps/root
                                  Can optionally pre-build third-party dependencies instead of 
                                    re-building for each configuration.
