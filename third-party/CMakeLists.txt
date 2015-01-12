@@ -101,8 +101,10 @@ else()
   message("     glog:   ${THIRD_PARTY_GLOG}")
 endif()
 
-if(TRACING)
-  
+
+if(TRACING OR PROFILING)
+
+  # TODO: Add find_package() call so we don't build this if we don't have to!  
   find_library(THIRD_PARTY_GPERFTOOLS "profiler" "${THIRD_PARTY_ROOT}/lib")
   if( NOT THIRD_PARTY_GPERFTOOLS )
   
