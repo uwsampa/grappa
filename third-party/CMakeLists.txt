@@ -52,9 +52,6 @@ if(NOT Boost_FOUND)
   
 endif()
 
-# SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
-# URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
-
 if(APPLE)
   # set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
@@ -104,8 +101,6 @@ else()
   message("     glog:   ${THIRD_PARTY_GLOG}")
 endif()
 
-# required
-# optional
 if(TRACING)
   
   find_library(THIRD_PARTY_GPERFTOOLS "profiler" "${THIRD_PARTY_ROOT}/lib")
