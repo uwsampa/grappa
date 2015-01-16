@@ -6,8 +6,6 @@ include(ExternalProject)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
-set(SHMMAX "" CACHE STRING "Size of SysV shared memory")
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )
@@ -182,10 +180,6 @@ list(APPEND GRAPPA_ENV
   GLOG_v=1
 )
 
-
-add_definitions(-DSHMMAX=${SHMMAX})
-# add_definitions(-DSHMMAX=12884901888) # 12 GB
-# add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   # clang doesn't have this flag it seems, needed for Relation_io_tests.cpp in Travis
