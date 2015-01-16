@@ -30,7 +30,6 @@ OptionParser.new{|p|
   p.on('--profiling',"Enable gperftools-based sampled profiling."){|b| opt.profiling = true }
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
-  p.on('--shmmax=SIZE',"Manually set maximum SysV shared memory size"){|n| opt.shmmax = n }
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
   p.on('--no-downloads', "Expect third-party dependences to already exist in third-party/downloads, rather than downloading them from the web."){|b| opt.no_downloads = true }
 }.parse!(ARGV)
@@ -84,19 +83,6 @@ def configure(generator, mode, opt)
     args << %Q[-G"#{generator}"]
   end
   
-  # determine shared memory size
-  unless opt.shmmax
-    opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
-    if not $?.success?
-      opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
-      if not $?.success?
-        abort "error: unable to determine max SysV shared memory size automatically. Please set it manually with --shmmax option (usually half your main memory size)."
-      end
-    end
-  end
-  args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
-  
-
   if opt.no_downloads
     args << "-DNO_DOWNLOADS=true"
   end
