@@ -82,8 +82,7 @@ else
       ;;
 
     # MPICH / MVAPICH / Intel all support Hydra process manager
-    HYDRA*Version:*[^12].*Release*)
-    Intel*Version*[^1234].*Update*)
+    HYDRA*Version:*[^12].*Release*|Intel*Version*[^1234].*Update*)
       # With mpiexec.hydra, -ppn only changes how tasks are distributed between nodes.
       # Unlike OpenMPI there is no check that the actual number of nodes == $FLAGS_nnodes,
       # so it's easy to accidentally oversubscribe one node if you're using a hostfile, etc.
