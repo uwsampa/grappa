@@ -73,6 +73,9 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
                                    VampirTrace build in 'third-party' dir.
     --vampir=path/to/vampirtrace/root
                                  Specify path to VampirTrace build (enables tracing).
+    --no-downloads
+                                 Can optionally skip downloading of third-party dependencies, expecting
+                                   to find the source archives in ```third-party/downloads``` instead.
     --third-party=path/to/built/deps/root
                                  Can optionally pre-build third-party dependencies instead of 
                                    re-building for each configuration.
@@ -99,6 +102,14 @@ CMake will download and build `gflags`, `boost`, and `gperfools`. It will build 
 The external dependencies can be shared between Grappa configurations. If you specify a directory to `--third-party`, CMake will build and install the dependencies there, and then any other configurations will reuse them. Sometimes this won't work; for instance, if using two different compilers, you may have difficulty sharing a third-party directory. If this happens, just make a new third-party directory and rebuild them using the new configuration, or don't specify it and have this configuration build them just for itself.
 
 Because Boost takes the longest to compile and is often included in systems, Boost can be specified separately from the other third-party installs. Existing system installs of the other dependencies should typically *not* be relied on.
+
+### No web access for third-party dependencies
+
+If you want to build Grappa on a machine without access to the web, and that machine doesn't already have all the third-party libraries installed that Grappa needs, you'll have to provide the source archives for those dependences yourself. 
+
+To do so, download and untar the following file in ```third-party/downloads```. Then run ```configure```, including the ```--no-downloads``` flag with any the other flags you may need to set.
+
+[http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar)
 
 ## CMake Notes
 A couple notes about adding new targets for CMake to build. First: each directory where something is built should typically have a `CMakeLists.txt` file. Somewhere up the directory hierarchy, this directory must be 'added'. For instance, applications directories are added from `applications/CMakeLists.txt`:
