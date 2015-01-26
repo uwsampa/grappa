@@ -37,7 +37,11 @@ You must have a Linux system with the following installed to be able to build Gr
     * on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
     * on PNNL's PAL cluster: `module load gcc-4.7.2`
 * External:
-  * MPI (tested with OpenMPI >= 1.5.4 and Mvapich2 >= 1.7, but we're not picky)
+  * MPI (must support MPI-3)
+    * OpenMPI >= 1.7.4
+    * MVAPICH2 >= 1.9
+    * MPICH >= 3.1
+    * Intel MPI >= 5.0.2.044
     * on the Sampa cluster: should be autodetected
     * on PNNL's PAL cluster: `module load mvapich2/1.9b`
 
