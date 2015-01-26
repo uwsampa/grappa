@@ -17,7 +17,11 @@ You must have a Linux system with the following installed to build Grappa:
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
   * Or: Clang >= 3.4
 * External:
-  * MPI (tested with OpenMPI >= 1.5.4 and Mvapich2 >= 1.7, but should work with any)
+  * MPI (must support MPI-3)
+    * OpenMPI >= 1.7.4
+    * MVAPICH2 >= 1.9
+    * MPICH >= 3.1
+    * Intel MPI >= 5.0.2.044
 
 The configure script deals with some other dependences automatically. You may want to override the default behavior for your specific system. See [BUILD.md](BUILD.md) for more details.
 
