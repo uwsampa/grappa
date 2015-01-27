@@ -45,7 +45,7 @@ Now build grappa and hello world.
 cd grappa
 ./configure
 cd build/Make+Release
-make -j demo-hello_world
+make demo-hello_world
 ```
 
 Now you should have a binary which you can launch as an MPI job. If you have Slurm installed on your system, you can use our convenient job-launch script:
