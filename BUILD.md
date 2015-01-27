@@ -10,7 +10,7 @@ Example usage:
 
     ./configure --gen=Make --mode=Release
     cd build/Make+Release
-    make -j
+    make
 
 This will build the Grappa static library (in `build/Make+Release/system/libGrappa.a`). To build and run an application or test, use the specific target. It will be built into the same directory hierarchy, but in this build directory. For example:
 
