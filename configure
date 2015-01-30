@@ -141,8 +141,11 @@ def configure(generator, mode, opt)
     if $?.success?
       puts "-------------------------------------"
       unless opt.build_here
-        puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
-          {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+        puts ("created #{build_dir}; to build:\n> cd #{build_dir}; " + 
+          {'Make'=>'make','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator])
+        if generator == 'Make'
+          puts '(use make -j<numcores> to build in parallel)'
+        end
         puts "-------------------------------------"
       end
     end

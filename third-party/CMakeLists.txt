@@ -10,74 +10,65 @@ set(EXTERN_STAMP_DIR "${EXTERN_BUILD_DIR}/stamps")
 option(NO_DOWNLOADS "Expect third-party source files to be found in third-party/downloads, rather than downloading them from the web." OFF)
 
 if(NO_DOWNLOADS)
-  message("-- Expecting third-party dependences to be found in ${CMAKE_SOURCE_DIR}/third-party/downloads.")
+  message("-- Expecting third-party dependence sources to be found in ${CMAKE_SOURCE_DIR}/third-party/downloads.")
 else()
   message("-- Downloading third-party dependences from the web.")
 endif()
 
 message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party dependencies (if needed).")
 
+######################################################################
+# Graph500 source for Kronecker generator
+######################################################################
 add_subdirectory(graph500-generator)
 
+# if we found a pre-installed version, add its paths to our build environment
 if(NOT Boost_FOUND)
-
-  # check if we have built boost in third-party dir
-  find_library(THIRD_PARTY_BOOST "boost_filesystem" PATHS "${THIRD_PARTY_ROOT}/lib" NO_DEFAULT_PATH)
-  
-  if( NOT THIRD_PARTY_BOOST )
-  
-    if(NO_DOWNLOADS)
-        set(URL "${CMAKE_SOURCE_DIR}/third-party/downloads/boost_1_54_0.tar.bz2")
-    else()
-        set(URL "http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2")
-    endif()
-
-    # Download & build Boost
-    # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
-    ExternalProject_Add(third-party-boost
-      URL                ${URL}
-      ##URL_HASH           SHA1=230782c7219882d0fab5f1effbe86edb85238bf4  # ignored to support older cmake
-      SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
-      PREFIX             ${EXTERN_BUILD_DIR}/boost
-      STAMP_DIR          ${EXTERN_STAMP_DIR}/boost
-      INSTALL_DIR        ${THIRD_PARTY_ROOT}
-      BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND
-        ./bootstrap.sh 
-          --with-libraries=filesystem
-          --with-libraries=system
-          --with-libraries=test
-          --with-libraries=random
-          --prefix=<INSTALL_DIR>
-      BUILD_COMMAND
-        ./b2 install --link=static --variant=release --threading=single --runtime-link=static
-      INSTALL_COMMAND ""
-    )
-    set(GRAPPA_LIBS
-      ${GRAPPA_LIBS}
-      boost_system
-      boost_filesystem
-      boost_unit_test_framework
-    PARENT_SCOPE)
-    list(APPEND tool_list third-party-boost)
+  if(NO_DOWNLOADS)
+    set(URL "${CMAKE_SOURCE_DIR}/third-party/downloads/boost_1_54_0.tar.bz2")
   else()
-    message("     boost:  ${THIRD_PARTY_BOOST}")
+    set(URL "http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2")
   endif()
-  
+
+  message("     boost: <building>")
+  # Download & build Boost
+  # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
+  ExternalProject_Add(third-party-boost
+    URL                ${URL}
+    ##URL_HASH           SHA1=230782c7219882d0fab5f1effbe86edb85238bf4  # ignored to support older cmake
+    SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
+    PREFIX             ${EXTERN_BUILD_DIR}/boost
+    STAMP_DIR          ${EXTERN_STAMP_DIR}/boost
+    INSTALL_DIR        ${THIRD_PARTY_ROOT}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND
+    ./bootstrap.sh 
+    --with-libraries=filesystem
+    --with-libraries=system
+    --with-libraries=test
+    --with-libraries=random
+    --prefix=<INSTALL_DIR>
+    BUILD_COMMAND
+    ./b2 install --link=static --variant=release --threading=single --runtime-link=static
+    INSTALL_COMMAND ""
+    )
+  list(APPEND tool_list third-party-boost)
+else()
+  add_custom_target(third-party-boost)
+  message("     boost: ${Boost_INCLUDE_DIRS} and ${Boost_LIBRARY_DIRS}")
 endif()
 
 if(APPLE)
   # set(APPLE_CXXFLAGS CXXFLAGS=-stdlib=libstdc++)
 endif()
 
-find_library(THIRD_PARTY_GFLAGS "gflags" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
-if( NOT THIRD_PARTY_GFLAGS )
+if( NOT GFLAGS_FOUND )
   if(NO_DOWNLOADS)
       set(URL "${CMAKE_SOURCE_DIR}/third-party/downloads/gflags-2.0-no-svn-files.tar.gz")
   else()
       set(URL "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz")
   endif()
-  message("     gflags: <building>")
+  message("    gflags: <building>")
   ExternalProject_Add( third-party-gflags
     URL                ${URL}
     ##URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821  # ignored to support older cmake
@@ -94,12 +85,11 @@ if( NOT THIRD_PARTY_GFLAGS )
   list(APPEND tool_list third-party-gflags)
 else()
   add_custom_target(third-party-gflags)
-  message("     gflags: ${THIRD_PARTY_GFLAGS}")
+  message("    gflags: ${GFLAGS_FOUND}")
 endif()
 
-find_library(THIRD_PARTY_GLOG "glog" "${THIRD_PARTY_ROOT}/lib" NO_CMAKE_SYSTEM_PATH)
-if( NOT THIRD_PARTY_GLOG )
-  message("     glog:   <building>")
+if( NOT GLOG_FOUND )
+  message("      glog: <building>")
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
   ExternalProject_Add( third-party-glog
@@ -116,8 +106,9 @@ if( NOT THIRD_PARTY_GLOG )
   )
   list(APPEND tool_list third-party-glog)
 else()
-  message("     glog:   ${THIRD_PARTY_GLOG}")
+  message("      glog: ${GLOG_FOUND}")
 endif()
+
 
 
 if(TRACING OR PROFILING)
