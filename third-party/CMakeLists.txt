@@ -30,6 +30,7 @@ if(NOT Boost_FOUND)
     set(URL "http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2")
   endif()
 
+  message("     boost: <building>")
   # Download & build Boost
   # TODO: detect which stdlib is being used and configure Boost to use it (i.e. on Mac, need to compile Boost with: toolset=clang cxxflags="-stdlib=libc++" linkflags="-stdlib=libc++" if using a version of Clang built with 'libc++')
   ExternalProject_Add(third-party-boost
@@ -67,7 +68,7 @@ if( NOT GFLAGS_FOUND )
   else()
       set(URL "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz")
   endif()
-  message("     gflags: <building>")
+  message("    gflags: <building>")
   ExternalProject_Add( third-party-gflags
     URL                ${URL}
     ##URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821  # ignored to support older cmake
@@ -84,11 +85,11 @@ if( NOT GFLAGS_FOUND )
   list(APPEND tool_list third-party-gflags)
 else()
   add_custom_target(third-party-gflags)
-  message("     gflags: ${GFLAGS_FOUND}")
+  message("    gflags: ${GFLAGS_FOUND}")
 endif()
 
 if( NOT GLOG_FOUND )
-  message("     glog:   <building>")
+  message("      glog: <building>")
   # (can't use release version because we customized it)
   # TODO: find out if latest version supports what we customized it for so we don't have to distribute it
   ExternalProject_Add( third-party-glog
@@ -105,7 +106,7 @@ if( NOT GLOG_FOUND )
   )
   list(APPEND tool_list third-party-glog)
 else()
-  message("     glog:   ${THIRD_PARTY_GLOG}")
+  message("      glog: ${GLOG_FOUND}")
 endif()
 
 
