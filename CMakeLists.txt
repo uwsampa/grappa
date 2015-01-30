@@ -27,6 +27,34 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
+
+###########################
+# Use RUNPATH if available
+# use, i.e. don't skip the full RPATH for the build tree
+set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_RPATH}")
+# add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+
+# the RPATH to be used when installing, but only if it's not a system directory
+list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+if("${isSystemDir}" STREQUAL "-1") # not a system directory
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
+endif("${isSystemDir}" STREQUAL "-1")
+
+## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
+# set runpath, too
+# if(NOT APPLE)
+#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+# endif()
+
+##### </RUNPATH> ########
+
+
 #############################################################################
 # configure profiling and tracing
 #############################################################################
@@ -55,6 +83,9 @@ if(TRACING)
   # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
   # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
 
+  if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
+    set(CMAKE_INSTALL_RPATH "${VAMPIR_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+  endif()
 endif()
 
 if(PROFILING)
@@ -73,6 +104,9 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 # TODO: use -stdlib=libc++ too?
 
+
+
+
 #########################################
 # Determine third party tools to build
 set(third_party_docstring "Directory to look for/install third-party stuff to.")
@@ -83,6 +117,7 @@ else()
 endif()
 include_directories("${THIRD_PARTY_ROOT}/include")
 link_directories("${THIRD_PARTY_ROOT}/lib")
+set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
 
 ######################################################################
 # MPI
@@ -95,7 +130,6 @@ include_directories(${MPI_INCLUDE_PATH})
 ######################################################################
 find_library(PMI_FOUND pmi)
 if(PMI_FOUND)
-  link_directories(${PMI_FOUND})
   list(APPEND GRAPPA_LIBS pmi)
 endif()
 
@@ -126,7 +160,7 @@ list(APPEND GRAPPA_LIBS gflags)
 ######################################################################
 # Google logging (Grappa-customized)
 ######################################################################
-find_library(GLOG_FOUND gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
+find_library(GLOG_FOUND glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
 list(APPEND GRAPPA_LIBS glog)
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
@@ -210,7 +244,7 @@ if(Boost_FOUND)
   string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
   # Boost_LIBRARIES set with the libraries to link against
   foreach(lib ${Boost_LIBRARY_DIRS})
-    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${lib}")
+    set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
   endforeach()
 else()
   message("-- Boost not found. Building.")
@@ -220,12 +254,10 @@ else()
   # include path is fine since we already include THIRD_PARTY_ROOT
   # link path is fine since we already include THIRD_PARTY_ROOT
   # RPATH is fine since we already include THIRD_PARTY_ROOT
-  message("third-party build Boost_LIBRARIES: ${Boost_LIBRARIES}")
   list(APPEND GRAPPA_LIBS
     boost_system
     boost_filesystem
     boost_unit_test_framework)
-  message("third-party build GRAPPA_LIBS: ${GRAPPA_LIBS}")
   list(APPEND tool_list third-party-boost)
 endif()
 
@@ -234,39 +266,6 @@ endif()
 add_subdirectory(third-party)
 
 
-###########################
-# Use RUNPATH if available
-# use, i.e. don't skip the full RPATH for the build tree
-set(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-
-# the RPATH to be used when installing, but only if it's not a system directory
-list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
-if("${isSystemDir}" STREQUAL "-1")
-   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-endif("${isSystemDir}" STREQUAL "-1")
-
-## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
-# set runpath, too
-# if(NOT APPLE)
-#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
-# endif()
-
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${THIRD_PARTY_ROOT}/lib")
-
-if(TRACING)
-  if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
-    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${VAMPIR_ROOT}/lib")
-  endif()
-endif()
-
-##### </RUNPATH> ########
 
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
