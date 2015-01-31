@@ -375,3 +375,29 @@ add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(doc)
 add_subdirectory(util)
+
+#############################################################################
+# Generate GNU Make include file with appropriate definitions for
+# standalone builds.
+#############################################################################
+
+# combine generic CXX flags with RelWithDebInfo build type flags
+set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+
+# Get definitions and convert from CMake-formatted list to Gnu compiler argument list
+get_directory_property(CMAKE_CXX_DEFINES DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos COMPILE_DEFINITIONS)
+string(REPLACE ";" " -D" GMAKE_CXX_DEFINES ";${CMAKE_CXX_DEFINES}")
+
+# get include dirs and convert from CMake-formatted list to compiler argument list
+get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
+string(REPLACE ";" " ${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS ";${CMAKE_CXX_INCLUDE_DIRS}")
+
+# Get link dirs and convert from CMake-formatted list to compiler argument list (including system for libGrappa.a)
+get_directory_property(CMAKE_CXX_LINK_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos LINK_DIRECTORIES)
+string(REPLACE ";" " ${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINARY_DIR}/system;${CMAKE_CXX_LINK_DIRS}")
+
+# alias name for less confusion
+set(GMAKE_LINK_FLAGS ${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS})
+
+# fill in prototype file and place in build directory
+configure_file(util/grappa.mk util/grappa.mk)
