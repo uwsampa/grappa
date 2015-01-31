@@ -124,6 +124,7 @@ set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
 ######################################################################
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
+list(APPEND GRAPPA_LIBS ${MPI_CXX_LIBRARIES})
 
 ######################################################################
 # PMI: helpful for some systems with Slurm
@@ -154,18 +155,29 @@ endif()
 # in theory, it may come from third-party or from system directories,
 # but for simplicity now just use the one in third-party.
 ######################################################################
-find_library(GFLAGS_FOUND gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-list(APPEND GRAPPA_LIBS gflags)
+find_library(GFLAGS_FOUND libgflags.a gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
+message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
+list(APPEND GRAPPA_LIBS libgflags.a)
 
 ######################################################################
 # Google logging (Grappa-customized)
 ######################################################################
-find_library(GLOG_FOUND glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-list(APPEND GRAPPA_LIBS glog)
+find_library(GLOG_FOUND libglog.a glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
+message("GLOG_FOUND: ${GLOG_FOUND}")
+list(APPEND GRAPPA_LIBS libglog.a)
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
   GLOG_v=1
 )
+
+######################################################################
+# Graph500 Kronecker generator (Grappa-customized)
+######################################################################
+find_library(GRAPH500_FOUND libgraph500-generator.a graph500-generator ${THIRD_PARTY_ROOT}/graph500-generator NO_CMAKE_SYSTEM_PATH)
+message("GRAPH500_FOUND: ${GRAPH500_FOUND}")
+include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
+link_directories("${THIRD_PARTY_ROOT}/graph500-generator")
+list(APPEND GRAPPA_LIBS libgraph500-generator.a)
 
 ######################################################################
 # Boost
@@ -176,6 +188,13 @@ if(VERBOSE)
   set(Boost_DETAILED_FAILURE_MSG ON)
   set(Boost_DEBUG ON)
 endif()
+
+# ideally we would verify we can find both static and dynamic versions
+# of the libraries, since we prefer each for different parts of
+# Boost. But since there's not good way to select both in
+# FindBoost.cmake, for now we'll just assume if we find a Boost
+# installation it will have both.
+### set(Boost_USE_STATIC_LIBS ON)
 
 # try single-threaded first
 set(Boost_USE_MULTITHREADED OFF)
@@ -242,7 +261,7 @@ if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
   string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
-  # Boost_LIBRARIES set with the libraries to link against
+  # Boost_LIBRARIES is now set with all the libraries we requested
   foreach(lib ${Boost_LIBRARY_DIRS})
     set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
   endforeach()
@@ -254,12 +273,20 @@ else()
   # include path is fine since we already include THIRD_PARTY_ROOT
   # link path is fine since we already include THIRD_PARTY_ROOT
   # RPATH is fine since we already include THIRD_PARTY_ROOT
-  list(APPEND GRAPPA_LIBS
-    boost_system
-    boost_filesystem
-    boost_unit_test_framework)
+  set(Boost_INCLUDE_DIR ${THIRD_PARTY_ROOT}/include)
+  set(Boost_LIBRARY_DIR ${THIRD_PARTY_ROOT}/lib)
   list(APPEND tool_list third-party-boost)
 endif()
+
+# we don't use ${Boost_LIBRARIES} because we want to link the
+# following two libraries statically for all targets, and the unit
+# test library dynamically, but only on test targets.
+list(APPEND GRAPPA_LIBS
+  libboost_system.a
+  libboost_filesystem.a)
+
+message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
+message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
 
 ####################################
 # Load all third party libraries
@@ -278,9 +305,6 @@ macro(add_grappa_exe target exe )
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
   target_link_libraries(${target} 
     Grappa
-    graph500-generator
-    ${MPI_CXX_LIBRARIES}
-    ${Boost_LIBRARIES}
   )
 endmacro(add_grappa_exe)
 
@@ -296,6 +320,7 @@ macro(add_grappa_test name nnode ppn)
   
   add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
+  target_link_libraries(${name} boost_unit_test_framework)
   set_target_properties(${test} PROPERTIES
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )

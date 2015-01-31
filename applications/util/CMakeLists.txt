@@ -21,8 +21,6 @@ macro(add_vampir_exe target exe )
     Grappa
     open-trace-format
     sqlite3
-    ${MPI_CXX_LIBRARIES}
-    ${Boost_LIBRARIES}
   )
 endmacro(add_vampir_exe)
 
