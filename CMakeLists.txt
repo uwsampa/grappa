@@ -267,6 +267,7 @@ if(Boost_FOUND)
   endforeach()
 else()
   message("-- Boost not found. Building.")
+  set(Boost_USE_MULTITHREADED OFF)
   # build is specified in third-party/CMakeLists.txt
 
   # now we need to set flags appropriately.
@@ -281,10 +282,15 @@ endif()
 # we don't use ${Boost_LIBRARIES} because we want to link the
 # following two libraries statically for all targets, and the unit
 # test library dynamically, but only on test targets.
-list(APPEND GRAPPA_LIBS
-  libboost_system.a
-  libboost_filesystem.a)
-
+if(Boost_USE_MULTITHREADED)
+  list(APPEND GRAPPA_LIBS
+    libboost_system-mt.a
+    libboost_filesystem-mt.a)
+else()
+  list(APPEND GRAPPA_LIBS
+    libboost_system.a
+    libboost_filesystem.a)
+endif()
 message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
 message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
 
