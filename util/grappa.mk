@@ -55,11 +55,11 @@ LDFLAGS=${GMAKE_LINK_FLAGS} \
 # Ideally CMake would generate these lists, but we do it by hand for now.
 STATIC_LIBRARIES=\
 	-lGrappa \
-	-lgflags \
 	-lglog \
+	-lgflags \
 	-lgraph500-generator \
-	-lboost_filesystem \
-	-lboost_system
+	-lboost_filesystem${GMAKE_BOOST_MT} \
+	-lboost_system${GMAKE_BOOST_MT}
 
 DYNAMIC_LIBRARIES=\
 	-lrt \

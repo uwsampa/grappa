@@ -154,7 +154,9 @@ endif()
 # Google logging (Grappa-customized)
 ######################################################################
 find_library(GLOG_FOUND libglog.a glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-message("GLOG_FOUND: ${GLOG_FOUND}")
+if(VERBOSE)
+  message("GLOG_FOUND: ${GLOG_FOUND}")
+endif()
 list(APPEND GRAPPA_LIBS libglog.a)
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
@@ -167,14 +169,18 @@ list(APPEND GRAPPA_ENV
 # but for simplicity now just use the one in third-party.
 ######################################################################
 find_library(GFLAGS_FOUND libgflags.a gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
+if(VERBOSE)
+  message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
+endif()
 list(APPEND GRAPPA_LIBS libgflags.a)
 
 ######################################################################
 # Graph500 Kronecker generator (Grappa-customized)
 ######################################################################
 find_library(GRAPH500_FOUND libgraph500-generator.a graph500-generator ${THIRD_PARTY_ROOT}/graph500-generator NO_CMAKE_SYSTEM_PATH)
-message("GRAPH500_FOUND: ${GRAPH500_FOUND}")
+if(VERBOSE)
+  message("GRAPH500_FOUND: ${GRAPH500_FOUND}")
+endif()
 include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 link_directories("${THIRD_PARTY_ROOT}/graph500-generator")
 list(APPEND GRAPPA_LIBS libgraph500-generator.a)
@@ -183,7 +189,6 @@ list(APPEND GRAPPA_LIBS libgraph500-generator.a)
 # Boost
 ######################################################################
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
-set(VERBOSE TRUE)
 
 if(VERBOSE)
   set(Boost_DETAILED_FAILURE_MSG ON)
@@ -292,8 +297,11 @@ else()
     libboost_system.a
     libboost_filesystem.a)
 endif()
-message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
-message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
+
+if(VERBOSE)
+  message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
+  message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
+endif()
 
 ####################################
 # Load all third party libraries
@@ -405,6 +413,13 @@ string(REPLACE ";" " ${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINAR
 
 # alias name for less confusion
 set(GMAKE_LINK_FLAGS ${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS})
+
+# add -mt suffix to Boost libs if needed
+if(Boost_USE_MULTITHREADED)
+  set(GMAKE_BOOST_MT "-mt")
+else()
+  set(GMAKE_BOOST_MT "")
+endif()
 
 # fill in prototype file and place in build directory
 configure_file(util/grappa.mk util/grappa.mk)
