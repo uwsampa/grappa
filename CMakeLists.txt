@@ -151,15 +151,6 @@ if(NOT APPLE)
 endif()
 
 ######################################################################
-# Google flags
-# in theory, it may come from third-party or from system directories,
-# but for simplicity now just use the one in third-party.
-######################################################################
-find_library(GFLAGS_FOUND libgflags.a gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
-list(APPEND GRAPPA_LIBS libgflags.a)
-
-######################################################################
 # Google logging (Grappa-customized)
 ######################################################################
 find_library(GLOG_FOUND libglog.a glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
@@ -169,6 +160,15 @@ list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
   GLOG_v=1
 )
+
+######################################################################
+# Google flags
+# in theory, it may come from third-party or from system directories,
+# but for simplicity now just use the one in third-party.
+######################################################################
+find_library(GFLAGS_FOUND libgflags.a gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
+message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
+list(APPEND GRAPPA_LIBS libgflags.a)
 
 ######################################################################
 # Graph500 Kronecker generator (Grappa-customized)
