@@ -183,6 +183,7 @@ list(APPEND GRAPPA_LIBS libgraph500-generator.a)
 # Boost
 ######################################################################
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
+set(VERBOSE TRUE)
 
 if(VERBOSE)
   set(Boost_DETAILED_FAILURE_MSG ON)
