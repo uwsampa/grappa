@@ -22,6 +22,8 @@
 ////////////////////////////////////////////////////////////////////////
 
 #include <Grappa.hpp>
+#include <SmartPointer.hpp>
+
 
 using namespace Grappa;
 using namespace std;
@@ -50,40 +52,17 @@ GlobalCompletionEvent gce;      // tasks synchronization
  * Queen on each column.
  */
 class Board {
-private:
-  void init(size_t size)
-  {
-    this->size = size;
-    columns = new int[size];
-    ref_count = 1;
-  }
-  
+  const size_t MINIMUM_BOARD_SIZE = 16;  /* must be > 0 */
 public:
-  Board(size_t size) { init(size); }
-
-  /* Creates a new board, copies the content of 'source' and
-   * insert 'newItem' into the last column.
-   */
-  Board(GlobalAddress<Board> source, int newItem)
+  Board(size_t size)
   {
-    /* read the remote board size */
-    int remsize = delegate::call(source, [](Board &b) { return b.size; });
-
-   /* Add an extra column. */
-    init(remsize+1);
-
-    /* copy the contents of the remote board to the local one */
-    for (auto k=0; k<remsize; k++)
-      columns[k] = delegate::call(source, [k](Board &b) {
-            return b.columns[k];
-          });
-    
-    /* Insert the new item */
-    columns[size-1] = newItem;
+    maximum = size > MINIMUM_BOARD_SIZE ? size : MINIMUM_BOARD_SIZE;
+    this->size = size;
+    columns = new int[maximum];
   }
 
-  /* Called whenever the object must be erased (i.e., memory freed) */
-  void release() { if (!--ref_count) delete[] columns; }
+  ~Board() { delete [] columns; }
+
 
   /*
    * Checks whether it is safe to put a queen in row 'row'. 
@@ -100,31 +79,80 @@ public:
     return true;
   }
 
-  /* Called explitictly whenever the object is copied. */
-  void shared() { ref_count++; }
-
   size_t getSize() const { return size; }   // getter method
+
+  void set(size_t pos, int val)
+  {
+    assert(pos < size);
+    columns[pos] = val;
+  }
+
+  int at(size_t pos) const
+  {
+    assert(pos < size);
+    return columns[pos];
+  }
+
+  // Inserts a queen in the last column at 'rowIndex'
+  void insertQueen(int rowIndex)
+  {
+    if (size >= maximum) {
+      /* double the maximum size */
+      size_t new_size = size*2;
+      int *new_columns = new int[new_size];
+
+      memcpy(new_columns, columns, size);
+
+      maximum = new_size;
+      delete [] columns;
+      columns = new_columns;
+         
+    }
+
+    columns[size++] = rowIndex;
+  }
 
 private:
   int *columns; /* has the row position for the queen on each column */
   size_t size;  /* board size */
-  int ref_count; /* reference counter to keep track of memory deallocation */
+  size_t maximum; /* maximum size before resizing */
 };
 
+ 
+template<>
+Board *clone<Board>(GlobalAddress<Board> source)
+{
+  /* read the remote board size */
+  int remsize = delegate::call(source, [](Board &b) { return b.getSize(); });
+
+  /* create a new board */
+  Board *local = new Board(remsize);
+
+  /* copy the contents of the remote board to the local one */
+  for (auto k=0; k<remsize; k++)
+    local->set(k, delegate::call(source, [k](Board &b) {
+          return b.at(k);
+        }));
+ 
+  return local;
+}
 
 
 /*
  * This is basically a brute force solution using recursion.
  *
- * Given a board ('remoteBoard') we add a queen at the row given by 'rowIndex'
- * in the last column, and check whether it is safe to add a new queen in any 
- * of the rows of the next column. In such cases a new task is spawned 
- * recursively for the next column.
+ * This procedure creates a new copy of the board, adds a new column
+ * (with a queen at the row given by 'rowIndex') and check whether
+ * it is safe to add a new queen in any of the rows of the next column.
+ * If it is safe, it then recursively spawn new tasks to do the job.
  */
-void nq_search(GlobalAddress<Board> remoteBoard, int rowIndex)
+void nq_search(SmtPtr<Board> remoteBoard, int rowIndex)
 {
   /* create a new copy of remoteBoard, adding a new column */
-  Board *newBoard = new Board(remoteBoard, rowIndex);
+  SmtPtr<Board> newBoard = remoteBoard.clone();
+
+  /* place the queen at row 'rowIndex' in the new column */
+  newBoard->insertQueen(rowIndex);
       
   /* are we done yet? */
   if (newBoard->getSize() == nqBoardSize) 
@@ -132,27 +160,16 @@ void nq_search(GlobalAddress<Board> remoteBoard, int rowIndex)
   else
   { /* not done yet */
   
-    GlobalAddress<Board> g_newBoard = make_global(newBoard);
-    
     /* check whether it is safe to have a queen on row 'i' */
     for (int i=0; i<nqBoardSize; i++) {
 
       if (newBoard->isSafe(i)) {
       
         /* safe - spawn a new task to check for the next column */
-
-        newBoard->shared();  // board is being shared
-
-        /* spawn a recursive search */
-        spawn<unbound,&gce>([g_newBoard,i] { nq_search(g_newBoard, i); });
+        spawn<unbound,&gce>([newBoard,i] { nq_search(newBoard, i); });
       }
     }
   }
-  
-  /* don't need the remote board anymore: try to delete it */
-  delegate::call(remoteBoard, [](Board &b) { b.release(); });
-
-  newBoard->release();
 }
 
 
@@ -175,18 +192,14 @@ int main(int argc, char * argv[]) {
     double start = walltime();
 
     /* initial empty board */
-    Board *board = new Board(0);
-    GlobalAddress<Board> g_board = make_global(board);
-
-    finish<&gce>([g_board,board]{
+    SmtPtr<Board> board(new Board(0));
+  
+    finish<&gce>([board]{
       for (auto i=0; i<nqBoardSize; i++)
       {
-        board->shared();
-        spawn<unbound, &gce>([g_board,i] { nq_search(g_board,i); }); 
+        spawn<unbound, &gce>([board,i] { nq_search(board,i); }); 
       }
     });
-
-    board->release();
 
     
     int64_t total = reduce<int64_t,collective_add<int64_t>>(&nqSolutions);
