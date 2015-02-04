@@ -21,6 +21,7 @@ message("-- Using {${BASE_C_COMPILER},${BASE_CXX_COMPILER}} to build third-party
 # Graph500 source for Kronecker generator
 ######################################################################
 add_subdirectory(graph500-generator)
+list(APPEND tool_list graph500-generator)
 
 # if we found a pre-installed version, add its paths to our build environment
 if(NOT Boost_FOUND)

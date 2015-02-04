@@ -124,6 +124,7 @@ set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
 ######################################################################
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
+list(APPEND GRAPPA_LIBS ${MPI_CXX_LIBRARIES})
 
 ######################################################################
 # PMI: helpful for some systems with Slurm
@@ -150,22 +151,39 @@ if(NOT APPLE)
 endif()
 
 ######################################################################
-# Google flags
-# in theory, it may come from third-party or from system directories,
-# but for simplicity now just use the one in third-party.
-######################################################################
-find_library(GFLAGS_FOUND gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-list(APPEND GRAPPA_LIBS gflags)
-
-######################################################################
 # Google logging (Grappa-customized)
 ######################################################################
-find_library(GLOG_FOUND glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
-list(APPEND GRAPPA_LIBS glog)
+find_library(GLOG_FOUND libglog.a glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
+if(VERBOSE)
+  message("GLOG_FOUND: ${GLOG_FOUND}")
+endif()
+list(APPEND GRAPPA_LIBS libglog.a)
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
   GLOG_v=1
 )
+
+######################################################################
+# Google flags
+# in theory, it may come from third-party or from system directories,
+# but for simplicity now just use the one in third-party.
+######################################################################
+find_library(GFLAGS_FOUND libgflags.a gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_PATH)
+if(VERBOSE)
+  message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
+endif()
+list(APPEND GRAPPA_LIBS libgflags.a)
+
+######################################################################
+# Graph500 Kronecker generator (Grappa-customized)
+######################################################################
+find_library(GRAPH500_FOUND libgraph500-generator.a graph500-generator ${THIRD_PARTY_ROOT}/graph500-generator NO_CMAKE_SYSTEM_PATH)
+if(VERBOSE)
+  message("GRAPH500_FOUND: ${GRAPH500_FOUND}")
+endif()
+include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
+link_directories("${THIRD_PARTY_ROOT}/graph500-generator")
+list(APPEND GRAPPA_LIBS libgraph500-generator.a)
 
 ######################################################################
 # Boost
@@ -176,6 +194,13 @@ if(VERBOSE)
   set(Boost_DETAILED_FAILURE_MSG ON)
   set(Boost_DEBUG ON)
 endif()
+
+# ideally we would verify we can find both static and dynamic versions
+# of the libraries, since we prefer each for different parts of
+# Boost. But since there's not good way to select both in
+# FindBoost.cmake, for now we'll just assume if we find a Boost
+# installation it will have both.
+### set(Boost_USE_STATIC_LIBS ON)
 
 # try single-threaded first
 set(Boost_USE_MULTITHREADED OFF)
@@ -242,23 +267,40 @@ if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
   string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
-  # Boost_LIBRARIES set with the libraries to link against
+  # Boost_LIBRARIES is now set with all the libraries we requested
   foreach(lib ${Boost_LIBRARY_DIRS})
     set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
   endforeach()
 else()
   message("-- Boost not found. Building.")
+  set(Boost_USE_MULTITHREADED OFF)
   # build is specified in third-party/CMakeLists.txt
 
   # now we need to set flags appropriately.
   # include path is fine since we already include THIRD_PARTY_ROOT
   # link path is fine since we already include THIRD_PARTY_ROOT
   # RPATH is fine since we already include THIRD_PARTY_ROOT
-  list(APPEND GRAPPA_LIBS
-    boost_system
-    boost_filesystem
-    boost_unit_test_framework)
+  set(Boost_INCLUDE_DIR ${THIRD_PARTY_ROOT}/include)
+  set(Boost_LIBRARY_DIR ${THIRD_PARTY_ROOT}/lib)
   list(APPEND tool_list third-party-boost)
+endif()
+
+# we don't use ${Boost_LIBRARIES} because we want to link the
+# following two libraries statically for all targets, and the unit
+# test library dynamically, but only on test targets.
+if(Boost_USE_MULTITHREADED)
+  list(APPEND GRAPPA_LIBS
+    libboost_system-mt.a
+    libboost_filesystem-mt.a)
+else()
+  list(APPEND GRAPPA_LIBS
+    libboost_system.a
+    libboost_filesystem.a)
+endif()
+
+if(VERBOSE)
+  message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
+  message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
 endif()
 
 ####################################
@@ -278,9 +320,6 @@ macro(add_grappa_exe target exe )
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
   target_link_libraries(${target} 
     Grappa
-    graph500-generator
-    ${MPI_CXX_LIBRARIES}
-    ${Boost_LIBRARIES}
   )
 endmacro(add_grappa_exe)
 
@@ -296,6 +335,7 @@ macro(add_grappa_test name nnode ppn)
   
   add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
+  target_link_libraries(${name} boost_unit_test_framework)
   set_target_properties(${test} PROPERTIES
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )
@@ -350,3 +390,36 @@ add_subdirectory(bin)
 add_subdirectory(scratch)
 add_subdirectory(doc)
 add_subdirectory(util)
+
+#############################################################################
+# Generate GNU Make include file with appropriate definitions for
+# standalone builds.
+#############################################################################
+
+# combine generic CXX flags with RelWithDebInfo build type flags
+set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+
+# Get definitions and convert from CMake-formatted list to Gnu compiler argument list
+get_directory_property(CMAKE_CXX_DEFINES DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos COMPILE_DEFINITIONS)
+string(REPLACE ";" " -D" GMAKE_CXX_DEFINES ";${CMAKE_CXX_DEFINES}")
+
+# get include dirs and convert from CMake-formatted list to compiler argument list
+get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
+string(REPLACE ";" " ${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS ";${CMAKE_CXX_INCLUDE_DIRS}")
+
+# Get link dirs and convert from CMake-formatted list to compiler argument list (including system for libGrappa.a)
+get_directory_property(CMAKE_CXX_LINK_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos LINK_DIRECTORIES)
+string(REPLACE ";" " ${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINARY_DIR}/system;${CMAKE_CXX_LINK_DIRS}")
+
+# alias name for less confusion
+set(GMAKE_LINK_FLAGS ${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS})
+
+# add -mt suffix to Boost libs if needed
+if(Boost_USE_MULTITHREADED)
+  set(GMAKE_BOOST_MT "-mt")
+else()
+  set(GMAKE_BOOST_MT "")
+endif()
+
+# fill in prototype file and place in build directory
+configure_file(util/grappa.mk util/grappa.mk)

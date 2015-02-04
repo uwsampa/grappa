@@ -152,10 +152,9 @@ list(APPEND SYSTEM_SOURCES
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
-include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 if( GOOGLE_PROFILER )
-  list(APPEND GRAPPA_LIBS "profiler")
+  list(APPEND GRAPPA_LIBS libprofiler.a)
 endif()
 
 enable_language(ASM)
@@ -245,8 +244,6 @@ macro(add_commtest_exe target exe )
     Communicator
     ${GRAPPA_LIBS}
     ${MPI_CXX_LIBRARIES}
-    ${Boost_LIBRARIES}
-
   )
 endmacro(add_commtest_exe)
 
