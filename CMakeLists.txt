@@ -205,6 +205,9 @@ endif()
 # try single-threaded first
 set(Boost_USE_MULTITHREADED OFF)
 
+# CMake 2.8 doesn't list most recent Boost versions, so add them ourselves
+set(Boost_ADDITIONAL_VERSIONS "1.57.0" "1.57" "1.58.0" "1.58" "1.59.0" "1.59")
+
 #
 # first, see if we already built a copy of boost in third-party; prefer that over any other boost
 #
@@ -299,6 +302,8 @@ else()
 endif()
 
 if(VERBOSE)
+  message("Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+  message("Boost_LIBRARY_DIRS: ${Boost_LIBRARY_DIRS}")
   message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
   message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
 endif()
