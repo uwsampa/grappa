@@ -274,7 +274,7 @@ if(Boost_FOUND)
   include_directories(${Boost_STATIC_INCLUDE_DIRS} ${Boost_DYNAMIC_INCLUDE_DIRS})
   list(APPEND GRAPPA_STATIC_LIBS ${Boost_STATIC_LIBRARIES})
   list(APPEND GRAPPA_DYNAMIC_LIBS ${Boost_DYNAMIC_LIBRARIES})
-  get_filename_component(BOOST_PREFIX ${Boost_INCLUDE_DIR} DIRECTORY)
+  get_filename_component(BOOST_PREFIX ${Boost_INCLUDE_DIR} PATH)
 else()
   # we will deal with the rest of the not found case after searching
   # for the unit test libraries, since setting some boost variables
@@ -459,7 +459,7 @@ string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE
 
 # static libs
 foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
-  get_filename_component(dir ${lib} DIRECTORY)
+  get_filename_component(dir ${lib} PATH)
   list(APPEND GRAPPA_LIB_PATHS ${dir})
   get_filename_component(name ${lib} NAME_WE)
   string(SUBSTRING ${name} 3 -1 name)
@@ -472,7 +472,7 @@ endforeach()
 
 # dynamic libs
 foreach(lib ${GRAPPA_DYNAMIC_LIBS})
-  get_filename_component(dir ${lib} DIRECTORY)
+  get_filename_component(dir ${lib} PATH)
   list(APPEND GRAPPA_LIB_PATHS ${dir})
   get_filename_component(name ${lib} NAME_WE)
   string(SUBSTRING ${name} 3 -1 name)
