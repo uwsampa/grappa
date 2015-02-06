@@ -32,6 +32,7 @@ OptionParser.new{|p|
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
   p.on('--no-downloads', "Expect third-party dependences to already exist in third-party/downloads, rather than downloading them from the web."){|b| opt.no_downloads = true }
+  p.on('--verbose', "Output verbose configure information."){|b| opt.verbose = true }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -122,6 +123,10 @@ def configure(generator, mode, opt)
     args << "-DBOOST_ROOT=#{opt.boost}"
   end
   
+  if opt.verbose
+    args << "-DVERBOSE=ON"
+  end
+
   if opt.build_here
     build_dir = "."
   else
@@ -141,8 +146,11 @@ def configure(generator, mode, opt)
     if $?.success?
       puts "-------------------------------------"
       unless opt.build_here
-        puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
-          {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+        puts ("created #{build_dir}; to build:\n> cd #{build_dir}; " + 
+          {'Make'=>'make','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator])
+        if generator == 'Make'
+          puts '(use make -j<numcores> to build in parallel)'
+        end
         puts "-------------------------------------"
       end
     end

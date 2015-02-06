@@ -152,17 +152,12 @@ list(APPEND SYSTEM_SOURCES
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
-include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
 
 ################
 # GlobalArray sources
 list(APPEND SYSTEM_SOURCES
   array/GlobalArray.hpp
 )
-
-if( GOOGLE_PROFILER )
-  list(APPEND GRAPPA_LIBS "profiler")
-endif()
 
 enable_language(ASM)
 set_source_files_properties( stack.S PROPERTIES LANGUAGE ASM )
@@ -171,7 +166,7 @@ add_library(Grappa
   ${SYSTEM_SOURCES}
   ${SYSTEM_HEADERS}
 )
-target_link_libraries(Grappa ${GRAPPA_LIBS})
+target_link_libraries(Grappa ${GRAPPA_DYNAMIC_LIBS} ${GRAPPA_STATIC_LIBS})
 add_dependencies(Grappa all-third-party)
 
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
@@ -250,10 +245,9 @@ macro(add_commtest_exe target exe )
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
   target_link_libraries(${target}
     Communicator
-    ${GRAPPA_LIBS}
+    ${GRAPPA_STATIC_LIBS}
+    ${GRAPPA_DYNAMIC_LIBS}
     ${MPI_CXX_LIBRARIES}
-    ${Boost_LIBRARIES}
-
   )
 endmacro(add_commtest_exe)
 
