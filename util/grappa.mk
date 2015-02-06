@@ -29,42 +29,25 @@
 # CMake, so use the plain C++ compiler (but mpicxx should be fine too)
 CXX=${CMAKE_CXX_COMPILER}
 
-# Whatever CC points to is used for linking in GNU Make's implicit
-# rules, so make that the MPI C++ compiler wrapper too to link with
-# its libraries.
-CC=${MPI_CXX_COMPILER}
-LD=${MPI_CXX_COMPILER}
+# MPI libraries should automatically be included in CXXFLAGS by
+# CMake, so use the plain C++ compiler (but mpicxx should be fine too)
+CC=${CMAKE_CXX_COMPILER}
+LD=${CMAKE_CXX_COMPILER}
 
 #############################################################################
 # compilation flags
 #############################################################################
 
-# this is used by the C++ compile rule
-CXXFLAGS=${GMAKE_CXX_DEFINES} \
-	${GMAKE_CXX_FLAGS} \
-	${GMAKE_CXX_INCLUDE_DIRS}
+# this is used by the C++ implicit compile rule
+CXXFLAGS=${GMAKE_CXX_DEFINES} ${GMAKE_CXX_FLAGS} ${GMAKE_CXX_INCLUDE_DIRS}
 
 #############################################################################
 # link flags
 #############################################################################
 
 # this is used by the C++ implicit link rule
-LDFLAGS=${GMAKE_LINK_FLAGS} \
-	${GMAKE_LINK_DIRS}
-
-# Ideally CMake would generate these lists, but we do it by hand for now.
-STATIC_LIBRARIES=\
-	-lGrappa \
-	-lglog \
-	-lgflags \
-	-lgraph500-generator \
-	-lboost_filesystem${GMAKE_BOOST_MT} \
-	-lboost_system${GMAKE_BOOST_MT}
-
-DYNAMIC_LIBRARIES=\
-	-lrt \
-	-lpthread
+LDFLAGS=${GMAKE_LINK_FLAGS} ${GMAKE_LIB_PATHS}
 
 # this is used by the C++ implicit link rule
-LDLIBS=${CMAKE_EXE_LINK_STATIC_CXX_FLAGS} $(STATIC_LIBRARIES) \
-	${CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS} $(DYNAMIC_LIBRARIES)
+LDLIBS=${CMAKE_EXE_LINK_STATIC_CXX_FLAGS} ${GMAKE_STATIC_LIBS} \
+	${CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS} ${GMAKE_DYNAMIC_LIBS}

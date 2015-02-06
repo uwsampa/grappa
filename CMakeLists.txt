@@ -2,6 +2,7 @@
 # (2.8 has ExternalProject support)
 cmake_minimum_required(VERSION 2.8)
 include(ExternalProject)
+include(util/grappa.cmake)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
@@ -77,7 +78,7 @@ if(TRACING)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -vt:inst manual")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -vt:inst manual")
   
-  # list(APPEND GRAPPA_LIBS vt otf z papi dl m)
+  # list(APPEND GRAPPA_DYNAMIC_LIBS vt otf z papi dl m)
   
   # set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
   # set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
@@ -106,7 +107,6 @@ add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 
 
-
 #########################################
 # Determine third party tools to build
 set(third_party_docstring "Directory to look for/install third-party stuff to.")
@@ -119,19 +119,38 @@ include_directories("${THIRD_PARTY_ROOT}/include")
 link_directories("${THIRD_PARTY_ROOT}/lib")
 set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
 
+
+#
+# External libraries and third-party tools
+#
+# GRAPPA_STATIC_LIBS is a list of full paths to .a files
+# GRAPPA_DYNAMIC_LIBS is a list of full paths to .so files
+# Include directories should be set explicitly here
+# Link directories should not; they will be extracted from the full lib paths
+#
+
 ######################################################################
 # MPI
 ######################################################################
 find_package(MPI REQUIRED)
+if(VERBOSE)
+  message("MPI_CXX_INCLUDE_PATH: ${MPI_CXX_INCLUDE_PATH}")
+  message("MPI_CXX_COMPILE_FLAGS: ${MPI_CXX_COMPILE_FLAGS}")
+  message("MPI_CXX_LINK_FLAGS: ${MPI_CXX_LINK_FLAGS}")
+  message("MPI_CXX_LIBRARIES: ${MPI_CXX_LIBRARIES}")
+endif()
 include_directories(${MPI_INCLUDE_PATH})
-list(APPEND GRAPPA_LIBS ${MPI_CXX_LIBRARIES})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS}")
+set(LINK_FLAGS "${LINK_FLAGS} ${MPI_CXX_LINK_FLAGS}")
+list(APPEND GRAPPA_DYNAMIC_LIBS ${MPI_CXX_LIBRARIES})
 
 ######################################################################
-# PMI: helpful for some systems with Slurm
+# PMI: helpful for job launch on some systems with Slurm.
+# MPI may already include it, but we ignore that here.
 ######################################################################
 find_library(PMI_FOUND pmi)
 if(PMI_FOUND)
-  list(APPEND GRAPPA_LIBS pmi)
+  list(APPEND GRAPPA_DYNAMIC_LIBS ${PMI_FOUND})
 endif()
 
 ######################################################################
@@ -139,7 +158,7 @@ endif()
 ######################################################################
 if(NOT APPLE)
   find_library(PTHREADS_FOUND pthread REQUIRED)
-  list(APPEND GRAPPA_LIBS pthread)
+  list(APPEND GRAPPA_DYNAMIC_LIBS ${PTHREADS_FOUND})
 endif()
 
 ######################################################################
@@ -147,7 +166,7 @@ endif()
 ######################################################################
 if(NOT APPLE)
   find_library(RT_FOUND rt REQUIRED)
-  list(APPEND GRAPPA_LIBS rt)
+  list(APPEND GRAPPA_DYNAMIC_LIBS ${RT_FOUND})
 endif()
 
 ######################################################################
@@ -157,7 +176,12 @@ find_library(GLOG_FOUND libglog.a glog ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SYSTEM_P
 if(VERBOSE)
   message("GLOG_FOUND: ${GLOG_FOUND}")
 endif()
-list(APPEND GRAPPA_LIBS libglog.a)
+if(GLOG_FOUND)
+  list(APPEND GRAPPA_STATIC_LIBS ${GLOG_FOUND})
+else()
+  # assume it will be built in third-party
+  list(APPEND GRAPPA_STATIC_LIBS ${THIRD_PARTY_ROOT}/lib/libglog.a)
+endif()
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
   GLOG_v=1
@@ -172,7 +196,12 @@ find_library(GFLAGS_FOUND libgflags.a gflags ${THIRD_PARTY_ROOT}/lib NO_CMAKE_SY
 if(VERBOSE)
   message("GFLAGS_FOUND: ${GFLAGS_FOUND}")
 endif()
-list(APPEND GRAPPA_LIBS libgflags.a)
+if(GFLAGS_FOUND)
+  list(APPEND GRAPPA_STATIC_LIBS ${GFLAGS_FOUND})
+else()
+  # assume it will be built in third-party
+  list(APPEND GRAPPA_STATIC_LIBS ${THIRD_PARTY_ROOT}/lib/libgflags.a)
+endif()
 
 ######################################################################
 # Graph500 Kronecker generator (Grappa-customized)
@@ -182,99 +211,96 @@ if(VERBOSE)
   message("GRAPH500_FOUND: ${GRAPH500_FOUND}")
 endif()
 include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
-link_directories("${THIRD_PARTY_ROOT}/graph500-generator")
-list(APPEND GRAPPA_LIBS libgraph500-generator.a)
+if(GRAPH500_FOUND)
+  list(APPEND GRAPPA_STATIC_LIBS ${GRAPH500_FOUND})
+else()
+  # assume it will be built in third-party
+  list(APPEND GRAPPA_STATIC_LIBS ${THIRD_PARTY_ROOT}/graph500-generator/libgraph500-generator.a)
+endif()
 
 ######################################################################
-# Boost
+# Google profiler
 ######################################################################
-set(BOOST_COMPONENTS filesystem system unit_test_framework)
+if(GOOGLE_PROFILER)
+  find_library(PROFILER_FOUND libprofiler.a profiler REQUIRED)
+  list(APPEND GRAPPA_STATIC_LIBS ${PROFILER_FOUND})
+endif()
+
+######################################################################
+# Boost (everything but unit tests)
+######################################################################
+set(BOOST_STATIC_OR_DYNAMIC_COMPONENTS system filesystem)
 
 if(VERBOSE)
   set(Boost_DETAILED_FAILURE_MSG ON)
   set(Boost_DEBUG ON)
 endif()
 
-# ideally we would verify we can find both static and dynamic versions
-# of the libraries, since we prefer each for different parts of
-# Boost. But since there's not good way to select both in
-# FindBoost.cmake, for now we'll just assume if we find a Boost
-# installation it will have both.
-### set(Boost_USE_STATIC_LIBS ON)
-
 # try single-threaded first
 set(Boost_USE_MULTITHREADED OFF)
 
 # CMake 2.8 doesn't list most recent Boost versions, so add them ourselves
-set(Boost_ADDITIONAL_VERSIONS "1.57.0" "1.57" "1.58.0" "1.58" "1.59.0" "1.59")
+set(Boost_ADDITIONAL_VERSIONS "1.59.0" "1.59" "1.58.0" "1.58" "1.57.0" "1.57")
 
-#
-# first, see if we already built a copy of boost in third-party; prefer that over any other boost
-#
-
-# save user-specified pointers to boost
-if(DEFINED BOOSTROOT)
-  set(BOOSTROOT_BACKUP ${BOOST_ROOT})
-  set(RESTORE_BOOSTROOT 1)
-  unset(BOOSTROOT)
-endif()
-if(DEFINED BOOST_ROOT)
-  set(BOOST_ROOT_BACKUP ${BOOST_ROOT})
-  set(RESTORE_BOOST_ROOT 1)
-endif()
-
-# now look in third-party
-set(BOOST_ROOT ${THIRD_PARTY_ROOT})
-set(Boost_NO_SYSTEM_PATHS 1)
+# first, search for things that we'd prefer to be static
 if(VERBOSE)
-  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
+  message("-- Searching for static Boost components: ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS}")
+endif()
+set(Boost_USE_STATIC_LIBS ON)
+set(BOOST_COMPONENTS_TO_FIND ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS})
+grappa_search_for_boost()
+unset(Boost_USE_STATIC_LIBS)
+if(Boost_FOUND)
+  set(Boost_STATIC_INCLUDE_DIRS "${Boost_INCLUDE_DIRS}")
+  set(Boost_STATIC_LIBRARY_DIRS "${Boost_LIBRARY_DIRS}")
+  set(Boost_STATIC_LIBRARIES "${Boost_LIBRARIES}")
 else()
-  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
-endif()
-
-#
-# if boost was not found in third-party, restore any user-specified pointers and search there and in standard paths
-#
-if(NOT Boost_FOUND)
-
-  # restore any user-specified pointers
-  unset(Boost_NO_SYSTEM_PATHS)
-  if(BOOSTROOT_BACKUP)
-    set(BOOSTROOT ${BOOSTROOT_BACKUP})
-  endif()
-  if(BOOST_ROOT_BACKUP)
-    set(BOOST_ROOT ${BOOST_ROOT_BACKUP})
-  endif()
-
-  # search for single-threaded version
-  if(VERBOSE)
-    find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
-  else()
-    find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
-  endif()
-
-  # if no single-threaded, try multi-threaded next
-  if(NOT Boost_FOUND)
-    set(Boost_USE_MULTITHREADED ON)
-    if(VERBOSE)
-      find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
-    else()
-      find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS} QUIET)
-    endif()
+  # if that didn't work, re-search for dynamic versions
+  message("-- Searching for static Boost components: ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS}")
+  # we turned off Boost_USE_STATIC_LIBS above
+  set(BOOST_COMPONENTS_TO_FIND ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS})
+  grappa_search_for_boost()
+  if(Boost_FOUND)
+    set(Boost_DYNAMIC_INCLUDE_DIRS "${Boost_INCLUDE_DIRS}")
+    set(Boost_DYNAMIC_LIBRARY_DIRS "${Boost_LIBRARY_DIRS}")
+    set(Boost_DYNAMIC_LIBRARIES "${Boost_LIBRARIES}")
   endif()
 endif()
+set(BOOST_STATIC_OR_DYNAMIC_FOUND ${Boost_FOUND})
 
 # if we did find a pre-installed version, add its paths to our build environment
 if(Boost_FOUND)
   message("-- Boost found:  ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION} -- ${BOOST_PREFIX}")
-  include_directories(${Boost_INCLUDE_DIR})
-  link_directories(${Boost_LIBRARY_DIRS})
-  string(REGEX REPLACE "/include" "" BOOST_PREFIX ${Boost_INCLUDE_DIR} )
-  # Boost_LIBRARIES is now set with all the libraries we requested
-  foreach(lib ${Boost_LIBRARY_DIRS})
-    set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
-  endforeach()
+  include_directories(${Boost_STATIC_INCLUDE_DIRS} ${Boost_DYNAMIC_INCLUDE_DIRS})
+  list(APPEND GRAPPA_STATIC_LIBS ${Boost_STATIC_LIBRARIES})
+  list(APPEND GRAPPA_DYNAMIC_LIBS ${Boost_DYNAMIC_LIBRARIES})
+  get_filename_component(BOOST_PREFIX ${Boost_INCLUDE_DIR} DIRECTORY)
 else()
+  # we will deal with the rest of the not found case after searching
+  # for the unit test libraries, since setting some boost variables
+  # screws up the search.
+  list(APPEND GRAPPA_STATIC_LIBS
+    ${THIRD_PARTY_ROOT}/lib/libboost_system.a
+    ${THIRD_PARTY_ROOT}/lib/libboost_filesystem.a)
+endif()
+
+######################################################################
+# Boost (unit tests only)
+######################################################################
+set(BOOST_COMPONENTS_TO_FIND unit_test_framework)
+grappa_search_for_boost()
+if(Boost_FOUND)
+  set(Boost_TEST_INCLUDE_DIRS "${Boost_INCLUDE_DIRS}")
+  set(Boost_TEST_LIBRARY_DIRS "${Boost_LIBRARY_DIRS}")
+  set(Boost_TEST_LIBRARIES "${Boost_LIBRARIES}")
+else()
+  # pick up from third-party
+  set(Boost_TEST_LIBRARIES ${THIRD_PARTY_ROOT}/lib/libboost_unit_test_framework.so)
+endif()
+set(BOOST_TEST_FOUND ${Boost_FOUND})
+
+# if we did find a pre-installed version, add its paths to our build environment
+if(NOT (${BOOST_STATIC_OR_DYNAMIC_FOUND} AND ${BOOST_TEST_FOUND}))
   message("-- Boost not found. Building.")
   set(Boost_USE_MULTITHREADED OFF)
   # build is specified in third-party/CMakeLists.txt
@@ -288,23 +314,25 @@ else()
   list(APPEND tool_list third-party-boost)
 endif()
 
-# we don't use ${Boost_LIBRARIES} because we want to link the
-# following two libraries statically for all targets, and the unit
-# test library dynamically, but only on test targets.
-if(Boost_USE_MULTITHREADED)
-  list(APPEND GRAPPA_LIBS
-    libboost_system-mt.a
-    libboost_filesystem-mt.a)
-else()
-  list(APPEND GRAPPA_LIBS
-    libboost_system.a
-    libboost_filesystem.a)
-endif()
 
 if(VERBOSE)
+  message("BOOST_STATIC_COMPONENTS: ${BOOST_STATIC_COMPONENTS}")
+  message("BOOST_STATIC_OR_DYNAMIC_COMPONENTS: ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS}")
+  message("Boost_STATIC_INCLUDE_DIRS: ${Boost_STATIC_INCLUDE_DIRS}")
+  message("Boost_STATIC_LIBRARY_DIRS: ${Boost_STATIC_LIBRARY_DIRS}")
+  message("Boost_STATIC_LIBRARIES: ${Boost_STATIC_LIBRARIES}")
+  message("Boost_DYNAMIC_COMPONENTS: ${Boost_DYNAMIC_COMPONENTS}")
+  message("Boost_DYNAMIC_INCLUDE_DIRS: ${Boost_DYNAMIC_INCLUDE_DIRS}")
+  message("Boost_DYNAMIC_LIBRARY_DIRS: ${Boost_DYNAMIC_LIBRARY_DIRS}")
+  message("Boost_DYNAMIC_LIBRARIES: ${Boost_DYNAMIC_LIBRARIES}")
   message("Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
   message("Boost_LIBRARY_DIRS: ${Boost_LIBRARY_DIRS}")
   message("Boost_LIBRARIES: ${Boost_LIBRARIES}")
+  message("Boost_TEST_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+  message("Boost_TEST_LIBRARY_DIRS: ${Boost_LIBRARY_DIRS}")
+  message("Boost_TEST_LIBRARIES: ${Boost_LIBRARIES}")
+  message("GRAPPA_STATIC_LIBS: ${GRAPPA_STATIC_LIBS}")
+  message("GRAPPA_DYNAMIC_LIBS: ${GRAPPA_DYNAMIC_LIBS}")
   message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
 endif()
 
@@ -312,6 +340,13 @@ endif()
 # Load all third party libraries
 add_subdirectory(third-party)
 
+
+
+# RPATH
+# not sure if this is useful any more, but what the heck.
+foreach(lib ${Boost_LIBRARY_DIRS})
+  set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
+endforeach()
 
 
 
@@ -340,7 +375,9 @@ macro(add_grappa_test name nnode ppn)
   
   add_grappa_exe(${name} ${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
-  target_link_libraries(${name} boost_unit_test_framework)
+  include_directories(${Boost_TEST_INCLUDE_DIRS})
+  link_directories(${Boost_TEST_LIBRARY_DIRS})
+  target_link_libraries(${name} ${Boost_TEST_LIBRARIES})
   set_target_properties(${test} PROPERTIES
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )
@@ -403,6 +440,7 @@ add_subdirectory(util)
 
 # combine generic CXX flags with RelWithDebInfo build type flags
 set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+set(GMAKE_LINK_FLAGS "${LINK_FLAGS} ${LINK_FLAGS_RELWITHDEBINFO}")
 
 # Get definitions and convert from CMake-formatted list to Gnu compiler argument list
 get_directory_property(CMAKE_CXX_DEFINES DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos COMPILE_DEFINITIONS)
@@ -410,21 +448,56 @@ string(REPLACE ";" " -D" GMAKE_CXX_DEFINES ";${CMAKE_CXX_DEFINES}")
 
 # get include dirs and convert from CMake-formatted list to compiler argument list
 get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
-string(REPLACE ";" " ${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS ";${CMAKE_CXX_INCLUDE_DIRS}")
+string(REPLACE ";" " \\\n\t${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS ";${CMAKE_CXX_INCLUDE_DIRS}")
 
 # Get link dirs and convert from CMake-formatted list to compiler argument list (including system for libGrappa.a)
 get_directory_property(CMAKE_CXX_LINK_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos LINK_DIRECTORIES)
-string(REPLACE ";" " ${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINARY_DIR}/system;${CMAKE_CXX_LINK_DIRS}")
+string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINARY_DIR}/system;${CMAKE_CXX_LINK_DIRS}")
 
-# alias name for less confusion
-set(GMAKE_LINK_FLAGS ${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS})
+####################################
+# Build lists of library names and paths
 
-# add -mt suffix to Boost libs if needed
-if(Boost_USE_MULTITHREADED)
-  set(GMAKE_BOOST_MT "-mt")
-else()
-  set(GMAKE_BOOST_MT "")
+# static libs
+foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
+  get_filename_component(dir ${lib} DIRECTORY)
+  list(APPEND GRAPPA_LIB_PATHS ${dir})
+  get_filename_component(name ${lib} NAME_WE)
+  string(SUBSTRING ${name} 3 -1 name)
+  list(APPEND GRAPPA_STATIC_LIB_NAMES ${name})
+  get_filename_component(ext ${lib} EXT)
+  if(NOT ${ext} STREQUAL ".a")
+    message(WARNING "Static library found didn't have .a extension: ${lib}")
+  endif()
+endforeach()
+
+# dynamic libs
+foreach(lib ${GRAPPA_DYNAMIC_LIBS})
+  get_filename_component(dir ${lib} DIRECTORY)
+  list(APPEND GRAPPA_LIB_PATHS ${dir})
+  get_filename_component(name ${lib} NAME_WE)
+  string(SUBSTRING ${name} 3 -1 name)
+  list(APPEND GRAPPA_DYNAMIC_LIB_NAMES ${name})
+  get_filename_component(ext ${lib} EXT)
+  if(NOT ${ext} STREQUAL ".so")
+    message(WARNING "Dynamic library found didn't have .so extension: ${lib}")
+  endif()
+endforeach()
+
+if(VERBOSE)
+  message("GRAPPA_LIB_PATHS: ${GRAPPA_LIB_PATHS}")
+  message("GRAPPA_STATIC_LIB_NAMES: ${GRAPPA_STATIC_LIB_NAMES}")
+  message("GRAPPA_DYNAMIC_LIB_NAMES: ${GRAPPA_DYNAMIC_LIB_NAMES}")
 endif()
+
+# remove duplicates
+list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS)
+string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS ";${GRAPPA_LIB_PATHS}")
+
+list(REMOVE_DUPLICATES GRAPPA_STATIC_LIB_NAMES)
+string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
+
+list(REMOVE_DUPLICATES GRAPPA_DYNAMIC_LIB_NAMES)
+string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GRAPPA_DYNAMIC_LIB_NAMES}")
 
 # fill in prototype file and place in build directory
 configure_file(util/grappa.mk util/grappa.mk)
