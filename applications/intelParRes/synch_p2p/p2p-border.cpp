@@ -37,8 +37,8 @@
 
 using namespace Grappa;
 
-DEFINE_uint64(m, 4, "number of rows in array");
-DEFINE_uint64(n, 4, "number of columns in array");
+DEFINE_uint64(n, 4, "number of rows in array");
+DEFINE_uint64(m, 4, "number of columns in array");
 DEFINE_uint64(iterations, 1, "number of iterations");
 DEFINE_string(pattern, "border", "what pattern of kernel should we run?");
 
@@ -52,20 +52,19 @@ int dim2_size = 0;
 int dim2_percore = 0;
 
 GlobalArray< double, int, Distribution::Local, Distribution::Block > ga;
-GlobalArray< FullEmpty< double >, int, Distribution::Local, Distribution::Block > leftsa;
 FullEmpty<double> * lefts = NULL;
 
 double iter_time = 0.0;
 
 int main( int argc, char * argv[] ) {
   init( &argc, &argv );
+
   run([]{
       LOG(INFO) << "Grappa pipeline stencil execution on 2D ("
                 << FLAGS_m << "x" << FLAGS_n
                 << ") grid";
       
-      ga.allocate( FLAGS_m, FLAGS_n );
-      leftsa.allocate( FLAGS_m, Grappa::cores() );
+      ga.allocate( FLAGS_n, FLAGS_m );
       on_all_cores( [] {
           lefts = new FullEmpty<double>[FLAGS_n];
         } );
@@ -111,15 +110,6 @@ int main( int argc, char * argv[] ) {
               }
             }
           } );
-        // forall( leftsa, [] (int i, int j, FullEmpty<double>& d) {
-        //     if( j == 0 || j == 1 ) {
-        //       d.writeXF( i );
-        //     } else if ( i == 0 ) {
-        //       d.writeXF( j );
-        //     } else {
-        //       d.reset();
-        //     }
-        //   } );
         
         // execute kernel
         VLOG(2) << "Starting iteration " << iter;
@@ -198,9 +188,7 @@ int main( int argc, char * argv[] ) {
 
         // copy top right corner value to bottom left corner to create dependency
         VLOG(2) << "Adding end-to-end dependence for iteration " << iter;
-        int last_m = FLAGS_m-1;
-        int last_n = FLAGS_n-1;
-        double val = delegate::read( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] );
+        double val = delegate::read( &ga[ FLAGS_n-1 ][ FLAGS_m-1 ] );
         delegate::write( &ga[0][0], -1.0 * val );
         delegate::call( 0, [val] { lefts[0].writeXF( -1.0 * val ); } );
         if( ga.dim2_percore == 1 ) delegate::call( 1, [val] { lefts[0].writeXF( -1.0 * val ); } );
@@ -216,13 +204,12 @@ int main( int argc, char * argv[] ) {
       // verify result
       VLOG(2) << "Verifying result";
       double expected_corner_val = (double) FLAGS_iterations * ( FLAGS_m + FLAGS_n - 2 );
-      double actual_corner_val = delegate::read( &ga[ FLAGS_m-1 ][ FLAGS_n-1 ] );
+      double actual_corner_val = delegate::read( &ga[ FLAGS_n-1 ][ FLAGS_m-1 ] );
       CHECK_DOUBLE_EQ( actual_corner_val, expected_corner_val );
 
       on_all_cores( [] {
           if( lefts ) delete [] lefts;
         } );
-      leftsa.deallocate( );
       ga.deallocate( );
       
       LOG(INFO) << "Done.";
