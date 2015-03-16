@@ -104,8 +104,7 @@ int main( int argc, char * argv[] ) {
       for( int iter = 0; iter < FLAGS_iterations; ++iter ) {
         on_all_cores( [] {
             for( int i = 1; i < FLAGS_n; ++i ) {
-              if( ! ((Grappa::mycore() == 0) || 
-                     (Grappa::mycore() == 1 && ga.dim2_percore == 1 )) ) {
+              if( ! (Grappa::mycore() == 0) ) {
                 lefts[i].reset();
               }
             }
@@ -132,7 +131,7 @@ int main( int argc, char * argv[] ) {
                     double left = readFF( &lefts[i] );
                     double diag = readFF( &lefts[i-1] );
                     double up = 0.0;
-                    double current = 0.0;
+                    double current = i;
 
                     for( int j = 0; j < dim2_percore; ++j ) {
                       int actual_j = j + first_j;
