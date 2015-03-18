@@ -69,9 +69,16 @@ public:
   }
 
   // allow local access to array element through reference
-  operator T&() {
+  inline operator T&() {
     return *ga.pointer();
   }
+
+  inline T & operator=( const T & t ) {
+    T & tref = *ga.pointer();
+    tref = t;
+    return tref;
+  }
+
 };
 
 // GlobalArray element proxy object recursive case. This overloads the &
