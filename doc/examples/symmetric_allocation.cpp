@@ -23,47 +23,34 @@ void global_fn() {
 
 
 //
-// another variant of global scope, but with namespaces to avoid collisions
+// another variant of global scope, but with a namespace to avoid collisions
 //
 namespace mylibrary {
   int namespace_foo = 0; // only visible in mylibrary namespace
 }
-namespace { // anonymous namespace
-  int namespace_foo = 0; // only visible in this translation unit
-}
+
 void namespace_fn() {
   on_all_cores( [=] {
       mylibrary::namespace_foo++;
-      namespace_foo = 0;
     } );
 
   int foo_sum = Grappa::reduce<int,collective_add>(&mylibrary::namespace_foo);
   CHECK_EQ( foo_sum, cores() );
+}
 
+//
+// another variant of global scope, but with a namespace to avoid collisions
+//
+namespace { // anonymous namespace
+  int namespace_foo = 0; // only visible in this translation unit
+}
+
+void anonymous_namespace_fn() {
   on_all_cores( [=] {
-      mylibrary::namespace_foo = 0;
       namespace_foo++;
     } );
 
-  foo_sum = Grappa::reduce<int,collective_add>(&namespace_foo);
-  CHECK_EQ( foo_sum, cores() );
-}
-
-
-//
-// Dynamic symmetric allocation
-//
-// In the current version, this is messier under the hood than it should be.
-// A recent commit is required to support allocating non-64-byte-multiple objects.
-int symmetric_fn() {
-  GlobalAddress< int > foo_p = symmetric_global_alloc< int >();
-
-  on_all_cores( [=] { // must capture global pointer
-      int * foo = foo_p.localize();
-      *foo = 1;
-    } );
-  
-  int foo_sum = Grappa::reduce<int,collective_add>(foo_p);
+  int foo_sum = Grappa::reduce<int,collective_add>(&namespace_foo);
   CHECK_EQ( foo_sum, cores() );
 }
 
@@ -118,6 +105,24 @@ void blocking_full_read() {
 }
 
 
+//
+// Dynamic symmetric allocation
+//
+// In the current version, this is messier under the hood than it should be.
+// A recent commit is required to support allocating non-64-byte-multiple objects.
+int symmetric_fn() {
+  GlobalAddress< int > foo_p = symmetric_global_alloc< int >();
+
+  on_all_cores( [=] { // must capture global pointer
+      int * foo = foo_p.localize();
+      *foo = 1;
+    } );
+  
+  int foo_sum = Grappa::reduce<int,collective_add>(foo_p);
+  CHECK_EQ( foo_sum, cores() );
+}
+
+
 
 int main(int argc, char * argv[]) {
   init( &argc, &argv );
@@ -125,9 +130,10 @@ int main(int argc, char * argv[]) {
   run( [] {
       global_fn();
       namespace_fn();
+      anonymous_namespace_fn();
       static_fn();
-      symmetric_fn();
       blocking_full_read();
+      symmetric_fn();
     } );
 
   finalize();
