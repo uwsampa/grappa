@@ -3,6 +3,7 @@
 //
 
 #include <Grappa.hpp>
+#include <FullEmpty.hpp>
 
 
 //
@@ -97,7 +98,7 @@ void blocking_full_read() {
   
   int sum = 0;
   for( int i = 0; i < Grappa::cores(); ++i ) {
-    sum += Grappa::delegate::call( i, [] { return d.readFE(); } );
+    sum += Grappa::readFF( make_global( &d, i ) );
   }
   CHECK_EQ( sum, Grappa::cores() );
 }
