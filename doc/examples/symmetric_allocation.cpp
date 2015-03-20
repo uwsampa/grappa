@@ -4,8 +4,6 @@
 
 #include <Grappa.hpp>
 
-using namespace Grappa;
-
 
 //
 // the dreaded global scope
@@ -13,12 +11,12 @@ using namespace Grappa;
 int global_foo = 0;
 
 void global_fn() {
-  on_all_cores( [] { // no capture necessary
+  Grappa::on_all_cores( [] { // no capture necessary
       global_foo++;
     } );
   
   int foo_sum = Grappa::reduce<int,collective_add>(&global_foo);
-  CHECK_EQ( foo_sum, cores() );
+  CHECK_EQ( foo_sum, Grappa::cores() );
 }
 
 
@@ -30,12 +28,12 @@ namespace mylibrary {
 }
 
 void namespace_fn() {
-  on_all_cores( [=] {
+  Grappa::on_all_cores( [=] {
       mylibrary::namespace_foo++;
     } );
 
   int foo_sum = Grappa::reduce<int,collective_add>(&mylibrary::namespace_foo);
-  CHECK_EQ( foo_sum, cores() );
+  CHECK_EQ( foo_sum, Grappa::cores() );
 }
 
 //
@@ -46,12 +44,12 @@ namespace { // anonymous namespace
 }
 
 void anonymous_namespace_fn() {
-  on_all_cores( [=] {
+  Grappa::on_all_cores( [=] {
       namespace_foo++;
     } );
 
   int foo_sum = Grappa::reduce<int,collective_add>(&namespace_foo);
-  CHECK_EQ( foo_sum, cores() );
+  CHECK_EQ( foo_sum, Grappa::cores() );
 }
 
 
@@ -79,29 +77,29 @@ void anonymous_namespace_fn() {
 int static_fn() {
   static int foo; // scope is limited to this block
   
-  on_all_cores( [] { // no capture necessary
+  Grappa::on_all_cores( [] { // no capture necessary
       foo++;
     } );
 
   int foo_sum = Grappa::reduce<int,collective_add>(&foo);
-  CHECK_EQ( foo_sum, cores() );
+  CHECK_EQ( foo_sum, Grappa::cores() );
 }
 
 //
 // Another example of symmetric allocation with a static local 
 //
 void blocking_full_read() {
-  static FullEmpty< int > d; // allocate one per core; a zero-initialized FullEmpty<> starts empty
+  static Grappa::FullEmpty< int > d; // allocate one per core; a zero-initialized FullEmpty<> starts empty
 
-  on_all_cores( [] { // no capture necessary
+  Grappa::on_all_cores( [] { // no capture necessary
       d.writeXF(1);
     } );
   
   int sum = 0;
-  for( int i = 0; i < cores(); ++i ) {
-    sum += delegate::call( i, [] { return d.readFE(); } );
+  for( int i = 0; i < Grappa::cores(); ++i ) {
+    sum += Grappa::delegate::call( i, [] { return d.readFE(); } );
   }
-  CHECK_EQ( sum, cores() );
+  CHECK_EQ( sum, Grappa::cores() );
 }
 
 
@@ -111,23 +109,23 @@ void blocking_full_read() {
 // In the current version, this is messier under the hood than it should be.
 // A recent commit is required to support allocating non-64-byte-multiple objects.
 int symmetric_fn() {
-  GlobalAddress< int > foo_p = symmetric_global_alloc< int >();
+  GlobalAddress< int > foo_p = Grappa::symmetric_global_alloc< int >();
 
-  on_all_cores( [=] { // must capture global pointer
+  Grappa::on_all_cores( [=] { // must capture global pointer
       int * foo = foo_p.localize();
       *foo = 1;
     } );
   
   int foo_sum = Grappa::reduce<int,collective_add>(foo_p);
-  CHECK_EQ( foo_sum, cores() );
+  CHECK_EQ( foo_sum, Grappa::cores() );
 }
 
 
 
 int main(int argc, char * argv[]) {
-  init( &argc, &argv );
+  Grappa::init( &argc, &argv );
 
-  run( [] {
+  Grappa::run( [] {
       global_fn();
       namespace_fn();
       anonymous_namespace_fn();
@@ -136,7 +134,7 @@ int main(int argc, char * argv[]) {
       symmetric_fn();
     } );
 
-  finalize();
+  Grappa::finalize();
   return 0;
 }
 
