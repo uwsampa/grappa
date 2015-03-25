@@ -67,8 +67,14 @@ namespace Grappa {
       DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Created with count=" << count_;
     }
 
+    // Decrement semaphore. Blocks if decrement would leave semaphore < 0.
+    void reset( int64_t val = 0 ) {
+      Grappa::broadcast( this );
+      count_ = val;
+    }
+
     // Increment semaphore. Wakes waiters
-    void increment( int64_t incr = 1 ) {
+    inline void increment( int64_t incr = 1 ) {
       DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Incrementing " << count_ << " by " << incr;
       check( count_ + incr );  // verify this is possible
       count_ += incr; // 
@@ -80,7 +86,7 @@ namespace Grappa {
     }
     
     // Decrement semaphore. Blocks if decrement would leave semaphore < 0.
-    void decrement( int64_t decr = 1 ) {
+    inline void decrement( int64_t decr = 1 ) {
       DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Ready to decrement " << count_ << " by " << decr;
       while( count_ - decr < 0 ) {
         DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Blocking to decrement " << count_ << " by " << decr;

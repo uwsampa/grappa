@@ -153,6 +153,12 @@ list(APPEND SYSTEM_SOURCES
   graph/KroneckerGenerator.cpp
 )
 
+################
+# GlobalArray sources
+list(APPEND SYSTEM_SOURCES
+  array/GlobalArray.hpp
+)
+
 enable_language(ASM)
 set_source_files_properties( stack.S PROPERTIES LANGUAGE ASM )
 
@@ -220,6 +226,7 @@ add_check( Tasking_tests.cpp                 2 1  pass )
 add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
+add_check( array/GlobalArray_tests.cpp       3 1  pass )
 
 
 #

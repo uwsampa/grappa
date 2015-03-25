@@ -52,7 +52,7 @@ DEFINE_int64( rdma_buffers_per_core, 1 << 7, "Number of RDMA aggregated message 
 
 DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immediately instead of using RDMA" );
 
-DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
+DEFINE_string( route_graph_filename, "", "Name of file for routing graph output, or none to disable" );
 
 DEFINE_bool( rdma_flush_on_idle, true, "Flush RDMA buffers when idle" );
 
@@ -343,7 +343,9 @@ namespace Grappa {
       //
 
       // draw route map if enabled
-      draw_routing_graph();
+      if( FLAGS_route_graph_filename != "" ) {
+        draw_routing_graph();
+      }
 
       // spread responsibility for locales between our cores, ensuring
       // that all locales get assigned

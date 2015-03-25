@@ -59,9 +59,9 @@ namespace Grappa {
         return;
       }
       
-      DVLOG(2) << "setting up to block (" << fe_addr << ")";
+      VLOG(2) << "setting up to block (" << fe_addr << ")";
       auto* c = SuspendedDelegate::create([&fe,result_addr]{
-        VLOG(0) << "suspended_delegate!";
+          //VLOG(0) << __PRETTY_FUNCTION__ << ": suspended_delegate for " << &fe << "!";
         fill_remote(result_addr, fe.readFF());
       });
       add_waiter(&fe, c);
@@ -73,10 +73,27 @@ namespace Grappa {
   /// Remote, blocking version of writeXF method. Writes data to FullEmpty no matter what its current state, leaving it full. Existing contents are overwritten. @see FullEmpty::writeXF
   template< typename T, typename U >
   void writeXF(GlobalAddress<FullEmpty<T>> fe_addr, const U& val) {
-    delegate::call(fe_addr, [val](FullEmpty<T> * fe){
-      fe->writeXF(val);
-      // DVLOG(2) << "writeXF(" << make_global(fe) << ", " << val << ") done";
-    });
+    if (fe_addr.core() == mycore()) {
+      DVLOG(2) << "local";
+      fe_addr.pointer()->writeXF(val);
+    } else {
+      delegate::call(fe_addr, [val](FullEmpty<T> * fe){
+          fe->writeXF(val);
+          // DVLOG(2) << "writeXF(" << make_global(fe) << ", " << val << ") done";
+        });
+    }
+  }
+  
+  template< typename T >
+  T readXX(GlobalAddress<FullEmpty<T>> fe_addr) {
+    if (fe_addr.core() == mycore()) {
+      DVLOG(2) << "local";
+      return fe_addr.pointer()->readXX();
+    } else {
+      return delegate::call(fe_addr, [] (FullEmpty<T> * fe) -> T {
+          return fe->readXX();
+        });
+    }
   }
   
   /// @}
