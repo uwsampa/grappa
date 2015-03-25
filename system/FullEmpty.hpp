@@ -38,7 +38,8 @@ namespace Grappa {
       result_addr->writeXF(val);
     });
   }
-  
+
+  /// Remote version of readFF method. Suspend until FullEmpty is full, and then return its contents, leaving it full. @see FullEmpty::readFF
   template< typename T >
   T readFF(GlobalAddress<FullEmpty<T>> fe_addr) {
     if (fe_addr.core() == mycore()) {
@@ -69,6 +70,7 @@ namespace Grappa {
     return result.readFF();
   }
 
+  /// Remote, blocking version of writeXF method. Writes data to FullEmpty no matter what its current state, leaving it full. Existing contents are overwritten. @see FullEmpty::writeXF
   template< typename T, typename U >
   void writeXF(GlobalAddress<FullEmpty<T>> fe_addr, const U& val) {
     if (fe_addr.core() == mycore()) {
