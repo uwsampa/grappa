@@ -101,6 +101,7 @@ int main( int argc, char * argv[] ) {
           } );
       
       LOG(INFO) << "Running " << FLAGS_iterations << " iterations....";
+      double total_start = Grappa::walltime();
       for( int iter = 0; iter < FLAGS_iterations; ++iter ) {
         on_all_cores( [] {
             for( int i = 1; i < FLAGS_n; ++i ) {
@@ -193,12 +194,15 @@ int main( int argc, char * argv[] ) {
         if( ga.dim2_percore == 1 ) delegate::call( 1, [val] { lefts[0].writeXF( -1.0 * val ); } );
         VLOG(2) << "Done with iteration " << iter;
       }
-      
+      double total_time = Grappa::walltime() - total_start;
+
       avgtime /= (double) std::max( FLAGS_iterations-1, static_cast<google::uint64>(1) );
       LOG(INFO) << "Rate (MFlops/s): " << 1.0E-06 * 2 * ((double)(FLAGS_m-1)*(FLAGS_n-1)) / mintime
                 << ", Avg time (s): " << avgtime
                 << ", Min time (s): " << mintime
                 << ", Max time (s): " << maxtime;
+      LOG(INFO) << "Total time: " << total_time;
+      LOG(INFO) << "Overall rate (MFlops/s): " << 1.0E-06 * 2 * ((double)(FLAGS_m-1)*(FLAGS_n-1)) / (total_time / FLAGS_iterations);
       
       // verify result
       VLOG(2) << "Verifying result";
