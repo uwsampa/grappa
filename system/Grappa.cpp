@@ -72,6 +72,9 @@ DECLARE_int64( shared_pool_max_size );
 DECLARE_bool( global_memory_use_hugepages );
 DECLARE_double(locale_shared_fraction);
 
+DECLARE_bool(logtostderr);
+DECLARE_int32(v);
+
 
 using namespace Grappa::impl;
 using namespace Grappa::Metrics;
@@ -347,15 +350,56 @@ void adjust_footprints() {
 /// user calls Grappa_activate().
 void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_bytes)
 {
-  // std::cerr << "Argc is " << *argc_p << std::endl;
-  // for( int i = 0; i < *argc_p; ++i ) {
-  //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
-  // }
-  
-  if (global_memory_size_bytes == -1) {
-    
+
+  // set environment variables
+  // these are sometime overridden by grappa_srun or its equivalent
+  {
+    const int DONT_OVERWRITE_ENV = 0;
+
+    // set default logging settings if they are not already set 
+
+    // The follwing are used only when our version version of glog
+    // doesn't know about gflags, which is rarely the case when building
+    // Grappa.
+    if( 0 != setenv("GLOG_logtostderr", "1", DONT_OVERWRITE_ENV) ) {
+      std::cout << "Error setting GLOG_logtostderr default value";
+      exit(1);
+    }
+    if( 0 != setenv("GLOG_v", "1", DONT_OVERWRITE_ENV) ) {
+      std::cout << "Error setting GLOG_v default value";
+      exit(1);
+    }
+
+    // Most of the time glog knows about gflags, and so these are used
+    // instead:
+    FLAGS_logtostderr = 1;
+    FLAGS_v = 1;
+
+    // set Google profiler sample rate
+    setenv("CPUPROFILE_FREQUENCY", "50", DONT_OVERWRITE_ENV);
+
+    // set VampirTrace options
+    setenv("VT_MAX_FLUSHES", "0", DONT_OVERWRITE_ENV);
+    setenv("VT_PFORM_GDIR", ".", DONT_OVERWRITE_ENV);
+    setenv("VT_PFORM_LDIR", "/scratch", DONT_OVERWRITE_ENV);
+    setenv("VT_FILE_UNIQUE", "yes", DONT_OVERWRITE_ENV);
+    setenv("VT_MPITRACE", "no", DONT_OVERWRITE_ENV);
+    setenv("VT_UNIFY", "no", DONT_OVERWRITE_ENV);
+
+    // MVAPICH2 options to avoid keeping around malloced memory
+    // (and some performance tweaks which may be irrelevant)
+    // TODO: figure out if these need to be set, and if so what equivalents for other MPI libraries are
+    setenv("MV2_USE_LAZY_MEM_UNREGISTER", "0", DONT_OVERWRITE_ENV);
+    setenv("MV2_HOMOGENEOUS_CLUSTER", "1", DONT_OVERWRITE_ENV);
+    setenv("MV2_USE_RDMA_FAST_PATH", "0", DONT_OVERWRITE_ENV);
+    setenv("MV2_SRQ_MAX_SIZE", "8192", DONT_OVERWRITE_ENV);
+
+    // OpneMPI options to avoid keeping around malloced memory
+    // TODO: figure out if these need to be set, and if so what equivalents for other MPI libraries are
+    setenv("MPI_MCA_mpi_leave_pinned", "0", DONT_OVERWRITE_ENV);
+    setenv("MPI_MCA_mpi_yield_when_idle", "0", DONT_OVERWRITE_ENV);
   }
-  
+
   // help generate unique profile filename
   Grappa::impl::set_exe_name( (*argv_p)[0] );
 
