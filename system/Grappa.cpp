@@ -232,8 +232,7 @@ namespace impl {
 
 void freeze_for_debugger() {
   auto pid = getpid();
-  LOG(INFO) << global_communicator.hostname() << ":" << pid << " freezing for debugger. Set freeze_flag=false to continue.";
-  google::FlushLogFiles(google::GLOG_INFO);
+  std::cerr << global_communicator.hostname() << ":" << pid << " freezing for debugger. Set freeze_flag=false to continue." << std::endl;
   fflush(stdout);
   fflush(stderr);
 
@@ -255,14 +254,13 @@ void failure_function() {
 }
 
 static void failure_sighandler( int signum ) {
-  google::FlushLogFiles(google::GLOG_INFO);
-  google::DumpStackTrace();
+  google::FlushLogFilesUnsafe(google::GLOG_INFO); // must call outside signal handler first to ensure malloc has completed
   if( freeze_flag ) {
-    freeze_for_debugger();
+      freeze_for_debugger();
   }
-  LOG(INFO) << "Exiting due to signal " << signum;
+  std::cerr << "Exiting due to signal " << signum << std::endl;
   google::FlushLogFiles(google::GLOG_INFO);
-  exit(1);
+  _exit(1);
 }
 
 static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
@@ -409,7 +407,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &Grappa::impl::failure_function );
-  
+
   DVLOG(2) << "Initializing Grappa library....";
 
 #ifdef HEAPCHECK_ENABLE
