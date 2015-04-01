@@ -708,10 +708,7 @@ int Grappa_finish( int retval )
   global_aggregator.finish();
 
   if (global_memory) delete global_memory;
-  locale_shared_memory.finish();
 
-  global_communicator.finish( retval );
- 
 //  Grappa_dump_stats();
 
   // probably never get here (depending on communication layer)
@@ -721,6 +718,10 @@ int Grappa_finish( int retval )
 #ifdef HEAPCHECK_ENABLE
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
+
+  global_communicator.finish( retval );
+
+  locale_shared_memory.finish();
 
   return retval;
 }

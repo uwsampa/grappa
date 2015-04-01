@@ -168,8 +168,9 @@ void LocaleSharedMemory::activate() {
 }
 
 void LocaleSharedMemory::finish() {
-  global_communicator.barrier();
-  if( Grappa::locale_mycore() == 0 ) { destroy(); }
+  // let Boot's atexit() handler take care of this
+  //global_communicator.barrier(); // we should have a barrier before destroying the shared memory region
+  //if( Grappa::locale_mycore() == 0 ) { destroy(); }
 }
 
 void * LocaleSharedMemory::allocate( size_t size ) {
