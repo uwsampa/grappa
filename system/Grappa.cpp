@@ -259,7 +259,6 @@ static void failure_sighandler( int signum ) {
       freeze_for_debugger();
   }
   std::cerr << "Exiting due to signal " << signum << std::endl;
-  google::FlushLogFiles(google::GLOG_INFO);
   _exit(1);
 }
 
