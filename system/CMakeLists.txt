@@ -221,6 +221,7 @@ add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
+add_check( AMessage_tests.cpp                1 1  pass )
 add_check( NTBuffer_tests.cpp                1 1  pass )
 
 #
