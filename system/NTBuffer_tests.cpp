@@ -47,7 +47,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   nt_flush( &b );
   
-  tuple * p = reinterpret_cast<tuple*>(b.get_buffer());
+  auto t = b.take_buffer();
+  auto p = reinterpret_cast<tuple*>( std::get<0>( t ) );
   for( int i = 0; i < fill; ++i ) {
     BOOST_CHECK_EQUAL( p[i].a, i*1000 + 0 );
     BOOST_CHECK_EQUAL( p[i].b, i*1000 + 1 );

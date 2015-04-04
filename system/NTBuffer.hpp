@@ -24,7 +24,13 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+
+#include <tuple>
+
 #include <x86intrin.h>
+
+DECLARE_int64( aggregator_target_size );
+#define BUFFER_SIZE (1 << 19)
 
 namespace Grappa {
 namespace impl {
@@ -32,6 +38,7 @@ namespace impl {
 class NTBuffer {
   static const int local_buffer_size = 8;
   static const int last_position = 7;
+  static int initial_offset;
 
   uint64_t localbuf_[ local_buffer_size ];
 
@@ -48,19 +55,32 @@ class NTBuffer {
   int position_;
   int local_position_;
 
-  void get_new_buffer( ) {
-  }
-  
 public:
   NTBuffer()
-    : buffer_( nullptr )
+    : localbuf_()
+    , buffer_( nullptr )
     , position_( -1 )
     , local_position_( 0 )
   { }
 
-  void * get_buffer() const {
+  static void set_initial_offset( int words ) {
+    initial_offset = words;
+  }
+  
+  void new_buffer( ) {
+    posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE );
+    position_ = 0;
+    uint64_t offset[ initial_offset ];
+    enqueue( &offset[0], initial_offset ); // add space for header
+  }
+  
+  std::tuple< void *, int > take_buffer() {
+    flush();
     _mm_sfence();
-    return reinterpret_cast<void*>(buffer_);
+    auto retval = std::make_tuple( reinterpret_cast<void*>(buffer_), position_ * sizeof(uint64_t) );
+    buffer_ = nullptr;
+    position_ = 0;
+    return retval;
   }
   
   void flush() {
@@ -70,10 +90,7 @@ public:
       }
       
       if( !buffer_ ) {
-        // get buffer
-        //buffer_ = new __attribute__((aligned(64))) uint64_t[1024];
-        posix_memalign( reinterpret_cast<void**>(&buffer_), 64, 1 << 20);
-        position_ = 0;
+        new_buffer();
       }
 
       // write out full cacheline
@@ -105,7 +122,7 @@ public:
 } __attribute__((aligned(64)));
 
 template< typename T >
-inline void nt_enqueue( NTBuffer * b, T * p, int size ) {
+static inline void nt_enqueue( NTBuffer * b, T * p, int size ) {
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
   DCHECK_EQ( reinterpret_cast<uint64_t>(p) % 8, 0 ) << "Pointer must be 8-byte aligned";
@@ -113,11 +130,11 @@ inline void nt_enqueue( NTBuffer * b, T * p, int size ) {
   b->enqueue( reinterpret_cast<uint64_t*>(p), size/8 );
 }
 
-void nt_flush( NTBuffer * b ) {
+static inline void nt_flush( NTBuffer * b ) {
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
   b->flush();
 }
 
-}
-}
+} // namespace impl
+} // namespace Grappa
