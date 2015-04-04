@@ -34,14 +34,14 @@ namespace Grappa {
 namespace impl {
 
 //template< typename T >
-struct AMessageBase {
+struct NTMessageBase {
   Core     dest_;
   uint16_t size_;
   uint32_t fp_;
-  AMessageBase(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
+  NTMessageBase(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
 }  __attribute__((aligned(8)));
 
-std::ostream& operator<<( std::ostream& o, const AMessageBase& m ) {
+std::ostream& operator<<( std::ostream& o, const NTMessageBase& m ) {
   uint64_t fp = m.fp_;
   return o << "<Amessage core:" << m.dest_ << " size:" << m.size_ << " fp:" << (void*) fp << ">";
 }
@@ -56,32 +56,32 @@ static inline const uint32_t make_32bit( const T t ) {
 }
 
 template< typename T >
-struct AMessage : AMessageBase {
+struct NTMessage : NTMessageBase {
   T storage_;
 
-  inline AMessage( )
-    : AMessageBase()
+  inline NTMessage( )
+    : NTMessageBase()
     , storage_()
   { }
 
-  inline AMessage( Core dest, T t )
-    : AMessageBase( dest, sizeof(*this), make_32bit(&deserialize_and_call) )
+  inline NTMessage( Core dest, T t )
+    : NTMessageBase( dest, sizeof(*this), make_32bit(&deserialize_and_call) )
     , storage_( t )
   { }
 
   friend char * run_deserialize_and_call( char * c );
 public:
-    AMessage( const AMessage& m ) = delete; ///< Not allowed.
-    AMessage& operator=( const AMessage& m ) = delete;         ///< Not allowed.
-    AMessage& operator=( AMessage&& m ) = delete;
+    NTMessage( const NTMessage& m ) = delete; ///< Not allowed.
+    NTMessage& operator=( const NTMessage& m ) = delete;         ///< Not allowed.
+    NTMessage& operator=( NTMessage&& m ) = delete;
 
-    AMessage( AMessage&& m ) = default;
+    NTMessage( NTMessage&& m ) = default;
 
     static char * deserialize_and_call( char * t ) {
       //DVLOG(5) << "In " << __PRETTY_FUNCTION__;
-      AMessage<T> * tt = reinterpret_cast< AMessage<T> * >( t );
+      NTMessage<T> * tt = reinterpret_cast< NTMessage<T> * >( t );
       tt->storage_();
-      return t + sizeof( AMessage<T> );
+      return t + sizeof( NTMessage<T> );
     }
 }  __attribute__((aligned(8)));
 
@@ -92,7 +92,7 @@ typedef char * (*deserializer_t)(char*);
 char * deaggregate_amessage_buffer( char * buf, size_t size ) {
   const char * end = buf + size;
   while( buf < end ) {
-    auto mb = reinterpret_cast<AMessageBase*>(buf);
+    auto mb = reinterpret_cast<NTMessageBase*>(buf);
     uint64_t fp_int = mb->fp_;
     auto fp = reinterpret_cast<deserializer_t>(fp_int);
     char * next = (*fp)(buf);
@@ -103,19 +103,11 @@ char * deaggregate_amessage_buffer( char * buf, size_t size ) {
 
 
 template< typename T >
-std::ostream& operator<<( std::ostream& o, const AMessage<T>& m ) {
-  const AMessageBase * mb = &m;
+std::ostream& operator<<( std::ostream& o, const NTMessage<T>& m ) {
+  const NTMessageBase * mb = &m;
   return o << *mb;
 }
 
-
-template< typename T >
-AMessage<T> send_amessage( Core dest, T t ) {
-  AMessage<T> m(dest,t);
-  LOG(INFO) << "AMessageBase " << m;
-  t();
-  return m;
-}
 
 } // namespace impl
 } // namespace Grappa

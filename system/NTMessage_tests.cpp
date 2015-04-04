@@ -23,7 +23,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "AMessage.hpp"
+#include "NTMessage.hpp"
 
 #define PRINT 0
 
@@ -31,13 +31,25 @@ char buf[ 1 << 20 ] = { 0 };
 
 size_t total = 0;
 
-BOOST_AUTO_TEST_SUITE( AMessage_tests );
+namespace Grappa {
+namespace impl {
 
+template< typename T >
+NTMessage<T> send_ntmessage( Core dest, T t ) {
+  NTMessage<T> m(dest,t);
+  LOG(INFO) << "NTMessageBase " << m;
+  t();
+  return m;
+}
 
+} // namespace impl
+} // namespace Grappa
+
+BOOST_AUTO_TEST_SUITE( NTMessage_tests );
 
 // void fn() {
 
-//   auto m = Grappa::impl::send_amessage( 1, [] { 
+//   auto m = Grappa::impl::send_ntmessage( 1, [] { 
 //       if( PRINT ) LOG(INFO) << "Hi with no argument!"; 
 //       total++;
 //     } );
@@ -50,7 +62,7 @@ BOOST_AUTO_TEST_SUITE( AMessage_tests );
 //   BOOST_CHECK_EQUAL( sizeof(m), 8 );
 
 //   int i = 1234;
-//   auto n = Grappa::impl::send_amessage( 2, [i] { 
+//   auto n = Grappa::impl::send_ntmessage( 2, [i] { 
 //       if( PRINT ) LOG(INFO) << "Hi with argument " << i << "!"; 
 //       total += i;
 //     } );
@@ -61,7 +73,7 @@ BOOST_AUTO_TEST_SUITE( AMessage_tests );
 //   BOOST_CHECK_EQUAL( sizeof(n), 16 );
 
 //   int arr[ 128 ] = {0};
-//   auto big = Grappa::impl::send_amessage( 0, [arr] { 
+//   auto big = Grappa::impl::send_ntmessage( 0, [arr] { 
 //       if( PRINT ) LOG(INFO) << "Hi with a big array!";
 //       total += sizeof(arr);
 //     } );
@@ -103,45 +115,45 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   //fn();
 
-  Grappa::impl::send_amessage( 0, &foo );
+  Grappa::impl::send_ntmessage( 0, &foo );
     
-  // Grappa::impl::send_amessage( 0, &bar, &buf[0], 0 );
+  // Grappa::impl::send_ntmessage( 0, &bar, &buf[0], 0 );
 
-  Grappa::impl::send_amessage( 0, static_cast<void(*)()>( [] {
+  Grappa::impl::send_ntmessage( 0, static_cast<void(*)()>( [] {
         LOG(INFO) << "Lambda message handler " << __PRETTY_FUNCTION__;
       } ) );
 
-  Grappa::impl::send_amessage( 0, [] {
+  Grappa::impl::send_ntmessage( 0, [] {
       LOG(INFO) << "Lambda message handler with no args " << __PRETTY_FUNCTION__;
     } );
 
-  Grappa::impl::send_amessage( 0, [] (void) -> void {
+  Grappa::impl::send_ntmessage( 0, [] (void) -> void {
       LOG(INFO) << "Lambda message handler with void(void) args " << __PRETTY_FUNCTION__;
     } );
 
   int x = 0;
-  Grappa::impl::send_amessage( 0, [x] {
+  Grappa::impl::send_ntmessage( 0, [x] {
       LOG(INFO) << "Lambda message handler with capture " << x;
     } );
     
-  Grappa::impl::send_amessage( 0, [=] {
+  Grappa::impl::send_ntmessage( 0, [=] {
       LOG(INFO) << "Lambda message handler with unused default copy capture " << __PRETTY_FUNCTION__;
     } );
 
-  Grappa::impl::send_amessage( 0, [&] {
+  Grappa::impl::send_ntmessage( 0, [&] {
       LOG(INFO) << "Lambda message handler with unused default reference capture " << __PRETTY_FUNCTION__;
     } );
 
-  auto m = Grappa::impl::send_amessage( 0, [=] {
+  auto m = Grappa::impl::send_ntmessage( 0, [=] {
       LOG(INFO) << "Lambda message handler with default capture of x = " << x << ": " << __PRETTY_FUNCTION__;
     } );
 
   Grappa::impl::deaggregate_amessage_buffer( reinterpret_cast<char*>(&m), sizeof(m) );
-  // Grappa::impl::send_amessage( 0, [] (const char * buf, size_t size) {
+  // Grappa::impl::send_ntmessage( 0, [] (const char * buf, size_t size) {
   //     LOG(INFO) << "Lambda payload message handler with payload " << (void*) buf; 
   //   }, &buf[0], 0 );
     
-  // Grappa::impl::send_amessage( 0, [x] (const char * buf, size_t size) { 
+  // Grappa::impl::send_ntmessage( 0, [x] (const char * buf, size_t size) { 
   //     LOG(INFO) << "Lambda payload message with capture " << x << " and payload " << (void*) buf; 
   //   }, &buf[0], 0 );
 
