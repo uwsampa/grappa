@@ -171,7 +171,7 @@ add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp"
 macro(add_check test_cpp nnode ppn target)
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
+  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp} ${ARGN})
   add_dependencies( check-all-${target} check-${test_name} )
   add_dependencies( check-all-${target}-compile-only ${test})
 endmacro()
