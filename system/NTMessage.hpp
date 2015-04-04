@@ -33,7 +33,6 @@ typedef int16_t Core;
 namespace Grappa {
 namespace impl {
 
-//template< typename T >
 struct NTMessageBase {
   Core     dest_;
   uint16_t size_;
@@ -41,10 +40,7 @@ struct NTMessageBase {
   NTMessageBase(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
 }  __attribute__((aligned(8)));
 
-std::ostream& operator<<( std::ostream& o, const NTMessageBase& m ) {
-  uint64_t fp = m.fp_;
-  return o << "<Amessage core:" << m.dest_ << " size:" << m.size_ << " fp:" << (void*) fp << ">";
-}
+std::ostream& operator<<( std::ostream& o, const NTMessageBase& m );
 
 template< typename T >
 static inline const uint32_t make_32bit( const T t ) {
@@ -88,18 +84,7 @@ public:
 
 typedef char * (*deserializer_t)(char*);
 
-
-char * deaggregate_amessage_buffer( char * buf, size_t size ) {
-  const char * end = buf + size;
-  while( buf < end ) {
-    auto mb = reinterpret_cast<NTMessageBase*>(buf);
-    uint64_t fp_int = mb->fp_;
-    auto fp = reinterpret_cast<deserializer_t>(fp_int);
-    char * next = (*fp)(buf);
-    buf = next;
-  }
-  return buf;
-}
+char * deaggregate_amessage_buffer( char * buf, size_t size );
 
 
 template< typename T >

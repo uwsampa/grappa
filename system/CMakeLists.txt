@@ -128,6 +128,8 @@ set(SYSTEM_SOURCES
   Timestamp.hpp
   Worker.hpp
   stack.h
+  NTBuffer.cpp
+  NTMessage.cpp
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
   # tasks/GlobalQueue.hpp
@@ -221,8 +223,10 @@ add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
-add_check( AMessage_tests.cpp                1 1  pass )
-add_check( NTBuffer_tests.cpp                1 1  pass )
+add_check( NTMessage_tests.cpp               1 1  pass NTMessage.cpp )
+add_check( NTBuffer_tests.cpp                1 1  pass NTBuffer.cpp )
+add_check( New_aggregator_tests.cpp          2 1  pass )
+
 
 #
 # begin hack for dealing with communicator test
