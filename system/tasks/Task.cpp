@@ -32,7 +32,7 @@
 #include "../Grappa.hpp"
 
 DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" );
-DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
+DEFINE_string( load_balance, "none", "Type of dynamic load balancing {none (default), steal, share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
 size_t steal_queue_size = 1L<<19;  // previous values: 500000
