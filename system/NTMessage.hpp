@@ -84,7 +84,7 @@ public:
 
 typedef char * (*deserializer_t)(char*);
 
-char * deaggregate_amessage_buffer( char * buf, size_t size );
+char * deaggregate_nt_buffer( char * buf, size_t size );
 
 
 template< typename T >

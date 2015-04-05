@@ -29,7 +29,6 @@
 
 #include <x86intrin.h>
 
-DECLARE_int64( aggregator_target_size );
 #define BUFFER_SIZE (1 << 19)
 
 namespace Grappa {
@@ -59,7 +58,7 @@ public:
   NTBuffer()
     : localbuf_()
     , buffer_( nullptr )
-    , position_( -1 )
+    , position_( 0 )
     , local_position_( 0 )
   { }
 
@@ -70,8 +69,6 @@ public:
   void new_buffer( ) {
     posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE );
     position_ = 0;
-    uint64_t offset[ initial_offset ];
-    enqueue( &offset[0], initial_offset ); // add space for header
   }
   
   std::tuple< void *, int > take_buffer() {
@@ -83,7 +80,7 @@ public:
     return retval;
   }
   
-  void flush() {
+  int flush() {
     if( local_position_ > 0 ) { // skip unless we have something to write
       for( int i = local_position_; i < local_buffer_size; ++i ) {
         localbuf_[i] = 0;
@@ -104,9 +101,11 @@ public:
       position_ += local_buffer_size; // advance to next cacheline of output buffer
       local_position_ = 0;
     }
+    return position_ * sizeof(uint64_t);
   }
-  
-  inline void enqueue( uint64_t * word_p, int word_size ) {
+
+  inline int actual_enqueue( uint64_t * word_p, int word_size ) {
+    // now copy in message
     while( word_size > 0 ) {
       localbuf_[ local_position_ ] = *word_p;
       ++word_p;
@@ -117,23 +116,36 @@ public:
         flush();
       }
     }
+    LOG(INFO) << "After enqueue, position is " << position_ << " and local position is " << local_position_;
+    return (position_ + local_position_) * sizeof(uint64_t);
+  }
+  
+  inline int enqueue( uint64_t * word_p, int word_size ) {
+    LOG(INFO) << "Enqueuing " << word_size << " words from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
+
+    // start with offset if necessary
+    if( (position_ == 0) && (local_position_ == 0) ) {
+      uint64_t offset[ initial_offset ];
+      actual_enqueue( &offset[0], initial_offset ); // add space for header
+    }
+    return actual_enqueue( word_p, word_size );
   }
 
 } __attribute__((aligned(64)));
 
 template< typename T >
-static inline void nt_enqueue( NTBuffer * b, T * p, int size ) {
+static inline int nt_enqueue( NTBuffer * b, T * p, int size ) {
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
   DCHECK_EQ( reinterpret_cast<uint64_t>(p) % 8, 0 ) << "Pointer must be 8-byte aligned";
   DCHECK_EQ( size % 8, 0 ) << "Size must be a multiple of 8";
-  b->enqueue( reinterpret_cast<uint64_t*>(p), size/8 );
+  return b->enqueue( reinterpret_cast<uint64_t*>(p), size/8 );
 }
 
-static inline void nt_flush( NTBuffer * b ) {
+static inline int nt_flush( NTBuffer * b ) {
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
-  b->flush();
+  return b->flush();
 }
 
 } // namespace impl

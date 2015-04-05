@@ -24,6 +24,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <tuple>
 
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
@@ -42,7 +43,9 @@ namespace Grappa {
 
 DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
-DEFINE_int64( target_size, 0, "Target size for aggregated messages capacity flushes; disabled by default" );
+DEFINE_int64( target_size, 0, "Deprecated; do not use. Target size for aggregated messages capacity flushes; disabled by default" );
+
+DEFINE_int64( aggregator_target_size, 1 << 16, "Target size for aggregated messages" );
 
 DECLARE_int64( log2_concurrent_receives );
 DECLARE_int64( log2_concurrent_sends );
@@ -272,6 +275,10 @@ namespace Grappa {
           }
         }
       }
+
+      // where can NTBuffer start storing data?
+      NTBuffer::set_initial_offset( 4 ); // TODO: for now we say 32 bytes.
+      ntbuffers_ = new NTBuffer[ global_communicator.cores ];
     }
     
     size_t RDMAAggregator::estimate_footprint() const {
@@ -467,8 +474,12 @@ namespace Grappa {
     DVLOG(2) << "Receiving buffer with deserializer " << (void*) (*((int64_t*)c->buf));
     // correct for deserializer bytes
     RDMABuffer * b = reinterpret_cast< RDMABuffer * >( c->buf );
-    
-    DVLOG(2) << __func__ << ": Receiving buffer of size " << size
+
+    __builtin_prefetch( b,    1, 0 ); // prefetch for read
+    //__builtin_prefetch( b+64, 1, 0 ); // prefetch for read
+
+    //DVLOG(2) << __func__ << ": Receiving buffer of size " << size
+    LOG(INFO) << __func__ << ": Receiving buffer of size " << size
              << " from " << b->get_source() << " to " << b->get_dest()
              << " at " << buf << " with ack " << b->get_ack()
              << " deserializer " << b->deserializer
@@ -482,9 +493,6 @@ namespace Grappa {
     // we don't decrement reference count here; receive_worker() will do that.
     global_rdma_aggregator.received_buffer_list_.push( b );
   }
-
-
-
 
 
 void RDMAAggregator::draw_routing_graph() {
@@ -700,15 +708,23 @@ void RDMAAggregator::draw_routing_graph() {
       rdma_receive_start++;
       active_receive_workers_++;
 
+      __builtin_prefetch( buf,    1, 0 ); // prefetch for read
+      __builtin_prefetch( buf+64, 1, 0 ); // prefetch for read
+      
       DVLOG(2) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                << " processing buffer " << buf << " context " << buf->deserializer
                << " serial " << reinterpret_cast<int64_t>( buf->get_ack() );
 
       // what core is buffer from?
       Core c = buf->get_source();
-      
-      // process buffer
-      receive_buffer( buf );
+
+      if( buf->get_ack() == reinterpret_cast<RDMABuffer*>(-1) ) {
+        // process buffer through non-temporal path
+        receive_nt_buffer( buf );
+      } else {
+        // process buffer through normal path
+        receive_buffer( buf );
+      }
 
       // // once we're done, send ack to give permission to send again,
       // // unless buffer is from the local core (for debugging)
@@ -758,6 +774,14 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
+
+  void RDMAAggregator::receive_nt_buffer( RDMABuffer * buf ) {
+    int64_t * size = reinterpret_cast<int64_t*>( buf->get_counts() );
+    char * b = reinterpret_cast<char*>( size + 1 );
+    Grappa::impl::global_scheduler.set_no_switch_region( true );
+    deaggregate_nt_buffer( b, *size );
+    Grappa::impl::global_scheduler.set_no_switch_region( false );
+  }
 
 
 
@@ -1269,5 +1293,31 @@ void RDMAAggregator::draw_routing_graph() {
   }
 
 
+  void RDMAAggregator::send_nt_buffer( Core dest, NTBuffer * buf ) {
+    auto buftuple = buf->take_buffer();
+    auto b = reinterpret_cast<RDMABuffer*>( std::get<0>(buftuple) );
+    auto size = std::get<1>(buftuple);
+    LOG(INFO) << "Sending NT buffer " << b << " of size " << size;
+
+    // TODO: hack to carry size for now
+    int64_t * size_p = reinterpret_cast<int64_t*>( b->get_counts() );
+    *size_p = size - 4 * sizeof(uint64_t); // TODO: make header smarter
+    
+    b->set_dest( dest );
+    b->set_next( reinterpret_cast<RDMABuffer*>( size ) );
+    b->set_source( Grappa::mycore() );
+    b->set_ack( reinterpret_cast<RDMABuffer*>(-1) ); // TODO: magic number for now
+    b->deserializer = (void*) &enqueue_buffer_am;
+    b->context.callback = [] ( CommunicatorContext * c, int source, int tag, int received_size ) {
+      DVLOG(4) << "Got callback for " << c;
+      free( c->buf );
+    };
+    b->context.buf = (void*) b;
+    b->context.size = b->get_max_size();
+    b->context.reference_count = 1;
+    DVLOG(3) << "Sending " << &b->context << " with deserializer " << (void*) &enqueue_buffer_am;
+    global_communicator.post_external_send( &b->context, dest, size );
   }
+
+}
 }

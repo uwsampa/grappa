@@ -49,9 +49,13 @@
 
 #include "Metrics.hpp"
 
+#include "NTMessage.hpp"
+#include "NTBuffer.hpp"
+
 // #include <boost/interprocess/containers/vector.hpp>
 
 DECLARE_int64( target_size );
+DECLARE_int64( aggregator_target_size );
 DECLARE_int64( aggregator_autoflush_ticks );
 DECLARE_bool( enable_aggregation );
 
@@ -225,6 +229,8 @@ namespace Grappa {
       Core * core_partner_locales_;
       int core_partner_locale_count_;
 
+      NTBuffer * ntbuffers_;
+
       void compute_route_map();
       void draw_routing_graph();
       void fill_free_pool( size_t num_buffers );
@@ -268,6 +274,8 @@ namespace Grappa {
 
 
 
+      void send_nt_buffer( Core dest, NTBuffer * buf );
+      void receive_nt_buffer( RDMABuffer * buf );
 
 
 
@@ -451,6 +459,7 @@ namespace Grappa {
         , dest_core_for_locale_( NULL )
         , core_partner_locales_( NULL )
         , core_partner_locale_count_( 0 )
+        , ntbuffers_( nullptr )
         , flushing_( false )
         , received_buffer_list_()
         , free_buffer_list_()
@@ -791,6 +800,20 @@ namespace Grappa {
         Grappa::signal( &flush_cv_ );
       }
 
+      template< typename T >
+      inline void send_nt_message( Core dest, T t ) {
+        NTMessage<T> m( dest, t );
+        LOG(INFO) << "Sending " << sizeof(m) << " bytes to " << dest;
+        int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
+        if( size >= (FLAGS_aggregator_target_size + 4 * sizeof(uint64_t)) ) { // TODO: magic number
+          send_nt_buffer( dest, ntbuffers_ + dest );
+        }
+      }
+
+      inline void flush_nt( Core dest ) {
+        nt_flush( ntbuffers_ + dest );
+        send_nt_buffer( dest, ntbuffers_ + dest );
+      }
     };
 
     /// @}

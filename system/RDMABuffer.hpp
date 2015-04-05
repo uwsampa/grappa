@@ -73,7 +73,6 @@ public:
     , data_()
     , context()
   {
-    LOG(INFO) << "Hello";
     static_assert( sizeof(*this) == BUFFER_SIZE, "RDMABuffer is not the size I expected for some reason." );
     context.buf = (void*) this;
     context.size = get_max_size();

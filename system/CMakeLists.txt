@@ -225,7 +225,7 @@ add_check( graph/Graph_tests.cpp             2 1  pass )
 
 add_check( NTMessage_tests.cpp               1 1  pass NTMessage.cpp )
 add_check( NTBuffer_tests.cpp                1 1  pass NTBuffer.cpp )
-add_check( New_aggregator_tests.cpp          2 1  pass )
+add_check( NTMessage_aggregator_tests.cpp    2 1  pass )
 
 
 #
