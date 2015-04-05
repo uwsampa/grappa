@@ -230,6 +230,7 @@ namespace Grappa {
       int core_partner_locale_count_;
 
       NTBuffer * ntbuffers_;
+      NTBuffer * ntbuffer_mru_root_;
 
       void compute_route_map();
       void draw_routing_graph();
@@ -803,8 +804,13 @@ namespace Grappa {
       template< typename T >
       inline void send_nt_message( Core dest, T t ) {
         NTMessage<T> m( dest, t );
-        LOG(INFO) << "Sending " << sizeof(m) << " bytes to " << dest;
+        DVLOG(3) << "Sending " << sizeof(m) << " bytes to " << dest;
         int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
+
+        // update mru
+        ntbuffers_[dest].maybe_update_mru( &ntbuffer_mru_root_ );
+
+        // send if we've reached capacity
         if( size >= (FLAGS_aggregator_target_size + 4 * sizeof(uint64_t)) ) { // TODO: magic number
           send_nt_buffer( dest, ntbuffers_ + dest );
         }

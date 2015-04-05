@@ -38,7 +38,7 @@ class NTBuffer {
   static const int local_buffer_size = 8;
   static const int last_position = 7;
   static int initial_offset;
-
+  
   uint64_t localbuf_[ local_buffer_size ];
 
   // TODO: squeeze these all into one 64-bit word (the last word of the buffer)
@@ -53,19 +53,50 @@ class NTBuffer {
   uint64_t * buffer_;
   int position_;
   int local_position_;
-
+  NTBuffer * next_mru_;
+  NTBuffer * prev_mru_;
+  
 public:
   NTBuffer()
     : localbuf_()
     , buffer_( nullptr )
     , position_( 0 )
     , local_position_( 0 )
+    , next_mru_( nullptr )
+    , prev_mru_( nullptr )
   { }
 
   static void set_initial_offset( int words ) {
     initial_offset = words;
   }
-  
+
+  inline NTBuffer * get_next_mru() const { return next_mru_; }
+
+  inline void maybe_update_mru( NTBuffer ** mru_root ) {
+    DVLOG(5) << "Maybe adding " << this << " to mru list starting at " << *mru_root;
+    if( (*mru_root != this) && (prev_mru_ == nullptr) ) { // not already in list
+      next_mru_ = *mru_root;
+      *mru_root = this;
+    }
+  }
+
+  inline void remove_from_mru( NTBuffer ** mru_root ) {
+    DVLOG(5) << "Removing " << this << " from mru list starting at " << *mru_root;
+    if( *mru_root == this ) {
+      *mru_root = next_mru_;
+    }
+    if( next_mru_ ) {
+      _mm_prefetch( &(next_mru_->prev_mru_), _MM_HINT_NTA );
+      next_mru_->prev_mru_ = prev_mru_;
+      next_mru_ = nullptr;
+    }
+    if( prev_mru_ ) {
+      _mm_prefetch( &(prev_mru_->next_mru_), _MM_HINT_NTA );
+      prev_mru_->next_mru_ = next_mru_;
+      prev_mru_ = nullptr;
+    }
+  }
+
   void new_buffer( ) {
     posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE );
     position_ = 0;
@@ -116,12 +147,12 @@ public:
         flush();
       }
     }
-    LOG(INFO) << "After enqueue, position is " << position_ << " and local position is " << local_position_;
+    DVLOG(5) << "After enqueue, position is " << position_ << " and local position is " << local_position_;
     return (position_ + local_position_) * sizeof(uint64_t);
   }
   
   inline int enqueue( uint64_t * word_p, int word_size ) {
-    LOG(INFO) << "Enqueuing " << word_size << " words from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
+    DVLOG(5) << "Enqueuing " << word_size << " words from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
 
     // start with offset if necessary
     if( (position_ == 0) && (local_position_ == 0) ) {

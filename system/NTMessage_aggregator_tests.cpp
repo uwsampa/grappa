@@ -34,7 +34,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
 
-      {
+      { // multiple messages with explicit flush
         int x = 0;
         Grappa::CompletionEvent ce(3);
         Grappa::impl::global_rdma_aggregator.send_nt_message( 0, [&x,&ce] {
@@ -54,7 +54,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         BOOST_CHECK_EQUAL( x, 3 );
       }
 
-      {
+      { // target size flush
         auto old_target_size = FLAGS_aggregator_target_size;
         FLAGS_aggregator_target_size = 24 * 3;
 
@@ -89,12 +89,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         FLAGS_aggregator_target_size = old_target_size;
       }
 
-      {
+      { // request/response with explicit flushes
         Grappa::CompletionEvent ce(1);
         Grappa::impl::global_rdma_aggregator.send_nt_message( 1, [&ce] {
-            LOG(INFO) << "Request message";
+            //LOG(INFO) << "Request message";
             Grappa::impl::global_rdma_aggregator.send_nt_message( 0, [&ce] {
-                LOG(INFO) << "Reply message";
+                //LOG(INFO) << "Reply message";
                 ce.complete();
               } );
             Grappa::impl::global_rdma_aggregator.flush_nt( 0 );
@@ -103,6 +103,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         ce.wait();
         BOOST_CHECK_EQUAL( 1, 1 );
       }
+
+      { // request/response with no flushes
+        Grappa::CompletionEvent ce(1);
+        Grappa::impl::global_rdma_aggregator.send_nt_message( 1, [&ce] {
+            LOG(INFO) << "Request message";
+            Grappa::impl::global_rdma_aggregator.send_nt_message( 0, [&ce] {
+                LOG(INFO) << "Reply message";
+                ce.complete();
+              } );
+          } );
+        ce.wait();
+        BOOST_CHECK_EQUAL( 1, 1 );
+      }
+
     });
   Grappa::finalize();
 }

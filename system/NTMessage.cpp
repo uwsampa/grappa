@@ -21,10 +21,10 @@ char * deaggregate_nt_buffer( char * buf, size_t size ) {
       auto mb = reinterpret_cast<NTMessageBase*>(buf);
       uint64_t fp_int = mb->fp_;
       auto fp = reinterpret_cast<deserializer_t>(fp_int);
-      LOG(INFO) << "Deserializing with " << (void*) fp << "/" << *mb << " at " << (void*) buf;
+      DVLOG(5) << "Deserializing with " << (void*) fp << "/" << *mb << " at " << (void*) buf;
       next = (*fp)(buf);
     } else {
-      LOG(INFO) << "Skipping a word at " << (void*) buf;
+      DVLOG(5) << "Skipping a word at " << (void*) buf;
     }
     buf = next;
   }

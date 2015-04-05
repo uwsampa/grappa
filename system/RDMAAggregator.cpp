@@ -170,6 +170,13 @@ namespace Grappa {
           }
 
         }
+
+        // flush NT buffers
+        while( ntbuffer_mru_root_ != nullptr ) {
+          DVLOG(5) << "Flushing NT buffer " << ntbuffer_mru_root_;
+          nt_flush( ntbuffer_mru_root_ );
+          send_nt_buffer( ntbuffer_mru_root_ - ntbuffers_, ntbuffer_mru_root_ );
+        }
       }
     }
   
@@ -478,8 +485,7 @@ namespace Grappa {
     __builtin_prefetch( b,    1, 0 ); // prefetch for read
     //__builtin_prefetch( b+64, 1, 0 ); // prefetch for read
 
-    //DVLOG(2) << __func__ << ": Receiving buffer of size " << size
-    LOG(INFO) << __func__ << ": Receiving buffer of size " << size
+    DVLOG(2) << __func__ << ": Receiving buffer of size " << size
              << " from " << b->get_source() << " to " << b->get_dest()
              << " at " << buf << " with ack " << b->get_ack()
              << " deserializer " << b->deserializer
@@ -1294,10 +1300,11 @@ void RDMAAggregator::draw_routing_graph() {
 
 
   void RDMAAggregator::send_nt_buffer( Core dest, NTBuffer * buf ) {
+    buf->remove_from_mru( &ntbuffer_mru_root_ );
     auto buftuple = buf->take_buffer();
     auto b = reinterpret_cast<RDMABuffer*>( std::get<0>(buftuple) );
     auto size = std::get<1>(buftuple);
-    LOG(INFO) << "Sending NT buffer " << b << " of size " << size;
+    DVLOG(3) << "Sending NT buffer " << b << " of size " << size;
 
     // TODO: hack to carry size for now
     int64_t * size_p = reinterpret_cast<int64_t*>( b->get_counts() );
