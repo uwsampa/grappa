@@ -38,6 +38,9 @@ struct NTMessageBase {
   uint16_t size_;
   uint32_t fp_;
   NTMessageBase(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
+  NTMessageBase(): dest_(-1), size_(0), fp_(0) { }
+  NTMessageBase( const NTMessageBase& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
+  NTMessageBase( NTMessageBase&& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
 }  __attribute__((aligned(8)));
 
 std::ostream& operator<<( std::ostream& o, const NTMessageBase& m );
