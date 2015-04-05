@@ -148,7 +148,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       LOG(INFO) << "Lambda message handler with default capture of x = " << x << ": " << __PRETTY_FUNCTION__;
     } );
 
-  Grappa::impl::deaggregate_amessage_buffer( reinterpret_cast<char*>(&m), sizeof(m) );
+  Grappa::impl::deaggregate_nt_buffer( reinterpret_cast<char*>(&m), sizeof(m) );
   // Grappa::impl::send_ntmessage( 0, [] (const char * buf, size_t size) {
   //     LOG(INFO) << "Lambda payload message handler with payload " << (void*) buf; 
   //   }, &buf[0], 0 );

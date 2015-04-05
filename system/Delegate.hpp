@@ -24,6 +24,7 @@
 #pragma once
 
 #include "Message.hpp"
+#include "RDMAAggregator.hpp"
 #include "FullEmptyLocal.hpp"
 #include "ConditionVariable.hpp"
 #include "DelegateBase.hpp"
@@ -63,8 +64,12 @@ namespace Grappa {
           func();
         } else {
           if (C) C->enroll();
-        
+
+#ifdef ENABLE_NT_MESSAGE
+          Grappa::impl::global_rdma_aggregator.send_nt_message(dest, [origin, func] {
+#else
           send_heap_message(dest, [origin, func] {
+#endif
             delegate_targets++;
             func();
             if (C) C->send_completion(origin);
