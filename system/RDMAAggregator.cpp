@@ -45,7 +45,7 @@ DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
 DEFINE_int64( target_size, 0, "Deprecated; do not use. Target size for aggregated messages capacity flushes; disabled by default" );
 
-DEFINE_int64( aggregator_target_size, 1 << 16, "Target size for aggregated messages" );
+DEFINE_int64( aggregator_target_size, 1 << 10, "Target size for aggregated messages" );
 
 DECLARE_int64( log2_concurrent_receives );
 DECLARE_int64( log2_concurrent_sends );
@@ -67,6 +67,9 @@ GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_immediate, 0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_serialized, 0 );
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_bytes_serialized, 0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_deserialized, 0 );
+
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_nt_message_bytes, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, aggregated_nt_message_bytes, 0 );
 
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_messages_delivered_locally, 0 );
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_bytes_delivered_locally, 0 );
@@ -1324,6 +1327,12 @@ void RDMAAggregator::draw_routing_graph() {
     b->context.reference_count = 1;
     DVLOG(3) << "Sending " << &b->context << " with deserializer " << (void*) &enqueue_buffer_am;
     global_communicator.post_external_send( &b->context, dest, size );
+    aggregated_nt_message_bytes += size;
+    
+    // give ourselves a chance to receive something
+    if( !global_scheduler.in_no_switch_region() ) {
+      Grappa::impl::global_scheduler.thread_yield();
+    }
   }
 
 }

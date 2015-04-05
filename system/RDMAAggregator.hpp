@@ -64,6 +64,8 @@ GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue );
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue_cas );
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_immediate );
 
+GRAPPA_DECLARE_METRIC( SummarizingMetric<int64_t>, app_nt_message_bytes );
+
 /// stats for RDMA Aggregator events
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_capacity_flushes );
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_requested_flushes );
@@ -805,6 +807,7 @@ namespace Grappa {
       inline void send_nt_message( Core dest, T t ) {
         NTMessage<T> m( dest, t );
         DVLOG(3) << "Sending " << sizeof(m) << " bytes to " << dest;
+        app_nt_message_bytes += sizeof(m);
         int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
 
         // update mru
