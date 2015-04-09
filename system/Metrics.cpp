@@ -165,11 +165,13 @@ namespace Grappa {
     }
     
     void dump_stats_blob() {
-      MetricList all;
-      merge(all); // also flushes histogram logs
+      if( FLAGS_stats_blob_enable ) {
+        MetricList all;
+        merge(all); // also flushes histogram logs
 
-      std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-      print( o, all, "");
+        std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+        print( o, all, "");
+      }
     }
 
     void reset() {
