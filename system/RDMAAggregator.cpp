@@ -55,7 +55,7 @@ DEFINE_int64( rdma_buffers_per_core, 1 << 7, "Number of RDMA aggregated message 
 
 DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immediately instead of using RDMA" );
 
-DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
+DEFINE_string( route_graph_filename, "", "Name of file for routing graph output (no output if empty)" );
 
 DEFINE_bool( rdma_flush_on_idle, true, "Flush RDMA buffers when idle" );
 
@@ -505,50 +505,51 @@ namespace Grappa {
 
 
 void RDMAAggregator::draw_routing_graph() {
-  {
-    if( Grappa::mycore() == 0 ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::trunc );
-      o << "digraph Routing {\n";
-      o << "    node [shape=record];\n";
-      o << "    splines=true;\n";
-    }
-  }
-  global_communicator.barrier();
-
-  for( int n = 0; n < Grappa::locales(); ++n ) {
-    if( Grappa::locale_mycore() == 0 && n == Grappa::mylocale() ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
-
-      o << "    n" << n << " [label=\"n" << n;
-      for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
-        o << "|";
-        if( c == n * Grappa::locale_cores() ) o << "{";
-        o << "<c" << c << "> c" << c;
+  if( FLAGS_route_graph_filename != "" ) {
+    {
+      if( Grappa::mycore() == 0 ) {
+        std::ofstream o( FLAGS_route_graph_filename, std::ios::trunc );
+        o << "digraph Routing {\n";
+        o << "    node [shape=record];\n";
+        o << "    splines=true;\n";
       }
-      o << "}\"];\n";
-
-      //for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
-      for( int d = 0; d < Grappa::locales(); ++d ) {
-        if( d != Grappa::mylocale() ) {
-          o << "    n" << n << ":c" << source_core_for_locale_[d] << ":e"
-            << " -> n" << d << ":c" << dest_core_for_locale_[d] << ":w"
-            << " [headlabel=\"c" << source_core_for_locale_[d] << "\"]"
-            << ";\n";
-        }
-      }
-
     }
     global_communicator.barrier();
-  }
 
-  {
-    if( Grappa::mycore() == 0 ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
-      o << "}\n";
+    for( int n = 0; n < Grappa::locales(); ++n ) {
+      if( Grappa::locale_mycore() == 0 && n == Grappa::mylocale() ) {
+        std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
+
+        o << "    n" << n << " [label=\"n" << n;
+        for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
+          o << "|";
+          if( c == n * Grappa::locale_cores() ) o << "{";
+          o << "<c" << c << "> c" << c;
+        }
+        o << "}\"];\n";
+
+        //for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
+        for( int d = 0; d < Grappa::locales(); ++d ) {
+          if( d != Grappa::mylocale() ) {
+            o << "    n" << n << ":c" << source_core_for_locale_[d] << ":e"
+              << " -> n" << d << ":c" << dest_core_for_locale_[d] << ":w"
+              << " [headlabel=\"c" << source_core_for_locale_[d] << "\"]"
+              << ";\n";
+          }
+        }
+
+      }
+      global_communicator.barrier();
+    }
+
+    {
+      if( Grappa::mycore() == 0 ) {
+        std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
+        o << "}\n";
+      }
     }
   }
 }
-
 
 
 
