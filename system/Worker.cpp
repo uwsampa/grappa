@@ -149,7 +149,7 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
 #endif
 
   // clear stack
-  memset(c->base, 0, ssize);
+  memset(c->base, 0, ssize+4096*2);
 
 #ifdef GUARD_PAGES_ON_STACK
   // arm guard page
@@ -176,7 +176,8 @@ Worker * worker_spawn(Worker * me, Scheduler * sched, thread_func f, void * arg)
   CHECK( sched->get_current_thread() == me ) << "parent arg differs from current thread";
  
   // allocate the Worker and stack
-  Worker * thr = new Worker( );
+  Worker * thr = nullptr;
+  posix_memalign( reinterpret_cast<void**>( &thr ), 4096, sizeof(Worker) );
   thr->sched = sched;
   sched->assignTid( thr );
   
