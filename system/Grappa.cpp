@@ -597,6 +597,7 @@ void Grappa_activate()
   global_communicator.barrier();
 
   // initializes system_wide global_memory pointer
+  global_communicator.allreduce_inplace( &Grappa::impl::global_memory_size_bytes, MPI_INT64_T, MPI_MIN );
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
   auto heap_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
 
