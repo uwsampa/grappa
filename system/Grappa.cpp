@@ -253,12 +253,12 @@ void failure_function() {
   exit(1);
 }
 
-static void failure_sighandler( int signum ) {
+static void failure_sighandler( int signum, siginfo_t * si, void * unused ) {
   google::FlushLogFilesUnsafe(google::GLOG_INFO); // must call outside signal handler first to ensure malloc has completed
   if( freeze_flag ) {
       freeze_for_debugger();
   }
-  std::cerr << "Exiting due to signal " << signum << std::endl;
+  std::cerr << "Exiting due to signal " << signum << " with siginfo " << si << " and payload " << unused << std::endl;
   _exit(1);
 }
 
@@ -477,8 +477,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   struct sigaction sigsegv_sa;
   sigemptyset( &sigsegv_sa.sa_mask );
-  sigsegv_sa.sa_flags = 0;
-  sigsegv_sa.sa_handler = &Grappa::impl::failure_sighandler;
+  sigsegv_sa.sa_flags = SA_SIGINFO;
+  sigsegv_sa.sa_sigaction = &Grappa::impl::failure_sighandler;
   CHECK_EQ( 0, sigaction( SIGSEGV, &sigsegv_sa, 0 ) ) << "SIGSEGV signal handler installation failed.";
 
   // Asynchronous IO
