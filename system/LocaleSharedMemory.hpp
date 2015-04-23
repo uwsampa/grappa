@@ -115,15 +115,22 @@ inline void* locale_alloc_aligned(size_t alignment, size_t n = 1) {
   return impl::locale_shared_memory.allocate_aligned(n, alignment);
 }
 
-
+/// allocate an object in the locale shared heap, passing arguments to its constructor
 template< typename T, typename... Args >
 inline T* locale_new(Args&&... args) {
   return new (locale_alloc<T>()) T(std::forward<Args...>(args...));
 }
 
+/// allocate an object in the locale shared heap
 template< typename T >
 inline T* locale_new() {
   return new (locale_alloc<T>()) T();
+}
+
+/// allocate an array in the locale shared heap
+template< typename T >
+inline T* locale_new_array(size_t n = 1) {
+  return new (locale_alloc<T>(n)) T[n];
 }
 
 /// Free memory that was allocated from locale shared heap.
