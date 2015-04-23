@@ -164,8 +164,18 @@ GlobalAddress<T> symmetric_global_alloc() {
   return qa;
 }
 
-
 } // namespace Grappa
+
+/// Use this macro to allocate space for a variable at the same
+/// address on all cores.
+///
+/// NOTE: the variable declared will be zero-initialized on all
+/// cores. Assiging a nonzero initial value is not guaranteed to work;
+/// constructors are not guaranteed to run. You should initialize the
+/// variable yourself the first time you use it, or with an
+/// on_all_cores().
+#define symmetric_static static
+
 
 /// @}
 
