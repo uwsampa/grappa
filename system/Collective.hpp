@@ -43,8 +43,15 @@ const size_t MAX_MESSAGE_SIZE = 3192;
 #define COLL_ADD &collective_add
 #define COLL_MULT &collective_mult
 
+/// sum
 template< typename T >
 T collective_add(const T& a, const T& b) {
+  return a+b;
+}
+
+/// sum
+template< typename T >
+T collective_sum(const T& a, const T& b) {
   return a+b;
 }
 template< typename T >
@@ -55,17 +62,72 @@ template< typename T >
 T collective_min(const T& a, const T& b) {
   return (a<b) ? a : b;
 }
+
+/// product
+template< typename T >
+T collective_prod(const T& a, const T& b) {
+  return a*b;
+}
+
+/// product
 template< typename T >
 T collective_mult(const T& a, const T& b) {
   return a*b;
 }
+
+
+/// logical OR
 template< typename T >
 T collective_or(const T& a, const T& b) {
   return a || b;
 }
+
+/// logical OR
+template< typename T >
+T collective_lor(const T& a, const T& b) {
+  return a || b;
+}
+
+/// bitwise OR
+template< typename T >
+T collective_bor(const T& a, const T& b) {
+  return a | b;
+}
+
+/// logical AND
 template< typename T >
 T collective_and(const T& a, const T& b) {
   return a && b;
+}
+
+/// logical AND
+template< typename T >
+T collective_land(const T& a, const T& b) {
+  return a && b;
+}
+
+/// bitwise AND
+template< typename T >
+T collective_band(const T& a, const T& b) {
+  return a & b;
+}
+
+/// bitwise XOR
+template< typename T >
+T collective_xor(const T& a, const T& b) {
+  return a ^ b;
+}
+
+/// logical XOR
+template< typename T >
+T collective_lxor(const T& a, const T& b) {
+  return (a && (!b)) || ((!a) && b);
+}
+
+/// bitwise XOR
+template< typename T >
+T collective_bxor(const T& a, const T& b) {
+  return a ^ b;
 }
 
 namespace Grappa {
