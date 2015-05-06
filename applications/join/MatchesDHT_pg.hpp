@@ -60,7 +60,7 @@ class MatchesDHT_pg {
     };
     
     // private members
-    GlobalAddress< FullEmpty<Cell> > base;
+    GlobalAddress< Grappa::FullEmpty<Cell> > base;
     size_t capacity;
 
     size_t computeIndex( K key ) {
@@ -81,13 +81,13 @@ class MatchesDHT_pg {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
-      GlobalAddress<Cell> base = Grappa::global_alloc<FullEmpty<Cell>>( capacity_powerof2 );
+      GlobalAddress<Cell> base = Grappa::global_alloc<Grappa::FullEmpty<Cell>>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
         *globally_valid_local_pointer = MatchesDHT<K,V,Hash>( base, capacity_powerof2 );
       });
 
-      Grappa::forall( base, capacity_powerof2, []( int64_t i, FullEmpty& c ) {
+      Grappa::forall( base, capacity_powerof2, []( int64_t i, Grappa::FullEmpty& c ) {
         Cell empty;
         c.writeXF(empty);
       });
@@ -96,7 +96,7 @@ class MatchesDHT_pg {
 
     std::tuple< size_t, GlobalAddress<std::vector<V>>> lookup_get_size( K key ) {
       auto index = computeIndex( key );
-      GlobalAddress< FullEmpty<Cell> > target = base + index;
+      GlobalAddress< Grappa::FullEmpty<Cell> > target = base + index;
 
       auto cell = readFF(target);
       auto lnp = cell.entries;
@@ -132,7 +132,7 @@ class MatchesDHT_pg {
   // with read/write except creation of and insertion into vectors
   void insert_put_get( K key, V val ) {
     auto index = computeIndex(key);
-    GlobalAddress <FullEmpty<Cell>> target = base + index;
+    GlobalAddress <Grappa::FullEmpty<Cell>> target = base + index;
 
     // get the cell
     // LOCK
