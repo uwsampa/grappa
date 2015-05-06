@@ -4,6 +4,7 @@
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <Metrics.hpp>
+#include <FullEmpty.hpp>
 
 #include <list>
 #include <cmath>

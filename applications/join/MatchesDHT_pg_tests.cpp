@@ -26,7 +26,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include <Grappa.hpp>
-#include "datastructures/MatchesDHT_pg.hpp"
+#include "MatchesDHT_pg.hpp"
 #include "Delegate.hpp"
 
 BOOST_AUTO_TEST_SUITE( MatchesDHT_pg_tests );
