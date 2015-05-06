@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_SUITE( MatchesDHT_pg_tests );
 
 using namespace Grappa;
 
-typedef MatchesDHT<int64_t, int64_t, std::hash<int64_t>> DHT;
+typedef MatchesDHT_pg<int64_t, int64_t, std::hash<int64_t>> DHT;
 DHT table;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
