@@ -101,7 +101,6 @@ endforeach()
 # exe targets for generated query codes
 foreach(query ${GENERATED_SOURCES})
   get_filename_component(query_name ${query}, NAME_WE)
-  add_grappa_application(${query_name}.exe ${query})
     
   # Raco C++ environment
   set(RACO_DIR "$ENV{RACO_HOME}")
@@ -113,6 +112,8 @@ foreach(query ${GENERATED_SOURCES})
       message(FATAL_ERROR "Undefined RACO_HOME environment variable, required
       for generated queries applications/join/grappa_*.cpp ")
   endif()
+  
+  add_grappa_application(${query_name}.exe ${query})
 
   target_link_libraries(${query_name}.exe generator querylib queryio racoc)
   list(APPEND GENERATED_EXES "${query_name}.exe")
