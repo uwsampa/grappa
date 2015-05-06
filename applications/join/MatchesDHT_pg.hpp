@@ -5,6 +5,7 @@
 #include <GlobalAllocator.hpp>
 #include <Metrics.hpp>
 #include <FullEmpty.hpp>
+#include <Addressing.hpp>
 
 #include <list>
 #include <cmath>
