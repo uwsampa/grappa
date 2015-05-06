@@ -23,8 +23,8 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_lookups);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_inserts);
 
 
-// for naming the types scoped in MatchesDHT
-#define MDHT_TYPE(type) typename MatchesDHT<K,V,Hash>::type
+// for naming the types scoped in MatchesDHT_pg
+#define MDHT_TYPE(type) typename MatchesDHT_pg<K,V,Hash>::type
 
 // Hash table for joins
 // * allows multiple copies of a Key
@@ -67,7 +67,7 @@ class MatchesDHT_pg {
       return Hash()(key) & (capacity - 1);
     }
 
-    // for creating local MatchesDHT
+    // for creating local MatchesDHT_pg
     MatchesDHT_pg( GlobalAddress<Cell> base, uint32_t capacity_pow2 ) {
       this->base = base;
       this->capacity = capacity_pow2;
@@ -77,14 +77,14 @@ class MatchesDHT_pg {
     // for static construction
     MatchesDHT_pg( ) {}
 
-    static void init_global_DHT( MatchesDHT<K,V,Hash> * globally_valid_local_pointer, size_t capacity ) {
+    static void init_global_DHT( MatchesDHT_pg<K,V,Hash> * globally_valid_local_pointer, size_t capacity ) {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
       GlobalAddress<Cell> base = Grappa::global_alloc<Grappa::FullEmpty<Cell>>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = MatchesDHT<K,V,Hash>( base, capacity_powerof2 );
+        *globally_valid_local_pointer = MatchesDHT_pg<K,V,Hash>( base, capacity_powerof2 );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, Grappa::FullEmpty& c ) {
