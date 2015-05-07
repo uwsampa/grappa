@@ -108,7 +108,7 @@ class MatchesDHT_pg {
         ListNode ln = Grappa::delegate::read(lnp);
         if (ln.data.key == key) {
           // found the matching key so get list of tuples size
-          auto r = Grappa::delegate::call<sync>(target.core(), [lnp, val] {
+          auto r = Grappa::delegate::call<sync>(target.core(), [lnp] {
             return std::make_tuple(lnp.pointer().data.vs->size(), make_global(lnp.pointer.data.vs));
           });
           return r;
