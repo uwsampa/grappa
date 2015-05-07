@@ -143,7 +143,7 @@ class MatchesDHT_pg {
     if (cell.entries.pointer() == NULL) {
       // allocate
       auto newe = Grappa::delegate::call<sync>(target.core(), [key] {
-        return newe(key);
+        return Entry(key);
       });
 
       // add entry to join tuples
