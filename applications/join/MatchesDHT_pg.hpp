@@ -152,9 +152,8 @@ class MatchesDHT_pg {
       });
 
       // add new entry as head of the cell list
-      // TODO: could be async delegate
       Grappa::delegate::call(target.core(), [target, newe] {
-        target.pointer()->entries = make_global(new ListNode(newe, make_global((ListNode*)NULL)));
+        target.pointer()->readXX().entries = make_global(new ListNode(newe, make_global((ListNode*)NULL)));
       });
 
       // UNLOCK
@@ -168,7 +167,7 @@ class MatchesDHT_pg {
       ListNode ln = Grappa::delegate::read(lnp);
       if (ln.data.key == key) {
         // found the matching key so just insert into join tuples
-        // TODO could be async
+        // TODO could be async if writeXF is before it
         Grappa::delegate::call(target.core(), [lnp, val] {
           lnp.pointer().data.vs->push_back(val);
         });
