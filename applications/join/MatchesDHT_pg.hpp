@@ -82,7 +82,7 @@ class MatchesDHT_pg {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
-      GlobalAddress<Cell> base = Grappa::global_alloc<Grappa::FullEmpty<Cell>>( capacity_powerof2 );
+      auto base = Grappa::global_alloc<Grappa::FullEmpty<Cell>>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
         *globally_valid_local_pointer = MatchesDHT_pg<K,V,Hash>( base, capacity_powerof2 );
