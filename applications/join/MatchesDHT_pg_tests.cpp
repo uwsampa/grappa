@@ -42,15 +42,39 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     table.init_global_DHT(&table, cores() * 16 * 1024);
 
-    table.insert_put_get(0, 100);
 
-    auto size_and_ptr = table.lookup_get_size(0);
-    auto size = std::get<0>(size_and_ptr);
-    BOOST_CHECK_EQUAL(size, 1);
+    // Test single insert
+    {
+      table.insert_put_get(0, 100);
 
-    auto ptr = std::get<1>(size_and_ptr);
-    auto val = table.lookup_put_get(ptr, 0);
-    BOOST_CHECK_EQUAL(val, 100);
+      auto size_and_ptr = table.lookup_get_size(0);
+      auto size = std::get<0>(size_and_ptr);
+      BOOST_CHECK_EQUAL(size, 1);
+
+      auto ptr = std::get<1>(size_and_ptr);
+      auto val = table.lookup_put_get(ptr, 0);
+      BOOST_CHECK_EQUAL(val, 100);
+    }
+
+
+    // Test two inserts same key
+    {
+      table.insert_put_get(0, 200);
+
+      auto size_and_ptr = table.lookup_get_size(0);
+      auto size = std::get<0>(size_and_ptr);
+      BOOST_CHECK_EQUAL(size, 2);
+
+      auto ptr = std::get<1>(size_and_ptr);
+      auto val = table.lookup_put_get(ptr, 0);
+      BOOST_CHECK_EQUAL(val, 100);
+      val = table.lookup_put_get(ptr, 1);
+      BOOST_CHECK_EQUAL(val, 200);
+    }
+
+
+
+
   });
 
   Grappa::finalize();
