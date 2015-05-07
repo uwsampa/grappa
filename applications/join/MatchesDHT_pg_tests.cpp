@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     table.insert_put_get(0, 100);
 
-    auto size_and_ptr = table.lookup_size(0);
+    auto size_and_ptr = table.lookup_get_size(0);
     auto size = size_and_ptr.get<0>();
     BOOST_CHECK_EQUAL(size, 1);
 
