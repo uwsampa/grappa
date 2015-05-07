@@ -107,6 +107,7 @@ class MatchesDHT_pg {
 
       while (true) {
         ListNode ln = Grappa::delegate::read(lnp);
+        VLOG(5) << "looking for " << key << "; got " << ln.data.key;
         if (ln.data.key == key) {
           // found the matching key so get list of tuples size
           auto r = Grappa::delegate::call(target.core(), [lnp] {
