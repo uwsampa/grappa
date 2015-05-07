@@ -108,7 +108,7 @@ class MatchesDHT_pg {
         ListNode ln = Grappa::delegate::read(lnp);
         if (ln.data.key == key) {
           // found the matching key so get list of tuples size
-          auto r = Grappa::delegate::call<sync>(target.core(), [lnp] {
+          auto r = Grappa::delegate::call(target.core(), [lnp] {
             return std::make_tuple(lnp.pointer().data.vs->size(), make_global(lnp.pointer.data.vs));
           });
           return r;
@@ -142,18 +142,18 @@ class MatchesDHT_pg {
     // if it is empty then allocate a list
     if (cell.entries.pointer() == NULL) {
       // allocate
-      auto newe = Grappa::delegate::call<sync>(target.core(), [key] {
+      auto newe = Grappa::delegate::call(target.core(), [key] {
         return Entry(key);
       });
 
       // add entry to join tuples
-      Grappa::delegate::call<sync>(target.core(), [val, newe] {
+      Grappa::delegate::call(target.core(), [val, newe] {
         newe.vs->push_back(val);
       });
 
       // add new entry as head of the cell list
       // TODO: could be async delegate
-      Grappa::delegate::call<sync>(target.core(), [target, newe] {
+      Grappa::delegate::call(target.core(), [target, newe] {
         target.pointer()->entries = make_global(new ListNode(newe, NULL));
       });
 
@@ -169,7 +169,7 @@ class MatchesDHT_pg {
       if (ln.data.key == key) {
         // found the matching key so just insert into join tuples
         // TODO could be async
-        Grappa::delegate::call<sync>(target.core(), [lnp, val] {
+        Grappa::delegate::call(target.core(), [lnp, val] {
           lnp.pointer().data.vs->push_back(val);
         });
 
@@ -186,17 +186,17 @@ class MatchesDHT_pg {
     }
 
     // allocate
-    auto newe = Grappa::delegate::call<sync>(target.core(), [key] {
+    auto newe = Grappa::delegate::call(target.core(), [key] {
       return Entry(key);
     });
 
     // add entry to join tuples
-    Grappa::delegate::call<sync>(target.core(), [val, newe] {
+    Grappa::delegate::call(target.core(), [val, newe] {
       newe.vs->push_back(val);
     });
 
     // add new entry as tail of cell list
-    Grappa::delegate::call<sync>(target.core(), [lnp, newe] {
+    Grappa::delegate::call(target.core(), [lnp, newe] {
       lnp.pointer().next = new ListNode(newe, make_global((ListNode*)NULL));
     });
 
