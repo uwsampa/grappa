@@ -162,7 +162,7 @@ class MatchesDHT_pg {
       Cell newcell;
       newcell.entries = lnp;
       // UNLOCK
-      Grappa::writeXF(target, cell);
+      Grappa::writeXF(target, newcell);
       VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
       return;
     }
