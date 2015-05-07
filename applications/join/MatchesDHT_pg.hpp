@@ -161,6 +161,7 @@ class MatchesDHT_pg {
 
       // UNLOCK
       Grappa::writeXF(target, cell);
+      VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
       return;
     }
 
