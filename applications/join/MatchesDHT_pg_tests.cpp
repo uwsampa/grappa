@@ -104,9 +104,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       auto ptr8 = std::get<1>(size_and_ptr8);
       BOOST_CHECK_EQUAL(size8, 3);
       val = table.lookup_put_get(ptr8, 0);
-      BOOST_CHECK_EQUAL(val, 100);
+      BOOST_CHECK_EQUAL(val, 108);
       val = table.lookup_put_get(ptr8, 1);
-      BOOST_CHECK_EQUAL(val, 200);
+      BOOST_CHECK_EQUAL(val, 208);
+      val = table.lookup_put_get(ptr8, 2);
+      BOOST_CHECK_EQUAL(val, 308);
     }
 
 
