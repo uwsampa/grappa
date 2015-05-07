@@ -88,7 +88,7 @@ class MatchesDHT_pg {
         *globally_valid_local_pointer = MatchesDHT_pg<K,V,Hash>( base, capacity_powerof2 );
       });
 
-      Grappa::forall( base, capacity_powerof2, []( int64_t i, Grappa::FullEmpty& c ) {
+      Grappa::forall( base, capacity_powerof2, []( int64_t i, Grappa::FullEmpty<Cell>& c ) {
         Cell empty;
         c.writeXF(empty);
       });
