@@ -109,7 +109,7 @@ class MatchesDHT_pg {
         if (ln.data.key == key) {
           // found the matching key so get list of tuples size
           auto r = Grappa::delegate::call(target.core(), [lnp] {
-            return std::make_tuple(lnp.pointer().data.vs->size(), make_global(lnp.pointer.data.vs));
+            return std::make_tuple(lnp.pointer()->data.vs->size(), make_global(lnp.pointer()->data.vs));
           });
           return r;
         } else {
@@ -169,7 +169,7 @@ class MatchesDHT_pg {
         // found the matching key so just insert into join tuples
         // TODO could be async if writeXF is before it
         Grappa::delegate::call(target.core(), [lnp, val] {
-          lnp.pointer().data.vs->push_back(val);
+          lnp.pointer()->data.vs->push_back(val);
         });
 
         // UNLOCK (TODO: could be earlier, before push_back)
@@ -196,7 +196,7 @@ class MatchesDHT_pg {
 
     // add new entry as tail of cell list
     Grappa::delegate::call(target.core(), [lnp, newe] {
-      lnp.pointer().next = new ListNode(newe, make_global((ListNode*)NULL));
+      lnp.pointer()->next = new ListNode(newe, make_global((ListNode*)NULL));
     });
 
     // UNLOCK
