@@ -47,6 +47,7 @@ class MatchesDHT_pg {
       GlobalAddress<ListNode> next;
 
       ListNode(Entry data, GlobalAddress<ListNode> next) : data(data), next(next) {}
+      ListNode() { }
     };
 
     struct Cell {
