@@ -69,7 +69,7 @@ class MatchesDHT_pg {
     }
 
     // for creating local MatchesDHT_pg
-    MatchesDHT_pg( GlobalAddress<Cell> base, uint32_t capacity_pow2 ) {
+    MatchesDHT_pg( GlobalAddress<FullEmpty<Cell>> base, uint32_t capacity_pow2 ) {
       this->base = base;
       this->capacity = capacity_pow2;
     }
