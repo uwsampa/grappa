@@ -69,6 +69,37 @@ namespace Grappa {
     return result.readFF();
   }
 
+  template< typename T >
+  T readFE(GlobalAddress<FullEmpty<T>> fe_addr) {
+    if (fe_addr.core() == mycore()) {
+      DVLOG(2) << "local";
+      return fe_addr.pointer()->readFF();
+    }
+
+    FullEmpty<T> result;
+    auto result_addr = make_global(&result);
+
+    send_message(fe_addr.core(), [fe_addr,result_addr]{
+      auto& fe = *fe_addr.pointer();
+
+      if (fe.full()) {
+        // DVLOG(2) << "no need to block";
+        fill_remote(result_addr, fe.readFE());
+        return;
+      }
+
+      DVLOG(2) << "setting up to block (" << fe_addr << ")";
+      auto* c = SuspendedDelegate::create([&fe,result_addr]{
+        VLOG(0) << "suspended_delegate!";
+        fill_remote(result_addr, fe.readFE());
+      });
+      add_waiter(&fe, c);
+    });
+
+    // use a local FullEmtpy on the stack for synchronizing the sendmessage
+    return result.readFF();
+  }
+
   template< typename T, typename U >
   void writeXF(GlobalAddress<FullEmpty<T>> fe_addr, const U& val) {
     delegate::call(fe_addr, [val](FullEmpty<T> * fe){
