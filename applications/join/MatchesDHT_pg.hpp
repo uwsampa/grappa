@@ -113,7 +113,7 @@ class MatchesDHT_pg {
           });
           return r;
         } else {
-          if (lnp.next.pointer() == NULL) {
+          if (lnp.pointer()->next.pointer() == NULL) {
             // no matching keys so size 0
             auto r = std::make_tuple(0, make_global(target.core(), NULL));
             return r;
