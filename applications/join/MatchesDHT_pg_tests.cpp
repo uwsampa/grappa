@@ -45,10 +45,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     table.insert_put_get(0, 100);
 
     auto size_and_ptr = table.lookup_get_size(0);
-    auto size = size_and_ptr.get<0>();
+    auto size = std::get<0>(size_and_ptr);
     BOOST_CHECK_EQUAL(size, 1);
 
-    auto ptr = size_and_ptr.get<1>();
+    auto ptr = std::get<1>(size_and_ptr);
     auto val = table.lookup_put_get(ptr, 0);
     BOOST_CHECK_EQUAL(val, 100);
   });
