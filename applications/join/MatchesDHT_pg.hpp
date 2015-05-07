@@ -102,7 +102,7 @@ class MatchesDHT_pg {
       auto cell = readFF(target);
       auto lnp = cell.entries;
 
-      if (lnp.pointer() == NULL) return std::make_tuple(0, make_global(NULL, target.core()));
+      if (lnp.pointer() == NULL) return std::make_tuple(0, make_global((std::vector<V>*)NULL, target.core()));
 
       while (true) {
         ListNode ln = Grappa::delegate::read(lnp);
@@ -115,7 +115,7 @@ class MatchesDHT_pg {
         } else {
           if (lnp.pointer()->next.pointer() == NULL) {
             // no matching keys so size 0
-            auto r = std::make_tuple(0, make_global(NULL, target.core()));
+            auto r = std::make_tuple(0, make_global((std::vector<V>*)NULL, target.core()));
             return r;
           }
           lnp = ln.next;
