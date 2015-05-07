@@ -97,6 +97,7 @@ class MatchesDHT_pg {
 
 
     std::tuple< size_t, GlobalAddress<std::vector<V>>> lookup_get_size( K key ) {
+      VLOG(5) << "called lookup_get_size " << key;
       auto index = computeIndex( key );
       GlobalAddress< Grappa::FullEmpty<Cell> > target = base + index;
 
