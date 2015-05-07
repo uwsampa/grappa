@@ -52,7 +52,7 @@ class MatchesDHT_pg {
     struct Cell {
       GlobalAddress<ListNode> entries;
 
-      Cell() : entries( Grappa::make_global(NULL) ) {}
+      Cell() : entries( make_global((ListNode*)NULL) ) {}
     };
 
     struct lookup_result {
