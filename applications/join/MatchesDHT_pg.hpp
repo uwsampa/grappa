@@ -137,7 +137,7 @@ class MatchesDHT_pg {
 
     // get the cell
     // LOCK
-    auto cell = readFE(target);
+    auto cell = Grappa::readFE(target);
 
     // if it is empty then allocate a list
     if (cell.entries.pointer() == NULL) {
@@ -158,7 +158,7 @@ class MatchesDHT_pg {
       });
 
       // UNLOCK
-      writeXF(target, cell);
+      Grappa::writeXF(target, cell);
       return;
     }
 
@@ -174,7 +174,7 @@ class MatchesDHT_pg {
         });
 
         // UNLOCK (TODO: could be earlier, before push_back)
-        writeXF(target, cell);
+        Grappa::writeXF(target, cell);
         return;
       } else {
         if (lnp.next.pointer() == NULL) {
@@ -201,7 +201,7 @@ class MatchesDHT_pg {
     });
 
     // UNLOCK
-    writeXF(target, cell);
+    Grappa::writeXF(target, cell);
     return;
   }
 
