@@ -154,7 +154,7 @@ class MatchesDHT_pg {
       // add new entry as head of the cell list
       // TODO: could be async delegate
       Grappa::delegate::call(target.core(), [target, newe] {
-        target.pointer()->entries = make_global(new ListNode(newe, NULL));
+        target.pointer()->entries = make_global(new ListNode(newe, make_global((ListNode*)NULL)));
       });
 
       // UNLOCK
