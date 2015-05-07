@@ -187,7 +187,7 @@ class MatchesDHT_pg {
 
     // allocate
     auto newe = Grappa::delegate::call<sync>(target.core(), [key] {
-      return newe(key);
+      return Entry(key);
     });
 
     // add entry to join tuples
