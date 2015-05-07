@@ -42,6 +42,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     table.init_global_DHT(&table, cores() * 16 * 1024);
 
+    // Test no insert
+    {
+      auto size_and_ptr = table.lookup_get_size(0);
+      auto size = std::get<0>(size_and_ptr);
+      BOOST_CHECK_EQUAL(size, 0);
+    }
 
     // Test single insert
     {
@@ -54,6 +60,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       auto ptr = std::get<1>(size_and_ptr);
       auto val = table.lookup_put_get(ptr, 0);
       BOOST_CHECK_EQUAL(val, 100);
+    }
+
+    // Test get not exist key
+    {
+      auto size_and_ptr = table.lookup_get_size(1);
+      auto size = std::get<0>(size_and_ptr);
+      BOOST_CHECK_EQUAL(size, 0);
     }
 
 
@@ -69,6 +82,30 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       auto val = table.lookup_put_get(ptr, 0);
       BOOST_CHECK_EQUAL(val, 100);
       val = table.lookup_put_get(ptr, 1);
+      BOOST_CHECK_EQUAL(val, 200);
+    }
+
+    // Test inserts two keys
+    {
+      table.insert_put_get(8, 108);
+      table.insert_put_get(8, 208);
+      table.insert_put_get(8, 308);
+
+      auto size_and_ptr0 = table.lookup_get_size(0);
+      auto size0 = std::get<0>(size_and_ptr0);
+      BOOST_CHECK_EQUAL(size0, 2);
+      auto ptr0 = std::get<1>(size_and_ptr0);
+      auto val = table.lookup_put_get(ptr0, 0);
+      BOOST_CHECK_EQUAL(val, 100);
+      val = table.lookup_put_get(ptr0, 1);
+      BOOST_CHECK_EQUAL(val, 200);
+      auto size_and_ptr8 = table.lookup_get_size(8);
+      auto size8 = std::get<0>(size_and_ptr8);
+      auto ptr8 = std::get<1>(size_and_ptr8);
+      BOOST_CHECK_EQUAL(size8, 3);
+      val = table.lookup_put_get(ptr8, 0);
+      BOOST_CHECK_EQUAL(val, 100);
+      val = table.lookup_put_get(ptr8, 1);
       BOOST_CHECK_EQUAL(val, 200);
     }
 
