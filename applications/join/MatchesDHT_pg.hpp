@@ -197,7 +197,7 @@ class MatchesDHT_pg {
 
     // add new entry as tail of cell list
     Grappa::delegate::call<sync>(target.core(), [target, newe] {
-      lnp.pointer().next = new ListNode(newe, make_global(NULL));
+      lnp.pointer().next = new ListNode(newe, make_global((ListNode*)NULL));
     });
 
     // UNLOCK
