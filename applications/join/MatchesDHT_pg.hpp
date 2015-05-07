@@ -46,7 +46,7 @@ class MatchesDHT_pg {
       Entry data;
       GlobalAddress<ListNode> next;
 
-      ListNode(Entry data, GlobalAddress<ListNode> next) : data(data), next(next) {}
+      ListNode(Entry data, GlobalAddress<ListNode> next=make_global((ListNode*)NULL)) : data(data), next(next) {}
       ListNode() { }
     };
 
@@ -155,10 +155,12 @@ class MatchesDHT_pg {
       });
 
       // add new entry as head of the cell list
-      Grappa::delegate::call(target.core(), [target, newe] {
-        target.pointer()->readXX().entries = make_global(new ListNode(newe, make_global((ListNode*)NULL)));
+      auto lnp = Grappa::delegate::call(target.core(), [target, newe] {
+        return make_global(new ListNode(newe));
       });
-
+      // just writing to the cell here since we need writeXF unlock anyway
+      Cell newcell;
+      newcell.entries = lnp;
       // UNLOCK
       Grappa::writeXF(target, cell);
       VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
@@ -200,7 +202,7 @@ class MatchesDHT_pg {
 
     // add new entry as tail of cell list
     Grappa::delegate::call(target.core(), [lnp, newe] {
-      lnp.pointer()->next = make_global(new ListNode(newe, make_global((ListNode*)NULL)));
+      lnp.pointer()->next = make_global(new ListNode(newe));
     });
 
     // UNLOCK
