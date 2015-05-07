@@ -176,7 +176,7 @@ class MatchesDHT_pg {
         Grappa::writeXF(target, cell);
         return;
       } else {
-        if (lnp.next.pointer() == NULL) {
+        if (lnp.pointer()->next.pointer() == NULL) {
           // no matching keys so we will insert a new entry...
           break;
         }
