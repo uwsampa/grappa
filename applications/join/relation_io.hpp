@@ -127,7 +127,7 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
-size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t numfields ) {
+size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr ) {
   /*
   std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
   std::ifstream metadata_file(metadata_path, std::ifstream::in);
@@ -139,7 +139,7 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr, int64_t
   // binary; TODO: factor out to allow other formats like fixed-line length ascii
 
 // we get just the size of the fields (since T is a padded data type)
-  size_t row_size_bytes = sizeof(int64_t) * numfields;
+  size_t row_size_bytes = T::fieldsSize(); 
   VLOG(2) << "row_size_bytes=" << row_size_bytes;
   std::string data_path = FLAGS_relations+"/"+fn;
   size_t file_size = fs::file_size( data_path );
@@ -203,9 +203,9 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   GlobalAddress<T> tuples;
   
   T sample;
-  CHECK( reinterpret_cast<char*>(&sample._fields) == reinterpret_cast<char*>(&sample) ) << "IO assumes _fields is the first field, but it is not for T";
+  CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
 
-  auto ntuples = readTuplesUnordered<T>( fn, &tuples, sizeof(sample._fields)/sizeof(int64_t) );  
+  auto ntuples = readTuplesUnordered<T>( fn, &tuples );  
   Relation<T> r = { tuples, ntuples };
   return r;
 }
