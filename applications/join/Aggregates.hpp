@@ -20,9 +20,19 @@ namespace Aggregates {
       return std::max(sofar, nextval); 
     }
 #pragma pop_macro("MAX")
+  // keep MIN macro from being used here
+#pragma push_macro("MIN")
+#undef MIN
+  template <typename State, typename UV >
+    State MIN(const State& sofar, const UV& nextval) {
+      return std::min(sofar, nextval); 
+    }
+#pragma pop_macro("MIN")
+
 
   template <typename N>
-  N Zero() {
-    return 0;
-  }
+    N Zero() {
+      return 0;
+    }
+
 }
