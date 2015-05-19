@@ -3,8 +3,11 @@
 #include <string>
 #include <fstream>
 #include <string>
+#include <iomanip>
 #include <sstream>
 #include <vector>
+#include <cstdio>
+#include "json/json.h"
 //#include <regex>
 
 #include <boost/filesystem.hpp>
@@ -125,6 +128,154 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 }
 
 
+std::string get_split_name(std::string base, int part) {
+  const int digits = 5;
+  assert(part <= 99999);
+
+  std::stringstream ss;
+  ss << base << "-" << std::setw(digits) << std::setfill('0') << part;
+  return ss.str();
+}
+
+size_t get_lines( std::string fname ) {
+#if 0
+  // POPEN and MPI don't mix well
+  char cmd[256];
+  sprintf(cmd, "wc -l %s | awk '{print $1}'", fname.c_str());
+  FILE* pipe = popen(cmd, "r");
+  if (!pipe) return -1;
+  char buffer[128];
+  std::string result = "";
+  while(!feof(pipe)) {
+    if(fgets(buffer, 128, pipe) != NULL)
+      result += buffer;
+  }
+  pclose(pipe);
+  return std::stoi(result);
+#endif
+    size_t count = 0;
+    std::ifstream inp(fname);
+    std::string line;
+    while (std::getline(inp, line)) {
+      ++count;
+    }
+    return count;
+}
+
+
+size_t get_total_lines( std::string basename ) {
+#if 0
+  // POPEN and MPI don't mix well
+  char cmd[128];
+  sprintf(cmd, "wc -l %s-* | tail -n 1 | awk '{print $1}'", basename.c_str());
+  FILE* pipe = popen(cmd, "r");
+  CHECK( pipe != NULL);
+  if (!pipe) return -1;
+  char buffer[128];
+  std::string result = "";
+  while(!feof(pipe)) {
+    if(fgets(buffer, 128, pipe) != NULL)
+      result += buffer;
+  }
+  CHECK( pclose(pipe) != -1 );
+  return std::stoi(result);
+#endif
+  int i = 0;
+  int64_t sum = 0;
+  while (true) {
+    auto fname = get_split_name(basename, i);
+    std::ifstream inp(fname);
+    // if file doesn't exist then stop
+    if (!inp.good()) break; 
+    inp.close();
+    sum += get_lines(fname);
+    ++i;
+  }
+  return sum;
+}
+
+// Wraps character array in a non-array type (non-pointer converted type) so that
+// we can copy strings between cores
+struct CharArray {
+ char arr[180];
+ CharArray() { } // no-arg constructor required for various object copying codes
+ CharArray(std::string s) {
+   CHECK(s.size() < 180) << "filenames limited to 180 bytes";
+   sprintf(arr, "%s", s.c_str());
+ }
+};
+
+template <typename T>
+size_t readSplits( std::string basename, GlobalAddress<T> * buf_addr ) {
+  
+  uint64_t part = 0;
+  auto part_addr = make_global(&part);
+  bool done = false;
+  auto done_addr = make_global(&done);
+  uint64_t offset_counter = 0;
+  auto offset_counter_addr = make_global( &offset_counter );
+
+  auto ntuples = get_total_lines(basename);
+  CHECK(ntuples >= 0);
+  auto tuples = Grappa::global_alloc<T>(ntuples);
+
+  // choose to new here simply to save stack space
+  auto basename_ptr = make_global(new CharArray(basename));
+
+  on_all_cores( [part_addr,done_addr,offset_counter_addr,tuples,basename_ptr] {
+      auto fname_arr = delegate::read(basename_ptr);
+      auto basename_copy = std::string(fname_arr.arr);
+
+      VLOG(5) << "readSplits reporting in";
+      while (!delegate::read(done_addr)) {
+        auto my_part = delegate::fetch_and_add( part_addr, 1 );
+        auto fname = get_split_name(basename_copy, my_part);
+
+        VLOG(5) << "split " << fname;
+        std::ifstream inp(fname);
+        if (!inp.good()) {
+          delegate::call(done_addr.core(), [=] {
+            *(done_addr.pointer()) = true;
+          });
+        } else {
+          // two pass; count lines in part then reserve and read
+          auto nlines = get_lines(fname);
+
+          auto offset = delegate::fetch_and_add( offset_counter_addr, nlines );
+          auto suboffset = 0;
+
+          std::string line;
+          while (std::getline(inp, line)) {
+            // get first attribute, which is a json string
+            std::stringstream inss(line);
+            Json::Value root;
+            inss >> root;  // ignore other json objects
+            
+            VLOG(5) << root;
+  
+            // json to csv to use fromIStream
+            std::stringstream ascii_s;
+            for ( Json::ValueIterator itr = root.begin(); itr != root.end(); itr++ ) {
+              ascii_s << *itr << ","; 
+            }
+
+            VLOG(5) << ascii_s.str();
+
+            auto val = T::fromIStream(ascii_s);
+            //Grappa::delegate::write<async>(tuples+offset+suboffset, val);
+            Grappa::delegate::write(tuples+offset+suboffset, val);
+            ++suboffset; 
+          }
+        }
+      }
+  });
+//  Grappa::impl::local_gce.wait();
+  delete basename_ptr.pointer();
+    
+  *buf_addr = tuples;
+  return ntuples;
+}
+
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
 size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr ) {
@@ -152,15 +303,11 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr ) {
   size_t offset_counter = 0;
   auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
-  // we will broadcast the file name as bytes
-  CHECK( data_path.size() <= 2040 );
-  char data_path_char[2048];
-  sprintf(data_path_char, "%s", data_path.c_str());
+  auto data_path_ptr = make_global(new CharArray(data_path));
 
   on_all_cores( [=] {
-    VLOG(5) << "opening addr next";
-    VLOG(5) << "opening addr " << &data_path_char; 
-    VLOG(5) << "opening " << data_path_char; 
+    auto data_path_arr = delegate::read(data_path_ptr);
+    auto fname = std::string(data_path_arr.arr);
 
     // find my array split
     auto local_start = tuples.localize();
@@ -171,8 +318,8 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr ) {
     int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
     VLOG(2) << "file offset " << offset;
   
-    std::ifstream data_file(data_path_char, std::ios_base::in | std::ios_base::binary);
-    CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+    std::ifstream data_file(fname, std::ios_base::in | std::ios_base::binary);
+    CHECK( data_file.is_open() ) << fname << " failed to open";
     VLOG(5) << "seeking";
     data_file.seekg( offset * row_size_bytes );
     VLOG(5) << "reading";
@@ -193,6 +340,8 @@ size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr ) {
     VLOG(4) << "local first row: " << *local_start;
   });
 
+  delete data_path_ptr.pointer();
+
   *buf_addr = tuples;
   return ntuples;
 }
@@ -210,28 +359,38 @@ Relation<T> readTuplesUnordered( std::string fn ) {
   return r;
 }
 
+// convenient version for Relation<T> type
+template <typename T>
+Relation<T> readSplits( std::string base ) {
+  VLOG(5) << "called readSplits";
+  GlobalAddress<T> tuples;
+  
+  T sample;
+  CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
+
+  auto ntuples = readSplits<T>( base, &tuples );  
+  Relation<T> r = { tuples, ntuples };
+  return r;
+}
+
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
 void writeTuplesUnordered(std::vector<T> * vec, std::string fn ) {
   std::string data_path = FLAGS_relations+"/"+fn;
   
-  // we will broadcast the file name as bytes
-  CHECK( data_path.size() <= 2040 );
-  char data_path_char[2048];
-  sprintf(data_path_char, "%s", data_path.c_str());
-    
-  std::ofstream for_trunc(data_path_char, std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
+  std::ofstream for_trunc(data_path, std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
   //no writes
   for_trunc.close();
-
+  
+  // we will broadcast the file name as bytes
+  CharArray data_path_arr(data_path);
+    
   // sequentiall open for append and write
   for (int i=0; i<Grappa::cores(); i++) {
     int ignore = delegate::call(i, [=] {
-        VLOG(5) << "opening addr next";
-        VLOG(5) << "opening addr " << &data_path_char; 
-        VLOG(5) << "opening " << data_path_char; 
-        std::ofstream data_file(data_path_char, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
-        CHECK( data_file.is_open() ) << data_path_char << " failed to open";
+        auto fname = data_path_arr.arr;
+        std::ofstream data_file(fname, std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+        CHECK( data_file.is_open() ) << fname << " failed to open";
         VLOG(4) << "writing";
 
         for (auto it = vec->begin(); it < vec->end(); it++) {
