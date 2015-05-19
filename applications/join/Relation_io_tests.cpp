@@ -32,8 +32,6 @@
 #include "strings.h"
 
 // Unfortunately Grappa addressing does not work for things > 64 bytes...
-#undef MAX_STR_LEN
-#define MAX_STR_LEN 8
 
 using namespace Grappa;
 
@@ -113,14 +111,18 @@ class MaterializedTupleRef_V1_0_1_2 {
         MaterializedTupleRef_V1_0_1_2 _ret;
 
 
-
+                {
                ss >> _ret.f0;
+               // throw away comma
+               std::string _temp;
+               std::getline(ss, _temp, ',');
+                }
 
 
 
                {
                std::string _temp;
-               ss >> _temp;
+               std::getline(ss, _temp, ',');
                _ret.f1 = to_array<MAX_STR_LEN, std::string>(_temp);
                }
 
@@ -128,7 +130,7 @@ class MaterializedTupleRef_V1_0_1_2 {
 
                {
                std::string _temp;
-               ss >> _temp;
+               std::getline(ss, _temp, ',');
                _ret.f2 = to_array<MAX_STR_LEN, std::string>(_temp);
                }
 
