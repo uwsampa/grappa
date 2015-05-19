@@ -86,12 +86,16 @@ public:
       *mru_root = next_mru_;
     }
     if( next_mru_ ) {
+#ifdef USE_NT_OPS
       _mm_prefetch( &(next_mru_->prev_mru_), _MM_HINT_NTA );
+#endif
       next_mru_->prev_mru_ = prev_mru_;
       next_mru_ = nullptr;
     }
     if( prev_mru_ ) {
+#ifdef USE_NT_OPS
       _mm_prefetch( &(prev_mru_->next_mru_), _MM_HINT_NTA );
+#endif
       prev_mru_->next_mru_ = next_mru_;
       prev_mru_ = nullptr;
     }
@@ -104,7 +108,9 @@ public:
   
   std::tuple< void *, int > take_buffer() {
     flush();
+#ifdef USE_NT_OPS
     _mm_sfence();
+#endif
     auto retval = std::make_tuple( reinterpret_cast<void*>(buffer_), position_ * sizeof(uint64_t) );
     buffer_ = nullptr;
     position_ = 0;
@@ -124,10 +130,17 @@ public:
       // write out full cacheline
       __m128i * src = reinterpret_cast<__m128i*>( &localbuf_[0] );
       __m128i * dst = reinterpret_cast<__m128i*>( &buffer_[position_] );
+#ifdef USE_NT_OPS
       _mm_stream_si128( dst+0, *(src+0) );
       _mm_stream_si128( dst+1, *(src+1) );
       _mm_stream_si128( dst+2, *(src+2) );
       _mm_stream_si128( dst+3, *(src+3) );
+#else
+      _mm_store_si128( dst+0, *(src+0) );
+      _mm_store_si128( dst+1, *(src+1) );
+      _mm_store_si128( dst+2, *(src+2) );
+      _mm_store_si128( dst+3, *(src+3) );
+#endif
 
       position_ += local_buffer_size; // advance to next cacheline of output buffer
       local_position_ = 0;
@@ -166,16 +179,20 @@ public:
 
 template< typename T >
 static inline int nt_enqueue( NTBuffer * b, T * p, int size ) {
+#ifdef USE_NT_OPS
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
+#endif
   DCHECK_EQ( reinterpret_cast<uint64_t>(p) % 8, 0 ) << "Pointer must be 8-byte aligned";
   DCHECK_EQ( size % 8, 0 ) << "Size must be a multiple of 8";
   return b->enqueue( reinterpret_cast<uint64_t*>(p), size/8 );
 }
 
 static inline int nt_flush( NTBuffer * b ) {
+#ifdef USE_NT_OPS
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
+#endif
   return b->flush();
 }
 

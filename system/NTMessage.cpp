@@ -14,8 +14,10 @@ std::ostream& operator<<( std::ostream& o, const NTMessageBase& m ) {
 char * deaggregate_nt_buffer( char * buf, size_t size ) {
   const char * end = buf + size;
   while( buf < end ) {
+#ifdef USE_NT_OPS
     _mm_prefetch( buf, _MM_HINT_NTA );
     _mm_prefetch( buf+64, _MM_HINT_NTA );
+#endif
     char * next = buf + 8;
     if( 0 != *(reinterpret_cast<uint64_t*>(buf)) ) {
       auto mb = reinterpret_cast<NTMessageBase*>(buf);
