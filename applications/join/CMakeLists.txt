@@ -37,6 +37,8 @@ set(QUERYIO_SOURCES
   Tuple.hpp
   Tuple.cpp
   relation.hpp
+  json/json.h
+  jsoncpp.cpp
 )
 
 set(INCLUDE_DIRS
@@ -155,5 +157,7 @@ macro(add_check test_cpp nnode ppn target)
   add_dependencies( check-all-${target}-compile-only ${test})
 endmacro()
 
+# add test for IO
 add_check(Relation_io_tests.cpp 2 1 pass)
+file(COPY test-part-00000 test-part-00001 DESTINATION .)
 

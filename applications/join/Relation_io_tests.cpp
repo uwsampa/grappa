@@ -294,7 +294,21 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       BOOST_CHECK( one.f1 == r3.f1 );
       BOOST_CHECK( one.f2 == r3.f2 );
     }
+
+
+  results = readSplits<MaterializedTupleRef_V1_0_1_2>( "test-part" );
+  BOOST_CHECK_EQUAL(results.numtuples, 6);
+  forall( results.data, results.numtuples, [=](MaterializedTupleRef_V1_0_1_2& t) {
+      std::cout << t << std::endl;
+      });
+      
   });
+
+
+
+
+
+
   Grappa::finalize();
 }
 
