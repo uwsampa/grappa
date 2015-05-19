@@ -78,9 +78,10 @@ set(QUERIES_SOURCES
 )
 
 set(TEST_SOURCES
-  Local_graph_tests.cpp
-  Hypercube_tests.cpp
+  MatchesDHT_pg_tests.cpp
 )
+  #Local_graph_tests.cpp
+  #Hypercube_tests.cpp
   
 include_directories(${INCLUDE_DIRS})
 
