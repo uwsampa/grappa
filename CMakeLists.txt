@@ -256,7 +256,7 @@ if(Boost_FOUND)
   set(Boost_STATIC_LIBRARIES "${Boost_LIBRARIES}")
 else()
   # if that didn't work, re-search for dynamic versions
-  message("-- Searching for static Boost components: ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS}")
+  message("-- Searching for dynamic Boost components: ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS}")
   # we turned off Boost_USE_STATIC_LIBS above
   set(BOOST_COMPONENTS_TO_FIND ${BOOST_STATIC_OR_DYNAMIC_COMPONENTS})
   grappa_search_for_boost()
