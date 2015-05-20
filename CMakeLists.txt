@@ -452,8 +452,9 @@ endif()
 get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
 if(CMAKE_CXX_INCLUDE_DIRS)
   foreach(dir ${CMAKE_CXX_INCLUDE_DIRS})
-    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_BUILD_DIR)
-    if(INCLUDE_IN_BUILD_DIR EQUAL -1)
+    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR)
+    string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)
+    if(INCLUDE_IN_SOURCE_DIR EQUAL -1 OR INCLUDE_IN_BUILD_DIR EQUAL -1)
       list(APPEND GRAPPA_INCLUDE_DIRS_INSTALLED ${dir})
     endif()
   endforeach()
@@ -538,11 +539,9 @@ string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GR
 
 # fill in prototype file and place in build directory
 configure_file(util/grappa.mk util/grappa.mk)
-configure_file(util/grappa-include.mk util/grappa-include.mk)
 
 #
 # Installation
 #
 install(FILES ${CMAKE_BINARY_DIR}/util/grappa.mk         DESTINATION "share/Grappa/")
-install(FILES ${CMAKE_BINARY_DIR}/util/grappa-include.mk DESTINATION "share/Grappa/")
 
