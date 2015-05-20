@@ -8,3 +8,10 @@ foreach(file ${scripts})
     ln -sf ${relative_file} ${CMAKE_CURRENT_BINARY_DIR}/${name}
   )
 endforeach()
+
+
+#
+# installation
+#
+
+install(PROGRAMS env.sh DESTINATION "bin/grappa-env.sh")

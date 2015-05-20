@@ -83,6 +83,8 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
     --third-party=path/to/built/deps/root
                                  Can optionally pre-build third-party dependencies instead of 
                                    re-building for each configuration.
+    --prefix=path/to/grappa/installation
+                                 Specify destination for Grappa installation.
 
 To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
@@ -217,4 +219,3 @@ See `doc/testing.md`.
 Running jobs
 -------------------------------------------------------------------------------
 See `doc/running.md`.
-

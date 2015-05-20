@@ -33,6 +33,7 @@ OptionParser.new{|p|
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
   p.on('--no-downloads', "Expect third-party dependences to already exist in third-party/downloads, rather than downloading them from the web."){|b| opt.no_downloads = true }
   p.on('--verbose', "Output verbose configure information."){|b| opt.verbose = true }
+  p.on('--prefix=path/to/installed/grappa',"Specify destination for Grappa installation."){|p| opt.install_prefix = p }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
@@ -137,7 +138,11 @@ def configure(generator, mode, opt)
     build_dir << "+#{opt.name}" if opt.name
     mkdir_p build_dir
   end
-  
+
+  if opt.install_prefix
+    args << "-DCMAKE_INSTALL_PREFIX=" + opt.install_prefix
+  end
+
   cd build_dir do
     
     puts "cmake #{args.join(' ')} #{ARGV.join(' ')}"

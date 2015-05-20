@@ -158,3 +158,12 @@ add_custom_target(clean-third-party
 set_property(TARGET clean-third-party PROPERTY FOLDER "Third Party")
 
 file(COPY bashflags DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+#
+# installation
+#
+
+install(DIRECTORY ${THIRD_PARTY_ROOT}/bin/     DESTINATION "bin")
+install(DIRECTORY ${THIRD_PARTY_ROOT}/include/ DESTINATION "include")
+install(DIRECTORY ${THIRD_PARTY_ROOT}/lib/     DESTINATION "lib")
+install(DIRECTORY ${THIRD_PARTY_ROOT}/share/   DESTINATION "share")
