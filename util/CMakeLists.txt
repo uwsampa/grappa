@@ -14,4 +14,4 @@ endforeach()
 # installation
 #
 
-install(PROGRAMS env.sh DESTINATION "bin/grappa-env.sh")
+install(PROGRAMS env.sh DESTINATION "bin")
