@@ -240,7 +240,8 @@ endif()
 set(Boost_USE_MULTITHREADED OFF)
 
 # CMake 2.8 doesn't list most recent Boost versions, so add them ourselves
-set(Boost_ADDITIONAL_VERSIONS "1.59.0" "1.59" "1.58.0" "1.58" "1.57.0" "1.57")
+set(Boost_ADDITIONAL_VERSIONS "1.59.0" "1.59" "1.58.0" "1.58" "1.57.0" "1.57" "1.56.0" "1.56"
+  "1.55.0" "1.55" "1.54.0" "1.54" "1.53.0" "1.53" "1.52.0" "1.52" "1.51.0" "1.51")
 
 # first, search for things that we'd prefer to be static
 if(VERBOSE)
