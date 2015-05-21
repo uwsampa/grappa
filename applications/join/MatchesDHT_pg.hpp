@@ -50,6 +50,11 @@ class MatchesDHT_pg {
       ListNode() { }
     };
 
+    template <typename T>
+    static bool is_null(GlobalAddress<T> p) {
+      return p.pointer() == NULL;
+    }
+
     struct Cell {
       GlobalAddress<ListNode> entries;
 
@@ -97,18 +102,18 @@ class MatchesDHT_pg {
 
 
     std::tuple< size_t, GlobalAddress<std::vector<V>>> lookup_get_size( K key ) {
-      VLOG(5) << "called lookup_get_size " << key;
+      //VLOG(5) << "called lookup_get_size " << key;
       auto index = computeIndex( key );
       GlobalAddress< Grappa::FullEmpty<Cell> > target = base + index;
 
       auto cell = readFF(target);
       auto lnp = cell.entries;
 
-      if (lnp.pointer() == NULL) return std::make_tuple(0, make_global((std::vector<V>*)NULL, target.core()));
+      if (is_null(lnp)) return std::make_tuple(0, make_global((std::vector<V>*)NULL, target.core()));
 
       while (true) {
         ListNode ln = Grappa::delegate::read(lnp);
-        VLOG(5) << "looking for " << key << "; got " << ln.data.key;
+        //VLOG(5) << "looking for " << key << "; got " << ln.data.key;
         if (ln.data.key == key) {
           // found the matching key so get list of tuples size
           auto r = Grappa::delegate::call(target.core(), [lnp] {
@@ -116,7 +121,7 @@ class MatchesDHT_pg {
           });
           return r;
         } else {
-          if (lnp.pointer()->next.pointer() == NULL) {
+          if (is_null(ln.next)) {
             // no matching keys so size 0
             auto r = std::make_tuple(0, make_global((std::vector<V>*)NULL, target.core()));
             return r;
@@ -143,7 +148,7 @@ class MatchesDHT_pg {
     auto cell = Grappa::readFE(target);
 
     // if it is empty then allocate a list
-    if (cell.entries.pointer() == NULL) {
+    if (is_null(cell.entries)) {
       // allocate
       auto newe = Grappa::delegate::call(target.core(), [key] {
         return Entry(key);
@@ -163,7 +168,7 @@ class MatchesDHT_pg {
       newcell.entries = lnp;
       // UNLOCK
       Grappa::writeXF(target, newcell);
-      VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
+      //VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
       return;
     }
 
@@ -182,7 +187,7 @@ class MatchesDHT_pg {
         Grappa::writeXF(target, cell);
         return;
       } else {
-        if (lnp.pointer()->next.pointer() == NULL) {
+        if (is_null(ln.next)) {
           // no matching keys so we will insert a new entry...
           break;
         }
