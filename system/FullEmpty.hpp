@@ -61,7 +61,7 @@ namespace Grappa {
       DVLOG(2) << "setting up to block (" << fe_addr << ")";
       auto* c = SuspendedDelegate::create([&fe,result_addr]{
         VLOG(0) << "suspended_delegate!";
-        fill_remote(result_addr, fe.readFF());
+        fill_remote(result_addr, fe.readFF()); // guarenteed not to block!...?
       });
       add_waiter(&fe, c);
     });
@@ -90,8 +90,8 @@ namespace Grappa {
 
       DVLOG(2) << "setting up to block (" << fe_addr << ")";
       auto* c = SuspendedDelegate::create([&fe,result_addr]{
-        VLOG(0) << "suspended_delegate!";
-        fill_remote(result_addr, fe.readFE());
+        VLOG(4) << "suspended_delegate!";
+        fill_remote(result_addr, fe.readFE()); // only safe if not waking
       });
       add_waiter(&fe, c);
     });
