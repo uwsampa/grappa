@@ -36,11 +36,13 @@ using namespace Grappa;
 typedef MatchesDHT_pg<int64_t, int64_t, std::hash<int64_t>> DHT;
 DHT table;
 
+GlobalCompletionEvent gce1(true);
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([] {
 
-    table.init_global_DHT(&table, cores() * 16 * 1024);
+    table.init_global_DHT(&table, cores() * 4);
 
     // Test no insert
     {
@@ -112,6 +114,22 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
 
 
+    size_t num = 10000;
+    size_t numkeys = 100;
+    auto dummy = Grappa::global_alloc<int64_t>( num );
+    forall<&gce1>( dummy, num, [=](int64_t i, int64_t& d) {
+      table.insert_put_get(i%numkeys, i);
+    });
+
+    auto keys = Grappa::global_alloc<int64_t>( numkeys );
+    forall<&gce1>( keys, numkeys, [=](int64_t i, int64_t& k) {
+      auto t = table.lookup_get_size(k);
+      auto s = std::get<0>(t);
+      auto p = std::get<2>(t);
+      for (int c=0; c<s; c++) { // need to CHECK RESUME
+        table.lookup_put_get(p, c);
+      }
+    });
 
 
   });
