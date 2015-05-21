@@ -6,6 +6,7 @@ set(QUERYLIB_SOURCES
   "${APP_GRAPH500}/prng.c"
   MatchesDHT.hpp
   MatchesDHT.cpp
+  MatchesDHT_pg.hpp
   DoubleDHT.hpp
   Hypercube.hpp
   Hypercube.cpp
