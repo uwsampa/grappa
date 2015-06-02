@@ -23,6 +23,10 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_local_inserts);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_lookups);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_inserts);
 
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, fer_in);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, fer_out);
+
+
 
 // for naming the types scoped in MatchesDHT_pg
 #define MDHT_TYPE(type) typename MatchesDHT_pg<K,V,Hash>::type
@@ -145,7 +149,9 @@ class MatchesDHT_pg {
 
     // get the cell
     // LOCK
+    fer_in++;
     auto cell = Grappa::readFE(target);
+    fer_out++;
 
     // if it is empty then allocate a list
     if (is_null(cell.entries)) {

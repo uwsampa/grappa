@@ -11,3 +11,6 @@ GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_local_lookups, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_local_inserts, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_called_lookups, 0);
 GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, hash_called_inserts, 0);
+
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, fer_in, 0);
+GRAPPA_DEFINE_METRIC(SimpleMetric<uint64_t>, fer_out, 0);
