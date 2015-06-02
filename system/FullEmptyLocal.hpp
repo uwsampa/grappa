@@ -79,8 +79,8 @@ namespace Grappa {
     T writeXF( T t ) {
       t_ = t; 
       state_ = State::FULL; 
-      //Grappa::broadcast( this );
-      Grappa::signal( this );  // signaling only to avoid unsafe broadcast
+      Grappa::broadcast( this );
+      //Grappa::signal( this );  // signaling only to avoid unsafe broadcast
       return t_; 
     }
       
@@ -113,7 +113,7 @@ namespace Grappa {
       block_until(State::FULL);
       state_ = State::EMPTY;
       T tt = readXX();
-      //Grappa::broadcast( this );
+      Grappa::broadcast( this );
       //Grappa::signal( this );   // signal safe only if guarentee waiters require Empty, otherwise broadcast
       return tt;
     }

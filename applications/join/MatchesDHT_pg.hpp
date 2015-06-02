@@ -61,8 +61,9 @@ class MatchesDHT_pg {
 
     struct Cell {
       GlobalAddress<ListNode> entries;
+      std::vector<GlobalAddress<FullEmpty<Cell>>> waiters; // TODO: don't want to communicate this
 
-      Cell() : entries( make_global((ListNode*)NULL) ) {}
+      Cell() : entries( make_global((ListNode*)NULL) ) , waiters() {}
     };
 
     struct lookup_result {
@@ -71,7 +72,7 @@ class MatchesDHT_pg {
     };
     
     // private members
-    GlobalAddress< Grappa::FullEmpty<Cell> > base;
+    GlobalAddress<Cell> base;
     size_t capacity;
 
     size_t computeIndex( K key ) {
@@ -79,7 +80,7 @@ class MatchesDHT_pg {
     }
 
     // for creating local MatchesDHT_pg
-    MatchesDHT_pg( GlobalAddress<Grappa::FullEmpty<Cell>> base, uint32_t capacity_pow2 ) {
+    MatchesDHT_pg( GlobalAddress<Cell> base, uint32_t capacity_pow2 ) {
       this->base = base;
       this->capacity = capacity_pow2;
     }
@@ -92,15 +93,15 @@ class MatchesDHT_pg {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
-      auto base = Grappa::global_alloc<Grappa::FullEmpty<Cell>>( capacity_powerof2 );
+      auto base = Grappa::global_alloc<Cell>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
         *globally_valid_local_pointer = MatchesDHT_pg<K,V,Hash>( base, capacity_powerof2 );
       });
 
-      Grappa::forall( base, capacity_powerof2, []( int64_t i, Grappa::FullEmpty<Cell>& c ) {
+      Grappa::forall( base, capacity_powerof2, []( int64_t i, Cell& c ) {
         Cell empty;
-        c.writeXF(empty);
+        c = empty;
       });
     }
 
@@ -108,9 +109,9 @@ class MatchesDHT_pg {
     std::tuple< size_t, GlobalAddress<std::vector<V>>> lookup_get_size( K key ) {
       //VLOG(5) << "called lookup_get_size " << key;
       auto index = computeIndex( key );
-      GlobalAddress< Grappa::FullEmpty<Cell> > target = base + index;
+      GlobalAddress< Cell> target = base + index;
 
-      auto cell = readFF(target);
+      auto cell = Grappa::delegate::read(target);
       auto lnp = cell.entries;
 
       if (is_null(lnp)) return std::make_tuple(0, make_global((std::vector<V>*)NULL, target.core()));
@@ -141,16 +142,45 @@ class MatchesDHT_pg {
       });
     }
 
+  void readCell(GlobalAddress<Cell> target) {
+    FullEmpty<Cell> ce;
+    auto ce_addr = make_global(&ce);
+    auto cell = Grappa::send_heap_message(target.core(), [=] {
+        if (target->locked) {
+          target->waiters.push_back(ce_addr);
+        } else {
+          target->locked = true;
+          auto cell = *(target->pointer());
+          Grappa::send_heap_message(ce_addr.core(), [=] {
+            ce_addr->writeXF(cell);
+          });
+        }
+    });
+  }
+
+  void writeCell(GlobalAddress<Cell> target, const Cell& c) {
+    Grappa::send_heap_message(target.core(), [=] {
+        if (target->waiters.size() >= 1) {
+          auto w = target->waiters.back();
+          target->waiters.pop_back();
+          Grappa::send_heap_message(w.core(), [=] {
+            w->writeXF(c);
+          });
+        }
+     });
+  }
+
+
   // This "put/get" implementation of insert currently goes everything
   // with read/write except creation of and insertion into vectors
   void insert_put_get( K key, V val ) {
     auto index = computeIndex(key);
-    GlobalAddress <Grappa::FullEmpty<Cell>> target = base + index;
+    GlobalAddress <Cell> target = base + index;
 
     // get the cell
     // LOCK
     fer_in++;
-    auto cell = Grappa::readFE(target);
+    auto cell = readCell(target); 
     fer_out++;
 
     // if it is empty then allocate a list
@@ -173,7 +203,7 @@ class MatchesDHT_pg {
       Cell newcell;
       newcell.entries = lnp;
       // UNLOCK
-      Grappa::writeXF(target, newcell);
+      writeCell(target, newcell);
       //VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
       return;
     }
@@ -190,7 +220,10 @@ class MatchesDHT_pg {
         });
 
         // UNLOCK (TODO: could be earlier, before push_back)
-        Grappa::writeXF(target, cell);
+        while_in++;
+        writeCell(target, cell);
+        while_out++;
+
         return;
       } else {
         if (is_null(ln.next)) {
@@ -217,7 +250,7 @@ class MatchesDHT_pg {
     });
 
     // UNLOCK
-    Grappa::writeXF(target, cell);
+    writeCell(target, cell);
     return;
   }
 
