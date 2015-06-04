@@ -61,10 +61,17 @@ class MatchesDHT_pg {
 
     struct Cell {
       GlobalAddress<ListNode> entries;
-      std::vector<GlobalAddress<FullEmpty<Cell>>> waiters; // TODO: don't want to communicate this
-
-      Cell() : entries( make_global((ListNode*)NULL) ) , waiters() {}
+      Cell() : entries( make_global((ListNode*)NULL) ){}
     };
+
+    struct Lock {
+      std::vector<GlobalAddress<FullEmpty<int>>> waiters; // TODO: don't want to communicate this
+      bool locked;
+
+      Lock() : waiters(), locked(false) {}
+    };
+
+
 
     struct lookup_result {
       GlobalAddress<V> matches;
@@ -73,6 +80,7 @@ class MatchesDHT_pg {
     
     // private members
     GlobalAddress<Cell> base;
+    GlobalAddress<Lock> locks;
     size_t capacity;
 
     size_t computeIndex( K key ) {
@@ -80,8 +88,9 @@ class MatchesDHT_pg {
     }
 
     // for creating local MatchesDHT_pg
-    MatchesDHT_pg( GlobalAddress<Cell> base, uint32_t capacity_pow2 ) {
+    MatchesDHT_pg( GlobalAddress<Cell> base, GlobalAddress<Lock> locks, uint32_t capacity_pow2 ) {
       this->base = base;
+      this->locks = locks;
       this->capacity = capacity_pow2;
     }
 
@@ -94,14 +103,20 @@ class MatchesDHT_pg {
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
       auto base = Grappa::global_alloc<Cell>( capacity_powerof2 );
+      auto locks = Grappa::global_alloc<Lock>( capacity_powerof2 );
 
-      Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = MatchesDHT_pg<K,V,Hash>( base, capacity_powerof2 );
+      Grappa::on_all_cores( [globally_valid_local_pointer,base,locks,capacity_powerof2] {
+        *globally_valid_local_pointer = MatchesDHT_pg<K,V,Hash>( base, locks, capacity_powerof2 );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, Cell& c ) {
         Cell empty;
         c = empty;
+      });
+
+      Grappa::forall( locks, capacity_powerof2, []( int64_t i, Lock& l ) {
+        Lock empty;
+        l = empty;
       });
     }
 
@@ -142,32 +157,56 @@ class MatchesDHT_pg {
       });
     }
 
-  void readCell(GlobalAddress<Cell> target) {
-    FullEmpty<Cell> ce;
+   Cell readCell(int64_t index) {
+     auto lock = locks + index;
+     
+     // lock
+    FullEmpty<int> ce;
     auto ce_addr = make_global(&ce);
-    auto cell = Grappa::send_heap_message(target.core(), [=] {
-        if (target->locked) {
-          target->waiters.push_back(ce_addr);
+    Grappa::send_message(lock.core(), [lock, ce_addr] {
+        if (lock->locked) {
+          lock->waiters.push_back(ce_addr);
         } else {
-          target->locked = true;
-          auto cell = *(target->pointer());
-          Grappa::send_heap_message(ce_addr.core(), [=] {
-            ce_addr->writeXF(cell);
+          lock->locked = true;
+          Grappa::send_heap_message(ce_addr.core(), [ce_addr] {
+            ce_addr->writeXF(1);
           });
         }
     });
+    ce.readFE();
+
+    auto target = base + index;
+
+    // get cell
+    return delegate::read(target);
   }
 
-  void writeCell(GlobalAddress<Cell> target, const Cell& c) {
-    Grappa::send_heap_message(target.core(), [=] {
-        if (target->waiters.size() >= 1) {
-          auto w = target->waiters.back();
-          target->waiters.pop_back();
-          Grappa::send_heap_message(w.core(), [=] {
-            w->writeXF(c);
+   void unlockCell(int64_t index) {
+     auto lock = locks + index;
+
+    Grappa::send_message(lock.core(), [lock] {
+        if (lock->waiters.size() >= 1) {
+          auto w = lock->waiters.back();
+          lock->waiters.pop_back();
+          Grappa::send_heap_message(w.core(), [w] {
+            w->writeXF(1);
           });
+        } else {
+          lock->locked = false;
         }
      });
+   }
+
+
+  void writeCell(int64_t index, const Cell& c) {
+    auto target = base + index;
+
+    // write cell
+    delegate::write(target, c);
+
+    // unlock
+    unlockCell(index);
+
   }
 
 
@@ -180,7 +219,7 @@ class MatchesDHT_pg {
     // get the cell
     // LOCK
     fer_in++;
-    auto cell = readCell(target); 
+    auto cell = readCell(index); 
     fer_out++;
 
     // if it is empty then allocate a list
@@ -203,7 +242,7 @@ class MatchesDHT_pg {
       Cell newcell;
       newcell.entries = lnp;
       // UNLOCK
-      writeCell(target, newcell);
+      writeCell(index, newcell);
       //VLOG(5) << "empty cell: added new entry " << newe.key << " " << newe.vs;
       return;
     }
@@ -221,7 +260,7 @@ class MatchesDHT_pg {
 
         // UNLOCK (TODO: could be earlier, before push_back)
         while_in++;
-        writeCell(target, cell);
+        unlockCell(index);
         while_out++;
 
         return;
@@ -250,7 +289,7 @@ class MatchesDHT_pg {
     });
 
     // UNLOCK
-    writeCell(target, cell);
+    unlockCell(index);
     return;
   }
 
