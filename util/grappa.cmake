@@ -31,7 +31,7 @@ macro(grappa_search_for_boost)
   # if boost was not found in third-party, restore any user-specified pointers and search there and in standard paths
   #
   if(NOT Boost_FOUND)
-    
+
     # restore any user-specified pointers
     if(Boost_NO_SYSTEM_PATHS_BACKUP)
       set(Boost_NO_SYSTEM_PATHS ${Boost_NO_SYSTEM_PATHS_BACKUP})
@@ -41,6 +41,7 @@ macro(grappa_search_for_boost)
     if(BOOSTROOT_BACKUP)
       set(BOOSTROOT ${BOOSTROOT_BACKUP})
     endif()
+    unset(BOOST_ROOT)
     if(BOOST_ROOT_BACKUP)
       set(BOOST_ROOT ${BOOST_ROOT_BACKUP})
     endif()
