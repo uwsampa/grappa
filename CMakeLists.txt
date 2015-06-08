@@ -1,12 +1,13 @@
 
-# (2.8 has ExternalProject support)
-cmake_minimum_required(VERSION 2.8)
+# (2.8 has ExternalProject support; we've had problems with package detection for versions < 2.8.12)
+cmake_minimum_required(VERSION 2.8.12)
 include(ExternalProject)
 include(util/grappa.cmake)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
+set(CMAKE_INSTALL_PREFIX "/opt/grappa")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )

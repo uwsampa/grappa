@@ -23,7 +23,8 @@ OptionParser.new{|p|
   line_break = "\n#{p.summary_indent}#{' '*p.summary_width}   "
   p.on('--gen=[Make]|Ninja|Xcode[,*]',"Build tool to generate scripts for.#{line_break}Default: Make.#{line_break}Can specify multiple with commas."){|a| opt.generator = a }
   p.on('--mode=[Release]|Debug[,*]','Build mode. Default: Release (with debug symbols)'){|a| opt.mode = a }
-  p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
+  p.on('--cc=path/to/c/compiler','Use alternative C compiler (infer C++ compiler from this path).'){|p| opt.cc = p; opt.used_cc_flag = true }
+  p.on('--cxx=path/to/c++/compiler','Use alternative C++ compiler (infer C compiler from this path).'){|p| opt.cxx = p; opt.used_cxx_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to #{line_break}distinguish it (i.e. compiler version)"){|n| opt.name = n }
   p.on('--tracing',"Enable VampirTrace/gperftools-based sampled tracing. #{line_break}Looks for VampirTrace build in 'third-party' dir."){|b| opt.tracing = true }
@@ -33,16 +34,26 @@ OptionParser.new{|p|
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
   p.on('--no-downloads', "Expect third-party dependences to already exist in third-party/downloads, rather than downloading them from the web."){|b| opt.no_downloads = true }
   p.on('--verbose', "Output verbose configure information."){|b| opt.verbose = true }
-  p.on('--prefix=path/to/installed/grappa',"Specify destination for Grappa installation."){|p| opt.install_prefix = p }
+  p.on('--prefix=path/to/installed/grappa',"Specify destination for Grappa installation (default=/opt/grappa)."){|p| opt.install_prefix = p }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
   # automatically determine cxx from --cc
   case opt.cc
-  when /bin\/gcc/
-    opt.cxx = opt.cc.gsub(/bin\/gcc/,'bin/g++')
-  when /bin\/clang/
-    opt.cxx = opt.cc.gsub(/bin\/clang/,'bin/clang++')
+  when /gcc/
+    opt.cxx = opt.cc.gsub(/gcc/,'g++')
+  when /clang/
+    opt.cxx = opt.cc.gsub(/clang/,'clang++')
+  end
+end
+
+if opt.used_cxx_flag
+  # automatically determine cc from --cxx
+  case opt.cxx
+  when /g\+\+/
+    opt.cc = opt.cxx.gsub(/g\+\+/,'gcc')
+  when /clang++/
+    opt.cc = opt.cxx.gsub(/clang++/,'clang')
   end
 end
 
@@ -50,8 +61,8 @@ end
 # see github.com/bholt/Clang-Head.xcplugin for an example
 
 ### unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
-  if not(opt.cc) || not(opt.cxx)
-    abort("Must specify C compiler (either use '--cc=' flag, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
+  if not(opt.cc) && not(opt.cxx)
+    abort("Must specify C compiler (either use '--cc=' or '--cxx=' flags, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
   end
 ### end
 
