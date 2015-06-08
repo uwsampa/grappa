@@ -56,6 +56,7 @@ To use our test scripts you must have:
 * Slurm job manager (in theory just need to be able to launch MPI jobs, but we provide scripts that work with Slurm)
 
 *Note for users on the UW Sampa cluster:* Say ```source /sampa/share/grappa-vars.sh``` before building/using Grappa to pick up pre-build dependences.
+
 *Note for users on the PNNL PIC/PAL clusters:* Say ```module load cmake gcc-4.7.2 mvapich2/1.9b``` before building/using Grappa to pick up pre-build dependences.
 
 
@@ -131,34 +132,34 @@ We've made it easier to use Grappa as a library by providing a GNU Make include 
 2. Include a line like this in your Makefile: ```include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk```
 3. Use the Grappa variables in your Makefile rules. There are two ways to do this. You may use GNU Make's implicit rules by setting the variable ```GRAPPA_IMPLICIT_RULES:=on``` before including the Grappa make include file, like this:
 
-```
-GRAPPA_IMPLICIT_RULES:=on
-include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
+   ```
+   GRAPPA_IMPLICIT_RULES:=on
+   include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
 
-standalone: standalone.o
-```
+   standalone: standalone.o
+   ```
 
-or you may use the variables set in the include file directly, like this:
+   or you may use the variables set in the include file directly, like this:
 
-```
-include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
+   ```
+   include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
 
-# Now the following variables are then avaliable to you in writing make rules:
-#      $(GRAPPA_CXX)
-#      $(GRAPPA_CC)
-#      $(GRAPPA_LD)
-#      $(GRAPPA_CXXFLAGS)
-#      $(GRAPPA_LDFLAGS)
-#      $(GRAPPA_LIBS)
+   # Now the following variables are then avaliable to you in writing make rules:
+   #      $(GRAPPA_CXX)
+   #      $(GRAPPA_CC)
+   #      $(GRAPPA_LD)
+   #      $(GRAPPA_CXXFLAGS)
+   #      $(GRAPPA_LDFLAGS)
+   #      $(GRAPPA_LIBS)
 
-standalone: standalone.o
-	$(GRAPPA_LD) $(GRAPPA_LDFLAGS) -o $@ $< $(GRAPPA_LIBS)
+   standalone: standalone.o
+   	$(GRAPPA_LD) $(GRAPPA_LDFLAGS) -o $@ $< $(GRAPPA_LIBS)
 
-standalone.o: standalone.cpp
-	$(GRAPPA_CXX) $(GRAPPA_CXXFLAGS) -o $@ $<
-```
+   standalone.o: standalone.cpp
+   	$(GRAPPA_CXX) $(GRAPPA_CXXFLAGS) -o $@ $<
+   ```
 
-An example of the first usage is included in the directory ```applications/demos/standalone```.
+   An example of the first usage is included in the directory ```applications/demos/standalone```.
 
 ## CMake Notes
 A couple notes about adding new targets for CMake to build. First: each directory where something is built should typically have a `CMakeLists.txt` file. Somewhere up the directory hierarchy, this directory must be 'added'. For instance, applications directories are added from `applications/CMakeLists.txt`:
