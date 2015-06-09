@@ -259,12 +259,14 @@ size_t readSplits( std::string basename, GlobalAddress<T> * buf_addr ) {
             // json to csv to use fromIStream
             std::stringstream ascii_s;
             for ( Json::ValueIterator itr = root.begin(); itr != root.end(); itr++ ) {
-              ascii_s << *itr << ","; 
+              char truncated[MAX_STR_LEN-1];
+              strncpy(truncated, itr->asString().c_str(), MAX_STR_LEN-2);
+              ascii_s << truncated << ","; 
             }
 
             VLOG(5) << ascii_s.str();
 
-            auto val = T::fromIStream(ascii_s);
+            auto val = T::fromIStream(ascii_s, ',');
             //Grappa::delegate::write<async>(tuples+offset+suboffset, val);
             Grappa::delegate::write(tuples+offset+suboffset, val);
             ++suboffset; 
