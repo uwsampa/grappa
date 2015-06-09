@@ -133,7 +133,7 @@ std::string get_split_name(std::string base, int part) {
   assert(part <= 99999);
 
   std::stringstream ss;
-  ss << base << "-" << std::setw(digits) << std::setfill('0') << part;
+  ss << base << "/part-" << std::setw(digits) << std::setfill('0') << part;
   return ss.str();
 }
 
@@ -246,6 +246,9 @@ size_t readSplits( std::string basename, GlobalAddress<T> * buf_addr ) {
 
           std::string line;
           while (std::getline(inp, line)) {
+            // done if not a json object
+            if (line.length() < 4) break;
+
             // get first attribute, which is a json string
             std::stringstream inss(line);
             Json::Value root;
