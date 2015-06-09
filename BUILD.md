@@ -1,14 +1,15 @@
 Building
 ===============================================================================
-Note: currently Grappa does not support any 'install' step. To use, build using the instructions below. New applications can be added to the applications folder, using the existing applications' `CMakeLists.txt` files as an example, and built using Grappa's CMake project.
 
 This document describes how to use CMake to perform out-of-source builds. This means that for each configuration, a new "build/*" directory will be created to hold all of the build scripts, temporaries, and built libraries and executables.
+
+
 
 Quick start
 -------------------------------------------------------------------------------
 Example usage:
 
-    ./configure --gen=Make --mode=Release
+    ./configure
     cd build/Make+Release
     make
 
@@ -22,33 +23,27 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
 
 This is the simplest build configuration. You are likely to want to specify more things, such as a specific compiler, a directory for already-installed dependencies so you don't have to rebuild them for each new configuration, and more. So read on.
 
+
 Requirements
 -------------------------------------------------------------------------------
 You must have a Linux system with the following installed to be able to build Grappa:
 
 * Build system
   * Ruby >= 1.9.3
-  * CMake >= 2.8.6
-    * on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
-    * on PNNL PAL cluster: `module load cmake`
+  * CMake >= 2.8.12
 * Compiler
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
   * Or: Clang >= 3.4
-    * on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
-    * on PNNL's PAL cluster: `module load gcc-4.7.2`
 * External:
   * MPI (must support MPI-3)
     * OpenMPI >= 1.7.4
     * MVAPICH2 >= 1.9
     * MPICH >= 3.1
     * Intel MPI >= 5.0.2.044
-    * on the Sampa cluster: should be autodetected
-    * on PNNL's PAL cluster: `module load mvapich2/1.9b`
 
 The following dependencies are dealt with automatically. You may want to override the default behavior for your specific system as described in the next section, especially in the case of Boost (if you already have a copy in a non-standard place).
 
 * Slightly modified versions distributed with Grappa:
-  * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
   * glog
 * Downloaded and built automatically:
   * gflags
@@ -59,6 +54,12 @@ The following dependencies are dealt with automatically. You may want to overrid
 To use our test scripts you must have:
 
 * Slurm job manager (in theory just need to be able to launch MPI jobs, but we provide scripts that work with Slurm)
+
+*Note for users on the UW Sampa cluster:* Say ```source /sampa/share/grappa-vars.sh``` before building/using Grappa to pick up pre-build dependences.
+
+*Note for users on the PNNL PIC/PAL clusters:* Say ```module load cmake gcc-4.7.2 mvapich2/1.9b``` before building/using Grappa to pick up pre-build dependences.
+
+
 
 Configure
 -------------------------------------------------------------------------------
@@ -83,6 +84,8 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
     --third-party=path/to/built/deps/root
                                  Can optionally pre-build third-party dependencies instead of 
                                    re-building for each configuration.
+    --prefix=path/to/grappa/installation
+                                 Specify destination for Grappa installation (defaults to /opt/grappa).
 
 To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
@@ -114,6 +117,49 @@ If you want to build Grappa on a machine without access to the web, and that mac
 To do so, download and untar the following file in ```third-party/downloads```. Then run ```configure```, including the ```--no-downloads``` flag with any the other flags you may need to set.
 
 [http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar)
+
+## Installing Grappa
+
+Grappa supports a ```install``` target which will install compiled libraries and header files to a directory on your system. The default install path is ```/opt/grappa```. If you'd prefer it to go somewhere else, specify the ```--prefix=<path>``` option when you run ```configure```.
+
+As part of the install process, Grappa creates a ```bin/settings.sh``` file. After installing Grappa, if you run a command like ```source <grappa install path>/bin/settings.sh```, the environment variable ```GRAPPA_PREFIX``` will be set to the install path, and various other environment variables will be set to help control the runtime and improve performance with certain MPI distributions. 
+
+## External builds / Using Grappa as a library
+
+We've made it easier to use Grappa as a library by providing a GNU Make include file that sets compiler and linker flags appropriately for your Grappa installation. To use it, do the following:
+
+1. Make sure the environment variable ```GRAPPA_PREFIX``` points to your Grappa installation directory. The simplest way to do this is to source the Grappa settings script:  ```source <grappa install path>/bin/settings.sh```.
+2. Include a line like this in your Makefile: ```include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk```
+3. Use the Grappa variables in your Makefile rules. There are two ways to do this. You may use GNU Make's implicit rules by setting the variable ```GRAPPA_IMPLICIT_RULES:=on``` before including the Grappa make include file, like this:
+
+   ```
+   GRAPPA_IMPLICIT_RULES:=on
+   include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
+
+   standalone: standalone.o
+   ```
+
+   or you may use the variables set in the include file directly, like this:
+
+   ```
+   include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
+
+   # Now the following variables are then avaliable to you in writing make rules:
+   #      $(GRAPPA_CXX)
+   #      $(GRAPPA_CC)
+   #      $(GRAPPA_LD)
+   #      $(GRAPPA_CXXFLAGS)
+   #      $(GRAPPA_LDFLAGS)
+   #      $(GRAPPA_LIBS)
+
+   standalone: standalone.o
+   	$(GRAPPA_LD) $(GRAPPA_LDFLAGS) -o $@ $< $(GRAPPA_LIBS)
+
+   standalone.o: standalone.cpp
+   	$(GRAPPA_CXX) $(GRAPPA_CXXFLAGS) -o $@ $<
+   ```
+
+   An example of the first usage is included in the directory ```applications/demos/standalone```.
 
 ## CMake Notes
 A couple notes about adding new targets for CMake to build. First: each directory where something is built should typically have a `CMakeLists.txt` file. Somewhere up the directory hierarchy, this directory must be 'added'. For instance, applications directories are added from `applications/CMakeLists.txt`:

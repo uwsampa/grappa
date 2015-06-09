@@ -1,12 +1,13 @@
 
-# (2.8 has ExternalProject support)
-cmake_minimum_required(VERSION 2.8)
+# (2.8 has ExternalProject support; we've had problems with package detection for versions < 2.8.12)
+cmake_minimum_required(VERSION 2.8.12)
 include(ExternalProject)
 include(util/grappa.cmake)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
+set(CMAKE_INSTALL_PREFIX "/opt/grappa")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )
@@ -445,26 +446,51 @@ set(GMAKE_LINK_FLAGS "${LINK_FLAGS} ${LINK_FLAGS_RELWITHDEBINFO}")
 
 # Get definitions and convert from CMake-formatted list to Gnu compiler argument list
 get_directory_property(CMAKE_CXX_DEFINES DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos COMPILE_DEFINITIONS)
-string(REPLACE ";" " -D" GMAKE_CXX_DEFINES ";${CMAKE_CXX_DEFINES}")
+if(CMAKE_CXX_DEFINES)
+  string(REPLACE ";" " -D" GMAKE_CXX_DEFINES ";${CMAKE_CXX_DEFINES}")
+endif()
 
 # get include dirs and convert from CMake-formatted list to compiler argument list
 get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
-string(REPLACE ";" " \\\n\t${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS ";${CMAKE_CXX_INCLUDE_DIRS}")
+if(CMAKE_CXX_INCLUDE_DIRS)
+  foreach(dir ${CMAKE_CXX_INCLUDE_DIRS})
+    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR)
+    string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)
+    if(INCLUDE_IN_SOURCE_DIR EQUAL -1 OR INCLUDE_IN_BUILD_DIR EQUAL -1)
+      list(APPEND GRAPPA_INCLUDE_DIRS_INSTALLED ${dir})
+    endif()
+  endforeach()
+  
+  string(REPLACE ";" " \\\n\t${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS ";${CMAKE_CXX_INCLUDE_DIRS}")
+  string(REPLACE ";" " \\\n\t${CMAKE_INCLUDE_FLAG_CXX}" GMAKE_CXX_INCLUDE_DIRS_INSTALLED ";${GRAPPA_INCLUDE_DIRS_INSTALLED}")
+endif()
 
 # Get link dirs and convert from CMake-formatted list to compiler argument list (including system for libGrappa.a)
 get_directory_property(CMAKE_CXX_LINK_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos LINK_DIRECTORIES)
-string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINARY_DIR}/system;${CMAKE_CXX_LINK_DIRS}")
+if(CMAKE_CXX_LINK_DIRS)
+  string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LINK_DIRS ";${CMAKE_BINARY_DIR}/system;${CMAKE_CXX_LINK_DIRS}")
+endif()
 
 ####################################
 # Build lists of library names and paths
 
 # static libs
 foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
-  get_filename_component(dir ${lib} PATH)
+
+  # add directory to search paths
+  get_filename_component(dir ${lib} PATH)      # get directory for libs
   list(APPEND GRAPPA_LIB_PATHS ${dir})
-  get_filename_component(name ${lib} NAME_WE)
-  string(SUBSTRING ${name} 3 -1 name)
+  string(FIND ${dir} ${CMAKE_BINARY_DIR} STATIC_IN_BUILD_DIR)
+  if(STATIC_IN_BUILD_DIR EQUAL -1)
+    list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
+  endif()
+
+  # add library to link list
+  get_filename_component(name ${lib} NAME_WE)  # remove any extension
+  string(SUBSTRING ${name} 3 -1 name)          # chop off "lib"
   list(APPEND GRAPPA_STATIC_LIB_NAMES ${name})
+
+  # check for reasonable extension
   get_filename_component(ext ${lib} EXT)
   if(NOT ${ext} STREQUAL ".a")
     message(WARNING "Static library found didn't have .a extension: ${lib}")
@@ -473,11 +499,21 @@ endforeach()
 
 # dynamic libs
 foreach(lib ${GRAPPA_DYNAMIC_LIBS})
+
+  # add directory to search paths
   get_filename_component(dir ${lib} PATH)
   list(APPEND GRAPPA_LIB_PATHS ${dir})
+  string(FIND ${dir} ${CMAKE_BINARY_DIR} DYNAMIC_IN_BUILD_DIR)
+  if(DYNAMIC_IN_BUILD_DIR EQUAL -1)
+    list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
+  endif()
+
+  # add library to link list
   get_filename_component(name ${lib} NAME_WE)
   string(SUBSTRING ${name} 3 -1 name)
   list(APPEND GRAPPA_DYNAMIC_LIB_NAMES ${name})
+
+  # check for reasonable extension
   get_filename_component(ext ${lib} EXT)
   if(NOT ${ext} STREQUAL ".so")
     message(WARNING "Dynamic library found didn't have .so extension: ${lib}")
@@ -494,6 +530,9 @@ endif()
 list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS)
 string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS ";${GRAPPA_LIB_PATHS}")
 
+list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS_INSTALLED)
+string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS_INSTALLED ";${GRAPPA_LIB_PATHS_INSTALLED}")
+
 list(REMOVE_DUPLICATES GRAPPA_STATIC_LIB_NAMES)
 string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
 
@@ -502,3 +541,9 @@ string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GR
 
 # fill in prototype file and place in build directory
 configure_file(util/grappa.mk util/grappa.mk)
+
+#
+# Installation
+#
+install(FILES ${CMAKE_BINARY_DIR}/util/grappa.mk         DESTINATION "share/Grappa/")
+

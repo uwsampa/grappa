@@ -165,6 +165,23 @@ add_library(Grappa
 target_link_libraries(Grappa ${GRAPPA_DYNAMIC_LIBS} ${GRAPPA_STATIC_LIBS})
 add_dependencies(Grappa all-third-party)
 
+#
+# installation
+#
+
+install(TARGETS Grappa DESTINATION "lib")
+
+install(DIRECTORY .     DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+install(DIRECTORY graph DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+install(DIRECTORY tasks DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+
+install(FILES grappa_gdb.macros DESTINATION "share/Grappa")
+
+
+#
+# tests
+#
+
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
 # create a test, which will be run with the given number of nodes (nnode),
