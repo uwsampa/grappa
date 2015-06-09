@@ -133,7 +133,7 @@ std::string get_split_name(std::string base, int part) {
   assert(part <= 99999);
 
   std::stringstream ss;
-  ss << base << "-" << std::setw(digits) << std::setfill('0') << part;
+  ss << base << "/part-" << std::setw(digits) << std::setfill('0') << part;
   return ss.str();
 }
 
@@ -227,10 +227,15 @@ template <typename T>
 class RowParser {
 public:
   virtual T parseRow(const std::string& line) = 0;
+  virtual bool EOF(const std::string& line) = 0;
 };
 
 template <typename T>
 class JSONRowParser : public RowParser {
+  bool EOF(const std::string& line) {
+    return line.length() < 4;
+  }
+
   T parseRow(const std::string& line) {
     // get first attribute, which is a json string
     std::stringstream inss(line);
@@ -242,12 +247,14 @@ class JSONRowParser : public RowParser {
     // json to csv to use fromIStream
     std::stringstream ascii_s;
     for ( Json::ValueIterator itr = root.begin(); itr != root.end(); itr++ ) {
-      ascii_s << *itr << ",";
+      char truncated[MAX_STR_LEN-1];
+      strncpy(truncated, itr->asString().c_str(), MAX_STR_LEN-2);
+      ascii_s << truncated << ",";
     }
 
     VLOG(5) << ascii_s.str();
 
-    return T::fromIStream(ascii_s);
+    return = T::fromIStream(ascii_s, ',');
   }
 };
 
@@ -297,7 +304,11 @@ protected:
 
           std::string line;
           while (std::getline(inp, line)) {
+            // check other EOF conditions, like empty line
+            if (parser.EOF(line)) break;
+
             auto val = parser.parseRow(line);
+
             //Grappa::delegate::write<async>(tuples+offset+suboffset, val);
             Grappa::delegate::write(tuples+offset+suboffset, val);
             ++suboffset;

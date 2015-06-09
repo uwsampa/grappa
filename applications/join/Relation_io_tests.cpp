@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
 
 
-  results = readSplits<MaterializedTupleRef_V1_0_1_2>( "test-part" );
+  results = readSplits<MaterializedTupleRef_V1_0_1_2>( "splits_test" );
   BOOST_CHECK_EQUAL(results.numtuples, 6);
   forall( results.data, results.numtuples, [=](MaterializedTupleRef_V1_0_1_2& t) {
       std::cout << t << std::endl;

@@ -159,5 +159,5 @@ endmacro()
 
 # add test for IO
 add_check(Relation_io_tests.cpp 2 1 pass)
-file(COPY test-part-00000 test-part-00001 DESTINATION .)
+file(COPY splits_test DESTINATION .)
 
