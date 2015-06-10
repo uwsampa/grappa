@@ -19,6 +19,8 @@ namespace fs = boost::filesystem;
 #include "Tuple.hpp"
 #include "relation.hpp"
 
+#include "strings.h"
+
 #include "grappa/graph.hpp"
 
 DECLARE_string(relations);
@@ -128,7 +130,7 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 }
 
 
-std::string get_split_name(std::string base, int part) {
+std::string get_split_name(const std::string& base, int part) {
   const int digits = 5;
   assert(part <= 99999);
 
@@ -137,7 +139,7 @@ std::string get_split_name(std::string base, int part) {
   return ss.str();
 }
 
-size_t get_lines( std::string fname ) {
+size_t get_lines( const std::string& fname ) {
 #if 0
   // POPEN and MPI don't mix well
   char cmd[256];
@@ -163,7 +165,7 @@ size_t get_lines( std::string fname ) {
 }
 
 
-size_t get_total_lines( std::string basename ) {
+size_t get_total_lines( const std::string& basename ) {
 #if 0
   // POPEN and MPI don't mix well
   char cmd[128];
@@ -209,30 +211,31 @@ template <typename T>
 class RelationFileReader {
 
 public:
-  Relation<T> read( std::string base ) {
+  Relation<T> read( const std::string& base ) {
     GlobalAddress<T> tuples;
 
     T sample;
     CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
 
-    auto ntuples = read<T>( fn, &tuples );
+    auto ntuples = this->_read( base, &tuples );
     Relation<T> r = { tuples, ntuples };
     return r;
   }
 protected:
-  virtual size_t read( std::string basename, GlobalAddress<T>* buf_addr ) = 0;
+  virtual size_t _read( const std::string& basename, GlobalAddress<T>* buf_addr ) = 0;
 };
 
 template <typename T>
 class RowParser {
 public:
   virtual T parseRow(const std::string& line) = 0;
-  virtual bool EOF(const std::string& line) = 0;
+  virtual bool eof(const std::string& line) = 0;
 };
 
 template <typename T>
-class JSONRowParser : public RowParser {
-  bool EOF(const std::string& line) {
+class JSONRowParser : public RowParser<T> {
+  public:
+  bool eof(const std::string& line) {
     return line.length() < 4;
   }
 
@@ -254,18 +257,14 @@ class JSONRowParser : public RowParser {
 
     VLOG(5) << ascii_s.str();
 
-    return = T::fromIStream(ascii_s, ',');
+    return T::fromIStream(ascii_s, ',');
   }
 };
 
 template <typename Parser, typename T>
 class SplitsRelationFileReader : public RelationFileReader<T> {
-private:
-  Parser parser;
-
 protected:
-  template <typename T>
-  size_t read( std::string basename, GlobalAddress<T> * buf_addr ) {
+  size_t _read( const std::string& basename, GlobalAddress<T> * buf_addr ) {
     uint64_t part = 0;
     auto part_addr = make_global(&part);
     bool done = false;
@@ -303,9 +302,10 @@ protected:
           auto suboffset = 0;
 
           std::string line;
+          Parser parser;
           while (std::getline(inp, line)) {
             // check other EOF conditions, like empty line
-            if (parser.EOF(line)) break;
+            if (parser.eof(line)) break;
 
             auto val = parser.parseRow(line);
 
@@ -330,7 +330,7 @@ protected:
 template <typename T>
 class BinaryRelationFileReader : public RelationFileReader<T> {
 protected:
-  size_t read( std::string fn, GlobalAddress<T> * buf_addr ) {
+  size_t _read( const std::string& fn, GlobalAddress<T> * buf_addr ) {
     /*
     std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
     std::ifstream metadata_file(metadata_path, std::ifstream::in);

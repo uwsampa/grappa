@@ -107,7 +107,7 @@ class MaterializedTupleRef_V1_0_1_2 {
     //}
 
     // use the tuple schema to interpret the input stream
-    static MaterializedTupleRef_V1_0_1_2 fromIStream(std::istream& ss) {
+    static MaterializedTupleRef_V1_0_1_2 fromIStream(std::istream& ss, char d=' ') {
         MaterializedTupleRef_V1_0_1_2 _ret;
 
 
@@ -115,14 +115,14 @@ class MaterializedTupleRef_V1_0_1_2 {
                ss >> _ret.f0;
                // throw away comma
                std::string _temp;
-               std::getline(ss, _temp, ',');
+               std::getline(ss, _temp, d);
                 }
 
 
 
                {
                std::string _temp;
-               std::getline(ss, _temp, ',');
+               std::getline(ss, _temp, d);
                _ret.f1 = to_array<MAX_STR_LEN, std::string>(_temp);
                }
 
@@ -130,7 +130,7 @@ class MaterializedTupleRef_V1_0_1_2 {
 
                {
                std::string _temp;
-               std::getline(ss, _temp, ',');
+               std::getline(ss, _temp, d);
                _ret.f2 = to_array<MAX_STR_LEN, std::string>(_temp);
                }
 
@@ -225,8 +225,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     writeTuplesUnordered<MaterializedTupleRef_V1_0_1_2>( &more_data, write_file );
 
     // try read
-    Relation<MaterializedTupleRef_V1_0_1_2> results =
-      readTuplesUnordered<MaterializedTupleRef_V1_0_1_2>( write_file );
+    BinaryRelationFileReader<MaterializedTupleRef_V1_0_1_2> reader1;
+    Relation<MaterializedTupleRef_V1_0_1_2> results = reader1.read( write_file );
 
     BOOST_CHECK_EQUAL( 2, results.numtuples );
     auto r0 = Grappa::delegate::read(results.data);
@@ -268,8 +268,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     writeTuplesUnordered<MaterializedTupleRef_V1_0_1_2>( &more_data, write_file );
 
     // verify write
-    results =
-      readTuplesUnordered<MaterializedTupleRef_V1_0_1_2>( write_file );
+      BinaryRelationFileReader<MaterializedTupleRef_V1_0_1_2> reader2;
+      results = reader2.read( write_file );
 
     BOOST_CHECK_EQUAL( 4, results.numtuples );
 
@@ -296,7 +296,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
 
 
-  results = readSplits<MaterializedTupleRef_V1_0_1_2>( "splits_test" );
+  SplitsRelationFileReader<JSONRowParser<MaterializedTupleRef_V1_0_1_2>, MaterializedTupleRef_V1_0_1_2> reader3;
+  results = reader3.read( "splits_test" );
   BOOST_CHECK_EQUAL(results.numtuples, 6);
   forall( results.data, results.numtuples, [=](MaterializedTupleRef_V1_0_1_2& t) {
       std::cout << t << std::endl;
