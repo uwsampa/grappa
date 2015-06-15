@@ -122,6 +122,16 @@ To do so, download and untar the following file in ```third-party/downloads```. 
 
 Grappa supports a ```install``` target which will install compiled libraries and header files to a directory on your system. The default install path is ```/opt/grappa```. If you'd prefer it to go somewhere else, specify the ```--prefix=<path>``` option when you run ```configure```.
 
+So to install Grappa to a directory ```/shared/grappa```, do the following in the Grappa source directory:
+
+```
+./configure --prefix=/shared/grappa
+cd build/Make+Release
+make && make install
+```
+
+This will result in a tree of directories under ```/shared/grappa``` including libraries, header files, and some scripts.
+
 As part of the install process, Grappa creates a ```bin/settings.sh``` file. After installing Grappa, if you run a command like ```source <grappa install path>/bin/settings.sh```, the environment variable ```GRAPPA_PREFIX``` will be set to the install path, and various other environment variables will be set to help control the runtime and improve performance with certain MPI distributions. 
 
 ## External builds / Using Grappa as a library
