@@ -128,9 +128,10 @@ As part of the install process, Grappa creates a ```bin/settings.sh``` file. Aft
 
 We've made it easier to use Grappa as a library by providing a GNU Make include file that sets compiler and linker flags appropriately for your Grappa installation. To use it, do the following:
 
-1. Make sure the environment variable ```GRAPPA_PREFIX``` points to your Grappa installation directory. The simplest way to do this is to source the Grappa settings script:  ```source <grappa install path>/bin/settings.sh```.
-2. Include a line like this in your Makefile: ```include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk```
-3. Use the Grappa variables in your Makefile rules. There are two ways to do this. You may use GNU Make's implicit rules by setting the variable ```GRAPPA_IMPLICIT_RULES:=on``` before including the Grappa make include file, like this:
+1. Follow the install procedure described in the previous section.
+2. Make sure the environment variable ```GRAPPA_PREFIX``` points to your Grappa installation directory. The simplest way to do this is to source the Grappa settings script:  ```source <grappa install path>/bin/settings.sh```.
+3. Include a line like this in your Makefile: ```include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk```
+4. Use the Grappa variables in your Makefile rules. There are two ways to do this. You may use GNU Make's implicit rules by setting the variable ```GRAPPA_IMPLICIT_RULES:=on``` before including the Grappa make include file, like this:
 
    ```
    GRAPPA_IMPLICIT_RULES:=on
