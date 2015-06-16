@@ -161,10 +161,10 @@ We've made it easier to use Grappa as a library by providing a GNU Make include 
    #      $(GRAPPA_LD)
    #      $(GRAPPA_CXXFLAGS)
    #      $(GRAPPA_LDFLAGS)
-   #      $(GRAPPA_LIBS)
+   #      $(GRAPPA_LDLIBS)
 
    standalone: standalone.o
-   	$(GRAPPA_LD) $(GRAPPA_LDFLAGS) -o $@ $< $(GRAPPA_LIBS)
+   	$(GRAPPA_LD) $(GRAPPA_LDFLAGS) -o $@ $< $(GRAPPA_LDLIBS)
 
    standalone.o: standalone.cpp
    	$(GRAPPA_CXX) $(GRAPPA_CXXFLAGS) -o $@ $<

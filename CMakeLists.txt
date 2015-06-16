@@ -335,7 +335,6 @@ if(VERBOSE)
   message("Boost_TEST_LIBRARIES: ${Boost_LIBRARIES}")
   message("GRAPPA_STATIC_LIBS: ${GRAPPA_STATIC_LIBS}")
   message("GRAPPA_DYNAMIC_LIBS: ${GRAPPA_DYNAMIC_LIBS}")
-  message("GRAPPA_LIBS: ${GRAPPA_LIBS}")
 endif()
 
 ####################################

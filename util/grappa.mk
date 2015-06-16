@@ -20,7 +20,7 @@
 #      $(GRAPPA_LD)
 #      $(GRAPPA_CXXFLAGS)
 #      $(GRAPPA_LDFLAGS)
-#      $(GRAPPA_LIBS)
+#      $(GRAPPA_LDLIBS)
 #
 # You may use GNU Make's implicit rules to compile Grappa programs by
 # setting the GRAPPA_IMPLICIT_RULES before including this file, like
