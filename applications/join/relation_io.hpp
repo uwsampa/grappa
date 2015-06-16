@@ -234,7 +234,7 @@ public:
 
 template <typename T, std::vector<std::string>* Schema>
 class JSONRowParser : public RowParser<T> {
-private:
+public:
   bool eof(const std::string& line) {
     return line.length() < 4;
   }
