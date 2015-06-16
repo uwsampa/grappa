@@ -232,9 +232,9 @@ public:
   virtual bool eof(const std::string& line) = 0;
 };
 
-template <typename T>
+template <typename T, std::vector<std::string>* Schema>
 class JSONRowParser : public RowParser<T> {
-  public:
+private:
   bool eof(const std::string& line) {
     return line.length() < 4;
   }
@@ -249,9 +249,19 @@ class JSONRowParser : public RowParser<T> {
 
     // json to csv to use fromIStream
     std::stringstream ascii_s;
+
+    // this way is broken because it doesn't regain order
+    /*
     for ( Json::ValueIterator itr = root.begin(); itr != root.end(); itr++ ) {
       char truncated[MAX_STR_LEN-1];
       strncpy(truncated, itr->asString().c_str(), MAX_STR_LEN-2);
+      ascii_s << truncated << ",";
+    }
+     */
+
+    for (auto name : *Schema) {
+      char truncated[MAX_STR_LEN-1];
+      strncpy(truncated, root[name].asString().c_str(), MAX_STR_LEN-2);
       ascii_s << truncated << ",";
     }
 

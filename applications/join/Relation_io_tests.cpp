@@ -37,6 +37,8 @@ using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( Relation_io_tests );
 
+std::vector<std::string> schema = {"a","b","c"};
+
 class MaterializedTupleRef_V1_0_1_2 {
     // Invariant: data stored in _fields is always in the representation
     // specified by _scheme.
@@ -295,8 +297,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       BOOST_CHECK( one.f2 == r3.f2 );
     }
 
-
-  SplitsRelationFileReader<JSONRowParser<MaterializedTupleRef_V1_0_1_2>, MaterializedTupleRef_V1_0_1_2> reader3;
+  SplitsRelationFileReader<JSONRowParser<MaterializedTupleRef_V1_0_1_2, &schema>, MaterializedTupleRef_V1_0_1_2> reader3;
   results = reader3.read( "splits_test" );
   BOOST_CHECK_EQUAL(results.numtuples, 6);
   forall( results.data, results.numtuples, [=](MaterializedTupleRef_V1_0_1_2& t) {
