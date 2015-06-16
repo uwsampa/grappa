@@ -52,8 +52,8 @@ if opt.used_cxx_flag
   case opt.cxx
   when /g\+\+/
     opt.cc = opt.cxx.gsub(/g\+\+/,'gcc')
-  when /clang++/
-    opt.cc = opt.cxx.gsub(/clang++/,'clang')
+  when /clang\+\+/
+    opt.cc = opt.cxx.gsub(/clang\+\+/,'clang')
   end
 end
 
