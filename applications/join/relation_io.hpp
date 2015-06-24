@@ -395,7 +395,7 @@ protected:
         // go backwards so we never overwrite
         for( int64_t i = local_count - 1; i >= 0; --i ) {
           char * data = byte_ptr + i * row_size_bytes;
-          memcpy(&local_start[i], data, row_size_bytes);
+          memmove(&local_start[i], data, row_size_bytes);
         }
       }
 
