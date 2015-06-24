@@ -19,6 +19,8 @@ namespace fs = boost::filesystem;
 #include "Tuple.hpp"
 #include "relation.hpp"
 
+#include "strings.h"
+
 #include "grappa/graph.hpp"
 
 DECLARE_string(relations);
@@ -128,7 +130,7 @@ tuple_graph readEdges( std::string fn, int64_t numTuples ) {
 }
 
 
-std::string get_split_name(std::string base, int part) {
+std::string get_split_name(const std::string& base, int part) {
   const int digits = 5;
   assert(part <= 99999);
 
@@ -137,7 +139,7 @@ std::string get_split_name(std::string base, int part) {
   return ss.str();
 }
 
-size_t get_lines( std::string fname ) {
+size_t get_lines( const std::string& fname ) {
 #if 0
   // POPEN and MPI don't mix well
   char cmd[256];
@@ -163,7 +165,7 @@ size_t get_lines( std::string fname ) {
 }
 
 
-size_t get_total_lines( std::string basename ) {
+size_t get_total_lines( const std::string& basename ) {
 #if 0
   // POPEN and MPI don't mix well
   char cmd[128];
@@ -206,23 +208,88 @@ struct CharArray {
 };
 
 template <typename T>
-size_t readSplits( std::string basename, GlobalAddress<T> * buf_addr ) {
-  
-  uint64_t part = 0;
-  auto part_addr = make_global(&part);
-  bool done = false;
-  auto done_addr = make_global(&done);
-  uint64_t offset_counter = 0;
-  auto offset_counter_addr = make_global( &offset_counter );
+class RelationFileReader {
 
-  auto ntuples = get_total_lines(basename);
-  CHECK(ntuples >= 0);
-  auto tuples = Grappa::global_alloc<T>(ntuples);
+public:
+  Relation<T> read( const std::string& base ) {
+    GlobalAddress<T> tuples;
 
-  // choose to new here simply to save stack space
-  auto basename_ptr = make_global(new CharArray(basename));
+    T sample;
+    CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
 
-  on_all_cores( [part_addr,done_addr,offset_counter_addr,tuples,basename_ptr] {
+    auto ntuples = this->_read( base, &tuples );
+    Relation<T> r = { tuples, ntuples };
+    return r;
+  }
+protected:
+  virtual size_t _read( const std::string& basename, GlobalAddress<T>* buf_addr ) = 0;
+};
+
+template <typename T>
+class RowParser {
+public:
+  virtual T parseRow(const std::string& line) = 0;
+  virtual bool eof(const std::string& line) = 0;
+};
+
+template <typename T, std::vector<std::string>* Schema>
+class JSONRowParser : public RowParser<T> {
+public:
+  bool eof(const std::string& line) {
+    return line.length() < 4;
+  }
+
+  T parseRow(const std::string& line) {
+    // get first attribute, which is a json string
+    std::stringstream inss(line);
+    Json::Value root;
+    inss >> root;  // ignore other json objects
+
+    VLOG(5) << root;
+
+    // json to csv to use fromIStream
+    std::stringstream ascii_s;
+
+    // this way is broken because it doesn't regain order
+    /*
+    for ( Json::ValueIterator itr = root.begin(); itr != root.end(); itr++ ) {
+      char truncated[MAX_STR_LEN-1];
+      strncpy(truncated, itr->asString().c_str(), MAX_STR_LEN-2);
+      ascii_s << truncated << ",";
+    }
+     */
+
+    for (auto name : *Schema) {
+      char truncated[MAX_STR_LEN-1];
+      strncpy(truncated, root[name].asString().c_str(), MAX_STR_LEN-2);
+      ascii_s << truncated << ",";
+    }
+
+    VLOG(5) << ascii_s.str();
+
+    return T::fromIStream(ascii_s, ',');
+  }
+};
+
+template <typename Parser, typename T>
+class SplitsRelationFileReader : public RelationFileReader<T> {
+protected:
+  size_t _read( const std::string& basename, GlobalAddress<T> * buf_addr ) {
+    uint64_t part = 0;
+    auto part_addr = make_global(&part);
+    bool done = false;
+    auto done_addr = make_global(&done);
+    uint64_t offset_counter = 0;
+    auto offset_counter_addr = make_global( &offset_counter );
+
+    auto ntuples = get_total_lines(basename);
+    CHECK(ntuples >= 0);
+    auto tuples = Grappa::global_alloc<T>(ntuples);
+
+    // choose to new here simply to save stack space
+    auto basename_ptr = make_global(new CharArray(basename));
+
+    on_all_cores( [part_addr,done_addr,offset_counter_addr,tuples,basename_ptr] {
       auto fname_arr = delegate::read(basename_ptr);
       auto basename_copy = std::string(fname_arr.arr);
 
@@ -245,138 +312,102 @@ size_t readSplits( std::string basename, GlobalAddress<T> * buf_addr ) {
           auto suboffset = 0;
 
           std::string line;
+          Parser parser;
           while (std::getline(inp, line)) {
-            // done if not a json object
-            if (line.length() < 4) break;
+            // check other EOF conditions, like empty line
+            if (parser.eof(line)) break;
 
-            // get first attribute, which is a json string
-            std::stringstream inss(line);
-            Json::Value root;
-            inss >> root;  // ignore other json objects
-            
-            VLOG(5) << root;
-  
-            // json to csv to use fromIStream
-            std::stringstream ascii_s;
-            for ( Json::ValueIterator itr = root.begin(); itr != root.end(); itr++ ) {
-              char truncated[MAX_STR_LEN-1];
-              strncpy(truncated, itr->asString().c_str(), MAX_STR_LEN-2);
-              ascii_s << truncated << ","; 
-            }
+            auto val = parser.parseRow(line);
 
-            VLOG(5) << ascii_s.str();
-
-            auto val = T::fromIStream(ascii_s, ',');
             //Grappa::delegate::write<async>(tuples+offset+suboffset, val);
             Grappa::delegate::write(tuples+offset+suboffset, val);
-            ++suboffset; 
+            ++suboffset;
           }
         }
       }
-  });
+    });
 //  Grappa::impl::local_gce.wait();
-  delete basename_ptr.pointer();
-    
-  *buf_addr = tuples;
-  return ntuples;
-}
+    delete basename_ptr.pointer();
+
+    *buf_addr = tuples;
+    return ntuples;
+  }
+};
+
+
 
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
-size_t readTuplesUnordered( std::string fn, GlobalAddress<T> * buf_addr ) {
-  /*
-  std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
-  std::ifstream metadata_file(metadata_path, std::ifstream::in);
-  CHECK( metadata_file.is_open() ) << metadata_path << " failed to open";
-  int64_t numcols;
-  metadata_file >> numcols;  
-  */
+class BinaryRelationFileReader : public RelationFileReader<T> {
+protected:
+  size_t _read( const std::string& fn, GlobalAddress<T> * buf_addr ) {
+    /*
+    std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
+    std::ifstream metadata_file(metadata_path, std::ifstream::in);
+    CHECK( metadata_file.is_open() ) << metadata_path << " failed to open";
+    int64_t numcols;
+    metadata_file >> numcols;
+    */
 
-  // binary; TODO: factor out to allow other formats like fixed-line length ascii
+    // binary; TODO: factor out to allow other formats like fixed-line length ascii
 
 // we get just the size of the fields (since T is a padded data type)
-  size_t row_size_bytes = T::fieldsSize(); 
-  VLOG(2) << "row_size_bytes=" << row_size_bytes;
-  std::string data_path = FLAGS_relations+"/"+fn;
-  size_t file_size = fs::file_size( data_path );
-  size_t ntuples = file_size / row_size_bytes;
-  CHECK( ntuples * row_size_bytes == file_size ) << "File " << data_path << " is ill-formatted; perhaps not all rows have same columns? file size = " << file_size << " row_size_bytes = " << row_size_bytes;
-  VLOG(1) << fn << " has " << ntuples << " rows";
-  
-  auto tuples = Grappa::global_alloc<T>(ntuples);
-  
-  size_t offset_counter = 0;
-  auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
+    size_t row_size_bytes = T::fieldsSize();
+    VLOG(2) << "row_size_bytes=" << row_size_bytes;
+    std::string data_path = FLAGS_relations+"/"+fn;
+    size_t file_size = fs::file_size( data_path );
+    size_t ntuples = file_size / row_size_bytes;
+    CHECK( ntuples * row_size_bytes == file_size ) << "File " << data_path << " is ill-formatted; perhaps not all rows have same columns? file size = " << file_size << " row_size_bytes = " << row_size_bytes;
+    VLOG(1) << fn << " has " << ntuples << " rows";
 
-  auto data_path_ptr = make_global(new CharArray(data_path));
+    auto tuples = Grappa::global_alloc<T>(ntuples);
 
-  on_all_cores( [=] {
-    auto data_path_arr = delegate::read(data_path_ptr);
-    auto fname = std::string(data_path_arr.arr);
+    size_t offset_counter = 0;
+    auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
 
-    // find my array split
-    auto local_start = tuples.localize();
-    auto local_end = (tuples+ntuples).localize();
-    size_t local_count = local_end - local_start;
+    auto data_path_ptr = make_global(new CharArray(data_path));
 
-    // reserve a file split
-    int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
-    VLOG(2) << "file offset " << offset;
-  
-    std::ifstream data_file(fname, std::ios_base::in | std::ios_base::binary);
-    CHECK( data_file.is_open() ) << fname << " failed to open";
-    VLOG(5) << "seeking";
-    data_file.seekg( offset * row_size_bytes );
-    VLOG(5) << "reading";
-    data_file.read( (char*) local_start, local_count * row_size_bytes );
-    data_file.close();
+    on_all_cores( [=] {
+      auto data_path_arr = delegate::read(data_path_ptr);
+      auto fname = std::string(data_path_arr.arr);
 
-    // expand packed data into T's if necessary
-    if (row_size_bytes < sizeof(T)) {
-      VLOG(5) << "inflating";
-      char * byte_ptr = reinterpret_cast<char*>(local_start);
-      // go backwards so we never overwrite
-      for( int64_t i = local_count - 1; i >= 0; --i ) {
-        char * data = byte_ptr + i * row_size_bytes;
-        memcpy(&local_start[i], data, row_size_bytes);
+      // find my array split
+      auto local_start = tuples.localize();
+      auto local_end = (tuples+ntuples).localize();
+      size_t local_count = local_end - local_start;
+
+      // reserve a file split
+      int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );
+      VLOG(2) << "file offset " << offset;
+
+      std::ifstream data_file(fname, std::ios_base::in | std::ios_base::binary);
+      CHECK( data_file.is_open() ) << fname << " failed to open";
+      VLOG(5) << "seeking";
+      data_file.seekg( offset * row_size_bytes );
+      VLOG(5) << "reading";
+      data_file.read( (char*) local_start, local_count * row_size_bytes );
+      data_file.close();
+
+      // expand packed data into T's if necessary
+      if (row_size_bytes < sizeof(T)) {
+        VLOG(5) << "inflating";
+        char * byte_ptr = reinterpret_cast<char*>(local_start);
+        // go backwards so we never overwrite
+        for( int64_t i = local_count - 1; i >= 0; --i ) {
+          char * data = byte_ptr + i * row_size_bytes;
+          memcpy(&local_start[i], data, row_size_bytes);
+        }
       }
-    }
 
-    VLOG(4) << "local first row: " << *local_start;
-  });
+      VLOG(4) << "local first row: " << *local_start;
+    });
 
-  delete data_path_ptr.pointer();
+    delete data_path_ptr.pointer();
 
-  *buf_addr = tuples;
-  return ntuples;
-}
-
-// convenient version for Relation<T> type
-template <typename T>
-Relation<T> readTuplesUnordered( std::string fn ) {
-  GlobalAddress<T> tuples;
-  
-  T sample;
-  CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
-
-  auto ntuples = readTuplesUnordered<T>( fn, &tuples );  
-  Relation<T> r = { tuples, ntuples };
-  return r;
-}
-
-// convenient version for Relation<T> type
-template <typename T>
-Relation<T> readSplits( std::string base ) {
-  VLOG(5) << "called readSplits";
-  GlobalAddress<T> tuples;
-  
-  T sample;
-  CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
-
-  auto ntuples = readSplits<T>( base, &tuples );  
-  Relation<T> r = { tuples, ntuples };
-  return r;
-}
+    *buf_addr = tuples;
+    return ntuples;
+  }
+};
 
 // assumes that for object T, the address of T is the address of its fields
 template <typename T>
