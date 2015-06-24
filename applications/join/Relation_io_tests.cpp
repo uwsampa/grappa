@@ -38,6 +38,184 @@ using namespace Grappa;
 BOOST_AUTO_TEST_SUITE( Relation_io_tests );
 
 std::vector<std::string> schema = {"a","b","c"};
+ 
+class MaterializedTupleRef_V3_0_1 {
+    // Invariant: data stored in _fields is always in the representation
+    // specified by _scheme.
+
+    public:
+    
+        std::array<char, MAX_STR_LEN> f0;
+    
+        double f1;
+    
+
+    static constexpr int numFields() {
+      return 2;
+    }
+
+    static size_t fieldsSize() {
+        const MaterializedTupleRef_V3_0_1 _t;
+        return
+        
+        ((char*)&_t.f1) + sizeof(_t.f1) - ((char*)&_t);
+    }
+
+    MaterializedTupleRef_V3_0_1 () {
+      // no-op
+    }
+
+    //template <typename OT>
+    //MaterializedTupleRef_V3_0_1 (const OT& other) {
+    //  std::memcpy(this, &other, sizeof(MaterializedTupleRef_V3_0_1));
+    //}
+    MaterializedTupleRef_V3_0_1 (
+                               const std::array<char, MAX_STR_LEN>& a0
+                               ,
+                       
+                       
+                               const double& a1
+                               
+                       
+                       ) {
+        
+            f0 = a0;
+        
+            f1 = a1;
+        
+        
+    }
+
+    
+    
+
+
+    MaterializedTupleRef_V3_0_1(const std::tuple<
+        
+        std::array<char, MAX_STR_LEN>
+        ,
+        
+        double
+        
+        
+            >& o) {
+        
+            f0 = std::get<0>(o);
+        
+            f1 = std::get<1>(o);
+        
+        
+     }
+
+     std::tuple<
+        
+        std::array<char, MAX_STR_LEN>
+        ,
+        
+        double
+        
+        
+     > to_tuple() {
+
+        std::tuple<
+        
+        std::array<char, MAX_STR_LEN>
+        ,
+        
+        double
+        
+        
+        > r;
+        
+            std::get<0>(r) = f0;
+        
+            std::get<1>(r) = f1;
+        
+        
+        return r;
+     }
+
+    // shamelessly terrible disambiguation: one solution is named factory methods
+    //MaterializedTupleRef_V3_0_1 (std::vector<int64_t> vals, bool ignore1, bool ignore2) {
+    //    
+    //        f0 = vals[0];
+    //    
+    //        f1 = vals[1];
+    //    
+    //        f2 = vals[2];
+    //    
+    //}
+
+    // use the tuple schema to interpret the input stream
+    static MaterializedTupleRef_V3_0_1 fromIStream(std::istream& ss, char delim=' ') {
+        MaterializedTupleRef_V3_0_1 _ret;
+
+        
+            
+               {
+               std::string _temp;
+               std::getline(ss, _temp, delim);
+               _ret.f0 = to_array<MAX_STR_LEN, std::string>(_temp);
+               }
+            
+        
+            
+               {
+               // use operator>> to parse into proper numeric type
+               ss >> _ret.f1;
+               //throw away the next delimiter
+               std::string _temp;
+               std::getline(ss, _temp, delim);
+               }
+            
+        
+
+        return _ret;
+    }
+
+    void toOStream(std::ostream& os) const {
+       
+         
+      VLOG(1) << "writing " << this->fieldsSize();
+        os.write((char*)this, this->fieldsSize());
+         
+       
+    }
+
+    //template <typename Tuple, typename T>
+    //MaterializedTupleRef_V3_0_1 (const Tuple& v0, const T& from) {
+    //    constexpr size_t v0_size = std::tuple_size<Tuple>::value;
+    //    constexpr int from_size = T::numFields();
+    //    static_assert(MaterializedTupleRef_V3_0_1::numFields() == (v0_size + from_size), "constructor only works on same number of total fields");
+    //    TupleUtils::assign<0, decltype(_scheme)>(_fields, v0);
+    //    std::memcpy(((char*)&_fields)+v0_size*sizeof(int64_t), &(from._fields), from_size*sizeof(int64_t));
+    //}
+
+    //template <typename Tuple>
+    //MaterializedTupleRef_V3_0_1 (const Tuple& v0) {
+    //    static_assert(MaterializedTupleRef_V3_0_1::numFields() == (std::tuple_size<Tuple>::value), "constructor only works on same number of total fields");
+    //    TupleUtils::assign<0, decltype(_scheme)>(_fields, v0);
+    //}
+
+    inline std::ostream& dump(std::ostream& o) const {
+      o << "Materialized(";
+
+      
+        o << "" << f0 << ",";
+      
+        o << "" << f1 << ",";
+      
+      o << ")";
+      return o;
+    }
+  
+    friend inline std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V3_0_1& t) {
+      return t.dump(o);
+    }
+
+    
+  } GRAPPA_BLOCK_ALIGNED;
+
 
 class MaterializedTupleRef_V1_0_1_2 {
     // Invariant: data stored in _fields is always in the representation
@@ -157,15 +335,6 @@ class MaterializedTupleRef_V1_0_1_2 {
 
     }
 
-    void toOStreamAscii(std::ostream& os) const {
-        os
-
-        << f0 << " "
-
-        << f1 << " "
-
-        << f2 << std::endl;
-    }
 
     //template <typename Tuple, typename T>
     //MaterializedTupleRef_V1_0_1_2 (const Tuple& v0, const T& from) {
@@ -182,28 +351,32 @@ class MaterializedTupleRef_V1_0_1_2 {
     //    TupleUtils::assign<0, decltype(_scheme)>(_fields, v0);
     //}
 
-    std::ostream& dump(std::ostream& o) const {
+    inline std::ostream& dump(std::ostream& o) const {
       o << "Materialized(";
 
 
         o << f0 << ",";
 
-        o << f1 << ",";
+        o << std::string(f1.data()) << ",";
 
-        o << f2 << ",";
+        o << std::string(f2.data()) << ",";
 
 
       o << ")";
       return o;
     }
+  
+    friend inline std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V1_0_1_2& t) {
+      return t.dump(o);
+    }
 
   } GRAPPA_BLOCK_ALIGNED;
 
-  std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V1_0_1_2& t) {
-    return t.dump(o);
-  }
+
+
 
 std::vector<MaterializedTupleRef_V1_0_1_2> more_data;
+std::vector<MaterializedTupleRef_V3_0_1> dt_results;
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
@@ -303,11 +476,43 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   forall( results.data, results.numtuples, [=](MaterializedTupleRef_V1_0_1_2& t) {
       std::cout << t << std::endl;
       });
-      
+
+  // test with doubles
+  MaterializedTupleRef_V3_0_1 dt1(to_array<MAX_STR_LEN>(std::string("compris indic")),-0.35686);
+  MaterializedTupleRef_V3_0_1 dt2(to_array<MAX_STR_LEN>(std::string("distanc computerimpl")),1.73678);
+  MaterializedTupleRef_V3_0_1 dt3(to_array<MAX_STR_LEN>(std::string("interv determin")),-0.0503026);
+  MaterializedTupleRef_V3_0_1 dt4(to_array<MAX_STR_LEN>(std::string("select search")),0.74823);
+  MaterializedTupleRef_V3_0_1 dt5(to_array<MAX_STR_LEN>(std::string("super gain")),1.997);
+  MaterializedTupleRef_V3_0_1 dt6(to_array<MAX_STR_LEN>(std::string("cat pancake")),-0.1154);
+  MaterializedTupleRef_V3_0_1 dt7(to_array<MAX_STR_LEN>(std::string("specialized device")),0.00131);
+
+  dt_results.push_back(dt1);
+  dt_results.push_back(dt2);
+  dt_results.push_back(dt3);
+  dt_results.push_back(dt4);
+  dt_results.push_back(dt5);
+  dt_results.push_back(dt6);
+  dt_results.push_back(dt7);
+
+  std::string write_file2("write2.bin");
+  writeTuplesUnordered<MaterializedTupleRef_V3_0_1>( &dt_results, write_file2 );
+
+  BinaryRelationFileReader<MaterializedTupleRef_V3_0_1> reader_d;
+  Relation<MaterializedTupleRef_V3_0_1> results_d = reader_d.read( write_file2 );
+
+  BOOST_CHECK_EQUAL( 7, results_d.numtuples );
+
+  forall( results_d.data, results_d.numtuples, [=](MaterializedTupleRef_V3_0_1& t) {
+      std::cout << t << std::endl;
+        BOOST_CHECK( (t.f0 == dt1.f0 && t.f1 == dt1.f1)
+          || (t.f0 == dt2.f0 && t.f1 == dt2.f1)
+          || (t.f0 == dt3.f0 && t.f1 == dt3.f1)
+          || (t.f0 == dt4.f0 && t.f1 == dt4.f1) 
+          || (t.f0 == dt5.f0 && t.f1 == dt5.f1) 
+          || (t.f0 == dt6.f0 && t.f1 == dt6.f1) 
+          || (t.f0 == dt7.f0 && t.f1 == dt7.f1) );
   });
-
-
-
+}); // end grappa::run()
 
 
 
