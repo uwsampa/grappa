@@ -34,6 +34,8 @@ set(QUERYLIB_SOURCES
 set(QUERYIO_SOURCES
   relation_io.hpp
   relation_io.cpp
+  block_distribution.hpp
+  block_distribution.cpp
   Tuple.hpp
   Tuple.cpp
   relation.hpp

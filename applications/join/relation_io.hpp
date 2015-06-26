@@ -18,6 +18,7 @@ namespace fs = boost::filesystem;
 #include <ParallelLoop.hpp>
 #include "Tuple.hpp"
 #include "relation.hpp"
+#include "block_distribution.hpp"
 
 #include "strings.h"
 
@@ -207,22 +208,22 @@ struct CharArray {
  }
 };
 
-template <typename T>
+template <typename T, typename Res=T>
 class RelationFileReader {
 
 public:
-  Relation<T> read( const std::string& base ) {
-    GlobalAddress<T> tuples;
+  Relation<Res> read( const std::string& base ) {
+    GlobalAddress<Res> tuples;
 
-    T sample;
-    CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
+    //T sample;
+    //CHECK( reinterpret_cast<char*>(&sample.f0) == reinterpret_cast<char*>(&sample) ) << "IO assumes f0 is the first field, but it is not for T";
 
     auto ntuples = this->_read( base, &tuples );
-    Relation<T> r = { tuples, ntuples };
+    Relation<Res> r = { tuples, ntuples };
     return r;
   }
 protected:
-  virtual size_t _read( const std::string& basename, GlobalAddress<T>* buf_addr ) = 0;
+  virtual size_t _read( const std::string& basename, GlobalAddress<Res>* buf_addr ) = 0;
 };
 
 template <typename T>
@@ -334,13 +335,65 @@ protected:
   }
 };
 
+template <typename GT, typename LT>
+class ArrayRepresentation {
+  public:
+    virtual size_t row_size_bytes() const = 0;
+    virtual GlobalAddress<GT> allocate(size_t ntuples) = 0;
+    virtual std::tuple<LT*, LT*>  start_end(const GlobalAddress<GT>& tuples, size_t ntuples) const = 0; 
+};
+
+template <typename T>
+class GlobalArrayRepresentation : public ArrayRepresentation<T, T> {
+  public:
+    size_t row_size_bytes() const {
+      return T::fieldsSize();
+    }
+
+    GlobalAddress<T> allocate(size_t ntuples) {
+      return Grappa::global_alloc<T>(ntuples);
+    }
+
+    std::tuple<T*, T*> start_end(const GlobalAddress<T>& tuples, size_t ntuples) const {
+      return std::make_tuple(tuples.localize(), (tuples+ntuples).localize());
+    }
+};
+
+template <typename T>
+struct aligned_vector {
+  std::vector<T> vector;
+} GRAPPA_BLOCK_ALIGNED;
+
+template <typename T>
+class SymmetricArrayRepresentation : public ArrayRepresentation<aligned_vector<T>, T> {
+  public:
+    size_t row_size_bytes() const {
+      return T::fieldsSize();
+    }
+
+    GlobalAddress<aligned_vector<T>> allocate(size_t ntuples) {
+      return Grappa::symmetric_global_alloc<aligned_vector<T>>();
+    }
+
+    std::tuple<T*,T*> start_end(const GlobalAddress<aligned_vector<T>>& tuples, size_t ntuples) const {
+        BlockDistribution dist(Grappa::cores(), ntuples);
+        auto range = dist.getRangeForBlock(Grappa::mycore());
+        auto num_local_elements = range.rightExclusive - range.leftInclusive;
+        // this resize will make the returned start/end correct and different from previous calls
+        tuples->vector.resize(num_local_elements);
+
+        auto local_start = &((tuples->vector)[0]);
+        VLOG(4) << "range " << range.leftInclusive << " " << range.rightExclusive << " start: " << local_start;
+        return std::make_tuple(local_start, local_start + num_local_elements);
+    }
+};
 
 
 // assumes that for object T, the address of T is the address of its fields
-template <typename T>
-class BinaryRelationFileReader : public RelationFileReader<T> {
-protected:
-  size_t _read( const std::string& fn, GlobalAddress<T> * buf_addr ) {
+template <typename T, typename Res=T, typename ArrRep=GlobalArrayRepresentation<T>>
+class BinaryRelationFileReader : public RelationFileReader<T, Res> {
+  protected:
+    size_t _read( const std::string& fn, GlobalAddress<Res> * buf_addr ) {
     /*
     std::string metadata_path = FLAGS_relations+"/"+fn+"."+metadata; //TODO replace such metadatafiles with a real catalog
     std::ifstream metadata_file(metadata_path, std::ifstream::in);
@@ -349,10 +402,12 @@ protected:
     metadata_file >> numcols;
     */
 
+    ArrRep array_repr;
+
     // binary; TODO: factor out to allow other formats like fixed-line length ascii
 
 // we get just the size of the fields (since T is a padded data type)
-    size_t row_size_bytes = T::fieldsSize();
+    size_t row_size_bytes = array_repr.row_size_bytes();
     VLOG(2) << "row_size_bytes=" << row_size_bytes;
     std::string data_path = FLAGS_relations+"/"+fn;
     size_t file_size = fs::file_size( data_path );
@@ -360,7 +415,7 @@ protected:
     CHECK( ntuples * row_size_bytes == file_size ) << "File " << data_path << " is ill-formatted; perhaps not all rows have same columns? file size = " << file_size << " row_size_bytes = " << row_size_bytes;
     VLOG(1) << fn << " has " << ntuples << " rows";
 
-    auto tuples = Grappa::global_alloc<T>(ntuples);
+    GlobalAddress<Res> tuples = array_repr.allocate(ntuples);
 
     size_t offset_counter = 0;
     auto offset_counter_addr = make_global( &offset_counter, Grappa::mycore() );
@@ -372,9 +427,12 @@ protected:
       auto fname = std::string(data_path_arr.arr);
 
       // find my array split
-      auto local_start = tuples.localize();
-      auto local_end = (tuples+ntuples).localize();
+      auto local_start_end = array_repr.start_end(tuples, ntuples);
+      auto local_start = std::get<0>(local_start_end);
+      auto local_end = std::get<1>(local_start_end);
+
       size_t local_count = local_end - local_start;
+      VLOG(3) << "start/end: " << local_start << " " << local_end << " count " << local_count;
 
       // reserve a file split
       int64_t offset = Grappa::delegate::fetch_and_add( offset_counter_addr, local_count );

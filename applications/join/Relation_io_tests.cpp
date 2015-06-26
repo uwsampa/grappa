@@ -512,6 +512,33 @@ BOOST_AUTO_TEST_CASE( test1 ) {
           || (t.f0 == dt6.f0 && t.f1 == dt6.f1) 
           || (t.f0 == dt7.f0 && t.f1 == dt7.f1) );
   });
+
+
+  // test symmetric array version
+  BinaryRelationFileReader<MaterializedTupleRef_V3_0_1, 
+                           aligned_vector<MaterializedTupleRef_V3_0_1>, 
+                           SymmetricArrayRepresentation<MaterializedTupleRef_V3_0_1>> reader_d2;
+  Relation<aligned_vector<MaterializedTupleRef_V3_0_1>> results_d2 = reader_d2.read( write_file2 );
+
+  BOOST_CHECK_EQUAL( 7, results_d2.numtuples );
+  on_all_cores( [=] {
+      forall_here( 0, results_d2.data->vector.size(), [=](int64_t start, int64_t iters) {
+        for (int j=start; j<start+iters; j++) {
+          auto t = results_d2.data->vector[j];
+        std::cout << t << std::endl;
+          BOOST_CHECK( (t.f0 == dt1.f0 && t.f1 == dt1.f1)
+            || (t.f0 == dt2.f0 && t.f1 == dt2.f1)
+            || (t.f0 == dt3.f0 && t.f1 == dt3.f1)
+            || (t.f0 == dt4.f0 && t.f1 == dt4.f1) 
+            || (t.f0 == dt5.f0 && t.f1 == dt5.f1) 
+            || (t.f0 == dt6.f0 && t.f1 == dt6.f1) 
+            || (t.f0 == dt7.f0 && t.f1 == dt7.f1) );
+          }
+          });
+      });
+
+
+
 }); // end grappa::run()
 
 
