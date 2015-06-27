@@ -33,7 +33,6 @@ namespace Grappa {
     struct Edge {
       int64_t v0;
       int64_t v1;
-      uint64_t data;
     };
 
   private:
