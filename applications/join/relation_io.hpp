@@ -285,6 +285,7 @@ protected:
 
     auto ntuples = get_total_lines(basename);
     CHECK(ntuples >= 0);
+    CHECK( sizeof(T) <= BLOCK_SIZE );
     auto tuples = Grappa::global_alloc<T>(ntuples);
 
     // choose to new here simply to save stack space
@@ -351,6 +352,7 @@ class GlobalArrayRepresentation : public ArrayRepresentation<T, T> {
     }
 
     GlobalAddress<T> allocate(size_t ntuples) {
+      CHECK( sizeof(T) <= BLOCK_SIZE );
       return Grappa::global_alloc<T>(ntuples);
     }
 
@@ -584,6 +586,7 @@ GlobalAddress<T> readTuples( std::string fn, int64_t numTuples ) {
   // shared by the local tasks reading the file
   int64_t fin = 0;
 
+  CHECK( sizeof(T) <= BLOCK_SIZE );
   auto tuples = Grappa::global_alloc<T>(numTuples);
  
   // token delimiter  
