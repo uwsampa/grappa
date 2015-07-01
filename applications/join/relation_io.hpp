@@ -260,10 +260,9 @@ public:
     }
      */
 
+    // Create csv row using Schema
     for (auto name : *Schema) {
-      char truncated[MAX_STR_LEN-1];
-      strncpy(truncated, root[name].asString().c_str(), MAX_STR_LEN-2);
-      ascii_s << truncated << ",";
+      ascii_s << root[name].asString() << ",";
     }
 
     VLOG(5) << ascii_s.str();
