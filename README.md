@@ -6,6 +6,8 @@ Grappa is a runtime system for scaling irregular applications on commodity clust
 
 Grappa is a research project and is still young! Please expect things to break. Please do not expect amazing performance yet. Please ask for help if you run into problems. We're excited for you to use the software and to help make Grappa a great tool for the irregular applications community! For more information about the project, visit the project website: [grappa.io](http://grappa.io).
 
+*Note:* we will shortly be re-releasing this code under a BSD license. Stay tuned!
+
 Dependences
 -------------------------------------------------------------------------------
 You must have a Linux system with the following installed to build Grappa:
