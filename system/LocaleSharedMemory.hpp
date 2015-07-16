@@ -47,7 +47,7 @@ private:
 
   void create();
   void attach();
-  void destroy();
+  void unlink();
 
   friend class RDMAAggregator;
 

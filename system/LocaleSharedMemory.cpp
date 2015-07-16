@@ -122,11 +122,15 @@ void LocaleSharedMemory::attach() {
           << " of " << global_communicator.cores;
 }
 
-void LocaleSharedMemory::destroy() {
+void LocaleSharedMemory::unlink() {
   VLOG(2) << "Removing LocaleSharedMemory region " << region_name 
           << " on " << global_communicator.mycore 
           << " of " << global_communicator.cores;
-  boost::interprocess::shared_memory_object::remove( region_name.c_str() );
+  // according to docs, this just does unlink(), so object will be removed once no process is using it.
+  bool success = boost::interprocess::shared_memory_object::remove( region_name.c_str() );
+  if( !success ) {
+    LOG(WARNING) << "Remove/unlink call filed for shared memory object " << region_name.c_str() << ".";
+  }
   VLOG(2) << "Removed LocaleSharedMemory region " << region_name 
           << " on " << global_communicator.mycore 
           << " of " << global_communicator.cores;
@@ -164,11 +168,12 @@ void LocaleSharedMemory::activate() {
   global_communicator.barrier();
   if( Grappa::locale_mycore() != 0 ) { attach(); }
   global_communicator.barrier();
+  if( Grappa::locale_mycore() == 0 ) { unlink(); } // delete once everyone has released it
   //available = global_bytes_per_core;
 }
 
 void LocaleSharedMemory::finish() {
-  // let Boot's atexit() handler take care of this
+  // let Boost's atexit() handler take care of this
   //global_communicator.barrier(); // we should have a barrier before destroying the shared memory region
   //if( Grappa::locale_mycore() == 0 ) { destroy(); }
 }
