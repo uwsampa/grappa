@@ -31,6 +31,18 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
+# Check GCC version
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.7.2)
+    message(FATAL_ERROR "When using GCC, the version must be at least 4.7.2. Found ${CMAKE_CXX_COMPILER_VERSION} instead.")
+  endif()
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.4)
+    message(FATAL_ERROR "When using Clang, the version must be at least 3.4. Found ${CMAKE_CXX_COMPILER_VERSION} instead.")
+  endif()
+else()
+  message(WARNING "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
+endif()
 
 ###########################
 # Use RUNPATH if available
