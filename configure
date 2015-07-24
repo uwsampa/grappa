@@ -151,7 +151,7 @@ def configure(generator, mode, opt)
   end
 
   if opt.install_prefix
-    args << "-DCMAKE_INSTALL_PREFIX=" + opt.install_prefix
+    args << "-DGRAPPA_INSTALL_PREFIX=" + opt.install_prefix
   end
 
   cd build_dir do
