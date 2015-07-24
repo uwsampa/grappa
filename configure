@@ -10,6 +10,14 @@ opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
 opt.third_party = ENV['GRAPPA_THIRD_PARTY']
 
+# verify we're running a supported ruby version
+required_version = '1.9.3'
+rv_arr = required_version.split('.').map{ |s| s.to_i }
+av_arr = RUBY_VERSION.split('.').map{ |s| s.to_i }
+if (av_arr <=> rv_arr) < 0
+  abort("Ruby version #{required_version} required, but found #{RUBY_VERSION}. Aborting.")
+end
+
 case `hostname`
 when /n[\d+]/
   opt.boost = "/sampa/share/gcc-4.7.2/src/boost_1_51_0"
@@ -151,7 +159,7 @@ def configure(generator, mode, opt)
   end
 
   if opt.install_prefix
-    args << "-DCMAKE_INSTALL_PREFIX=" + opt.install_prefix
+    args << "-DGRAPPA_INSTALL_PREFIX=" + opt.install_prefix
   end
 
   cd build_dir do

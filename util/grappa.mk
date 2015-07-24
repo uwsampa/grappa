@@ -66,8 +66,6 @@ GRAPPA_INCLUDE_PATHS=-I$(GRAPPA_PREFIX)/include -I$(GRAPPA_PREFIX)/include/Grapp
 # assign to CXXFLAGS for automatic builds using gmake default implicit rules
 GRAPPA_CXXFLAGS=$(GRAPPA_COMPILE_FLAGS) $(GRAPPA_INCLUDE_PATHS)
 
-# old include dirs: ${GMAKE_CXX_INCLUDE_DIRS}
-
 #############################################################################
 # link flags
 #############################################################################

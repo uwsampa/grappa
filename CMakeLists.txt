@@ -7,7 +7,9 @@ include(util/grappa.cmake)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
-set(CMAKE_INSTALL_PREFIX "/opt/grappa")
+SET(GRAPPA_INSTALL_PREFIX "/opt/grappa" CACHE PATH "Prefix prepended to install directories")
+SET(CMAKE_INSTALL_PREFIX "${GRAPPA_INSTALL_PREFIX}" CACHE INTERNAL "Prefix prepended to install directories" FORCE)
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 # if( NOT DEFINED ENV{CXX} )
@@ -29,6 +31,18 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
+# Check GCC version
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.7.2)
+    message(FATAL_ERROR "When using GCC, the version must be at least 4.7.2. Found ${CMAKE_CXX_COMPILER_VERSION} instead.")
+  endif()
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.4)
+    message(FATAL_ERROR "When using Clang, the version must be at least 3.4. Found ${CMAKE_CXX_COMPILER_VERSION} instead.")
+  endif()
+else()
+  message(WARNING "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
+endif()
 
 ###########################
 # Use RUNPATH if available
@@ -453,9 +467,9 @@ endif()
 get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
 if(CMAKE_CXX_INCLUDE_DIRS)
   foreach(dir ${CMAKE_CXX_INCLUDE_DIRS})
-    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR)
-    string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)
-    if(INCLUDE_IN_SOURCE_DIR EQUAL -1 OR INCLUDE_IN_BUILD_DIR EQUAL -1)
+    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR) # -1 if not found, 0 if found
+    string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)  # -1 if not found, 0 if found
+    if(NOT INCLUDE_IN_SOURCE_DIR EQUAL 0 AND NOT INCLUDE_IN_BUILD_DIR EQUAL 0)
       list(APPEND GRAPPA_INCLUDE_DIRS_INSTALLED ${dir})
     endif()
   endforeach()
