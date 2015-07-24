@@ -455,9 +455,9 @@ endif()
 get_directory_property(CMAKE_CXX_INCLUDE_DIRS DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos INCLUDE_DIRECTORIES)
 if(CMAKE_CXX_INCLUDE_DIRS)
   foreach(dir ${CMAKE_CXX_INCLUDE_DIRS})
-    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR)
-    string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)
-    if(INCLUDE_IN_SOURCE_DIR EQUAL -1 OR INCLUDE_IN_BUILD_DIR EQUAL -1)
+    string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR) # -1 if not found, 0 if found
+    string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)  # -1 if not found, 0 if found
+    if(NOT INCLUDE_IN_SOURCE_DIR EQUAL 0 AND NOT INCLUDE_IN_BUILD_DIR EQUAL 0)
       list(APPEND GRAPPA_INCLUDE_DIRS_INSTALLED ${dir})
     endif()
   endforeach()
