@@ -78,12 +78,11 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
                                    VampirTrace build in 'third-party' dir.
     --vampir=path/to/vampirtrace/root
                                  Specify path to VampirTrace build (enables tracing).
-    --no-downloads
-                                 Can optionally skip downloading of third-party dependencies, expecting
-                                   to find the source archives in ```third-party/downloads``` instead.
     --third-party=path/to/built/deps/root
                                  Can optionally pre-build third-party dependencies instead of 
                                    re-building for each configuration.
+    --third-party-tarfile=/path/to/file.tar
+                                 Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website).
     --prefix=path/to/grappa/installation
                                  Specify destination for Grappa installation (defaults to /opt/grappa).
 
@@ -114,9 +113,7 @@ Because Boost takes the longest to compile and is often included in systems, Boo
 
 If you want to build Grappa on a machine without access to the web, and that machine doesn't already have all the third-party libraries installed that Grappa needs, you'll have to provide the source archives for those dependences yourself. 
 
-To do so, download and untar the following file in ```third-party/downloads```. Then run ```configure```, including the ```--no-downloads``` flag with any the other flags you may need to set.
-
-[http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar)
+To do so, download this file: [http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar). Then run ```configure``` and specify the path to the downloaded file by including this option: ```--third-party-tarfile=</path/to/tarfile>```.
 
 ## Installing Grappa
 
