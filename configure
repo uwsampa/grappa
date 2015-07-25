@@ -40,7 +40,7 @@ OptionParser.new{|p|
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
-  p.on('--no-downloads', "Expect third-party dependences to already exist in third-party/downloads, rather than downloading them from the web."){|b| opt.no_downloads = true }
+  p.on('--third-party-tarfile=/path/to/file.tar', "Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website)."){|p| opt.third_party_tarfile = p }
   p.on('--verbose', "Output verbose configure information."){|b| opt.verbose = true }
   p.on('--prefix=path/to/installed/grappa',"Specify destination for Grappa installation (default=/opt/grappa)."){|p| opt.install_prefix = p }
 }.parse!(ARGV)
@@ -104,8 +104,8 @@ def configure(generator, mode, opt)
     args << %Q[-G"#{generator}"]
   end
   
-  if opt.no_downloads
-    args << "-DNO_DOWNLOADS=true"
+  if opt.third_party_tarfile
+    args << "-DTHIRD_PARTY_TARFILE:FILEPATH=#{opt.third_party_tarfile}"
   end
 
   if opt.tracing
