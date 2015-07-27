@@ -113,7 +113,7 @@ Because Boost takes the longest to compile and is often included in systems, Boo
 
 If you want to build Grappa on a machine without access to the web, and that machine doesn't already have all the third-party libraries installed that Grappa needs, you'll have to provide the source archives for those dependences yourself. 
 
-To do so, download this file: [http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar). Then run ```configure``` and specify the path to the downloaded file by including this option: ```--third-party-tarfile=</path/to/tarfile>```.
+To do so, download this file: [http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar). Then run ```configure``` with the option ```--third-party-tarfile=</path/to/file.tar>``` pointing at the tarfile.
 
 ## Installing Grappa
 
