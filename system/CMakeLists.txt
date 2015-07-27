@@ -172,6 +172,7 @@ add_dependencies(Grappa all-third-party)
 install(TARGETS Grappa DESTINATION "lib")
 
 install(DIRECTORY .     DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+install(DIRECTORY .     DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.h")
 install(DIRECTORY graph DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
 install(DIRECTORY tasks DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
 
