@@ -77,6 +77,7 @@ namespace Grappa {
       uint64_t functor_storage[3] = { a0, a1, a2 };
       T * tp = reinterpret_cast< T * >( &functor_storage[0] );
       (*tp)();
+      tp->~T();
     }
 
     /// Helper function to insert lambdas and functors in our task
@@ -153,7 +154,8 @@ namespace Grappa {
     
     DVLOG(5) << "Worker " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
     
-    uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
+    uint64_t args[3];
+    new (reinterpret_cast<TF*>(&args[0])) TF(tf);
     Grappa::impl::global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
   }
 

@@ -442,7 +442,7 @@ TupleGraph TupleGraph::load_mm( std::string path ) {
             infile >> d;
             data = *((uint64_t*)&d);
           }
-          Edge e = { v0, v1, data };
+          Edge e = { v0, v1 };
           DVLOG(6) << "Read " << v0 << " -> " << v1 << " with data " << (void*) data;
           read_edges.push_back( e );
           start_offset = infile.tellg();

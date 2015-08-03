@@ -6,18 +6,24 @@ Grappa is a runtime system for scaling irregular applications on commodity clust
 
 Grappa is a research project and is still young! Please expect things to break. Please do not expect amazing performance yet. Please ask for help if you run into problems. We're excited for you to use the software and to help make Grappa a great tool for the irregular applications community! For more information about the project, visit the project website: [grappa.io](http://grappa.io).
 
+*Note:* we will shortly be re-releasing this code under a BSD license. Stay tuned!
+
 Dependences
 -------------------------------------------------------------------------------
 You must have a Linux system with the following installed to build Grappa:
 
 * Build system
   * Ruby >= 1.9.3
-  * CMake >= 2.8.6
+  * CMake >= 2.8.12
 * Compiler
   * GCC >= 4.7.2 (we depend on C++11 features only present in 4.7.2 and newer)
   * Or: Clang >= 3.4
 * External:
-  * MPI (tested with OpenMPI >= 1.5.4 and Mvapich2 >= 1.7, but should work with any)
+  * MPI (must support MPI-3)
+    * OpenMPI >= 1.7.4
+    * MVAPICH2 >= 1.9
+    * MPICH >= 3.1
+    * Intel MPI >= 5.0.2.044
 
 The configure script deals with some other dependences automatically. You may want to override the default behavior for your specific system. See [BUILD.md](BUILD.md) for more details.
 
@@ -41,7 +47,7 @@ Now build grappa and hello world.
 cd grappa
 ./configure
 cd build/Make+Release
-make -j demo-hello_world
+make demo-hello_world
 ```
 
 Now you should have a binary which you can launch as an MPI job. If you have Slurm installed on your system, you can use our convenient job-launch script:
@@ -49,6 +55,8 @@ Now you should have a binary which you can launch as an MPI job. If you have Slu
 ```bash
 bin/grappa_srun --nnode=2 --ppn=2 -- applications/demos/hello_world/hello_world.exe
 ```
+
+Otherwise, just source ```bin/settings.sh``` and run as a MPI job on your system.
 
 For more detailed instructions on building Grappa, see [BUILD.md](BUILD.md).
 
@@ -64,7 +72,7 @@ You can learn more about Grappa's design and use in four ways:
 
 Getting Help
 -------------------------------------------------------------------------------
-The best way to ask questions is to submit an issue on GitHub: by keeping questions there we can make sure the answers are easy for everyone to find. View previously-discussed issues here: https://github.com/uwsampa/grappa/issues?labels=question. If your question isn't already answered, please submit an issue with the "Question" tag.
+The best way to ask questions is to submit an issue on GitHub: by keeping questions there we can make sure the answers are easy for everyone to find. View previously-discussed issues here: https://github.com/uwsampa/grappa/issues?labels=question. If your question isn't already answered, please submit an issue there!
 
 Grappa developers communicate through the grappa-dev mailing list hosted at cs.washington.edu.
 

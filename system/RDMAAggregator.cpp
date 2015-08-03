@@ -24,6 +24,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <tuple>
 
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
@@ -42,7 +43,9 @@ namespace Grappa {
 
 DEFINE_bool( enable_aggregation, true, "Enable message aggregation." );
 
-DEFINE_int64( target_size, 0, "Target size for aggregated messages capacity flushes; disabled by default" );
+DEFINE_int64( target_size, 0, "Deprecated; do not use. Target size for aggregated messages capacity flushes; disabled by default" );
+
+DEFINE_int64( aggregator_target_size, 1 << 10, "Target size for aggregated messages" );
 
 DECLARE_int64( log2_concurrent_receives );
 DECLARE_int64( log2_concurrent_sends );
@@ -52,7 +55,7 @@ DEFINE_int64( rdma_buffers_per_core, 1 << 7, "Number of RDMA aggregated message 
 
 DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immediately instead of using RDMA" );
 
-DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
+DEFINE_string( route_graph_filename, "", "Name of file for routing graph output (no output if empty)" );
 
 DEFINE_bool( rdma_flush_on_idle, true, "Flush RDMA buffers when idle" );
 
@@ -64,6 +67,9 @@ GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_immediate, 0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_serialized, 0 );
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_bytes_serialized, 0 );
 GRAPPA_DEFINE_METRIC( SimpleMetric<int64_t>, app_messages_deserialized, 0 );
+
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_nt_message_bytes, 0 );
+GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, aggregated_nt_message_bytes, 0 );
 
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_messages_delivered_locally, 0 );
 GRAPPA_DEFINE_METRIC( SummarizingMetric<int64_t>, app_bytes_delivered_locally, 0 );
@@ -166,6 +172,13 @@ namespace Grappa {
             // }
           }
 
+        }
+
+        // flush NT buffers
+        while( ntbuffer_mru_root_ != nullptr ) {
+          DVLOG(5) << "Flushing NT buffer " << ntbuffer_mru_root_;
+          nt_flush( ntbuffer_mru_root_ );
+          send_nt_buffer( ntbuffer_mru_root_ - ntbuffers_, ntbuffer_mru_root_ );
         }
       }
     }
@@ -272,6 +285,10 @@ namespace Grappa {
           }
         }
       }
+
+      // where can NTBuffer start storing data?
+      NTBuffer::set_initial_offset( 4 ); // TODO: for now we say 32 bytes.
+      ntbuffers_ = new NTBuffer[ global_communicator.cores ];
     }
     
     size_t RDMAAggregator::estimate_footprint() const {
@@ -467,7 +484,10 @@ namespace Grappa {
     DVLOG(2) << "Receiving buffer with deserializer " << (void*) (*((int64_t*)c->buf));
     // correct for deserializer bytes
     RDMABuffer * b = reinterpret_cast< RDMABuffer * >( c->buf );
-    
+
+    __builtin_prefetch( b,    1, 0 ); // prefetch for read
+    //__builtin_prefetch( b+64, 1, 0 ); // prefetch for read
+
     DVLOG(2) << __func__ << ": Receiving buffer of size " << size
              << " from " << b->get_source() << " to " << b->get_dest()
              << " at " << buf << " with ack " << b->get_ack()
@@ -484,54 +504,52 @@ namespace Grappa {
   }
 
 
-
-
-
 void RDMAAggregator::draw_routing_graph() {
-  {
-    if( Grappa::mycore() == 0 ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::trunc );
-      o << "digraph Routing {\n";
-      o << "    node [shape=record];\n";
-      o << "    splines=true;\n";
-    }
-  }
-  global_communicator.barrier();
-
-  for( int n = 0; n < Grappa::locales(); ++n ) {
-    if( Grappa::locale_mycore() == 0 && n == Grappa::mylocale() ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
-
-      o << "    n" << n << " [label=\"n" << n;
-      for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
-        o << "|";
-        if( c == n * Grappa::locale_cores() ) o << "{";
-        o << "<c" << c << "> c" << c;
+  if( FLAGS_route_graph_filename != "" ) {
+    {
+      if( Grappa::mycore() == 0 ) {
+        std::ofstream o( FLAGS_route_graph_filename, std::ios::trunc );
+        o << "digraph Routing {\n";
+        o << "    node [shape=record];\n";
+        o << "    splines=true;\n";
       }
-      o << "}\"];\n";
-
-      //for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
-      for( int d = 0; d < Grappa::locales(); ++d ) {
-        if( d != Grappa::mylocale() ) {
-          o << "    n" << n << ":c" << source_core_for_locale_[d] << ":e"
-            << " -> n" << d << ":c" << dest_core_for_locale_[d] << ":w"
-            << " [headlabel=\"c" << source_core_for_locale_[d] << "\"]"
-            << ";\n";
-        }
-      }
-
     }
     global_communicator.barrier();
-  }
 
-  {
-    if( Grappa::mycore() == 0 ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
-      o << "}\n";
+    for( int n = 0; n < Grappa::locales(); ++n ) {
+      if( Grappa::locale_mycore() == 0 && n == Grappa::mylocale() ) {
+        std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
+
+        o << "    n" << n << " [label=\"n" << n;
+        for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
+          o << "|";
+          if( c == n * Grappa::locale_cores() ) o << "{";
+          o << "<c" << c << "> c" << c;
+        }
+        o << "}\"];\n";
+
+        //for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
+        for( int d = 0; d < Grappa::locales(); ++d ) {
+          if( d != Grappa::mylocale() ) {
+            o << "    n" << n << ":c" << source_core_for_locale_[d] << ":e"
+              << " -> n" << d << ":c" << dest_core_for_locale_[d] << ":w"
+              << " [headlabel=\"c" << source_core_for_locale_[d] << "\"]"
+              << ";\n";
+          }
+        }
+
+      }
+      global_communicator.barrier();
+    }
+
+    {
+      if( Grappa::mycore() == 0 ) {
+        std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
+        o << "}\n";
+      }
     }
   }
 }
-
 
 
 
@@ -700,15 +718,23 @@ void RDMAAggregator::draw_routing_graph() {
       rdma_receive_start++;
       active_receive_workers_++;
 
+      __builtin_prefetch( buf,    1, 0 ); // prefetch for read
+      __builtin_prefetch( buf+64, 1, 0 ); // prefetch for read
+      
       DVLOG(2) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                << " processing buffer " << buf << " context " << buf->deserializer
                << " serial " << reinterpret_cast<int64_t>( buf->get_ack() );
 
       // what core is buffer from?
       Core c = buf->get_source();
-      
-      // process buffer
-      receive_buffer( buf );
+
+      if( buf->get_ack() == reinterpret_cast<RDMABuffer*>(-1) ) {
+        // process buffer through non-temporal path
+        receive_nt_buffer( buf );
+      } else {
+        // process buffer through normal path
+        receive_buffer( buf );
+      }
 
       // // once we're done, send ack to give permission to send again,
       // // unless buffer is from the local core (for debugging)
@@ -758,6 +784,14 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
+
+  void RDMAAggregator::receive_nt_buffer( RDMABuffer * buf ) {
+    int64_t * size = reinterpret_cast<int64_t*>( buf->get_counts() );
+    char * b = reinterpret_cast<char*>( size + 1 );
+    Grappa::impl::global_scheduler.set_no_switch_region( true );
+    deaggregate_nt_buffer( b, *size );
+    Grappa::impl::global_scheduler.set_no_switch_region( false );
+  }
 
 
 
@@ -1269,5 +1303,38 @@ void RDMAAggregator::draw_routing_graph() {
   }
 
 
+  void RDMAAggregator::send_nt_buffer( Core dest, NTBuffer * buf ) {
+    buf->remove_from_mru( &ntbuffer_mru_root_ );
+    auto buftuple = buf->take_buffer();
+    auto b = reinterpret_cast<RDMABuffer*>( std::get<0>(buftuple) );
+    auto size = std::get<1>(buftuple);
+    DVLOG(3) << "Sending NT buffer " << b << " of size " << size;
+
+    // TODO: hack to carry size for now
+    int64_t * size_p = reinterpret_cast<int64_t*>( b->get_counts() );
+    *size_p = size - 4 * sizeof(uint64_t); // TODO: make header smarter
+    
+    b->set_dest( dest );
+    b->set_next( reinterpret_cast<RDMABuffer*>( size ) );
+    b->set_source( Grappa::mycore() );
+    b->set_ack( reinterpret_cast<RDMABuffer*>(-1) ); // TODO: magic number for now
+    b->deserializer = (void*) &enqueue_buffer_am;
+    b->context.callback = [] ( CommunicatorContext * c, int source, int tag, int received_size ) {
+      DVLOG(4) << "Got callback for " << c;
+      free( c->buf );
+    };
+    b->context.buf = (void*) b;
+    b->context.size = b->get_max_size();
+    b->context.reference_count = 1;
+    DVLOG(3) << "Sending " << &b->context << " with deserializer " << (void*) &enqueue_buffer_am;
+    global_communicator.post_external_send( &b->context, dest, size );
+    aggregated_nt_message_bytes += size;
+    
+    // give ourselves a chance to receive something
+    if( !global_scheduler.in_no_switch_region() ) {
+      Grappa::impl::global_scheduler.thread_yield();
+    }
   }
+
+}
 }

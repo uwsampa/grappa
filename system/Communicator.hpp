@@ -272,6 +272,11 @@ public:
     MPI_CHECK( MPI_Barrier( grappa_comm ) );
   }
 
+  template< typename T >
+  inline void allreduce_inplace(T * p, MPI_Datatype type, MPI_Op op) {
+    MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, p, 1, type, op, grappa_comm ) );
+  }
+
   /// Global (anonymous) two-phase barrier notify (ALLNODES)
   inline void barrier_notify() {
     MPI_CHECK( MPI_Ibarrier( grappa_comm, &barrier_request ) );

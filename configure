@@ -10,6 +10,14 @@ opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
 opt.third_party = ENV['GRAPPA_THIRD_PARTY']
 
+# verify we're running a supported ruby version
+required_version = '1.9.3'
+rv_arr = required_version.split('.').map{ |s| s.to_i }
+av_arr = RUBY_VERSION.split('.').map{ |s| s.to_i }
+if (av_arr <=> rv_arr) < 0
+  abort("Ruby version #{required_version} required, but found #{RUBY_VERSION}. Aborting.")
+end
+
 case `hostname`
 when /n[\d+]/
   opt.boost = "/sampa/share/gcc-4.7.2/src/boost_1_51_0"
@@ -25,24 +33,37 @@ OptionParser.new{|p|
   line_break = "\n#{p.summary_indent}#{' '*p.summary_width}   "
   p.on('--gen=[Make]|Ninja|Xcode[,*]',"Build tool to generate scripts for.#{line_break}Default: Make.#{line_break}Can specify multiple with commas."){|a| opt.generator = a }
   p.on('--mode=[Release]|Debug[,*]','Build mode. Default: Release (with debug symbols)'){|a| opt.mode = a }
-  p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p; opt.used_cc_flag = true }
+  p.on('--cc=path/to/c/compiler','Use alternative C compiler (infer C++ compiler from this path).'){|p| opt.cc = p; opt.used_cc_flag = true }
+  p.on('--cxx=path/to/c++/compiler','Use alternative C++ compiler (infer C compiler from this path).'){|p| opt.cxx = p; opt.used_cxx_flag = true }
   p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
   p.on('--name=NAME',"Add an additional name to this configuration to #{line_break}distinguish it (i.e. compiler version)"){|n| opt.name = n }
   p.on('--tracing',"Enable VampirTrace/gperftools-based sampled tracing. #{line_break}Looks for VampirTrace build in 'third-party' dir."){|b| opt.tracing = true }
   p.on('--profiling',"Enable gperftools-based sampled profiling."){|b| opt.profiling = true }
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
-  p.on('--shmmax=SIZE',"Manually set maximum SysV shared memory size"){|n| opt.shmmax = n }
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
+  p.on('--third-party-tarfile=/path/to/file.tar', "Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website)."){|p| opt.third_party_tarfile = p }
+  p.on('--verbose', "Output verbose configure information."){|b| opt.verbose = true }
+  p.on('--prefix=path/to/installed/grappa',"Specify destination for Grappa installation (default=/opt/grappa)."){|p| opt.install_prefix = p }
 }.parse!(ARGV)
 
 if opt.used_cc_flag
   # automatically determine cxx from --cc
   case opt.cc
-  when /bin\/gcc/
-    opt.cxx = opt.cc.gsub(/bin\/gcc/,'bin/g++')
-  when /bin\/clang/
-    opt.cxx = opt.cc.gsub(/bin\/clang/,'bin/clang++')
+  when /gcc/
+    opt.cxx = opt.cc.gsub(/gcc/,'g++')
+  when /clang/
+    opt.cxx = opt.cc.gsub(/clang/,'clang++')
+  end
+end
+
+if opt.used_cxx_flag
+  # automatically determine cc from --cxx
+  case opt.cxx
+  when /g\+\+/
+    opt.cc = opt.cxx.gsub(/g\+\+/,'gcc')
+  when /clang\+\+/
+    opt.cc = opt.cxx.gsub(/clang\+\+/,'clang')
   end
 end
 
@@ -50,8 +71,8 @@ end
 # see github.com/bholt/Clang-Head.xcplugin for an example
 
 ### unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
-  if not(opt.cc) || not(opt.cxx)
-    abort("Must specify C compiler (either use '--cc=' flag, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
+  if not(opt.cc) && not(opt.cxx)
+    abort("Must specify C compiler (either use '--cc=' or '--cxx=' flags, or set the environment variables CC & CXX\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc)...")
   end
 ### end
 
@@ -85,18 +106,10 @@ def configure(generator, mode, opt)
     args << %Q[-G"#{generator}"]
   end
   
-  # determine shared memory size
-  unless opt.shmmax
-    opt.shmmax = `sysctl kernel.shmmax 2>/dev/null`
-    if not $?.success?
-      opt.shmmax = `sysctl kern.sysv.shmmax 2>/dev/null`
-      if not $?.success?
-        abort "error: unable to determine max SysV shared memory size automatically. Please set it manually with --shmmax option (usually half your main memory size)."
-      end
-    end
+  if opt.third_party_tarfile
+    args << "-DTHIRD_PARTY_TARFILE:FILEPATH=#{opt.third_party_tarfile}"
   end
-  args << "-DSHMMAX=#{opt.shmmax[/(\d+)$/]}" if opt.shmmax
-  
+
   if opt.tracing
     vtcc = "#{opt.vampir}/bin/vtcc"
     abort("error: Unable to find VampirTrace wrappers at #{vtcc}") if not File.exists?(vtcc)
@@ -132,6 +145,10 @@ def configure(generator, mode, opt)
     args << "-DBOOST_ROOT=#{opt.boost}"
   end
   
+  if opt.verbose
+    args << "-DVERBOSE=ON"
+  end
+
   if opt.build_here
     build_dir = "."
   else
@@ -142,7 +159,11 @@ def configure(generator, mode, opt)
     build_dir << "+#{opt.name}" if opt.name
     mkdir_p build_dir
   end
-  
+
+  if opt.install_prefix
+    args << "-DGRAPPA_INSTALL_PREFIX=" + opt.install_prefix
+  end
+
   cd build_dir do
     
     puts "cmake #{args.join(' ')} #{ARGV.join(' ')}"
@@ -151,8 +172,11 @@ def configure(generator, mode, opt)
     if $?.success?
       puts "-------------------------------------"
       unless opt.build_here
-        puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
-          {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+        puts ("created #{build_dir}; to build:\n> cd #{build_dir}; " + 
+          {'Make'=>'make','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator])
+        if generator == 'Make'
+          puts '(use make -j<numcores> to build in parallel)'
+        end
         puts "-------------------------------------"
       end
     end

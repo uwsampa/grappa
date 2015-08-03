@@ -7,3 +7,5 @@ foreach(file ${scripts})
     ln -sf ${relative_file} ${CMAKE_CURRENT_BINARY_DIR}/${name}
   )
 endforeach()
+
+install(PROGRAMS settings.sh DESTINATION "bin")

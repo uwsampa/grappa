@@ -23,18 +23,15 @@
 
 #include "LocaleSharedMemory.hpp"
 
-#ifndef SHMMAX
-#error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
-#endif
+DEFINE_int64( locale_shared_size, 0, "Total shared memory between cores on node (when 0, defaults to locale_shared_fraction * total node memory)" );
 
-DEFINE_int64( locale_shared_size, 0, "Total shared memory between cores on node (when 0, defaults to locale_shared_fraction * SHMMAX)" );
-
-DEFINE_double( locale_shared_fraction, 1.0, "Fraction of SHMMAX to allocate for Grappa" );
+DEFINE_double( locale_shared_fraction, 0.5, "Fraction of total node memory to allocate for Grappa" );
 
 DEFINE_double( locale_user_heap_fraction, 0.1, "Fraction of locale shared memory to set aside for the user" );
 
 DEFINE_double( global_heap_fraction, 0.25, "Fraction of locale shared memory to set aside for global shared heap" );
 
+DECLARE_int64( node_memsize );
 DECLARE_bool( global_memory_use_hugepages );
 
 // forward declarations
@@ -125,11 +122,15 @@ void LocaleSharedMemory::attach() {
           << " of " << global_communicator.cores;
 }
 
-void LocaleSharedMemory::destroy() {
+void LocaleSharedMemory::unlink() {
   VLOG(2) << "Removing LocaleSharedMemory region " << region_name 
           << " on " << global_communicator.mycore 
           << " of " << global_communicator.cores;
-  boost::interprocess::shared_memory_object::remove( region_name.c_str() );
+  // according to docs, this just does unlink(), so object will be removed once no process is using it.
+  bool success = boost::interprocess::shared_memory_object::remove( region_name.c_str() );
+  if( !success ) {
+    LOG(WARNING) << "Remove/unlink call filed for shared memory object " << region_name.c_str() << ".";
+  }
   VLOG(2) << "Removed LocaleSharedMemory region " << region_name 
           << " on " << global_communicator.mycore 
           << " of " << global_communicator.cores;
@@ -146,7 +147,7 @@ LocaleSharedMemory::LocaleSharedMemory()
   boost::interprocess::shared_memory_object::remove( region_name.c_str() );
 
   // TODO: figure out reasonable region size
-  // maybe reuse SHMMAX stuff?
+  // maybe reuse total memory measurement?
   
 }
 
@@ -156,7 +157,7 @@ LocaleSharedMemory::~LocaleSharedMemory() {
 
 void LocaleSharedMemory::init() {
   if( 0 == FLAGS_locale_shared_size ) {
-    double locale_shared_size = FLAGS_locale_shared_fraction * static_cast< double >( SHMMAX );
+    double locale_shared_size = FLAGS_locale_shared_fraction * static_cast< double >( FLAGS_node_memsize );
     region_size = static_cast< int64_t >( locale_shared_size );
     FLAGS_locale_shared_size = region_size;
   }
@@ -167,12 +168,14 @@ void LocaleSharedMemory::activate() {
   global_communicator.barrier();
   if( Grappa::locale_mycore() != 0 ) { attach(); }
   global_communicator.barrier();
+  if( Grappa::locale_mycore() == 0 ) { unlink(); } // delete once everyone has released it
   //available = global_bytes_per_core;
 }
 
 void LocaleSharedMemory::finish() {
-  global_communicator.barrier();
-  if( Grappa::locale_mycore() == 0 ) { destroy(); }
+  // let Boost's atexit() handler take care of this
+  //global_communicator.barrier(); // we should have a barrier before destroying the shared memory region
+  //if( Grappa::locale_mycore() == 0 ) { destroy(); }
 }
 
 void * LocaleSharedMemory::allocate( size_t size ) {

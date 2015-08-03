@@ -51,10 +51,6 @@
 
 #include "Grappa.hpp"
 
-#ifndef SHMMAX
-#error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
-#endif
-
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -62,6 +58,8 @@
 // command line arguments
 DEFINE_uint64( num_starting_workers, 512, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
+
+DEFINE_int64( node_memsize, -1, "User-specified node memory size; overrides autodetection" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
@@ -73,6 +71,9 @@ DECLARE_double( global_heap_fraction );
 DECLARE_int64( shared_pool_max_size );
 DECLARE_bool( global_memory_use_hugepages );
 DECLARE_double(locale_shared_fraction);
+
+DECLARE_bool(logtostderr);
+DECLARE_int32(v);
 
 
 using namespace Grappa::impl;
@@ -102,7 +103,7 @@ namespace Grappa {
   IODescriptor * aio_completed_stack;
   
   namespace impl {
-    
+
     int64_t global_memory_size_bytes = 0;
     int64_t global_bytes_per_core = 0;
     int64_t global_bytes_per_locale = 0;
@@ -147,14 +148,14 @@ namespace Grappa {
         new_bpp = 1L << 30;
       }
       MASTER_ONLY VLOG_IF(1, bytes_per_core != new_bpp) << "With ppn=" << ppn << ", can only allocate "
-      << pages_per_core*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
+      << pages_per_core*ppn << " / " << FLAGS_node_memsize / (1L << 30) << " 1GB huge pages per node";
       bytes_per_core = new_bpp;
     }
     
     int64_t bytes = nnode * ppn * bytes_per_core;
     int64_t bytes_per_node = ppn * bytes_per_core;
     MASTER_ONLY DVLOG(2) << "bpp = " << bytes_per_core << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
-    << ", SHMMAX = " << SHMMAX << ", heap_size = " << sz;
+    << ", node_memsize = " << FLAGS_node_memsize << ", heap_size = " << sz;
     MASTER_ONLY VLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     
     impl::global_memory_size_bytes = bytes;
@@ -231,8 +232,7 @@ namespace impl {
 
 void freeze_for_debugger() {
   auto pid = getpid();
-  LOG(INFO) << global_communicator.hostname() << ":" << pid << " freezing for debugger. Set freeze_flag=false to continue.";
-  google::FlushLogFiles(google::GLOG_INFO);
+  std::cerr << global_communicator.hostname() << ":" << pid << " freezing for debugger. Set freeze_flag=false to continue." << std::endl;
   fflush(stdout);
   fflush(stderr);
 
@@ -253,15 +253,13 @@ void failure_function() {
   exit(1);
 }
 
-static void failure_sighandler( int signum ) {
-  google::FlushLogFiles(google::GLOG_INFO);
-  google::DumpStackTrace();
+static void failure_sighandler( int signum, siginfo_t * si, void * unused ) {
+  google::FlushLogFilesUnsafe(google::GLOG_INFO); // must call outside signal handler first to ensure malloc has completed
   if( freeze_flag ) {
-    freeze_for_debugger();
+      freeze_for_debugger();
   }
-  LOG(INFO) << "Exiting due to signal " << signum;
-  google::FlushLogFiles(google::GLOG_INFO);
-  exit(1);
+  std::cerr << "Exiting due to signal " << signum << " with siginfo " << si << " and payload " << unused << std::endl;
+  _exit(1);
 }
 
 static void mpi_failure_function( MPI_Comm * comm, int * error_code, ... ) {
@@ -279,7 +277,7 @@ void adjust_footprints() {
   auto locale_cores = global_communicator.locale_cores;
   auto locale_total = FLAGS_locale_shared_size;
   
-  // (FLAGS_locale_shared_size either set manually or computed from fraction of SHMMAX)
+  // (FLAGS_locale_shared_size either set manually or computed from fraction of node_memsize)
   auto locale_heap_bytes = static_cast<size_t>(FLAGS_locale_user_heap_fraction * (double)locale_total);
   auto global_heap_bytes = Grappa::impl::global_memory_size_bytes;
   
@@ -289,7 +287,7 @@ void adjust_footprints() {
     << "\nMust leave some memory for Grappa system components!\n"
     << " - locale_heap_bytes: " << locale_heap_bytes << "\n"
     << " - global_heap_bytes: " << global_heap_bytes << "\n"
-    << " - total (SHMMAX):    " << locale_total;
+    << " - total:    " << locale_total;
   
   auto total_footprint = []{
     return global_communicator.estimate_footprint()
@@ -349,15 +347,56 @@ void adjust_footprints() {
 /// user calls Grappa_activate().
 void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_bytes)
 {
-  // std::cerr << "Argc is " << *argc_p << std::endl;
-  // for( int i = 0; i < *argc_p; ++i ) {
-  //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
-  // }
-  
-  if (global_memory_size_bytes == -1) {
-    
+
+  // set environment variables
+  // these are sometime overridden by grappa_srun or its equivalent
+  {
+    const int DONT_OVERWRITE_ENV = 0;
+
+    // set default logging settings if they are not already set 
+
+    // The follwing are used only when our version version of glog
+    // doesn't know about gflags, which is rarely the case when building
+    // Grappa.
+    if( 0 != setenv("GLOG_logtostderr", "1", DONT_OVERWRITE_ENV) ) {
+      std::cout << "Error setting GLOG_logtostderr default value";
+      exit(1);
+    }
+    if( 0 != setenv("GLOG_v", "1", DONT_OVERWRITE_ENV) ) {
+      std::cout << "Error setting GLOG_v default value";
+      exit(1);
+    }
+
+    // Most of the time glog knows about gflags, and so these are used
+    // instead:
+    FLAGS_logtostderr = 1;
+    FLAGS_v = 1;
+
+    // set Google profiler sample rate
+    setenv("CPUPROFILE_FREQUENCY", "50", DONT_OVERWRITE_ENV);
+
+    // set VampirTrace options
+    setenv("VT_MAX_FLUSHES", "0", DONT_OVERWRITE_ENV);
+    setenv("VT_PFORM_GDIR", ".", DONT_OVERWRITE_ENV);
+    setenv("VT_PFORM_LDIR", "/scratch", DONT_OVERWRITE_ENV);
+    setenv("VT_FILE_UNIQUE", "yes", DONT_OVERWRITE_ENV);
+    setenv("VT_MPITRACE", "no", DONT_OVERWRITE_ENV);
+    setenv("VT_UNIFY", "no", DONT_OVERWRITE_ENV);
+
+    // MVAPICH2 options to avoid keeping around malloced memory
+    // (and some performance tweaks which may be irrelevant)
+    // TODO: figure out if these need to be set, and if so what equivalents for other MPI libraries are
+    setenv("MV2_USE_LAZY_MEM_UNREGISTER", "0", DONT_OVERWRITE_ENV);
+    setenv("MV2_HOMOGENEOUS_CLUSTER", "1", DONT_OVERWRITE_ENV);
+    setenv("MV2_USE_RDMA_FAST_PATH", "0", DONT_OVERWRITE_ENV);
+    setenv("MV2_SRQ_MAX_SIZE", "8192", DONT_OVERWRITE_ENV);
+
+    // OpneMPI options to avoid keeping around malloced memory
+    // TODO: figure out if these need to be set, and if so what equivalents for other MPI libraries are
+    setenv("MPI_MCA_mpi_leave_pinned", "0", DONT_OVERWRITE_ENV);
+    setenv("MPI_MCA_mpi_yield_when_idle", "0", DONT_OVERWRITE_ENV);
   }
-  
+
   // help generate unique profile filename
   Grappa::impl::set_exe_name( (*argv_p)[0] );
 
@@ -367,7 +406,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &Grappa::impl::failure_function );
-  
+
   DVLOG(2) << "Initializing Grappa library....";
 
 #ifdef HEAPCHECK_ENABLE
@@ -438,8 +477,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 
   struct sigaction sigsegv_sa;
   sigemptyset( &sigsegv_sa.sa_mask );
-  sigsegv_sa.sa_flags = 0;
-  sigsegv_sa.sa_handler = &Grappa::impl::failure_sighandler;
+  sigsegv_sa.sa_flags = SA_SIGINFO;
+  sigsegv_sa.sa_sigaction = &Grappa::impl::failure_sighandler;
   CHECK_EQ( 0, sigaction( SIGSEGV, &sigsegv_sa, 0 ) ) << "SIGSEGV signal handler installation failed.";
 
   // Asynchronous IO
@@ -482,6 +521,13 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
 #endif
 
   // initialize node shared memory
+  if( FLAGS_node_memsize == -1 ) { 
+    // if user doesn't specify how much memory each node has, try to estimate.
+    long pages = sysconf(_SC_PHYS_PAGES);
+    long page_size = sysconf(_SC_PAGE_SIZE);
+    FLAGS_node_memsize = pages * page_size;
+    VLOG(2) << "Estimated node memory size = " << FLAGS_node_memsize;
+  }
   locale_shared_memory.init();
   
   // initialize shared message pool
@@ -551,6 +597,7 @@ void Grappa_activate()
   global_communicator.barrier();
 
   // initializes system_wide global_memory pointer
+  global_communicator.allreduce_inplace( &Grappa::impl::global_memory_size_bytes, MPI_INT64_T, MPI_MIN );
   global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
   auto heap_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
 
@@ -565,6 +612,7 @@ void Grappa_activate()
   auto shared_pool_locale_shared_memory_allocated = locale_shared_memory.get_allocated();
   
   if (Grappa::mycore() == 0) {
+    double node_sz_gb = static_cast<double>(FLAGS_node_memsize) / (1L<<30);
     double locale_sz_gb = static_cast<double>(FLAGS_locale_shared_size) / (1L<<30);
     double locale_core_sz_gb = static_cast<double>(FLAGS_locale_shared_size) / Grappa::locale_cores() / (1L<<30);
     double communicator_sz_gb = static_cast<double>( communicator_locale_shared_memory_allocated - base_locale_shared_memory_allocated ) / (1L<<30);
@@ -579,6 +627,7 @@ void Grappa_activate()
     double free_sz_gb = static_cast<double>(free_sz) / (1L<<30);
     double free_core_sz_gb = static_cast<double>(free_sz) / Grappa::locale_cores() / (1L<<30);
     VLOG(1) << "\n-------------------------\nShared memory breakdown:\n"
+            << "  node total:                   " << node_sz_gb << " GB\n"
             << "  locale shared heap total:     " << locale_sz_gb << " GB\n"
             << "  locale shared heap per core:  " << locale_core_sz_gb << " GB\n"
             << "  communicator per core:        " << communicator_sz_gb << " GB\n"
@@ -660,10 +709,7 @@ int Grappa_finish( int retval )
   global_aggregator.finish();
 
   if (global_memory) delete global_memory;
-  locale_shared_memory.finish();
 
-  global_communicator.finish( retval );
- 
 //  Grappa_dump_stats();
 
   // probably never get here (depending on communication layer)
@@ -673,6 +719,10 @@ int Grappa_finish( int retval )
 #ifdef HEAPCHECK_ENABLE
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
+
+  global_communicator.finish( retval );
+
+  locale_shared_memory.finish();
 
   return retval;
 }

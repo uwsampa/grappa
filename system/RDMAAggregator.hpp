@@ -49,9 +49,13 @@
 
 #include "Metrics.hpp"
 
+#include "NTMessage.hpp"
+#include "NTBuffer.hpp"
+
 // #include <boost/interprocess/containers/vector.hpp>
 
 DECLARE_int64( target_size );
+DECLARE_int64( aggregator_target_size );
 DECLARE_int64( aggregator_autoflush_ticks );
 DECLARE_bool( enable_aggregation );
 
@@ -59,6 +63,8 @@ DECLARE_bool( enable_aggregation );
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue );
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_enqueue_cas );
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, app_messages_immediate );
+
+GRAPPA_DECLARE_METRIC( SummarizingMetric<int64_t>, app_nt_message_bytes );
 
 /// stats for RDMA Aggregator events
 GRAPPA_DECLARE_METRIC( SimpleMetric<int64_t>, rdma_capacity_flushes );
@@ -225,6 +231,9 @@ namespace Grappa {
       Core * core_partner_locales_;
       int core_partner_locale_count_;
 
+      NTBuffer * ntbuffers_;
+      NTBuffer * ntbuffer_mru_root_;
+
       void compute_route_map();
       void draw_routing_graph();
       void fill_free_pool( size_t num_buffers );
@@ -268,6 +277,8 @@ namespace Grappa {
 
 
 
+      void send_nt_buffer( Core dest, NTBuffer * buf );
+      void receive_nt_buffer( RDMABuffer * buf );
 
 
 
@@ -451,6 +462,7 @@ namespace Grappa {
         , dest_core_for_locale_( NULL )
         , core_partner_locales_( NULL )
         , core_partner_locale_count_( 0 )
+        , ntbuffers_( nullptr )
         , flushing_( false )
         , received_buffer_list_()
         , free_buffer_list_()
@@ -791,6 +803,26 @@ namespace Grappa {
         Grappa::signal( &flush_cv_ );
       }
 
+      template< typename T >
+      inline void send_nt_message( Core dest, T t ) {
+        NTMessage<T> m( dest, t );
+        DVLOG(3) << "Sending " << sizeof(m) << " bytes to " << dest;
+        app_nt_message_bytes += sizeof(m);
+        int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
+
+        // update mru
+        ntbuffers_[dest].maybe_update_mru( &ntbuffer_mru_root_ );
+
+        // send if we've reached capacity
+        if( size >= (FLAGS_aggregator_target_size + 4 * sizeof(uint64_t)) ) { // TODO: magic number
+          send_nt_buffer( dest, ntbuffers_ + dest );
+        }
+      }
+
+      inline void flush_nt( Core dest ) {
+        nt_flush( ntbuffers_ + dest );
+        send_nt_buffer( dest, ntbuffers_ + dest );
+      }
     };
 
     /// @}

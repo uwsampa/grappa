@@ -128,6 +128,8 @@ set(SYSTEM_SOURCES
   Timestamp.hpp
   Worker.hpp
   stack.h
+  NTBuffer.cpp
+  NTMessage.cpp
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
   # tasks/GlobalQueue.hpp
@@ -152,11 +154,6 @@ list(APPEND SYSTEM_SOURCES
   graph/TupleGraph.hpp
   graph/KroneckerGenerator.cpp
 )
-include_directories("${CMAKE_SOURCE_DIR}/third-party/graph500-generator")
-
-if( GOOGLE_PROFILER )
-  list(APPEND GRAPPA_LIBS "profiler")
-endif()
 
 enable_language(ASM)
 set_source_files_properties( stack.S PROPERTIES LANGUAGE ASM )
@@ -165,8 +162,26 @@ add_library(Grappa
   ${SYSTEM_SOURCES}
   ${SYSTEM_HEADERS}
 )
-target_link_libraries(Grappa ${GRAPPA_LIBS})
+target_link_libraries(Grappa ${GRAPPA_DYNAMIC_LIBS} ${GRAPPA_STATIC_LIBS})
 add_dependencies(Grappa all-third-party)
+
+#
+# installation
+#
+
+install(TARGETS Grappa DESTINATION "lib")
+
+install(DIRECTORY .     DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+install(DIRECTORY .     DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.h")
+install(DIRECTORY graph DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+install(DIRECTORY tasks DESTINATION "include/Grappa" FILES_MATCHING PATTERN "*.hpp")
+
+install(FILES grappa_gdb.macros DESTINATION "share/Grappa")
+
+
+#
+# tests
+#
 
 add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp")
 
@@ -176,7 +191,7 @@ add_grappa_application(ContextSwitchRate_bench.exe "ContextSwitchRate_bench.cpp"
 macro(add_check test_cpp nnode ppn target)
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
+  add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp} ${ARGN})
   add_dependencies( check-all-${target} check-${test_name} )
   add_dependencies( check-all-${target}-compile-only ${test})
 endmacro()
@@ -226,6 +241,10 @@ add_check( ThreadQueue_tests.cpp             2 1  pass )
 
 add_check( graph/Graph_tests.cpp             2 1  pass )
 
+add_check( NTMessage_tests.cpp               1 1  pass NTMessage.cpp )
+add_check( NTBuffer_tests.cpp                1 1  pass NTBuffer.cpp )
+add_check( NTMessage_aggregator_tests.cpp    2 1  pass )
+
 
 #
 # begin hack for dealing with communicator test
@@ -243,10 +262,9 @@ macro(add_commtest_exe target exe )
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_NAME "${exe}")
   target_link_libraries(${target}
     Communicator
-    ${GRAPPA_LIBS}
+    ${GRAPPA_STATIC_LIBS}
+    ${GRAPPA_DYNAMIC_LIBS}
     ${MPI_CXX_LIBRARIES}
-    ${Boost_LIBRARIES}
-
   )
 endmacro(add_commtest_exe)
 

@@ -81,9 +81,13 @@ else
       cmd="$mpiexe --n $totaln --map-by ppr:$FLAGS_ppn:node $mpi_flags $mpi_exports -- $FLAGS_extra"
       ;;
 
-    # MPICH / MVAPICH
-    HYDRA*Version:*[^12].*Release*)
-      cmd="$mpiexe -n $totaln -ppn $FLAGS_ppn -envall $FLAGS_extra"
+    # MPICH / MVAPICH / Intel all support Hydra process manager
+    HYDRA*Version:*[^12].*Release*|Intel*Version*[^1234].*Update*)
+      # With mpiexec.hydra, -ppn only changes how tasks are distributed between nodes.
+      # Unlike OpenMPI there is no check that the actual number of nodes == $FLAGS_nnodes,
+      # so it's easy to accidentally oversubscribe one node if you're using a hostfile, etc.
+      # Specifying -ppn=1 should allocate tasks round-robin between nodes, so we should at least get a mostly-even distribution.
+      cmd="mpiexec.hydra -n $totaln -ppn 1 -envall $FLAGS_extra"
       ;;
     
     *)
