@@ -14,7 +14,9 @@ case `hostname`
 when /n[\d+]/
   opt.boost = "/sampa/share/gcc-4.7.2/src/boost_1_51_0"
 when /pal/
-  opt.boost = "~nels707/boost153-install"
+  opt.boost = "~nels707/boost153-installx"
+when /bigdatann.ib/
+  opt.boost = "~nels707/boost153-installx"
 end
 
 OptionParser.new{|p|
