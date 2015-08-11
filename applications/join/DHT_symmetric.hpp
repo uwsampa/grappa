@@ -64,6 +64,7 @@ class DHT_symmetric {
       Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
         // inserts initial value only if the key is not yet present
         std::pair<K,V> entry(key, Init());
+
         auto res = target->local_map->insert(entry); auto resIt = res.first; //auto resNew = res.second;
 
         // perform the update in place
@@ -98,6 +99,11 @@ class DHT_symmetric {
       }); 
       // TODO GCE->wait(); // block until all tasks are done
     }
+
+    std::unordered_map<K,V,Hash> * get_local_map() {
+      return local_map;
+    }
+    
 
 
 } GRAPPA_BLOCK_ALIGNED;
