@@ -108,14 +108,15 @@ class AggregateSource : public Operator<P> {
     typedef hash_tuple::hash<K> Hash;
 
     GlobalAddress<DHT_symmetric<K, V, Hash>> group_hash;
-
-  protected:
-    typedef decltype(group_hash->get_local_map()->begin()) iter_type;
+    
+typedef decltype(group_hash->get_local_map()->begin()) iter_type;
     iter_type iter;
+  protected:
+typedef typename std::iterator_traits<iter_type>::value_type map_output_t;
 
   // subclass is generated and implements
   // this method
-  virtual void mktuple(P& out) = 0;
+  virtual void mktuple(P& out, map_output_t& inp) = 0;
   public:
     AggregateSource(
                    GlobalAddress<
@@ -128,7 +129,8 @@ class AggregateSource : public Operator<P> {
   bool next(P& t_010) {//P=MaterializedTupleRef_V8_10 
     if (iter != group_hash->get_local_map()->end()) {
       VLOG(3) << "got a tuple";
-      this->mktuple(t_010);
+      auto V6 = *(this->iter);
+      this->mktuple(t_010, V6);
       ++iter;
       return true;
     } else {
@@ -275,3 +277,18 @@ class HashJoinSource : public Operator<P> {
   protected:
     virtual P mktuple(CL& tl, CR& tr) = 0;
 };
+
+using namespace Grappa;
+void iterate(Operator<int> ** fragment, GlobalCompletionEvent * gce) {
+  auto origin = mycore();
+  gce->enroll(cores());
+
+  on_all_cores([=] {
+      int dummy;
+      auto fp = *fragment;
+      while (fp->next(dummy));
+      fp->close();
+      gce->send_completion(origin);
+      gce->wait();
+  });
+}
