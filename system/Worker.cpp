@@ -177,7 +177,9 @@ Worker * worker_spawn(Worker * me, Scheduler * sched, thread_func f, void * arg)
  
   // allocate the Worker and stack
   Worker * thr = nullptr;
-  posix_memalign( reinterpret_cast<void**>( &thr ), 4096, sizeof(Worker) );
+  CHECK( posix_memalign( reinterpret_cast<void**>( &thr ), 4096, sizeof(Worker) ) == 0)
+    << "posix_memalign error: Worker allocation failed";
+  
   thr->sched = sched;
   sched->assignTid( thr );
   

@@ -102,7 +102,8 @@ public:
   }
 
   void new_buffer( ) {
-    posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE );
+    CHECK( posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE ) == 0)
+      << "posix_memalign error: buffer allocation failed";
     position_ = 0;
   }
   

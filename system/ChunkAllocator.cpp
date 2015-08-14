@@ -96,7 +96,7 @@ static void _aligned_allocator_append_chunk(struct aligned_allocator *aa,
     shared_pool_total_allocated += std::max( new_chunk->chunk_size, (decltype(chunk_size)) CACHE_LINE_SIZE );
     
     // for timing only
-    memset(new_chunk->chunk, new_chunk->chunk_size, 0);
+    memset(new_chunk->chunk, 0, new_chunk->chunk_size);
     
     if (!aa->first)
         aa->last = aa->first = new_chunk;
