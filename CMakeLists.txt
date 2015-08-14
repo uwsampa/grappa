@@ -230,7 +230,7 @@ if(GRAPH500_FOUND)
   list(APPEND GRAPPA_STATIC_LIBS ${GRAPH500_FOUND})
 else()
   # assume it will be built in third-party
-  list(APPEND GRAPPA_STATIC_LIBS ${THIRD_PARTY_ROOT}/graph500-generator/libgraph500-generator.a)
+  list(APPEND GRAPPA_STATIC_LIBS ${CMAKE_BINARY_DIR}/third-party/graph500-generator/libgraph500-generator.a)
 endif()
 
 ######################################################################
