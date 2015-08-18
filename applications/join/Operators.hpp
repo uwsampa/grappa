@@ -7,6 +7,7 @@
 #include "strings.h"
 #include "relation.hpp"
 #include "DHT_symmetric.hpp"
+#include "DHT_symmetric_generic.hpp"
 #include "DoubleDHT.hpp"
 #include <vector>
 
@@ -70,17 +71,73 @@ class Store : public BasePipelined<C,int> {
   }
 };
 
-template <typename C, typename K, typename V, GlobalCompletionEvent * GCE, V (*UpF)(const V& oldval, const C& incVal), V (*Init)(void) >
+template <typename C, typename V >
+class ZeroKeyAggregateSink : public BasePipelined<C,int> {
+  public:
+    typedef V (*update_f)(const V&, const C&);
+    typedef V (*init_f)(void);
+  private:
+    GlobalAddress<V> _val;
+    update_f _update;
+  
+  public:
+
+    ZeroKeyAggregateSink(GlobalAddress<V> v, update_f update, init_f init) 
+      : _val(v) 
+      , _update(update)
+
+{
+        *(_val.localize()) = init();
+     }
+
+    bool next(int& ignore) {
+      C t_002;
+      if (this->input->next(t_002)) {
+        auto _val_local = _val.localize();
+        *_val_local = this->_update(*_val_local, t_002);
+        return true;
+      } else {
+        return false;
+      }
+    }
+}; 
+
+// making combine still template because reduce needs it
+template <typename P, typename V, V (*CombineF)(const V&, const V&) >
+class ZeroKeyAggregateSource : public Operator<P> {
+  private:
+    GlobalAddress<V> _val;
+    bool _done;
+
+  public:
+    ZeroKeyAggregateSource(GlobalAddress<V> v) : _val(v), _done(Grappa::mycore() != 0) { }
+
+    bool next(P& t) {
+      if (!_done) {
+        V temp = reduce<V, CombineF>(_val); 
+        mktuple(t, temp);
+        _done = true;
+        return true;
+      } else {
+        return false;
+      } 
+    }
+
+  protected:
+    void mktuple(P& dest, V& src) = 0;
+  
+};
+        
+
+template <typename C, typename K, typename V, GlobalCompletionEvent * GCE >
 class AggregateSink : public BasePipelined<C,int> {
   private:
     typedef hash_tuple::hash<K> Hash;
+    GlobalAddress<DHT_symmetric_generic<K, V, C, Hash>> group_hash;
   
-  protected:
-    GlobalAddress<DHT_symmetric<K, V, Hash>> group_hash;
-
   public:
     AggregateSink(Operator<C>* input, GlobalAddress<
-                      DHT_symmetric<K, V, Hash>> group_hash_000)
+                      DHT_symmetric_generic<K, V, C, Hash>> group_hash_000)
    : BasePipelined<C,int>(input)
    , group_hash(group_hash_000) { }
 
@@ -88,7 +145,7 @@ class AggregateSink : public BasePipelined<C,int> {
       C t_002;
       if (this->input->next(t_002)) {
         VLOG(4) << "update with tuple " << t_002;
-        group_hash->template update<GCE, C, UpF, Init>(mktuple(t_002), t_002);
+        group_hash->template update<GCE>(mktuple(t_002), t_002);
         return true;
       } else {
         return false;
@@ -101,13 +158,12 @@ class AggregateSink : public BasePipelined<C,int> {
   virtual K mktuple(C& val) = 0; 
 };
 
-template <typename C, typename P, typename K>
+template <typename P, typename K, typename V, typename UV>
 class AggregateSource : public Operator<P> {
   private:
-    typedef C  V;
     typedef hash_tuple::hash<K> Hash;
 
-    GlobalAddress<DHT_symmetric<K, V, Hash>> group_hash;
+    GlobalAddress<DHT_symmetric_generic<K, V, UV, Hash>> group_hash;
     
 typedef decltype(group_hash->get_local_map()->begin()) iter_type;
     iter_type iter;
@@ -120,7 +176,7 @@ typedef typename std::iterator_traits<iter_type>::value_type map_output_t;
   public:
     AggregateSource(
                    GlobalAddress<
-                      DHT_symmetric<K, V, Hash>> group_hash_000) {
+                      DHT_symmetric_generic<K, V, UV, Hash>> group_hash_000) {
       group_hash = group_hash_000;
       iter = group_hash->get_local_map()->begin();
       VLOG(3) << "local size: " << group_hash->get_local_map()->size();
