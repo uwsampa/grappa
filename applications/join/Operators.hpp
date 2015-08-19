@@ -249,7 +249,7 @@ class Select : public BasePipelined<C, P> {
 
 };
 
-template <typename K, typename CL, typename CR, typename Hash>
+template <typename K, typename CL, typename CR, typename Hash, GlobalCompletionEvent * GCE>
 class HashJoinSinkLeft : public BasePipelined<CL,int> {
   public:
     typedef DoubleDHT<K, CL, CR, Hash> dht_t;
@@ -263,7 +263,7 @@ class HashJoinSinkLeft : public BasePipelined<CL,int> {
       CL t_000;
       if (this->input->next(t_000)) {
         VLOG(3) << t_000;
-        double_hash->insert_left(mktuple(t_000), t_000);
+        double_hash->template insert_left<GCE>(mktuple(t_000), t_000);
         return true;
       } else {
         return false;
@@ -274,7 +274,7 @@ class HashJoinSinkLeft : public BasePipelined<CL,int> {
   virtual K mktuple(CL& t) = 0;
 };
 
-template <typename K, typename CL, typename CR, typename Hash>
+template <typename K, typename CL, typename CR, typename Hash, GlobalCompletionEvent * GCE>
 class HashJoinSinkRight : public BasePipelined<CR,int> {
   public:
     typedef DoubleDHT<K, CL, CR, Hash> dht_t;
@@ -288,7 +288,7 @@ class HashJoinSinkRight : public BasePipelined<CR,int> {
       CR t_000;
       if (this->input->next(t_000)) {
         VLOG(3) << t_000;
-        double_hash->insert_right(mktuple(t_000), t_000);
+        double_hash->template insert_right<GCE>(mktuple(t_000), t_000);
         return true;
       } else {
         return false;

@@ -242,7 +242,7 @@ class DoubleDHT {
     insert_lookup_iter_left<CF, GCE>( key, val, f );
   }
 
-  template<Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce>
+  template<Grappa::GlobalCompletionEvent * GCE>
   void insert_left(K key, VL val) {
       auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
@@ -252,7 +252,7 @@ class DoubleDHT {
     });
   }
   
-template<Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce>
+template<Grappa::GlobalCompletionEvent * GCE>
   void insert_right(K key, VR val) {
       auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
