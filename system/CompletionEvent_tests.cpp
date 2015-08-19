@@ -82,7 +82,7 @@ void try_global_ce() {
   auto xa = make_global(&x);
   
   BOOST_MESSAGE("  block on user_main only");
-//  gce.reset_all(); (don't need to call `reset` anymore)
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   gce.enroll(cores());
   on_all_cores([xa]{
     Core origin = mycore();
@@ -97,7 +97,8 @@ void try_global_ce() {
     
     gce.complete();
   });
-  
+
+  gce.complete();
   gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores());
   
@@ -105,7 +106,7 @@ void try_global_ce() {
   BOOST_MESSAGE("  block in SPMD tasks");
   
   x = 0;
-//  gce.reset_all(); (don't need this anymore)
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
 
   gce.enroll(cores());
 
@@ -124,6 +125,8 @@ void try_global_ce() {
         complete(make_global(&gce,origin));
       });
     }
+
+    if( mycore() == 0 ) gce.complete();
     gce.wait();
     BOOST_CHECK_EQUAL(y, N);
   });
@@ -148,9 +151,9 @@ void try_global_ce_recursive() {
   const int64_t N = 128;
   int64_t x = 0;
   auto xa = make_global(&x);
-  
+
   BOOST_MESSAGE("  block on user_main only");
-//  gce.reset_all();
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   gce.enroll(cores());
 
   on_all_cores([xa]{
@@ -168,18 +171,18 @@ void try_global_ce_recursive() {
     
     gce.complete();
   });
-  
+
   // overload Core0 with extra work
   rec_spawn(xa, N*2);
-  
+
+  gce.complete();
   gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
-  
   
   BOOST_MESSAGE("  block in SPMD tasks");
   
   x = 0;
-//  gce.reset_all();
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   gce.enroll(cores());
 
   on_all_cores([xa,N]{
@@ -201,15 +204,16 @@ void try_global_ce_recursive() {
     if (mycore() == 0) {
       // overload Core0 with extra work
       rec_spawn(xa, N*2);
+      gce.complete(); // complete last one.
     }
-    
+
     gce.wait();
     BOOST_CHECK_EQUAL(y, N);
   });
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
   
   BOOST_MESSAGE("test finish block syntactic sugar");
-  
+    
   long xx = 0;
   auto a = make_global(&xx);
   
@@ -240,10 +244,8 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(x, N);
   
   BOOST_MESSAGE("  private,global");
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   on_all_cores([N]{
-//    gce.reset();
-//    barrier();
-    
     int x = 0;
     
     for (int i=0; i<N; i++) {
@@ -252,6 +254,7 @@ void try_synchronizing_spawns() {
       });
     }
     
+    if( mycore() == 0 ) gce.complete();
     gce.wait();
     BOOST_CHECK_EQUAL(x, N);
   });
@@ -259,12 +262,13 @@ void try_synchronizing_spawns() {
   BOOST_MESSAGE("  public,global"); VLOG(1) << "actually in public_global";
   on_all_cores([]{ global_x = 0; });
   
-//  gce.reset_all();
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   for (int i=0; i<N; i++) {
     spawn<unbound,&gce>([]{
       global_x++;
     });
   }
+  gce.complete();
   gce.wait();
   
   int total = 0;
@@ -285,9 +289,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     try_one_task();
     try_many_tasks();
     try_global_ce();
-    try_global_ce_recursive();
+    for( int i = 0; i < 100; ++i ) {
+      try_global_ce_recursive();
+    }
     try_synchronizing_spawns();
-  
+    
     Metrics::merge_and_dump_to_file();
   });
   Grappa::finalize();
