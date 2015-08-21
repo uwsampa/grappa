@@ -6,9 +6,11 @@
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
 #include <Metrics.hpp>
+#include <FullEmptyLocal.hpp>
 
 #include <list>
 #include <cmath>
+#include <utility>
 
 //GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
@@ -18,7 +20,7 @@ GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 #define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,Hash>::type
 #define _DDHT_TYPE(type) DoubleDHT<K,VL,VR,Hash>::type
 
-enum class Direction { LEFT, RIGHT };
+//enum class Direction { LEFT, RIGHT };
 
 // Hash table for joins
 // * allows multiple copies of a Key
@@ -240,6 +242,27 @@ class DoubleDHT {
     insert_lookup_iter_left<CF, GCE>( key, val, f );
   }
 
+  template<Grappa::GlobalCompletionEvent * GCE>
+  void insert_left(K key, VL val) {
+      auto index = computeIndex( key );
+      GlobalAddress< PairCell > target = base + index; 
+      
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {
+        insert_local_left<false>( key, target.pointer(), val );
+    });
+  }
+  
+template<Grappa::GlobalCompletionEvent * GCE>
+  void insert_right(K key, VR val) {
+      auto index = computeIndex( key );
+      GlobalAddress< PairCell > target = base + index; 
+      
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {
+        insert_local_right<false>( key, target.pointer(), val );
+    });
+  }
+    
+
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_right ( K key, VR val, CF f ) {
       auto index = computeIndex( key );
@@ -298,7 +321,59 @@ class DoubleDHT {
     }
     */
 
+/*
+    class LocalMatchesIterator {
+      private:
+        PairCell * const start;
+        PairCell * const end;
+        PairCell * p;
+        decltype(p->entriesLeft->begin()) left_iter;
+        decltype(p->entriesRight->begin()) right_iter;
+        decltype(Entry<VL>().vs->begin()) left_vs_iter;
+        decltype(Entry<VR>().vs->begin()) right_vs_iter;
+      public:
+        LocalMatchesIterator(PairCell * start, PairCell * end) : start(base.localize()), end((base+capacity).localize()), p(start) { }
 
+        bool next(std::pair<VL, VR>& r) {
+          if (right_vs_iter != 
+      std::list<Entry<VL>> * entriesLeft;
+      std::list<Entry<VR>> * entriesRight;
+          
+           
+        LocalMatchesIterator() 
+*/
+
+    Grappa::FullEmpty<std::pair<bool, std::pair<VL, VR>>> * matches() {
+      // Use Grappa's coroutines for generator pattern
+
+      auto c = new Grappa::FullEmpty<std::pair<bool, std::pair<VL, VR>>>();
+      Grappa::spawn([c,this] {
+        PairCell * p = base.localize();
+        PairCell * end = (base+capacity).localize();
+
+        VLOG(3) << "has " << (end-p) << " paircells"; 
+        while ( p != end ) {
+          if (p->entriesLeft != NULL && p->entriesRight != NULL) {
+            for (auto& l : *(p->entriesLeft)) {
+              for (auto& r : *(p->entriesRight)) {
+                if (l.key == r.key) {
+                  for (auto& le : *(l.vs)) {
+                    for (auto& re : *(r.vs)) {
+                      // yield
+                      c->writeEF(std::make_pair(true, std::make_pair(le, re)));
+                    }
+                  }
+                }
+               }
+              }
+            }
+            ++p;
+          }
+          // end
+          c->writeEF(std::make_pair(false, std::pair<VL, VR>()));
+      }); 
+      return c;
+    }
 };
 
 

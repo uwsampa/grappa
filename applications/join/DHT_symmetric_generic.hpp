@@ -15,72 +15,68 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
 
-// for naming the types scoped in DHT_symmetric
-#define DHT_symmetric_TYPE(type) typename DHT_symmetric<K,V,Hash>::type
-#define DHT_symmetric_T DHT_symmetric<K,V,Hash>
+// for naming the types scoped in DHT_symmetric_generic
+#define DHT_symmetric_generic_TYPE(type) typename DHT_symmetric_generic<K,V,UV,Hash>::type
+#define DHT_symmetric_generic_T DHT_symmetric_generic<K,V,UV,Hash>
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename V, typename Hash> 
-class DHT_symmetric {
+template <typename K, typename V, typename UV, typename Hash> 
+class DHT_symmetric_generic {
+  public:
+    typedef V (*update_f)(const V& oldval, const UV& incVal);
+    typedef V (*init_f)(void);
 
   private:
     // private members
-    GlobalAddress< DHT_symmetric_T > self;
+    GlobalAddress< DHT_symmetric_generic_T > self;
     std::unordered_map<K, V, Hash > * local_map;
     size_t partitions;
+
+    update_f UpF;
+    init_f Init;
 
     size_t computeIndex( K key ) {
       return Hash()(key) % partitions;
     }
 
-    // for creating local DHT_symmetric
-    DHT_symmetric( GlobalAddress<DHT_symmetric_T> self ) 
+    // for creating local DHT_symmetric_generic
+    DHT_symmetric_generic( GlobalAddress<DHT_symmetric_generic_T> self, update_f upf, init_f initf ) 
       : self(self)
+      , UpF(upf)
+      , Init(initf)
       , partitions(Grappa::cores())
       , local_map(new std::unordered_map<K,V,Hash>())
       {}
 
   public:
     // for static construction
-    DHT_symmetric( ) {}
+    DHT_symmetric_generic( ) {}
 
-    static GlobalAddress<DHT_symmetric_T> create_DHT_symmetric( ) {
-      auto object = Grappa::symmetric_global_alloc<DHT_symmetric_T>();
+    static GlobalAddress<DHT_symmetric_generic_T> create_DHT_symmetric( update_f upf, init_f initf ) {
+      auto object = Grappa::symmetric_global_alloc<DHT_symmetric_generic_T>();
 
-      Grappa::on_all_cores( [object] {
-        new(object.pointer()) DHT_symmetric_T(object);
+      Grappa::on_all_cores( [object, upf, initf] {
+        new(object.pointer()) DHT_symmetric_generic_T(object, upf, initf);
       });
       
       return object;
     }
 
-    template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
+    template< GlobalCompletionEvent * GCE, SyncMode S = SyncMode::Async >
     void update( K key, UV val ) {
       auto index = computeIndex( key );
       auto target = this->self;
 
       Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
         // inserts initial value only if the key is not yet present
-        std::pair<K,V> entry(key, Init());
+        std::pair<K,V> entry(key, target->Init());
 
         auto res = target->local_map->insert(entry); auto resIt = res.first; //auto resNew = res.second;
 
         // perform the update in place
-        resIt->second = UpF(resIt->second, val);
-      });
-    }
-
-    template< GlobalCompletionEvent * GCE, SyncMode S = SyncMode::Async >
-    void insert_unique( K key, V val ) {
-      auto index = computeIndex( key );
-      auto target = this->self;
-
-      Grappa::delegate::call<S,GCE>(index, [key, val, target]() {   
-        // inserts initial value only if the key is not yet present
-        std::pair<K,V> entry(key, val);
-        target->local_map->insert(entry); 
+        resIt->second = target->UpF(resIt->second, val);
       });
     }
   
