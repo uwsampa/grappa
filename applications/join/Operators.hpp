@@ -82,8 +82,9 @@ class ZeroKeyAggregateSink : public BasePipelined<C,int> {
   
   public:
 
-    ZeroKeyAggregateSink(GlobalAddress<V> v, update_f update, init_f init) 
-      : _val(v) 
+    ZeroKeyAggregateSink(Operator<C> * input, GlobalAddress<V> v, update_f update, init_f init) 
+      : BasePipelined<C,int>(input)
+      , _val(v) 
       , _update(update)
 
 {
