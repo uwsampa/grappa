@@ -123,9 +123,12 @@ class ZeroKeyAggregateSource : public Operator<P> {
         return false;
       } 
     }
+  
+  void close() {
+  }
 
   protected:
-    void mktuple(P& dest, V& src) = 0;
+    virtual void mktuple(P& dest, V& src) = 0;
   
 };
         
