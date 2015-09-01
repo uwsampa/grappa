@@ -106,7 +106,7 @@ public:
   bool next(P& p) {
     CL cl;
     if (this->input->next(cl)) {
-      p = mktuple(cl, *_global_value);
+      mktuple(p, cl, *_global_value);
       return true;
     } else {
       return false;
@@ -384,7 +384,7 @@ class HashJoinSource : public Operator<P> {
     }
   
   protected:
-    virtual void mktuple(P& p, CL& tl, CR& tr) = 0;
+    virtual P mktuple(CL& tl, CR& tr) = 0;
 };
 
 using namespace Grappa;
