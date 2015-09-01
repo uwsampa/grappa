@@ -384,7 +384,7 @@ class HashJoinSource : public Operator<P> {
     }
   
   protected:
-    virtual P mktuple(CL& tl, CR& tr) = 0;
+    virtual void mktuple(P& p, CL& tl, CR& tr) = 0;
 };
 
 using namespace Grappa;
