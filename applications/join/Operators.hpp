@@ -71,6 +71,54 @@ class Store : public BasePipelined<C,int> {
   }
 };
 
+template <typename C>
+class BroadcastTupleSink : public BasePipelined<C,int> {
+private:
+  C * _global_value;
+public:
+  BroadcastTupleSink(Operator<C> * input, C * value) 
+    : BasePipelined<C,int>(input),
+    , _global_value(value) { } 
+
+  bool next(int& ignore) {
+    C c;
+    if (this->input->next(c)) {
+      auto address = _global_value;
+      on_all_cores([=] {
+        *address = c;
+      }); 
+      return true;
+    } else {
+      return false;
+    }
+  }
+};
+
+template <typename CL, typename CR, typename P>
+class BroadcastTupleStream : public BasePipelined<CL,P> {
+private:
+  CR * _global_value;
+public:
+  BroadcastTupleStream(Operator<CL> * input, CR * value) 
+    : BasePipelined<CL,int>(input),
+    , _global_value(value) { } 
+
+  bool next(P& p) {
+    CL cl;
+    if (this->input->next(cl)) {
+      p = mktuple(cl, *_global_value);
+      return true;
+    } else {
+      return false;
+    }
+
+protected:
+  virtual void mktuple(P& p, CL& cl, CR& cr) = 0;
+};
+      
+
+
+
 template <typename C, typename V >
 class ZeroKeyAggregateSink : public BasePipelined<C,int> {
   public:
