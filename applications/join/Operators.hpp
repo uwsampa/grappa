@@ -77,7 +77,7 @@ private:
   C * _global_value;
 public:
   BroadcastTupleSink(Operator<C> * input, C * value) 
-    : BasePipelined<C,int>(input),
+    : BasePipelined<C,int>(input)
     , _global_value(value) { } 
 
   bool next(int& ignore) {
@@ -100,7 +100,7 @@ private:
   CR * _global_value;
 public:
   BroadcastTupleStream(Operator<CL> * input, CR * value) 
-    : BasePipelined<CL,int>(input),
+    : BasePipelined<CL,P>(input)
     , _global_value(value) { } 
 
   bool next(P& p) {
@@ -111,6 +111,7 @@ public:
     } else {
       return false;
     }
+  }
 
 protected:
   virtual void mktuple(P& p, CL& cl, CR& cr) = 0;
