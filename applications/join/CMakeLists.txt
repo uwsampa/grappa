@@ -147,8 +147,9 @@ macro(add_check test_cpp nnode ppn target)
 
   add_grappa_test(${test} ${nnode} ${ppn} ${test_cpp})
   target_link_libraries(${test} generator queryio)
-  add_dependencies( check-all-${target} check-${test_name} )
-  add_dependencies( check-all-${target}-compile-only ${test})
+  ### TODO: add separate check-all-join-* targets to include these application files
+  ###add_dependencies( check-all-${target} check-${test_name} )
+  ###add_dependencies( check-all-${target}-compile-only ${test})
 endmacro()
 
 add_check(Relation_io_tests.cpp 2 1 pass)

@@ -59,7 +59,7 @@ public:
   };
   FlatCombiner<Proxy> comb;
     
-  GlobalCounter(long initial_count = 0, Core master_core = 0): comb(locale_new<Proxy>(this)) {
+  GlobalCounter(GlobalAddress<GlobalCounter> self, long initial_count = 0, Core master_core = 0): self(self), comb(locale_new<Proxy>(this)) {
     master.count = initial_count;
     master.core = master_core;
   }
@@ -79,7 +79,7 @@ public:
   static GlobalAddress<GlobalCounter> create(long initial_count = 0) {
     auto a = symmetric_global_alloc<GlobalCounter>();
     auto master_core = mycore();
-    call_on_all_cores([a,master_core]{ new (a.localize()) GlobalCounter(0, master_core); });
+    call_on_all_cores([a,initial_count,master_core]{ new (a.localize()) GlobalCounter(a, initial_count, master_core); });
     return a;
   }
   
