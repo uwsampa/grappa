@@ -25,6 +25,7 @@ set(QUERYLIB_SOURCES
   MapReduce.hpp
   Aggregates.hpp
   DHT_symmetric.hpp
+  DHT_symmetric.cpp
   DHT_symmetric_generic.hpp
   Operators.hpp
 )

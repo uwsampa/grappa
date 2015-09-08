@@ -10,10 +10,7 @@
 #include <unordered_map>
 
 
-//GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
-GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
-GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
-
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_inserts);
 
 // for naming the types scoped in DHT_symmetric
 #define DHT_symmetric_TYPE(type) typename DHT_symmetric<K,V,Hash>::type
@@ -69,6 +66,7 @@ class DHT_symmetric {
 
         // perform the update in place
         resIt->second = UpF(resIt->second, val);
+        dht_inserts++;
       });
     }
 
@@ -81,6 +79,7 @@ class DHT_symmetric {
         // inserts initial value only if the key is not yet present
         std::pair<K,V> entry(key, val);
         target->local_map->insert(entry); 
+        dht_inserts++;
       });
     }
   
