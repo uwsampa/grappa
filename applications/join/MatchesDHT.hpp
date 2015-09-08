@@ -314,6 +314,7 @@ class MatchesDHT {
         Entry newe( key );
         newe.vs->push_back( val );
         entries->push_back( newe );
+        hash_tables_size+=1;
 
         return; 
       });
