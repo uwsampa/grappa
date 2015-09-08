@@ -10,10 +10,7 @@
 #include <unordered_map>
 
 
-//GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
-GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
-GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
-
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_inserts);
 
 // for naming the types scoped in DHT_symmetric_generic
 #define DHT_symmetric_generic_TYPE(type) typename DHT_symmetric_generic<K,V,UV,Hash>::type
@@ -77,6 +74,7 @@ class DHT_symmetric_generic {
 
         // perform the update in place
         resIt->second = target->UpF(resIt->second, val);
+        dht_inserts++;
       });
     }
   
