@@ -7,6 +7,7 @@ set(QUERYLIB_SOURCES
   MatchesDHT.hpp
   MatchesDHT.cpp
   DoubleDHT.hpp
+  DoubleDHT.cpp
   Hypercube.hpp
   Hypercube.cpp
   local_graph.cpp
