@@ -16,6 +16,10 @@
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_matches_iterator_cell_single_misses);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_matches_iterator_cell_both_misses);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_matches_iterator_cell_hits);
+
 // for naming the types scoped in DoubleDHT
 #define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,Hash>::type
 #define _DDHT_TYPE(type) DoubleDHT<K,VL,VR,Hash>::type
@@ -353,7 +357,12 @@ template<Grappa::GlobalCompletionEvent * GCE>
 
         VLOG(3) << "has " << (end-p) << " paircells"; 
         while ( p != end ) {
-          if (p->entriesLeft != NULL && p->entriesRight != NULL) {
+          auto left_full = (p->entriesLeft != NULL);
+          auto right_full = (p->entriesRight != NULL);
+          hash_matches_iterator_cell_single_misses += (left_full != right_full) ? 1 : 0;
+          hash_matches_iterator_cell_both_misses += (!left_full && !right_full) ? 1 : 0;
+          if (left_full && right_full) {
+            hash_matches_iterator_cell_hits++;
             for (auto& l : *(p->entriesLeft)) {
               for (auto& r : *(p->entriesRight)) {
                 if (l.key == r.key) {
@@ -366,7 +375,7 @@ template<Grappa::GlobalCompletionEvent * GCE>
                 }
                }
               }
-            }
+            } 
             ++p;
           }
           // end
