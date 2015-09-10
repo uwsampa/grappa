@@ -8,6 +8,7 @@
 #include "relation.hpp"
 #include "DHT_symmetric.hpp"
 #include "DHT_symmetric_generic.hpp"
+#include "DHT_multi_symmetric_generic.hpp"
 #include "DoubleDHT.hpp"
 #include <vector>
 
@@ -305,10 +306,10 @@ class Select : public BasePipelined<C, P> {
 template <typename K, typename CL, typename CR, typename Hash, GlobalCompletionEvent * GCE>
 class HashJoinSinkLeft : public BasePipelined<CL,int> {
   public:
-    typedef DoubleDHT<K, CL, CR, Hash> dht_t;
-    dht_t * double_hash;
+    typedef DHT_multi_symmetric_generic<K,CL,CR,Hash> dht_t;
+    GlobalAddress<dht_t> double_hash;
 
-    HashJoinSinkLeft(dht_t * hash_000, Operator<CL> * left)
+    HashJoinSinkLeft(GlobalAddress<dht_t> hash_000, Operator<CL> * left)
       : BasePipelined<CL,int>(left)
       , double_hash(hash_000) { }
 
@@ -330,10 +331,10 @@ class HashJoinSinkLeft : public BasePipelined<CL,int> {
 template <typename K, typename CL, typename CR, typename Hash, GlobalCompletionEvent * GCE>
 class HashJoinSinkRight : public BasePipelined<CR,int> {
   public:
-    typedef DoubleDHT<K, CL, CR, Hash> dht_t;
-    dht_t * double_hash;
+    typedef DHT_multi_symmetric_generic<K,CL,CR,Hash> dht_t;
+    GlobalAddress<dht_t> double_hash;
 
-    HashJoinSinkRight(dht_t * hash_000, Operator<CR>* right)
+    HashJoinSinkRight(GlobalAddress<dht_t> hash_000, Operator<CR>* right)
       : BasePipelined<CR,int>(right)
       , double_hash(hash_000) { }
 
@@ -355,27 +356,25 @@ class HashJoinSinkRight : public BasePipelined<CR,int> {
 template <typename K, typename CL, typename CR, typename Hash, typename P>
 class HashJoinSource : public Operator<P> {
   public:
-    typedef DoubleDHT<K, CL, CR, Hash> dht_t;
+    typedef DHT_multi_symmetric_generic<K,CL,CR,Hash> dht_t;
   private:
-    dht_t * double_hash;
-    Grappa::FullEmpty<std::pair<bool, std::pair<CL, CR>>> * match_iter;
+    GlobalAddress<dht_t> double_hash;
+    decltype(double_hash->matches()) match_iter;
 
   public:
 
-    HashJoinSource(dht_t * hash_000)
+    HashJoinSource(GlobalAddress<dht_t> hash_000)
       : double_hash(hash_000)
-      , match_iter(NULL) { }
+      , match_iter(hash_000->matches()) { }
 
     bool next(P& t) {
-      // init
-      if (match_iter == NULL) { match_iter = double_hash->matches(); }
-      
-      auto entry = this->match_iter->readFE();
-      if (entry.first) {
+      std::pair<CL,CR> _p;
+      if (match_iter->next(_p)) {
         join_coarse_result_count++;
-        t = this->mktuple(entry.second.first, entry.second.second);
+        t = this->mktuple(_p.first, _p.second);
         return true;
       } else {
+        double_hash->delete_matches(match_iter);
         return false;
       }
     }
