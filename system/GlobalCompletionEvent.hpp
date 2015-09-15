@@ -88,9 +88,13 @@ class GlobalCompletionEvent : public CompletionEvent {
   // (cv)
   bool event_in_progress;
   Core master_core;
-  
+
   // Master barrier only
   Core cores_out;
+  
+  // temporary storage for blocked threads while exiting from wake
+  ConditionVariable temporary_waking_cv;
+  Core temporary_waking_cores_out;
   
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
@@ -186,7 +190,7 @@ public:
     }
   }
   
-  GlobalCompletionEvent(bool user_track=false): master_core(0), completion_msgs(nullptr) {
+  GlobalCompletionEvent(bool user_track=false): master_core(0), temporary_waking_cv(), temporary_waking_cores_out(0), completion_msgs(nullptr) {
     reset();
 
     if (user_track) {
@@ -251,7 +255,7 @@ public:
   /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
   void complete(int64_t dec = 1) {
     count -= dec;
-    DVLOG(4) << "complete (" << count << ") -- gce(" << this << ")";
+    DVLOG(4) << "complete (" << count << ") -- gce(" << this << ") cores_out: " << cores_out;
     
     // out of work here
     if (count == 0) { // count[dec -> 0]
@@ -263,13 +267,32 @@ public:
         // if all are in
         if (cores_out == 0) { // cores_out[1 -> 0]
           CHECK_EQ(count, 0);
-          // notify everyone to wake
+
+          // first, go reset everyone
+          temporary_waking_cores_out = cores();
           for (Core c = 0; c < cores(); c++) {
             send_heap_message(c, [this] {
               CHECK_EQ(count, 0);
-              DVLOG(3) << "broadcast";
-              broadcast(&cv); // wake anyone who was waiting here
+              temporary_waking_cv = cv; // capture current list of waiters
               reset(); // reset, now anyone else calling `wait` should fall through
+              DVLOG(3) << "reset";
+
+              // then, once everyone is reset,
+              send_heap_message(master_core, [this] {
+                temporary_waking_cores_out--;
+                if (temporary_waking_cores_out == 0) {
+
+                  // notify everyone to wake
+                  for (Core c = 0; c < cores(); c++) {
+                    send_heap_message(c, [this] {
+                      CHECK_EQ(count, 0);
+                      DVLOG(3) << "broadcast";
+                      broadcast(&temporary_waking_cv); // wake anyone who was waiting here
+                      temporary_waking_cv.waiters_ = 0; 
+                    });
+                  }
+                }
+              });
             });
           }
         }
@@ -297,8 +320,6 @@ public:
       }
       DVLOG(3) << "fell thru conservative check";
     }
-    CHECK(!event_in_progress) << " gce(" << this << ", count:" << count << ")";
-    CHECK_EQ(count, 0);
   }
   
 };
