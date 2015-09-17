@@ -92,10 +92,13 @@ class GlobalCompletionEvent : public CompletionEvent {
   // Master barrier only
   Core cores_out;
   
+  // after completion, re-enroll this many tasks on master core.
+  int reenroll_count;
+  
   // temporary storage for blocked threads while exiting from wake
   ConditionVariable temporary_waking_cv;
   Core temporary_waking_cores_out;
-  
+
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
 
@@ -117,7 +120,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   public:
     Core target;
     int64_t completes_to_send;
-    CompletionMessage(Core target = -1): Message(), completes_to_send(0), target(target) {}
+    CompletionMessage(Core target = -1): Message(), target(target), completes_to_send(0) {}
     
     bool waiting_to_send() {
       return this->is_enqueued_ && !this->is_sent_;
@@ -190,7 +193,7 @@ public:
     }
   }
   
-  GlobalCompletionEvent(bool user_track=false): master_core(0), temporary_waking_cv(), temporary_waking_cores_out(0), completion_msgs(nullptr) {
+  GlobalCompletionEvent(bool user_track=false): master_core(0), reenroll_count(0), temporary_waking_cv(), temporary_waking_cores_out(0), completion_msgs(nullptr) {
     reset();
 
     if (user_track) {
@@ -212,6 +215,7 @@ public:
     count = 0;
     cv.waiters_ = 0;
     cores_out = 0;
+    reenroll_count = 0;
     event_in_progress = false;
   }
   
@@ -255,7 +259,7 @@ public:
   /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
   void complete(int64_t dec = 1) {
     count -= dec;
-    DVLOG(4) << "complete (" << count << ") -- gce(" << this << ") cores_out: " << cores_out;
+    DVLOG(4) << "core " << mycore() << " complete (" << count << ") -- gce(" << this << ") cores_out: " << cores_out;
     
     // out of work here
     if (count == 0) { // count[dec -> 0]
@@ -270,22 +274,36 @@ public:
 
           // first, go reset everyone
           temporary_waking_cores_out = cores();
+          auto re = this->reenroll_count; // remember if we requested reenroll
           for (Core c = 0; c < cores(); c++) {
-            send_heap_message(c, [this] {
+            send_heap_message(c, [this,re] {
               CHECK_EQ(count, 0);
               temporary_waking_cv = cv; // capture current list of waiters
               reset(); // reset, now anyone else calling `wait` should fall through
               DVLOG(3) << "reset";
+              
+              // if requested, remind cores that we're re-enrolling at the master core
+              if( re ) {
+                DVLOG(5) << "Setting event_in_progress";
+                event_in_progress = true;
+              }
 
               // then, once everyone is reset,
-              send_heap_message(master_core, [this] {
+              send_heap_message(master_core, [this,re] {
                 temporary_waking_cores_out--;
                 if (temporary_waking_cores_out == 0) {
+                  
+                  // if requested, re-enroll cores
+                  if( re ) {
+                    DVLOG(5) << "Setting count (" << count << ") to " << re << " with event_in_progress " << event_in_progress;
+                    count = re;          // expect this many completions
+                    cores_out = 1;       // remember that the master core has outstanding tasks
+                    reenroll_count = re; // remember to re-enroll this many cores/tasks next time
+                  }
 
                   // notify everyone to wake
                   for (Core c = 0; c < cores(); c++) {
                     send_heap_message(c, [this] {
-                      CHECK_EQ(count, 0);
                       DVLOG(3) << "broadcast";
                       broadcast(&temporary_waking_cv); // wake anyone who was waiting here
                       temporary_waking_cv.waiters_ = 0; 
@@ -320,6 +338,23 @@ public:
       }
       DVLOG(3) << "fell thru conservative check";
     }
+  }
+
+  /// Set up GCE to re-enroll this many cores/tasks on master core at completion.
+  /// This should be called on a single core after enrolling as many tasks as you want to reenroll on the master core (0).
+  void reenroll_on_complete() {
+    impl::call(master_core, [this] {
+      CHECK_GT(count, 0) << "Must have enrolled at least one task on core " << master_core << " before calling this method.";
+      reenroll_count = count;
+    });
+  }
+
+  /// Stop re-enrolling taks this many cores/tasks on master core at completion.
+  /// This should be called on a single core.
+  void disable_reenroll_on_complete() {
+    impl::call(master_core, [this] {
+      reenroll_count = 0;
+    });
   }
   
 };

@@ -40,6 +40,9 @@
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 
+DEFINE_int64( outer, 1 << 4, "iterations of outer loop in iterative GCE test" );
+DEFINE_int64( inner, 1 << 14, "iterations of inner loop in iterative GCE test" );
+
 BOOST_AUTO_TEST_SUITE( CompletionEvent_tests );
 
 using namespace Grappa;
@@ -291,6 +294,42 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(total, N);
 }
 
+void try_iterative_spmd_gce() {
+
+  // set up re-enrolling across iterations
+  gce.enroll(cores());
+  gce.reenroll_on_complete();
+
+  static int val, stolen;
+  
+  on_all_cores( [] {
+    for(int i = 0; i < FLAGS_outer; ++i) {
+
+      if(mycore() == 0) {
+        val = 0;
+        stolen = 0;
+      }
+
+      for(int j = 0; j < FLAGS_inner; ++j) {
+        Core origin = mycore();
+        gce.enroll();
+        
+        spawn<unbound>( [j,origin] {
+          if( origin != mycore() ) stolen++; //LOG(INFO) << "task was stolen!";
+          send_heap_message( j % cores(), [origin] {
+            val++;
+            gce.send_completion( origin );
+          });
+        });
+      }
+
+      // wait for everyone to finish and prepare for next iteration.
+      gce.send_completion( 0 );
+      gce.wait();
+    }
+  });
+}
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
@@ -304,7 +343,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       try_global_ce_recursive();
     }
     try_synchronizing_spawns();
-    
+    try_iterative_spmd_gce();
+  
     Metrics::merge_and_dump_to_file();
   });
   Grappa::finalize();
