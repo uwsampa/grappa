@@ -60,6 +60,11 @@ namespace Grappa {
 /// @addtogroup Synchronization
 /// @{
 
+/// Type returned by enroll used to indicate where to send a completion
+struct CompletionTarget {
+  Core core;
+};
+
 /// GlobalCompletionEvent (GCE):
 /// Synchronization construct for determining when a global phase of asynchronous tasks have 
 /// all completed. For example, can be used to ensure that all tasks of a parallel loop have
@@ -226,8 +231,8 @@ public:
   ///
   /// Blocks until cancel completes (if it must cancel) to ensure correct ordering, therefore
   /// cannot be called from message handler.
-  GlobalAddress<GlobalCompletionEvent> enroll(int64_t inc = 1) {
-    if (inc == 0) return make_global(this);
+  CompletionTarget enroll(int64_t inc = 1) {
+    if (inc == 0) return {mycore()};
     
     CHECK_GE(inc, 1);
     count += inc;
@@ -254,12 +259,12 @@ public:
       DVLOG(2) << "gce(" << this << " cores_out: " << co << ", count: " << count << ")";
     }
 
-    return make_global(this);
+    return {mycore()};
   }
 
   /// Enqueue tasks to GCE which will be automatically re-enrolled when the current phase completes.
   /// This must be called on the master core.
-  GlobalAddress<GlobalCompletionEvent> enroll_recurring(int64_t inc = 1) {
+  CompletionTarget enroll_recurring(int64_t inc = 1) {
     CHECK_EQ(mycore(), master_core) << "Enroll count must be positive.";
     reenroll_count = inc;
     return enroll(inc);
@@ -331,27 +336,33 @@ public:
   }
 
   /// Wrapper to call combining completion instead of local completion
-  /// when given a GCE global address.
-  inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  /// when given a CompletionTarget.
+  inline void complete(CompletionTarget ct, int64_t decr = 1) {
     DVLOG(5) << "called remote complete";
     if (FLAGS_flatten_completions) {
-      send_completion(ce.core(), decr);
+      send_completion(ct.core, decr);
     } else {
-      if (ce.core() == mycore()) {
+      if (ct.core == mycore()) {
         complete(decr);
       } else {
         if (decr == 1) {
           // (common case) don't send full 8 bytes just to decrement by 1
-          send_heap_message(ce.core(), [this] {
+          send_heap_message(ct.core, [this] {
             complete();
           });
         } else {
-          send_heap_message(ce.core(), [this,decr] {
+          send_heap_message(ct.core, [this,decr] {
             complete(decr);
           });
         }
       }
     }
+  }
+  
+  /// Wrapper to call combining completion instead of local completion
+  /// when given a GCE global address.
+  inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+    return complete({ce.core()}, decr);
   }
   
   /// Suspend calling task until all tasks completed (including additional tasks enrolled 
@@ -378,7 +389,7 @@ public:
 
 };
 
-inline GlobalAddress<GlobalCompletionEvent> enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+inline CompletionTarget enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
   return ce.pointer()->enroll(decr);
 }
 

@@ -312,7 +312,7 @@ void try_iterative_spmd_gce() {
         auto message_completion_target = local_gce.enroll();
 
         spawn<unbound>( [j,message_completion_target] {
-          if( message_completion_target.core() != mycore() ) stolen++;
+          if( message_completion_target.core != mycore() ) stolen++;
           send_heap_message( j % cores(), [message_completion_target] {
             val++;
             local_gce.complete( message_completion_target );
