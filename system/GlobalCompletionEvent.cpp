@@ -48,6 +48,9 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, gce_incomplete, []{
   return impl::local_gce.incomplete();
 });
 
+/// The GlobalCompletionEvents master core is defined to be core 0.
+const Core GlobalCompletionEvent::master_core = 0;
+
 std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::user_tracked_gces;
 
 std::vector<GlobalCompletionEvent*> GlobalCompletionEvent::get_user_tracked() {

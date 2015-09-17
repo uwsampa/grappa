@@ -87,7 +87,6 @@ class GlobalCompletionEvent : public CompletionEvent {
   // (count)
   // (cv)
   bool event_in_progress;
-  Core master_core;
 
   // Master barrier only
   Core cores_out;
@@ -167,6 +166,9 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
+  /// The GlobalCompletionEvents master core is defined to be core 0.
+  static const Core master_core;
+
   static std::vector<GlobalCompletionEvent*> get_user_tracked();
 
   int64_t incomplete() const { return count; }
@@ -193,7 +195,7 @@ public:
     }
   }
   
-  GlobalCompletionEvent(bool user_track=false): master_core(0), reenroll_count(0), temporary_waking_cv(), temporary_waking_cores_out(0), completion_msgs(nullptr) {
+  GlobalCompletionEvent(bool user_track=false): reenroll_count(0), temporary_waking_cv(), temporary_waking_cores_out(0), completion_msgs(nullptr) {
     reset();
 
     if (user_track) {
@@ -224,8 +226,8 @@ public:
   ///
   /// Blocks until cancel completes (if it must cancel) to ensure correct ordering, therefore
   /// cannot be called from message handler.
-  void enroll(int64_t inc = 1) {
-    if (inc == 0) return;
+  GlobalAddress<GlobalCompletionEvent> enroll(int64_t inc = 1) {
+    if (inc == 0) return make_global(this);
     
     CHECK_GE(inc, 1);
     count += inc;
@@ -251,8 +253,18 @@ public:
       CHECK_GT(count, 0);
       DVLOG(2) << "gce(" << this << " cores_out: " << co << ", count: " << count << ")";
     }
+
+    return make_global(this);
   }
-  
+
+  /// Enqueue tasks to GCE which will be automatically re-enrolled when the current phase completes.
+  /// This must be called on the master core.
+  GlobalAddress<GlobalCompletionEvent> enroll_recurring(int64_t inc = 1) {
+    CHECK_EQ(mycore(), master_core) << "Enroll count must be positive.";
+    reenroll_count = inc;
+    return enroll(inc);
+  }
+
   /// Mark a certain number of things completed. When the global count on all cores goes to 0, all
   /// tasks waiting on the GCE will be woken.
   ///
@@ -317,6 +329,30 @@ public:
       });
     }
   }
+
+  /// Wrapper to call combining completion instead of local completion
+  /// when given a GCE global address.
+  inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+    DVLOG(5) << "called remote complete";
+    if (FLAGS_flatten_completions) {
+      send_completion(ce.core(), decr);
+    } else {
+      if (ce.core() == mycore()) {
+        complete(decr);
+      } else {
+        if (decr == 1) {
+          // (common case) don't send full 8 bytes just to decrement by 1
+          send_heap_message(ce.core(), [this] {
+            complete();
+          });
+        } else {
+          send_heap_message(ce.core(), [this,decr] {
+            complete(decr);
+          });
+        }
+      }
+    }
+  }
   
   /// Suspend calling task until all tasks completed (including additional tasks enrolled 
   /// before count goes to 0). This can be called from as many tasks as desired on
@@ -340,53 +376,18 @@ public:
     }
   }
 
-  /// Set up GCE to re-enroll this many cores/tasks on master core at completion.
-  /// This should be called on a single core after enrolling as many tasks as you want to reenroll on the master core (0).
-  void reenroll_on_complete() {
-    impl::call(master_core, [this] {
-      CHECK_GT(count, 0) << "Must have enrolled at least one task on core " << master_core << " before calling this method.";
-      reenroll_count = count;
-    });
-  }
-
-  /// Stop re-enrolling taks this many cores/tasks on master core at completion.
-  /// This should be called on a single core.
-  void disable_reenroll_on_complete() {
-    impl::call(master_core, [this] {
-      reenroll_count = 0;
-    });
-  }
-  
 };
 
-inline void enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
-  ce.pointer()->enroll(decr);
+inline GlobalAddress<GlobalCompletionEvent> enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  return ce.pointer()->enroll(decr);
 }
-
 
 /// Allow calling send_completion using the old way (with global address)
 /// TODO: replace all instances with gce.send_completion and remove this?
 inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
-  DVLOG(5) << "called remote complete";
-  if (FLAGS_flatten_completions) {
-    ce.pointer()->send_completion(ce.core(), decr);
-  } else {
-    if (ce.core() == mycore()) {
-      ce.pointer()->complete(decr);
-    } else {
-      if (decr == 1) {
-        // (common case) don't send full 8 bytes just to decrement by 1
-        send_heap_message(ce.core(), [ce] {
-          ce.pointer()->complete();
-        });
-      } else {
-        send_heap_message(ce.core(), [ce,decr] {
-          ce.pointer()->complete(decr);
-        });
-      }
-    }
-  }
+  ce.pointer()->complete(ce, decr);
 }
+
 /// @}
 } // namespace Grappa
 

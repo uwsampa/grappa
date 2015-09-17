@@ -295,37 +295,34 @@ void try_synchronizing_spawns() {
 }
 
 void try_iterative_spmd_gce() {
+  static int val, stolen;
 
   // set up re-enrolling across iterations
-  gce.enroll(cores());
-  gce.reenroll_on_complete();
-
-  static int val, stolen;
+  auto completion_target = local_gce.enroll_recurring(cores());
   
-  on_all_cores( [] {
-    for(int i = 0; i < FLAGS_outer; ++i) {
+  on_all_cores( [completion_target] {
+    for( int i = 0; i < FLAGS_outer; ++i ) {
 
-      if(mycore() == 0) {
+      if( mycore() == 0 ) {
         val = 0;
         stolen = 0;
       }
 
-      for(int j = 0; j < FLAGS_inner; ++j) {
-        Core origin = mycore();
-        gce.enroll();
-        
-        spawn<unbound>( [j,origin] {
-          if( origin != mycore() ) stolen++; //LOG(INFO) << "task was stolen!";
-          send_heap_message( j % cores(), [origin] {
+      for( int j = 0; j < FLAGS_inner; ++j ) {
+        auto message_completion_target = local_gce.enroll();
+
+        spawn<unbound>( [j,message_completion_target] {
+          if( message_completion_target.core() != mycore() ) stolen++;
+          send_heap_message( j % cores(), [message_completion_target] {
             val++;
-            gce.send_completion( origin );
+            local_gce.complete( message_completion_target );
           });
         });
       }
 
       // wait for everyone to finish and prepare for next iteration.
-      gce.send_completion( 0 );
-      gce.wait();
+      local_gce.complete( completion_target );
+      local_gce.wait();
     }
   });
 }
