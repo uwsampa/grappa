@@ -60,6 +60,11 @@ namespace Grappa {
 /// @addtogroup Synchronization
 /// @{
 
+/// Type returned by enroll used to indicate where to send a completion
+struct CompletionTarget {
+  Core core;
+};
+
 /// GlobalCompletionEvent (GCE):
 /// Synchronization construct for determining when a global phase of asynchronous tasks have 
 /// all completed. For example, can be used to ensure that all tasks of a parallel loop have
@@ -87,11 +92,17 @@ class GlobalCompletionEvent : public CompletionEvent {
   // (count)
   // (cv)
   bool event_in_progress;
-  Core master_core;
-  
+
   // Master barrier only
   Core cores_out;
   
+  // after completion, re-enroll this many tasks on master core.
+  int reenroll_count;
+  
+  // temporary storage for blocked threads while exiting from wake
+  ConditionVariable temporary_waking_cv;
+  Core temporary_waking_cores_out;
+
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
 
@@ -113,7 +124,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   public:
     Core target;
     int64_t completes_to_send;
-    CompletionMessage(Core target = -1): Message(), completes_to_send(0), target(target) {}
+    CompletionMessage(Core target = -1): Message(), target(target), completes_to_send(0) {}
     
     bool waiting_to_send() {
       return this->is_enqueued_ && !this->is_sent_;
@@ -160,6 +171,9 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
+  /// The GlobalCompletionEvents master core is defined to be core 0.
+  static const Core master_core;
+
   static std::vector<GlobalCompletionEvent*> get_user_tracked();
 
   int64_t incomplete() const { return count; }
@@ -186,7 +200,7 @@ public:
     }
   }
   
-  GlobalCompletionEvent(bool user_track=false): master_core(0), completion_msgs(nullptr) {
+  GlobalCompletionEvent(bool user_track=false): reenroll_count(0), temporary_waking_cv(), temporary_waking_cores_out(0), completion_msgs(nullptr) {
     reset();
 
     if (user_track) {
@@ -208,6 +222,7 @@ public:
     count = 0;
     cv.waiters_ = 0;
     cores_out = 0;
+    reenroll_count = 0;
     event_in_progress = false;
   }
   
@@ -216,8 +231,8 @@ public:
   ///
   /// Blocks until cancel completes (if it must cancel) to ensure correct ordering, therefore
   /// cannot be called from message handler.
-  void enroll(int64_t inc = 1) {
-    if (inc == 0) return;
+  CompletionTarget enroll(int64_t inc = 1) {
+    if (inc == 0) return {mycore()};
     
     CHECK_GE(inc, 1);
     count += inc;
@@ -243,15 +258,25 @@ public:
       CHECK_GT(count, 0);
       DVLOG(2) << "gce(" << this << " cores_out: " << co << ", count: " << count << ")";
     }
+
+    return {mycore()};
   }
-  
+
+  /// Enqueue tasks to GCE which will be automatically re-enrolled when the current phase completes.
+  /// This must be called on the master core.
+  CompletionTarget enroll_recurring(int64_t inc = 1) {
+    CHECK_EQ(mycore(), master_core) << "Enroll count must be positive.";
+    reenroll_count = inc;
+    return enroll(inc);
+  }
+
   /// Mark a certain number of things completed. When the global count on all cores goes to 0, all
   /// tasks waiting on the GCE will be woken.
   ///
   /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
   void complete(int64_t dec = 1) {
     count -= dec;
-    DVLOG(4) << "complete (" << count << ") -- gce(" << this << ")";
+    DVLOG(4) << "core " << mycore() << " complete (" << count << ") -- gce(" << this << ") cores_out: " << cores_out;
     
     // out of work here
     if (count == 0) { // count[dec -> 0]
@@ -263,18 +288,81 @@ public:
         // if all are in
         if (cores_out == 0) { // cores_out[1 -> 0]
           CHECK_EQ(count, 0);
-          // notify everyone to wake
+
+          // first, go reset everyone
+          temporary_waking_cores_out = cores();
+          auto re = this->reenroll_count; // remember if we requested reenroll
           for (Core c = 0; c < cores(); c++) {
-            send_heap_message(c, [this] {
+            send_heap_message(c, [this,re] {
               CHECK_EQ(count, 0);
-              DVLOG(3) << "broadcast";
-              broadcast(&cv); // wake anyone who was waiting here
+              temporary_waking_cv = cv; // capture current list of waiters
               reset(); // reset, now anyone else calling `wait` should fall through
+              DVLOG(3) << "reset";
+              
+              // if requested, remind cores that we're re-enrolling at the master core
+              if( re ) {
+                DVLOG(5) << "Setting event_in_progress";
+                event_in_progress = true;
+              }
+
+              // then, once everyone is reset,
+              send_heap_message(master_core, [this,re] {
+                temporary_waking_cores_out--;
+                if (temporary_waking_cores_out == 0) {
+                  
+                  // if requested, re-enroll cores
+                  if( re ) {
+                    DVLOG(5) << "Setting count (" << count << ") to " << re << " with event_in_progress " << event_in_progress;
+                    count = re;          // expect this many completions
+                    cores_out = 1;       // remember that the master core has outstanding tasks
+                    reenroll_count = re; // remember to re-enroll this many cores/tasks next time
+                  }
+
+                  // notify everyone to wake
+                  for (Core c = 0; c < cores(); c++) {
+                    send_heap_message(c, [this] {
+                      DVLOG(3) << "broadcast";
+                      broadcast(&temporary_waking_cv); // wake anyone who was waiting here
+                      temporary_waking_cv.waiters_ = 0; 
+                    });
+                  }
+                }
+              });
             });
           }
         }
       });
     }
+  }
+
+  /// Wrapper to call combining completion instead of local completion
+  /// when given a CompletionTarget.
+  inline void complete(CompletionTarget ct, int64_t decr = 1) {
+    DVLOG(5) << "called remote complete";
+    if (FLAGS_flatten_completions) {
+      send_completion(ct.core, decr);
+    } else {
+      if (ct.core == mycore()) {
+        complete(decr);
+      } else {
+        if (decr == 1) {
+          // (common case) don't send full 8 bytes just to decrement by 1
+          send_heap_message(ct.core, [this] {
+            complete();
+          });
+        } else {
+          send_heap_message(ct.core, [this,decr] {
+            complete(decr);
+          });
+        }
+      }
+    }
+  }
+  
+  /// Wrapper to call combining completion instead of local completion
+  /// when given a GCE global address.
+  inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+    return complete({ce.core()}, decr);
   }
   
   /// Suspend calling task until all tasks completed (including additional tasks enrolled 
@@ -297,40 +385,20 @@ public:
       }
       DVLOG(3) << "fell thru conservative check";
     }
-    CHECK(!event_in_progress) << " gce(" << this << ", count:" << count << ")";
-    CHECK_EQ(count, 0);
   }
-  
+
 };
 
-inline void enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
-  ce.pointer()->enroll(decr);
+inline CompletionTarget enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  return ce.pointer()->enroll(decr);
 }
-
 
 /// Allow calling send_completion using the old way (with global address)
 /// TODO: replace all instances with gce.send_completion and remove this?
 inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
-  DVLOG(5) << "called remote complete";
-  if (FLAGS_flatten_completions) {
-    ce.pointer()->send_completion(ce.core(), decr);
-  } else {
-    if (ce.core() == mycore()) {
-      ce.pointer()->complete(decr);
-    } else {
-      if (decr == 1) {
-        // (common case) don't send full 8 bytes just to decrement by 1
-        send_heap_message(ce.core(), [ce] {
-          ce.pointer()->complete();
-        });
-      } else {
-        send_heap_message(ce.core(), [ce,decr] {
-          ce.pointer()->complete(decr);
-        });
-      }
-    }
-  }
+  ce.pointer()->complete(ce, decr);
 }
+
 /// @}
 } // namespace Grappa
 
