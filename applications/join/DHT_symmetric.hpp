@@ -11,6 +11,7 @@
 
 
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_inserts);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_partition_inserts);
 
 // for naming the types scoped in DHT_symmetric
 #define DHT_symmetric_TYPE(type) typename DHT_symmetric<K,V,Hash>::type
@@ -53,6 +54,17 @@ class DHT_symmetric {
       return object;
     }
 
+    template< typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void) >
+  void update_partition( K key, UV val ) {
+      std::pair<K,V> entry(key, Init());
+
+      auto res = this->local_map->insert(entry); auto resIt = res.first; //auto resNew = res.second;
+
+      // perform the update in place
+      resIt->second = UpF(resIt->second, val);
+      dht_partition_inserts++;
+  }
+
     template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
     void update( K key, UV val ) {
       auto index = computeIndex( key );
@@ -90,10 +102,19 @@ class DHT_symmetric {
           // TODO: cannot use forall_here because unordered_map->begin() is a forward iterator (std::advance is O(n))
           // TODO: for now the serial loop is only performant if the continuation code is also in CPS
           // TODO: best solution is a forall_here where loop decomposition is just linear continuation instead of divide and conquer
+         
+          int64_t iter_count = 0;
           auto m = target->local_map;
-          for (auto it = m->begin(); it != m->end(); it++) {
+          for (auto it = m->begin(); it != m->end(); it++, iter_count++) {
             // continuation takes a mapping
             f(*it);
+
+            // get the same effect as a forall_here that would have linear decomposition: 
+            // specifically that there is at least one yield per FLAGS_loop_theshold iterations.
+            if (iter_count == FLAGS_loop_threshold) {
+              iter_count = 0;
+              Grappa::yield();
+            }
           }
       }); 
       // TODO GCE->wait(); // block until all tasks are done
