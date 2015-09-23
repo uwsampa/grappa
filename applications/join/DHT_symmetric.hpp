@@ -11,6 +11,7 @@
 
 
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_inserts);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_partition_inserts);
 
 // for naming the types scoped in DHT_symmetric
 #define DHT_symmetric_TYPE(type) typename DHT_symmetric<K,V,Hash>::type
@@ -52,6 +53,17 @@ class DHT_symmetric {
       
       return object;
     }
+
+    template< typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void) >
+  void update_partition( K key, UV val ) {
+      std::pair<K,V> entry(key, Init());
+
+      auto res = this->local_map->insert(entry); auto resIt = res.first; //auto resNew = res.second;
+
+      // perform the update in place
+      resIt->second = UpF(resIt->second, val);
+      dht_partition_inserts++;
+  }
 
     template< GlobalCompletionEvent * GCE, typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void), SyncMode S = SyncMode::Async >
     void update( K key, UV val ) {
