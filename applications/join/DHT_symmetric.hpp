@@ -102,10 +102,19 @@ class DHT_symmetric {
           // TODO: cannot use forall_here because unordered_map->begin() is a forward iterator (std::advance is O(n))
           // TODO: for now the serial loop is only performant if the continuation code is also in CPS
           // TODO: best solution is a forall_here where loop decomposition is just linear continuation instead of divide and conquer
+         
+          int64_t iter_count = 0;
           auto m = target->local_map;
-          for (auto it = m->begin(); it != m->end(); it++) {
+          for (auto it = m->begin(); it != m->end(); it++, iter_count++) {
             // continuation takes a mapping
             f(*it);
+
+            // get the same effect as a forall_here that would have linear decomposition: 
+            // specifically that there is at least one yield per FLAGS_loop_theshold iterations.
+            if (iter_count == FLAGS_loop_threshold) {
+              iter_count = 0;
+              Grappa::yield();
+            }
           }
       }); 
       // TODO GCE->wait(); // block until all tasks are done
