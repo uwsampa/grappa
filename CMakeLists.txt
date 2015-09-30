@@ -159,30 +159,30 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS}")
 set(LINK_FLAGS "${LINK_FLAGS} ${MPI_CXX_LINK_FLAGS}")
 list(APPEND GRAPPA_DYNAMIC_LIBS ${MPI_CXX_LIBRARIES})
 
-######################################################################
-# PMI: helpful for job launch on some systems with Slurm.
-# MPI may already include it, but we ignore that here.
-######################################################################
-find_library(PMI_FOUND pmi)
-if(PMI_FOUND)
-  list(APPEND GRAPPA_DYNAMIC_LIBS ${PMI_FOUND})
-endif()
+# ######################################################################
+# # PMI: helpful for job launch on some systems with Slurm.
+# # MPI may already include it, but we ignore that here.
+# ######################################################################
+# find_library(PMI_FOUND pmi)
+# if(PMI_FOUND)
+#   list(APPEND GRAPPA_DYNAMIC_LIBS ${PMI_FOUND})
+# endif()
 
-######################################################################
-# Pthreads
-######################################################################
-if(NOT APPLE)
-  find_library(PTHREADS_FOUND pthread REQUIRED)
-  list(APPEND GRAPPA_DYNAMIC_LIBS ${PTHREADS_FOUND})
-endif()
+# ######################################################################
+# # Pthreads
+# ######################################################################
+# if(NOT APPLE)
+#   find_library(PTHREADS_FOUND pthread REQUIRED)
+#   list(APPEND GRAPPA_DYNAMIC_LIBS ${PTHREADS_FOUND})
+# endif()
 
-######################################################################
-# POSIX realtime extensions
-######################################################################
-if(NOT APPLE)
-  find_library(RT_FOUND rt REQUIRED)
-  list(APPEND GRAPPA_DYNAMIC_LIBS ${RT_FOUND})
-endif()
+# ######################################################################
+# # POSIX realtime extensions
+# ######################################################################
+# if(NOT APPLE)
+#   find_library(RT_FOUND rt REQUIRED)
+#   list(APPEND GRAPPA_DYNAMIC_LIBS ${RT_FOUND})
+# endif()
 
 ######################################################################
 # Google logging (Grappa-customized)
@@ -543,14 +543,20 @@ endif()
 list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS)
 string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS ";${GRAPPA_LIB_PATHS}")
 
-list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS_INSTALLED)
-string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS_INSTALLED ";${GRAPPA_LIB_PATHS_INSTALLED}")
+if(GRAPPA_LIB_PATHS_INSTALLED)
+  list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS_INSTALLED)
+  string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS_INSTALLED ";${GRAPPA_LIB_PATHS_INSTALLED}")
+endif()
 
 list(REMOVE_DUPLICATES GRAPPA_STATIC_LIB_NAMES)
 string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
+set(GMAKE_LDLIBS "${CMAKE_EXE_LINK_STATIC_CXX_FLAGS} ${GMAKE_STATIC_LIBS}")
 
-list(REMOVE_DUPLICATES GRAPPA_DYNAMIC_LIB_NAMES)
-string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GRAPPA_DYNAMIC_LIB_NAMES}")
+if(GRAPPA_DYNAMIC_LIB_NAMES)
+  list(REMOVE_DUPLICATES GRAPPA_DYNAMIC_LIB_NAMES)
+  string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GRAPPA_DYNAMIC_LIB_NAMES}")
+  set(GMAKE_LDLIBS "${GMAKE_LDLIBS}\\\n\t${CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS} ${GMAKE_DYNAMIC_LIBS}")
+endif()
 
 # fill in prototype file and place in build directory
 configure_file(util/grappa.mk util/grappa.mk)
