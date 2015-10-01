@@ -78,6 +78,8 @@
 typedef int16_t Core;
 typedef int16_t Locale;
 
+const static int16_t MAX_CORES_PER_LOCALE = 128;
+
 struct CommunicatorContext {
   MPI_Request request;
   void * buf;

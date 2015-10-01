@@ -836,7 +836,7 @@ void RDMAAggregator::draw_routing_graph() {
       };
 
       // deaggregate messages to send
-      Grappa::Message< ReceiveBuffer > msgs[ global_communicator.locale_cores ];
+      Grappa::Message< ReceiveBuffer > msgs[ MAX_CORES_PER_LOCALE ];
       
       // index array from buffer
       uint32_t * counts = buf->get_counts();
