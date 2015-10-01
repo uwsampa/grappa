@@ -49,9 +49,9 @@ if opt.used_cc_flag
   # automatically determine cxx from --cc
   case opt.cc
   when /gcc/
-    opt.cxx = opt.cc.gsub(/gcc/,'g++')
+    opt.cxx = opt.cc.gsub(/gcc$/,'g++')
   when /clang/
-    opt.cxx = opt.cc.gsub(/clang/,'clang++')
+    opt.cxx = opt.cc.gsub(/clang$/,'clang++')
   end
 end
 
@@ -59,9 +59,9 @@ if opt.used_cxx_flag
   # automatically determine cc from --cxx
   case opt.cxx
   when /g\+\+/
-    opt.cc = opt.cxx.gsub(/g\+\+/,'gcc')
+    opt.cc = opt.cxx.gsub(/g\+\+$/,'gcc')
   when /clang\+\+/
-    opt.cc = opt.cxx.gsub(/clang\+\+/,'clang')
+    opt.cc = opt.cxx.gsub(/clang\+\+$/,'clang')
   end
 end
 
