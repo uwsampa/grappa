@@ -83,6 +83,14 @@ if opt.tracing && not(opt.vampir) && opt.third_party
   opt.vampir = opt.third_party
 end
 
+# verify we're on a 64-bit machine
+case `uname -m`
+when /x86_64/
+  puts "64-bit architecture verified."
+else
+  abort("Grappa requires a 64-bit Intel/AMD architecture machine. This appears to be something else.")
+end
+
 def configure(generator, mode, opt)
   root_dir = File.expand_path(File.dirname(__FILE__))
   args = [ root_dir ]
