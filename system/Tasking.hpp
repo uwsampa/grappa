@@ -41,6 +41,8 @@
 #include "StateTimer.hpp"
 #include "Communicator.hpp"
 
+#include <cstdlib>
+
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/typeof/typeof.hpp>
 #include <boost/static_assert.hpp>
@@ -228,6 +230,9 @@ void run(FP fp) {
   
   StateTimer::init();
 
+  // bypass atexit() handlers. TODO: figure out what causes crashes when exit()ing inside grappa threads
+  on_exit( [] ( int retval, void * payload) { _exit(retval); }, nullptr );
+  
   // start the scheduler
   Grappa::impl::global_scheduler.run( );
 
