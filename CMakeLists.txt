@@ -453,9 +453,12 @@ add_subdirectory(util)
 # standalone builds.
 #############################################################################
 
-# combine generic CXX flags with RelWithDebInfo build type flags
-set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-set(GMAKE_LINK_FLAGS "${LINK_FLAGS} ${LINK_FLAGS_RELWITHDEBINFO}")
+# Figure out what type of build we're installing
+string(TOUPPER "${CMAKE_BUILD_TYPE}" GMAKE_BUILD_TYPE)
+
+# combine generic CXX flags with flags for current build type
+set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${GMAKE_BUILD_TYPE}}")
+set(GMAKE_LINK_FLAGS "${LINK_FLAGS} ${LINK_FLAGS_${GMAKE_BUILD_TYPE}}")
 
 # Get definitions and convert from CMake-formatted list to Gnu compiler argument list
 get_directory_property(CMAKE_CXX_DEFINES DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos COMPILE_DEFINITIONS)
