@@ -64,8 +64,6 @@ class NTBuffer {
   uint64_t * buffer_;
   int position_;
   int local_position_;
-  NTBuffer * next_mru_;
-  NTBuffer * prev_mru_;
   
 public:
   NTBuffer()
@@ -73,47 +71,17 @@ public:
     , buffer_( nullptr )
     , position_( 0 )
     , local_position_( 0 )
-    , next_mru_( nullptr )
-    , prev_mru_( nullptr )
   { }
 
+  inline bool empty() const { return position_ == 0 && local_position_ == 0; }
+  
   static void set_initial_offset( int words ) {
     initial_offset = words;
   }
 
-  inline NTBuffer * get_next_mru() const { return next_mru_; }
-
-  inline void maybe_update_mru( NTBuffer ** mru_root ) {
-    DVLOG(5) << "Maybe adding " << this << " to mru list starting at " << *mru_root;
-    if( (*mru_root != this) && (prev_mru_ == nullptr) ) { // not already in list
-      next_mru_ = *mru_root;
-      *mru_root = this;
-    }
-  }
-
-  inline void remove_from_mru( NTBuffer ** mru_root ) {
-    DVLOG(5) << "Removing " << this << " from mru list starting at " << *mru_root;
-    if( *mru_root == this ) {
-      *mru_root = next_mru_;
-    }
-    if( next_mru_ ) {
-#ifdef USE_NT_OPS
-      _mm_prefetch( &(next_mru_->prev_mru_), _MM_HINT_NTA );
-#endif
-      next_mru_->prev_mru_ = prev_mru_;
-      next_mru_ = nullptr;
-    }
-    if( prev_mru_ ) {
-#ifdef USE_NT_OPS
-      _mm_prefetch( &(prev_mru_->next_mru_), _MM_HINT_NTA );
-#endif
-      prev_mru_->next_mru_ = next_mru_;
-      prev_mru_ = nullptr;
-    }
-  }
-
   void new_buffer( ) {
-    CHECK( posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE ) == 0)
+    DVLOG(5) << "Allocating new buffer for " << this;
+    CHECK( posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE ) == 0 )
       << "posix_memalign error: buffer allocation failed";
     position_ = 0;
   }
@@ -126,10 +94,12 @@ public:
     auto retval = std::make_tuple( reinterpret_cast<void*>(buffer_), position_ * sizeof(uint64_t) );
     buffer_ = nullptr;
     position_ = 0;
+    DCHECK_EQ( local_position_, 0 );
     return retval;
   }
   
   int flush() {
+    DVLOG(5) << "Flushing " << this << " with position " << position_ << ", local_position " << local_position_;
     if( local_position_ > 0 ) { // skip unless we have something to write
       for( int i = local_position_; i < local_buffer_size; ++i ) {
         localbuf_[i] = 0;
@@ -177,7 +147,7 @@ public:
   }
   
   inline int enqueue( uint64_t * word_p, int word_size ) {
-    DVLOG(5) << "Enqueuing " << word_size << " words from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
+    DVLOG(5) << "Enqueuing " << word_size << " words to " << this << " from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
 
     // start with offset if necessary
     if( (position_ == 0) && (local_position_ == 0) ) {

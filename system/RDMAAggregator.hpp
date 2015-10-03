@@ -39,6 +39,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <boost/dynamic_bitset.hpp>
+
 #include "Communicator.hpp"
 #include "Worker.hpp"
 #include "tasks/TaskingScheduler.hpp"
@@ -243,7 +245,7 @@ namespace Grappa {
       int core_partner_locale_count_;
 
       NTBuffer * ntbuffers_;
-      NTBuffer * ntbuffer_mru_root_;
+      boost::dynamic_bitset<> nt_mru_;
 
       void compute_route_map();
       void draw_routing_graph();
@@ -822,7 +824,7 @@ namespace Grappa {
         int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
 
         // update mru
-        ntbuffers_[dest].maybe_update_mru( &ntbuffer_mru_root_ );
+        nt_mru_.set(dest);
 
         // send if we've reached capacity
         if( size >= (FLAGS_aggregator_target_size + 4 * sizeof(uint64_t)) ) { // TODO: magic number

@@ -186,10 +186,11 @@ namespace Grappa {
         }
 
         // flush NT buffers
-        while( ntbuffer_mru_root_ != nullptr ) {
-          DVLOG(5) << "Flushing NT buffer " << ntbuffer_mru_root_;
-          nt_flush( ntbuffer_mru_root_ );
-          send_nt_buffer( ntbuffer_mru_root_ - ntbuffers_, ntbuffer_mru_root_ );
+        size_t mru;
+        while( boost::dynamic_bitset<>::npos != (mru = nt_mru_.find_first() ) ) {
+          DVLOG(5) << "Flushing NT buffer for " << mru << ": " << &ntbuffers_[mru];
+          nt_flush( &ntbuffers_[mru] );
+          send_nt_buffer( mru, &ntbuffers_[mru] );
         }
       }
     }
@@ -279,6 +280,8 @@ namespace Grappa {
       mynode_ = -1; // gasnet supernode
       total_cores_ = global_communicator.cores;
 
+      nt_mru_.resize( global_communicator.cores );
+      
       enqueue_counts_ = new uint64_t[ global_communicator.cores ];
       aggregate_counts_ = new uint64_t[ global_communicator.cores ];
       deaggregate_counts_ = new uint64_t[ global_communicator.cores ];
@@ -1315,11 +1318,11 @@ void RDMAAggregator::draw_routing_graph() {
 
 
   void RDMAAggregator::send_nt_buffer( Core dest, NTBuffer * buf ) {
-    buf->remove_from_mru( &ntbuffer_mru_root_ );
+    nt_mru_.reset(dest);
     auto buftuple = buf->take_buffer();
     auto b = reinterpret_cast<RDMABuffer*>( std::get<0>(buftuple) );
     auto size = std::get<1>(buftuple);
-    DVLOG(3) << "Sending NT buffer " << b << " of size " << size;
+    DVLOG(3) << "Sending NT buffer " << buf << " with data buffer " << b << " of size " << size;
 
     // TODO: hack to carry size for now
     int64_t * size_p = reinterpret_cast<int64_t*>( b->get_counts() );
