@@ -188,7 +188,7 @@ class AggregatePartitionSink : public BasePipelined<C,int> {
     GlobalAddress<DHT_symmetric_generic<K, V, C, Hash>> group_hash;
   
   public:
-    AggregateSink(Operator<C>* input, GlobalAddress<
+    AggregatePartitionSink(Operator<C>* input, GlobalAddress<
                       DHT_symmetric_generic<K, V, C, Hash>> group_hash_000)
    : BasePipelined<C,int>(input)
    , group_hash(group_hash_000) { }
