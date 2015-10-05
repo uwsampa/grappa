@@ -16,6 +16,11 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, dht_inserts);
 #define DHT_symmetric_generic_TYPE(type) typename DHT_symmetric_generic<K,V,UV,Hash>::type
 #define DHT_symmetric_generic_T DHT_symmetric_generic<K,V,UV,Hash>
 
+// TODO: The functionality of this class is covered by DHT_symmetric already.
+//       The only difference is that update_f/init_f are template parameters
+//       versus instance parameters. We can just add these instance parameters
+//       to DHT_symmetric and have two versions of update() method.
+
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
@@ -59,6 +64,16 @@ class DHT_symmetric_generic {
       });
       
       return object;
+    }
+
+    void update_partition(K key, UV val) {
+      std::pair<K,V> entry(key, Init());
+      
+      auto res = this->local_map->insert(entry); auto resIt = res.first; //auto resNew = res.second;
+
+      // perform the update in place
+      resIt->second = this->UpF(resIt->second, val);
+      dht_partition_inserts++;
     }
 
     template< GlobalCompletionEvent * GCE, SyncMode S = SyncMode::Async >

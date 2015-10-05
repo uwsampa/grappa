@@ -181,6 +181,34 @@ class ZeroKeyAggregateSource : public Operator<P> {
   
 };
         
+template <typename C, typename K, typename V>
+class AggregatePartitionSink : public BasePipelined<C,int> {
+  private:
+    typedef hash_tuple::hash<K> Hash;
+    GlobalAddress<DHT_symmetric_generic<K, V, C, Hash>> group_hash;
+  
+  public:
+    AggregateSink(Operator<C>* input, GlobalAddress<
+                      DHT_symmetric_generic<K, V, C, Hash>> group_hash_000)
+   : BasePipelined<C,int>(input)
+   , group_hash(group_hash_000) { }
+
+    bool next(int& ignore) {
+      C t_002;
+      if (this->input->next(t_002)) {
+        VLOG(4) << "update with tuple " << t_002;
+        group_hash->update_partition(mktuple(t_002), t_002);
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+  protected:
+  // subclass is generated and implements
+  // this method
+  virtual K mktuple(C& val) = 0; 
+};
 
 template <typename C, typename K, typename V, GlobalCompletionEvent * GCE >
 class AggregateSink : public BasePipelined<C,int> {
