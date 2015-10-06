@@ -129,8 +129,9 @@ class TaskingScheduler : public Scheduler {
 
     // STUB: replace with real periodic threads
     Grappa::Timestamp previous_periodic_ts;
+    Grappa::Timestamp periodic_poll_ticks;
   inline bool should_run_periodic( Grappa::Timestamp current_ts ) {
-    return current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks;
+    return current_ts - previous_periodic_ts > periodic_poll_ticks;
   }
 
     Worker * periodicDequeue(Grappa::Timestamp current_ts) {
@@ -379,7 +380,8 @@ class TaskingScheduler : public Scheduler {
     void periodic( Worker * thr ) {
       periodicQ.enqueue( thr );
       Grappa::tick();
-      previous_periodic_ts = Grappa::timestamp();
+      Grappa::Timestamp current_ts = Grappa::force_tick();
+      previous_periodic_ts = current_ts;
     }
 
     /// Reset scheduler statistics

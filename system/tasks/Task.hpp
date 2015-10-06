@@ -268,7 +268,7 @@ class TaskManager {
 
 /// Whether work possibly exists locally or globally
 inline bool TaskManager::available( ) const {
-  VLOG(6) << " publicHasEle()=" << publicHasEle()
+  DVLOG(6) << " publicHasEle()=" << publicHasEle()
     << " privateHasEle()=" << privateHasEle();
   return privateHasEle() 
     || publicHasEle()
@@ -279,7 +279,7 @@ inline bool TaskManager::available( ) const {
 
 /// Whether work exists locally
 inline bool TaskManager::local_available( ) const {
-  VLOG(6) << " publicHasEle()=" << publicHasEle()
+  DVLOG(6) << " publicHasEle()=" << publicHasEle()
     << " privateHasEle()=" << privateHasEle();
   return privateHasEle() 
     || publicHasEle();
