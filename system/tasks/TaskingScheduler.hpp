@@ -1,24 +1,35 @@
 ////////////////////////////////////////////////////////////////////////
-// This file is part of Grappa, a system for scaling irregular
-// applications on commodity clusters. 
-
-// Copyright (C) 2010-2014 University of Washington and Battelle
-// Memorial Institute. University of Washington authorizes use of this
-// Grappa software.
-
-// Grappa is free software: you can redistribute it and/or modify it
-// under the terms of the Affero General Public License as published
-// by Affero, Inc., either version 1 of the License, or (at your
-// option) any later version.
-
-// Grappa is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// Affero General Public License for more details.
-
-// You should have received a copy of the Affero General Public
-// License along with this program. If not, you may obtain one from
-// http://www.affero.org/oagpl.html.
+// Copyright (c) 2010-2015, University of Washington and Battelle
+// Memorial Institute.  All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+//     * Redistributions of source code must retain the above
+//       copyright notice, this list of conditions and the following
+//       disclaimer.
+//     * Redistributions in binary form must reproduce the above
+//       copyright notice, this list of conditions and the following
+//       disclaimer in the documentation and/or other materials
+//       provided with the distribution.
+//     * Neither the name of the University of Washington, Battelle
+//       Memorial Institute, or the names of their contributors may be
+//       used to endorse or promote products derived from this
+//       software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// UNIVERSITY OF WASHINGTON OR BATTELLE MEMORIAL INSTITUTE BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+// OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+// USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+// DAMAGE.
 ////////////////////////////////////////////////////////////////////////
 #ifndef TASKING_SCHEDULER_HPP
 #define TASKING_SCHEDULER_HPP
@@ -48,8 +59,6 @@
 GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches );
 GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_count);
 
-
-
 // forward declarations
 namespace Grappa {
 namespace impl { void idle_flush_rdma_aggregator(); }
@@ -60,6 +69,8 @@ namespace Metrics { void sample_all(); }
 bool idle_flush_aggregator();
 
 DECLARE_int64( periodic_poll_ticks );
+DECLARE_double( poll_factor );
+
 DECLARE_bool(poll_on_idle);
 DECLARE_bool(flush_on_idle);
 DECLARE_bool(rdma_flush_on_idle);
@@ -118,8 +129,10 @@ class TaskingScheduler : public Scheduler {
 
     // STUB: replace with real periodic threads
     Grappa::Timestamp previous_periodic_ts;
+    Grappa::Timestamp periodic_poll_ticks;
+  bool dynamic_poll_ticks;
   inline bool should_run_periodic( Grappa::Timestamp current_ts ) {
-    return current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks;
+    return (current_ts - previous_periodic_ts) > periodic_poll_ticks;
   }
 
     Worker * periodicDequeue(Grappa::Timestamp current_ts) {
@@ -128,6 +141,9 @@ class TaskingScheduler : public Scheduler {
       // Grappa::Timestamp current_ts = Grappa::timestamp();
 
       if( should_run_periodic( current_ts ) ) {
+        // record time at start of periodic worker execution
+        previous_periodic_ts = Grappa::force_tick();
+        // run periodic thread
         return periodicQ.dequeue();
       } else {
         return NULL;
@@ -181,16 +197,19 @@ class TaskingScheduler : public Scheduler {
         //   Grappa::Metrics::dump_stats_blob();
         // }
 
-        // check for periodic tasks
-        result = periodicDequeue(current_ts);
-        if (result != NULL) {
-          //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
-          *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerMetrics::StatePoll;
-          prev_ts = current_ts;
-          return result;
+        // Check for periodic tasks. Skip if we ran the periodic
+        // thread in the last scheduling cycle to give new tasks a
+        // chance to start.
+        if( stats.prev_state != TaskingSchedulerMetrics::StatePoll ) {
+          result = periodicDequeue(current_ts);
+          if (result != NULL) {
+            //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
+            *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
+            stats.prev_state = TaskingSchedulerMetrics::StatePoll;
+            prev_ts = current_ts;
+            return result;
+          }
         }
-
         
         // check ready tasks
         result = readyQ.dequeue();
@@ -367,8 +386,28 @@ class TaskingScheduler : public Scheduler {
     /// Put the Worker into the periodic queue
     void periodic( Worker * thr ) {
       periodicQ.enqueue( thr );
-      Grappa::tick();
-      previous_periodic_ts = Grappa::timestamp();
+
+      // record time at end of periodic worker execution
+      Grappa::Timestamp current_ts = Grappa::force_tick();
+
+      if( dynamic_poll_ticks ) { // set next timeout based on this poll time
+        // first make sure we have a starting timestamp.
+        if( previous_periodic_ts == 0 ) {
+          previous_periodic_ts = current_ts;
+        }
+
+        // now figure out how long polling took
+        auto poll_ticks = current_ts - previous_periodic_ts;
+
+        
+        if( poll_ticks > 0 ) {
+          // assuming the timestamp counter hasn't rolled over,
+          // compute next time to run polling thread
+          periodic_poll_ticks = static_cast<int64_t>( FLAGS_poll_factor * poll_ticks );
+        }
+      }
+
+      previous_periodic_ts = current_ts;
     }
 
     /// Reset scheduler statistics

@@ -7,7 +7,7 @@ include(util/grappa.cmake)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
-SET(GRAPPA_INSTALL_PREFIX "/opt/grappa" CACHE PATH "Prefix prepended to install directories")
+SET(GRAPPA_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Prefix prepended to install directories")
 SET(CMAKE_INSTALL_PREFIX "${GRAPPA_INSTALL_PREFIX}" CACHE INTERNAL "Prefix prepended to install directories" FORCE)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
@@ -230,7 +230,7 @@ if(GRAPH500_FOUND)
   list(APPEND GRAPPA_STATIC_LIBS ${GRAPH500_FOUND})
 else()
   # assume it will be built in third-party
-  list(APPEND GRAPPA_STATIC_LIBS ${THIRD_PARTY_ROOT}/graph500-generator/libgraph500-generator.a)
+  list(APPEND GRAPPA_STATIC_LIBS ${CMAKE_BINARY_DIR}/third-party/graph500-generator/libgraph500-generator.a)
 endif()
 
 ######################################################################
@@ -453,9 +453,12 @@ add_subdirectory(util)
 # standalone builds.
 #############################################################################
 
-# combine generic CXX flags with RelWithDebInfo build type flags
-set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-set(GMAKE_LINK_FLAGS "${LINK_FLAGS} ${LINK_FLAGS_RELWITHDEBINFO}")
+# Figure out what type of build we're installing
+string(TOUPPER "${CMAKE_BUILD_TYPE}" GMAKE_BUILD_TYPE)
+
+# combine generic CXX flags with flags for current build type
+set(GMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${GMAKE_BUILD_TYPE}}")
+set(GMAKE_LINK_FLAGS "${LINK_FLAGS} ${LINK_FLAGS_${GMAKE_BUILD_TYPE}}")
 
 # Get definitions and convert from CMake-formatted list to Gnu compiler argument list
 get_directory_property(CMAKE_CXX_DEFINES DIRECTORY ${CMAKE_SOURCE_DIR}/applications/demos COMPILE_DEFINITIONS)
@@ -469,7 +472,8 @@ if(CMAKE_CXX_INCLUDE_DIRS)
   foreach(dir ${CMAKE_CXX_INCLUDE_DIRS})
     string(FIND ${dir} ${CMAKE_SOURCE_DIR} INCLUDE_IN_SOURCE_DIR) # -1 if not found, 0 if found
     string(FIND ${dir} ${CMAKE_BINARY_DIR} INCLUDE_IN_BUILD_DIR)  # -1 if not found, 0 if found
-    if(NOT INCLUDE_IN_SOURCE_DIR EQUAL 0 AND NOT INCLUDE_IN_BUILD_DIR EQUAL 0)
+    string(FIND ${dir} ${THIRD_PARTY_ROOT} INCLUDE_IN_TPR_DIR)  # -1 if not found, 0 if found
+    if(NOT INCLUDE_IN_SOURCE_DIR EQUAL 0 AND NOT INCLUDE_IN_BUILD_DIR EQUAL 0 AND NOT INCLUDE_IN_TPR_DIR EQUAL 0)
       list(APPEND GRAPPA_INCLUDE_DIRS_INSTALLED ${dir})
     endif()
   endforeach()
@@ -493,8 +497,9 @@ foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
   # add directory to search paths
   get_filename_component(dir ${lib} PATH)      # get directory for libs
   list(APPEND GRAPPA_LIB_PATHS ${dir})
-  string(FIND ${dir} ${CMAKE_BINARY_DIR} STATIC_IN_BUILD_DIR)
-  if(STATIC_IN_BUILD_DIR EQUAL -1)
+  string(FIND ${dir} ${CMAKE_BINARY_DIR} STATIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
+  string(FIND ${dir} ${THIRD_PARTY_ROOT} STATIC_IN_TPR_DIR)    # -1 if not found, 0 if found
+  if(NOT STATIC_IN_BUILD_DIR EQUAL 0 AND NOT STATIC_IN_TPR_DIR EQUAL 0)
     list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
   endif()
 
@@ -516,8 +521,9 @@ foreach(lib ${GRAPPA_DYNAMIC_LIBS})
   # add directory to search paths
   get_filename_component(dir ${lib} PATH)
   list(APPEND GRAPPA_LIB_PATHS ${dir})
-  string(FIND ${dir} ${CMAKE_BINARY_DIR} DYNAMIC_IN_BUILD_DIR)
-  if(DYNAMIC_IN_BUILD_DIR EQUAL -1)
+  string(FIND ${dir} ${CMAKE_BINARY_DIR} DYNAMIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
+  string(FIND ${dir} ${THIRD_PARTY_ROOT} DYNAMIC_IN_TPR_DIR)    # -1 if not found, 0 if found
+  if(NOT DYNAMIC_IN_BUILD_DIR EQUAL 0 AND NOT DYNAMIC_IN_TPR_DIR EQUAL 0)
     list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
   endif()
 

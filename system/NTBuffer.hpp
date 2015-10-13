@@ -1,25 +1,36 @@
 #pragma once
 ////////////////////////////////////////////////////////////////////////
-// This file is part of Grappa, a system for scaling irregular
-// applications on commodity clusters. 
-
-// Copyright (C) 2010-2014 University of Washington and Battelle
-// Memorial Institute. University of Washington authorizes use of this
-// Grappa software.
-
-// Grappa is free software: you can redistribute it and/or modify it
-// under the terms of the Affero General Public License as published
-// by Affero, Inc., either version 1 of the License, or (at your
-// option) any later version.
-
-// Grappa is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// Affero General Public License for more details.
-
-// You should have received a copy of the Affero General Public
-// License along with this program. If not, you may obtain one from
-// http://www.affero.org/oagpl.html.
+// Copyright (c) 2010-2015, University of Washington and Battelle
+// Memorial Institute.  All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+//     * Redistributions of source code must retain the above
+//       copyright notice, this list of conditions and the following
+//       disclaimer.
+//     * Redistributions in binary form must reproduce the above
+//       copyright notice, this list of conditions and the following
+//       disclaimer in the documentation and/or other materials
+//       provided with the distribution.
+//     * Neither the name of the University of Washington, Battelle
+//       Memorial Institute, or the names of their contributors may be
+//       used to endorse or promote products derived from this
+//       software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// UNIVERSITY OF WASHINGTON OR BATTELLE MEMORIAL INSTITUTE BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+// OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+// USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+// DAMAGE.
 ////////////////////////////////////////////////////////////////////////
 
 #include <gflags/gflags.h>
@@ -53,8 +64,6 @@ class NTBuffer {
   uint64_t * buffer_;
   int position_;
   int local_position_;
-  NTBuffer * next_mru_;
-  NTBuffer * prev_mru_;
   
 public:
   NTBuffer()
@@ -62,47 +71,18 @@ public:
     , buffer_( nullptr )
     , position_( 0 )
     , local_position_( 0 )
-    , next_mru_( nullptr )
-    , prev_mru_( nullptr )
   { }
 
+  inline bool empty() const { return position_ == 0 && local_position_ == 0; }
+  
   static void set_initial_offset( int words ) {
     initial_offset = words;
   }
 
-  inline NTBuffer * get_next_mru() const { return next_mru_; }
-
-  inline void maybe_update_mru( NTBuffer ** mru_root ) {
-    DVLOG(5) << "Maybe adding " << this << " to mru list starting at " << *mru_root;
-    if( (*mru_root != this) && (prev_mru_ == nullptr) ) { // not already in list
-      next_mru_ = *mru_root;
-      *mru_root = this;
-    }
-  }
-
-  inline void remove_from_mru( NTBuffer ** mru_root ) {
-    DVLOG(5) << "Removing " << this << " from mru list starting at " << *mru_root;
-    if( *mru_root == this ) {
-      *mru_root = next_mru_;
-    }
-    if( next_mru_ ) {
-#ifdef USE_NT_OPS
-      _mm_prefetch( &(next_mru_->prev_mru_), _MM_HINT_NTA );
-#endif
-      next_mru_->prev_mru_ = prev_mru_;
-      next_mru_ = nullptr;
-    }
-    if( prev_mru_ ) {
-#ifdef USE_NT_OPS
-      _mm_prefetch( &(prev_mru_->next_mru_), _MM_HINT_NTA );
-#endif
-      prev_mru_->next_mru_ = next_mru_;
-      prev_mru_ = nullptr;
-    }
-  }
-
   void new_buffer( ) {
-    posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE );
+    DVLOG(5) << "Allocating new buffer for " << this;
+    CHECK( posix_memalign( reinterpret_cast<void**>(&buffer_), 64, BUFFER_SIZE ) == 0 )
+      << "posix_memalign error: buffer allocation failed";
     position_ = 0;
   }
   
@@ -114,10 +94,12 @@ public:
     auto retval = std::make_tuple( reinterpret_cast<void*>(buffer_), position_ * sizeof(uint64_t) );
     buffer_ = nullptr;
     position_ = 0;
+    DCHECK_EQ( local_position_, 0 );
     return retval;
   }
   
   int flush() {
+    DVLOG(5) << "Flushing " << this << " with position " << position_ << ", local_position " << local_position_;
     if( local_position_ > 0 ) { // skip unless we have something to write
       for( int i = local_position_; i < local_buffer_size; ++i ) {
         localbuf_[i] = 0;
@@ -165,7 +147,7 @@ public:
   }
   
   inline int enqueue( uint64_t * word_p, int word_size ) {
-    DVLOG(5) << "Enqueuing " << word_size << " words from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
+    DVLOG(5) << "Enqueuing " << word_size << " words to " << this << " from " << word_p << ", position is " << position_ << " and local position is " << local_position_;
 
     // start with offset if necessary
     if( (position_ == 0) && (local_position_ == 0) ) {

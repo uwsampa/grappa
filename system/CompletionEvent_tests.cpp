@@ -1,24 +1,35 @@
 ////////////////////////////////////////////////////////////////////////
-// This file is part of Grappa, a system for scaling irregular
-// applications on commodity clusters. 
-
-// Copyright (C) 2010-2014 University of Washington and Battelle
-// Memorial Institute. University of Washington authorizes use of this
-// Grappa software.
-
-// Grappa is free software: you can redistribute it and/or modify it
-// under the terms of the Affero General Public License as published
-// by Affero, Inc., either version 1 of the License, or (at your
-// option) any later version.
-
-// Grappa is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// Affero General Public License for more details.
-
-// You should have received a copy of the Affero General Public
-// License along with this program. If not, you may obtain one from
-// http://www.affero.org/oagpl.html.
+// Copyright (c) 2010-2015, University of Washington and Battelle
+// Memorial Institute.  All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+//     * Redistributions of source code must retain the above
+//       copyright notice, this list of conditions and the following
+//       disclaimer.
+//     * Redistributions in binary form must reproduce the above
+//       copyright notice, this list of conditions and the following
+//       disclaimer in the documentation and/or other materials
+//       provided with the distribution.
+//     * Neither the name of the University of Washington, Battelle
+//       Memorial Institute, or the names of their contributors may be
+//       used to endorse or promote products derived from this
+//       software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+// UNIVERSITY OF WASHINGTON OR BATTELLE MEMORIAL INSTITUTE BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+// OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+// USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+// DAMAGE.
 ////////////////////////////////////////////////////////////////////////
 
 #include <iostream>
@@ -28,6 +39,9 @@
 #include "CompletionEvent.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
+
+DEFINE_int64( outer, 1 << 4, "iterations of outer loop in iterative GCE test" );
+DEFINE_int64( inner, 1 << 14, "iterations of inner loop in iterative GCE test" );
 
 BOOST_AUTO_TEST_SUITE( CompletionEvent_tests );
 
@@ -82,7 +96,7 @@ void try_global_ce() {
   auto xa = make_global(&x);
   
   BOOST_MESSAGE("  block on user_main only");
-//  gce.reset_all(); (don't need to call `reset` anymore)
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   gce.enroll(cores());
   on_all_cores([xa]{
     Core origin = mycore();
@@ -97,7 +111,8 @@ void try_global_ce() {
     
     gce.complete();
   });
-  
+
+  gce.complete();
   gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores());
   
@@ -105,7 +120,7 @@ void try_global_ce() {
   BOOST_MESSAGE("  block in SPMD tasks");
   
   x = 0;
-//  gce.reset_all(); (don't need this anymore)
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
 
   gce.enroll(cores());
 
@@ -124,6 +139,8 @@ void try_global_ce() {
         complete(make_global(&gce,origin));
       });
     }
+
+    if( mycore() == 0 ) gce.complete();
     gce.wait();
     BOOST_CHECK_EQUAL(y, N);
   });
@@ -148,9 +165,9 @@ void try_global_ce_recursive() {
   const int64_t N = 128;
   int64_t x = 0;
   auto xa = make_global(&x);
-  
+
   BOOST_MESSAGE("  block on user_main only");
-//  gce.reset_all();
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   gce.enroll(cores());
 
   on_all_cores([xa]{
@@ -168,18 +185,18 @@ void try_global_ce_recursive() {
     
     gce.complete();
   });
-  
+
   // overload Core0 with extra work
   rec_spawn(xa, N*2);
-  
+
+  gce.complete();
   gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
-  
   
   BOOST_MESSAGE("  block in SPMD tasks");
   
   x = 0;
-//  gce.reset_all();
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   gce.enroll(cores());
 
   on_all_cores([xa,N]{
@@ -201,15 +218,16 @@ void try_global_ce_recursive() {
     if (mycore() == 0) {
       // overload Core0 with extra work
       rec_spawn(xa, N*2);
+      gce.complete(); // complete last one.
     }
-    
+
     gce.wait();
     BOOST_CHECK_EQUAL(y, N);
   });
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
   
   BOOST_MESSAGE("test finish block syntactic sugar");
-  
+    
   long xx = 0;
   auto a = make_global(&xx);
   
@@ -240,10 +258,8 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(x, N);
   
   BOOST_MESSAGE("  private,global");
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   on_all_cores([N]{
-//    gce.reset();
-//    barrier();
-    
     int x = 0;
     
     for (int i=0; i<N; i++) {
@@ -252,6 +268,7 @@ void try_synchronizing_spawns() {
       });
     }
     
+    if( mycore() == 0 ) gce.complete();
     gce.wait();
     BOOST_CHECK_EQUAL(x, N);
   });
@@ -259,12 +276,13 @@ void try_synchronizing_spawns() {
   BOOST_MESSAGE("  public,global"); VLOG(1) << "actually in public_global";
   on_all_cores([]{ global_x = 0; });
   
-//  gce.reset_all();
+  gce.enroll(1); // gce.reset_all() is deprecated; make sure at least one thing is enrolled until wait
   for (int i=0; i<N; i++) {
     spawn<unbound,&gce>([]{
       global_x++;
     });
   }
+  gce.complete();
   gce.wait();
   
   int total = 0;
@@ -276,6 +294,39 @@ void try_synchronizing_spawns() {
   BOOST_CHECK_EQUAL(total, N);
 }
 
+void try_iterative_spmd_gce() {
+  static int val, stolen;
+
+  // set up re-enrolling across iterations
+  auto completion_target = local_gce.enroll_recurring(cores());
+  
+  on_all_cores( [completion_target] {
+    for( int i = 0; i < FLAGS_outer; ++i ) {
+
+      if( mycore() == 0 ) {
+        val = 0;
+        stolen = 0;
+      }
+
+      for( int j = 0; j < FLAGS_inner; ++j ) {
+        auto message_completion_target = local_gce.enroll();
+
+        spawn<unbound>( [j,message_completion_target] {
+          if( message_completion_target.core != mycore() ) stolen++;
+          send_heap_message( j % cores(), [message_completion_target] {
+            val++;
+            local_gce.complete( message_completion_target );
+          });
+        });
+      }
+
+      // wait for everyone to finish and prepare for next iteration.
+      local_gce.complete( completion_target );
+      local_gce.wait();
+    }
+  });
+}
+
 BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa::init( GRAPPA_TEST_ARGS );
   Grappa::run([]{
@@ -285,8 +336,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     try_one_task();
     try_many_tasks();
     try_global_ce();
-    try_global_ce_recursive();
+    for( int i = 0; i < 100; ++i ) {
+      try_global_ce_recursive();
+    }
     try_synchronizing_spawns();
+    try_iterative_spmd_gce();
   
     Metrics::merge_and_dump_to_file();
   });
