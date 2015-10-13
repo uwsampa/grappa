@@ -38,9 +38,8 @@
 #include "../PerformanceTools.hpp"
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
-DEFINE_int64( periodic_poll_ticks,          0, "number of ticks to wait before polling periodic queue for one core (set to 0 for auto-growth)");
-DEFINE_int64( periodic_poll_ticks_base, 28000, "number of ticks to wait before polling periodic queue for one core (see _growth for increase)");
-DEFINE_int64( periodic_poll_ticks_growth, 281, "number of ticks to add per core");
+DEFINE_int64( periodic_poll_ticks, 0, "number of ticks to wait before polling periodic queue for one core (set to 0 for dynamic balance using poll_factor)");
+DEFINE_double( poll_factor,      6.0, "ratio between time spent working and time spent polling network (default 6:1)");
 
 DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has nothing better to do");
 
@@ -85,6 +84,7 @@ TaskingScheduler global_scheduler;
   , work_args( NULL )
   , previous_periodic_ts( 0 ) 
   , periodic_poll_ticks( 0 ) 
+  , dynamic_poll_ticks( true ) 
   , in_no_switch_region_( false )
   , prev_ts( 0 )
   , prev_stats_blob_ts( 0 )
@@ -101,13 +101,9 @@ void TaskingScheduler::init ( Worker * master_arg, TaskManager * taskman ) {
   current_thread = master;
   task_manager = taskman;
   work_args = new task_worker_args( taskman, this );
-  if( 0 == FLAGS_periodic_poll_ticks ) {
-    periodic_poll_ticks = FLAGS_periodic_poll_ticks_base + global_communicator.cores * FLAGS_periodic_poll_ticks_growth;
-    if( 0 == global_communicator.mycore ) {
-      VLOG(2) << "Actual periodic poll ticks value is " << periodic_poll_ticks;
-    }
-  } else {
+  if( 0 != FLAGS_periodic_poll_ticks ) {
     periodic_poll_ticks = FLAGS_periodic_poll_ticks;
+    dynamic_poll_ticks = false;
   }
 }
 

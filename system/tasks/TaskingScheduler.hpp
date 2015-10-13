@@ -59,8 +59,6 @@
 GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_context_switches );
 GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, scheduler_count);
 
-
-
 // forward declarations
 namespace Grappa {
 namespace impl { void idle_flush_rdma_aggregator(); }
@@ -71,6 +69,8 @@ namespace Metrics { void sample_all(); }
 bool idle_flush_aggregator();
 
 DECLARE_int64( periodic_poll_ticks );
+DECLARE_double( poll_factor );
+
 DECLARE_bool(poll_on_idle);
 DECLARE_bool(flush_on_idle);
 DECLARE_bool(rdma_flush_on_idle);
@@ -130,8 +130,9 @@ class TaskingScheduler : public Scheduler {
     // STUB: replace with real periodic threads
     Grappa::Timestamp previous_periodic_ts;
     Grappa::Timestamp periodic_poll_ticks;
+  bool dynamic_poll_ticks;
   inline bool should_run_periodic( Grappa::Timestamp current_ts ) {
-    return current_ts - previous_periodic_ts > periodic_poll_ticks;
+    return (current_ts - previous_periodic_ts) > periodic_poll_ticks;
   }
 
     Worker * periodicDequeue(Grappa::Timestamp current_ts) {
@@ -140,6 +141,9 @@ class TaskingScheduler : public Scheduler {
       // Grappa::Timestamp current_ts = Grappa::timestamp();
 
       if( should_run_periodic( current_ts ) ) {
+        // record time at start of periodic worker execution
+        previous_periodic_ts = Grappa::force_tick();
+        // run periodic thread
         return periodicQ.dequeue();
       } else {
         return NULL;
@@ -193,16 +197,19 @@ class TaskingScheduler : public Scheduler {
         //   Grappa::Metrics::dump_stats_blob();
         // }
 
-        // check for periodic tasks
-        result = periodicDequeue(current_ts);
-        if (result != NULL) {
-          //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
-          *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerMetrics::StatePoll;
-          prev_ts = current_ts;
-          return result;
+        // Check for periodic tasks. Skip if we ran the periodic
+        // thread in the last scheduling cycle to give new tasks a
+        // chance to start.
+        if( stats.prev_state != TaskingSchedulerMetrics::StatePoll ) {
+          result = periodicDequeue(current_ts);
+          if (result != NULL) {
+            //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
+            *(stats.state_timers[ stats.prev_state ]) += (current_ts - prev_ts) / tick_scale;
+            stats.prev_state = TaskingSchedulerMetrics::StatePoll;
+            prev_ts = current_ts;
+            return result;
+          }
         }
-
         
         // check ready tasks
         result = readyQ.dequeue();
@@ -379,8 +386,27 @@ class TaskingScheduler : public Scheduler {
     /// Put the Worker into the periodic queue
     void periodic( Worker * thr ) {
       periodicQ.enqueue( thr );
-      Grappa::tick();
+
+      // record time at end of periodic worker execution
       Grappa::Timestamp current_ts = Grappa::force_tick();
+
+      if( dynamic_poll_ticks ) { // set next timeout based on this poll time
+        // first make sure we have a starting timestamp.
+        if( previous_periodic_ts == 0 ) {
+          previous_periodic_ts = current_ts;
+        }
+
+        // now figure out how long polling took
+        auto poll_ticks = current_ts - previous_periodic_ts;
+
+        
+        if( poll_ticks > 0 ) {
+          // assuming the timestamp counter hasn't rolled over,
+          // compute next time to run polling thread
+          periodic_poll_ticks = static_cast<int64_t>( FLAGS_poll_factor * poll_ticks );
+        }
+      }
+
       previous_periodic_ts = current_ts;
     }
 
