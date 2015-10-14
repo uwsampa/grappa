@@ -23,14 +23,41 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_local_inserts);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_lookups);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_called_inserts);
 
+/////////////////////////////////////////////
+namespace aux{
+template<std::size_t...> struct seq{};
+
+template<std::size_t N, std::size_t... Is>
+struct gen_seq : gen_seq<N-1, N-1, Is...>{};
+
+template<std::size_t... Is>
+struct gen_seq<0, Is...> : seq<Is...>{};
+
+template<class Ch, class Tr, class Tuple, std::size_t... Is>
+void print_tuple(std::basic_ostream<Ch,Tr>& os, Tuple const& t, seq<Is...>){
+  using swallow = int[];
+  (void)swallow{0, (void(os << (Is == 0? "" : ", ") << std::get<Is>(t)), 0)...};
+}
+} // aux::
+
+template<class Ch, class Tr, class... Args>
+auto operator<<(std::basic_ostream<Ch, Tr>& os, std::tuple<Args...> const& t)
+    -> std::basic_ostream<Ch, Tr>&
+{
+  os << "(";
+  aux::print_tuple(os, t, aux::gen_seq<sizeof...(Args)>());
+  return os << ")";
+}
+/////////////////////////////////////////////////
+
 
 // for naming the types scoped in MatchesDHT
-#define MDHT_TYPE(type) typename MatchesDHT<K,V,HF>::type
+#define MDHT_TYPE(type) typename MatchesDHT<K,V,Hash>::type
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename V, uint64_t (*HF)(K)> 
+template <typename K, typename V, typename Hash> 
 class MatchesDHT {
 
   private:
@@ -58,8 +85,9 @@ class MatchesDHT {
     GlobalAddress< Cell > base;
     size_t capacity;
 
-    uint64_t computeIndex( K key ) {
-      return HF(key) & (capacity - 1);
+    size_t computeIndex( K key ) {
+      VLOG(2) << "hash table(" << base << ") -- Hash(" << key << "<<<"<<*(reinterpret_cast<const int64_t*>(&std::get<0>(key)))<<">>>=" << Hash()(key);
+      return Hash()(key) & (capacity - 1);
     }
 
     // for creating local MatchesDHT
@@ -94,14 +122,14 @@ class MatchesDHT {
     // for static construction
     MatchesDHT( ) {}
 
-    static void init_global_DHT( MatchesDHT<K,V,HF> * globally_valid_local_pointer, size_t capacity ) {
+    static void init_global_DHT( MatchesDHT<K,V,Hash> * globally_valid_local_pointer, size_t capacity ) {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
       GlobalAddress<Cell> base = Grappa::global_alloc<Cell>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = MatchesDHT<K,V,HF>( base, capacity_powerof2 );
+        *globally_valid_local_pointer = MatchesDHT<K,V,Hash>( base, capacity_powerof2 );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, Cell& c ) {
@@ -135,7 +163,7 @@ class MatchesDHT {
    }
 
 
-    static void set_RO_global( MatchesDHT<K,V,HF> * globally_valid_local_pointer ) {
+    static void set_RO_global( MatchesDHT<K,V,Hash> * globally_valid_local_pointer ) {
       Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
         // list of entries in this cell
         std::list<MDHT_TYPE(Entry)> * entries = c.entries;
@@ -159,7 +187,7 @@ class MatchesDHT {
     }
 
     uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
@@ -186,8 +214,9 @@ class MatchesDHT {
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup_iter ( K key, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
+      VLOG(2) << "hash(" << key << ")=" << index << ", " << target;
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
       //TODO optimization where only need to do remotePrivateTask instead of call_async
@@ -200,7 +229,9 @@ class MatchesDHT {
       Grappa::spawnRemote<GCE>( target.core(), [key, target, f, this]() {
         hash_called_lookups++;
         Entry e;
-        if (lookup_local( key, target.pointer(), &e)) {
+        auto stuff = lookup_local( key, target.pointer(), &e);
+        VLOG(2) << "found " << key << "? " << stuff << " data key=" << e.key;
+        if (stuff) {
           auto resultsptr = e.vs;
           Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
@@ -220,7 +251,7 @@ class MatchesDHT {
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup ( K key, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
       Grappa::delegate::call<async>( target.core(), [key, target, f]() {
@@ -239,7 +270,7 @@ class MatchesDHT {
     //
     // returns true if the set already contains the key
     void insert_unique( K key, V val ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
       Grappa::delegate::call( target.core(), [key,val,target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
@@ -277,8 +308,9 @@ class MatchesDHT {
 
     template< Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert_async( K key, V val ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
+      VLOG(2) << "hash(" << key << ")=" << index << ", " << target;
 
       if (target.core() == Grappa::mycore()) {
         hash_local_inserts++;
@@ -303,6 +335,7 @@ class MatchesDHT {
           Entry e = *i;
           if ( e.key == key ) {
             // key found so add to matches
+            VLOG(2) << "really inserting " << key;
             e.vs->push_back( val );
             hash_tables_size+=1;
             return;
@@ -314,6 +347,7 @@ class MatchesDHT {
         Entry newe( key );
         newe.vs->push_back( val );
         entries->push_back( newe );
+        hash_tables_size+=1;
 
         return; 
       });

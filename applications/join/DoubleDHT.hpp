@@ -6,24 +6,30 @@
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
 #include <Metrics.hpp>
+#include <FullEmptyLocal.hpp>
 
 #include <list>
 #include <cmath>
+#include <utility>
 
 //GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, hash_tables_lookup_steps);
 
-// for naming the types scoped in DoubleDHT
-#define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,HF>::type
-#define _DDHT_TYPE(type) DoubleDHT<K,VL,VR,HF>::type
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_matches_iterator_cell_single_misses);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_matches_iterator_cell_both_misses);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_matches_iterator_cell_hits);
 
-enum class Direction { LEFT, RIGHT };
+// for naming the types scoped in DoubleDHT
+#define DDHT_TYPE(type) typename DoubleDHT<K,VL,VR,Hash>::type
+#define _DDHT_TYPE(type) DoubleDHT<K,VL,VR,Hash>::type
+
+//enum class Direction { LEFT, RIGHT };
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename VL, typename VR, uint64_t (*HF)(K)> 
+template <typename K, typename VL, typename VR, typename Hash> 
 class DoubleDHT {
 
   private:
@@ -54,8 +60,8 @@ class DoubleDHT {
     GlobalAddress< PairCell > base;
     size_t capacity;
 
-    uint64_t computeIndex( K key ) {
-      return HF(key) & (capacity - 1);
+    size_t computeIndex( K key ) {
+      return Hash()(key) & (capacity - 1);
     }
 
     // for creating local DoubleDHT
@@ -138,14 +144,14 @@ class DoubleDHT {
     // for static construction
     DoubleDHT( ) {}
 
-    static void init_global_DHT( DoubleDHT<K,VL,VR,HF> * globally_valid_local_pointer, size_t capacity ) {
+    static void init_global_DHT( DoubleDHT<K,VL,VR,Hash> * globally_valid_local_pointer, size_t capacity ) {
 
       uint32_t capacity_exp = log2(capacity);
       size_t capacity_powerof2 = pow(2, capacity_exp);
       GlobalAddress<PairCell> base = Grappa::global_alloc<PairCell>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = DoubleDHT<K,VL,VR,HF>( base, capacity_powerof2 );
+        *globally_valid_local_pointer = DoubleDHT<K,VL,VR,Hash>( base, capacity_powerof2 );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, PairCell& c ) {
@@ -154,7 +160,7 @@ class DoubleDHT {
       });
     }
 
-    static void set_RO_global( DoubleDHT<K,VL,VR,HF> * globally_valid_local_pointer ) {
+    static void set_RO_global( DoubleDHT<K,VL,VR,Hash> * globally_valid_local_pointer ) {
           //noop
       //Grappa::forall( globally_valid_local_pointer->base, globally_valid_local_pointer->capacity, []( int64_t i, Cell& c ) {
       //});
@@ -203,7 +209,7 @@ class DoubleDHT {
     // version of lookup that takes a continuation instead of returning results back
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_left ( K key, VL val, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
@@ -240,9 +246,30 @@ class DoubleDHT {
     insert_lookup_iter_left<CF, GCE>( key, val, f );
   }
 
+  template<Grappa::GlobalCompletionEvent * GCE>
+  void insert_left(K key, VL val) {
+      auto index = computeIndex( key );
+      GlobalAddress< PairCell > target = base + index; 
+      
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {
+        insert_local_left<false>( key, target.pointer(), val );
+    });
+  }
+  
+template<Grappa::GlobalCompletionEvent * GCE>
+  void insert_right(K key, VR val) {
+      auto index = computeIndex( key );
+      GlobalAddress< PairCell > target = base + index; 
+      
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {
+        insert_local_right<false>( key, target.pointer(), val );
+    });
+  }
+    
+
     template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, bool Unique=false >
     void insert_lookup_iter_right ( K key, VR val, CF f ) {
-      uint64_t index = computeIndex( key );
+      auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
 
       // FIXME: remove 'this' capture when using gcc4.8, this is just a bug in 4.7
@@ -298,7 +325,64 @@ class DoubleDHT {
     }
     */
 
+/*
+    class LocalMatchesIterator {
+      private:
+        PairCell * const start;
+        PairCell * const end;
+        PairCell * p;
+        decltype(p->entriesLeft->begin()) left_iter;
+        decltype(p->entriesRight->begin()) right_iter;
+        decltype(Entry<VL>().vs->begin()) left_vs_iter;
+        decltype(Entry<VR>().vs->begin()) right_vs_iter;
+      public:
+        LocalMatchesIterator(PairCell * start, PairCell * end) : start(base.localize()), end((base+capacity).localize()), p(start) { }
 
+        bool next(std::pair<VL, VR>& r) {
+          if (right_vs_iter != 
+      std::list<Entry<VL>> * entriesLeft;
+      std::list<Entry<VR>> * entriesRight;
+          
+           
+        LocalMatchesIterator() 
+*/
+
+    Grappa::FullEmpty<std::pair<bool, std::pair<VL, VR>>> * matches() {
+      // Use Grappa's coroutines for generator pattern
+
+      auto c = new Grappa::FullEmpty<std::pair<bool, std::pair<VL, VR>>>();
+      Grappa::spawn([c,this] {
+        PairCell * p = base.localize();
+        PairCell * end = (base+capacity).localize();
+
+        VLOG(3) << "has " << (end-p) << " paircells"; 
+        while ( p != end ) {
+          auto left_full = (p->entriesLeft != NULL);
+          auto right_full = (p->entriesRight != NULL);
+          hash_matches_iterator_cell_single_misses += (left_full != right_full) ? 1 : 0;
+          hash_matches_iterator_cell_both_misses += (!left_full && !right_full) ? 1 : 0;
+          if (left_full && right_full) {
+            hash_matches_iterator_cell_hits++;
+            for (auto& l : *(p->entriesLeft)) {
+              for (auto& r : *(p->entriesRight)) {
+                if (l.key == r.key) {
+                  for (auto& le : *(l.vs)) {
+                    for (auto& re : *(r.vs)) {
+                      // yield
+                      c->writeEF(std::make_pair(true, std::make_pair(le, re)));
+                    }
+                  }
+                }
+               }
+              }
+            } 
+            ++p;
+          }
+          // end
+          c->writeEF(std::make_pair(false, std::pair<VL, VR>()));
+      }); 
+      return c;
+    }
 };
 
 

@@ -7,6 +7,7 @@ set(QUERYLIB_SOURCES
   MatchesDHT.hpp
   MatchesDHT.cpp
   DoubleDHT.hpp
+  DoubleDHT.cpp
   Hypercube.hpp
   Hypercube.cpp
   local_graph.cpp
@@ -23,17 +24,27 @@ set(QUERYLIB_SOURCES
   stats.cpp
   MapReduce.cpp
   MapReduce.hpp
-  HashJoin.hpp
-  HashJoin.cpp
   Aggregates.hpp
   DHT_symmetric.hpp
+  DHT_symmetric.cpp
+  DHT_symmetric_generic.hpp
+  Operators.hpp
 )
+#FIXME: these MapReduce Hash joins belong in the above sources
+  #HashJoin.hpp
+  #HashJoin.cpp
+
+  
 set(QUERYIO_SOURCES
   relation_io.hpp
   relation_io.cpp
+  block_distribution.hpp
+  block_distribution.cpp
   Tuple.hpp
   Tuple.cpp
   relation.hpp
+  json/json.h
+  jsoncpp.cpp
 )
 
 set(INCLUDE_DIRS
@@ -98,7 +109,6 @@ endforeach()
 # exe targets for generated query codes
 foreach(query ${GENERATED_SOURCES})
   get_filename_component(query_name ${query}, NAME_WE)
-  add_grappa_application(${query_name}.exe ${query})
     
   # Raco C++ environment
   set(RACO_DIR "$ENV{RACO_HOME}")
@@ -110,6 +120,8 @@ foreach(query ${GENERATED_SOURCES})
       message(FATAL_ERROR "Undefined RACO_HOME environment variable, required
       for generated queries applications/join/grappa_*.cpp ")
   endif()
+  
+  add_grappa_application(${query_name}.exe ${query})
 
   target_link_libraries(${query_name}.exe generator querylib queryio racoc)
   list(APPEND GENERATED_EXES "${query_name}.exe")
@@ -152,5 +164,7 @@ macro(add_check test_cpp nnode ppn target)
   ###add_dependencies( check-all-${target}-compile-only ${test})
 endmacro()
 
+# add test for IO
 add_check(Relation_io_tests.cpp 2 1 pass)
+file(COPY splits_test DESTINATION .)
 
