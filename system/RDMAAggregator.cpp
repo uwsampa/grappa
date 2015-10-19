@@ -163,13 +163,8 @@ namespace Grappa {
         rdma_idle_flushes++;
 
         Core c = Grappa::mycore();
-        
-        /////////////////////////////////////////////////////
-        // came from old Grappa::impl::poll() in Grappa.cpp
-        // (not sure why it was polling the other aggregator...)
+
         global_communicator.poll();
-        global_aggregator.poll();
-        /////////////////////////////////////////////////////
 
         // receive_poll();
         
@@ -271,10 +266,6 @@ namespace Grappa {
 
   
     void RDMAAggregator::init() {
-#ifdef LEGACY_SEND
-#warning RDMA Aggregator is bypassed!
-#endif
-#ifdef ENABLE_RDMA_AGGREGATOR
       //cores_.resize( global_communicator.cores );
       mycore_ = global_communicator.mycore;
       mynode_ = -1; // gasnet supernode
@@ -290,7 +281,6 @@ namespace Grappa {
         aggregate_counts_[i] = 0;
         deaggregate_counts_[i] = 0;
       }
-#endif
 
       if( global_communicator.mycore == 0 ) {
         if( !FLAGS_enable_aggregation ) {
@@ -322,7 +312,6 @@ namespace Grappa {
 
     
     void RDMAAggregator::activate() {
-#ifdef ENABLE_RDMA_AGGREGATOR
       // one core on each locale initializes shared data
       if( global_communicator.locale_mycore == 0 ) {
         try {
@@ -400,30 +389,24 @@ namespace Grappa {
       }
 
       // spawn send workers
-#ifndef LEGACY_SEND
         for( int i = 0; i < core_partner_locale_count_; ++i ) {
           Grappa::spawn_worker( [this, i] { 
                                   DVLOG(5) << "Spawning send worker " << i << " for locale " << core_partner_locales_[i];
                                   send_worker( core_partner_locales_[i] );
                                 });
         }
-#endif
 
       // spawn receive workers
-#ifndef LEGACY_SEND
         for( int i = 0; i < FLAGS_rdma_workers_per_core; ++i ) {
           Grappa::spawn_worker( [this] { 
                                   receive_worker();
                                 });
         }
-#endif
 
       // spawn flusher
-#ifndef LEGACY_SEND
         Grappa::spawn_worker( [this] {
                                 idle_flusher();
                               });
-#endif
 
       // //
       // // precache buffers
@@ -455,12 +438,10 @@ namespace Grappa {
       //   }
       // }
 
-#endif
     }
 
 
     void RDMAAggregator::finish() {
-#ifdef ENABLE_RDMA_AGGREGATOR
       global_communicator.barrier();
       if( global_communicator.locale_mycore == 0 ) {
         Grappa::impl::locale_shared_memory.segment.destroy<CoreData>("Cores");
@@ -473,7 +454,6 @@ namespace Grappa {
 
       if( core_partner_locales_ ) delete [] core_partner_locales_;
       Grappa::impl::locale_shared_memory.deallocate( rdma_buffers_ );
-#endif
     }
 
   void RDMAAggregator::deserialize_buffer_am( void * buf, int size, CommunicatorContext * c ) {

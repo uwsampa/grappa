@@ -32,8 +32,6 @@
 // DAMAGE.
 ////////////////////////////////////////////////////////////////////////
 
-#define LEGACY_SEND
-
 #include <boost/test/unit_test.hpp>
 
 #include "Grappa.hpp"
