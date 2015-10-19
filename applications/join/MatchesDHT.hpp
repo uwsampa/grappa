@@ -83,9 +83,14 @@ class MatchesDHT {
     
     // private members
     GlobalAddress< Cell > base;
-    size_t capacity;
+    static size_t capacity;
 
     size_t computeIndex( K key ) {
+      VLOG(2) << "hash table(" << base << ") -- Hash(" << key << "<<<"<<*(reinterpret_cast<const int64_t*>(&std::get<0>(key)))<<">>>=" << Hash()(key);
+      return Hash()(key) & (capacity - 1);
+    }
+    
+  static size_t computeIndex( K key, GlobalAddress<Cell> base ) {
       VLOG(2) << "hash table(" << base << ") -- Hash(" << key << "<<<"<<*(reinterpret_cast<const int64_t*>(&std::get<0>(key)))<<">>>=" << Hash()(key);
       return Hash()(key) & (capacity - 1);
     }
@@ -121,6 +126,10 @@ class MatchesDHT {
   public:
     // for static construction
     MatchesDHT( ) {}
+
+    GlobalAddress<Cell> get_base() {
+      return base;
+    }
 
     static void init_global_DHT( MatchesDHT<K,V,Hash> * globally_valid_local_pointer, size_t capacity ) {
 
@@ -212,7 +221,7 @@ class MatchesDHT {
 
 
     // version of lookup that takes a continuation instead of returning results back
-    template< typename CF, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< typename CF, GlobalAddress<Cell>* Base, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void lookup_iter ( K key, CF f ) {
       auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
@@ -226,7 +235,8 @@ class MatchesDHT {
       } else {
         hash_remote_lookups++;
       }
-      Grappa::spawnRemote<GCE>( target.core(), [key, target, f, this]() {
+      Grappa::spawnRemote<GCE>( target.core(), [key, f, this]() {
+        auto target = (*Base) + MatchesDHT<K,V,Hash>::computeIndex(key, *Base);
         hash_called_lookups++;
         Entry e;
         auto stuff = lookup_local( key, target.pointer(), &e);
@@ -243,9 +253,9 @@ class MatchesDHT {
         }
       });
     }
-    template< Grappa::GlobalCompletionEvent * GCE, typename CF >
+    template<Grappa::GlobalCompletionEvent * GCE, GlobalAddress<Cell>* Base, typename CF >
     void lookup_iter ( K key, CF f ) {
-      lookup_iter<CF, GCE>(key, f);
+      lookup_iter<CF, Base, GCE>(key, f);
     }
 
     // version of lookup that takes a continuation instead of returning results back
@@ -306,7 +316,7 @@ class MatchesDHT {
      });
     }
 
-    template< Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< GlobalAddress<Cell>* Base, Grappa::GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     void insert_async( K key, V val ) {
       auto index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
@@ -317,7 +327,8 @@ class MatchesDHT {
       } else {
         hash_remote_inserts++;
       }
-      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val]() {   // TODO: upgrade to call_async; using GCE
+        auto target = (*Base) + MatchesDHT<K,V,Hash>::computeIndex(key, *Base);
         hash_called_inserts++;
 
         // list of entries in this cell
@@ -356,5 +367,7 @@ class MatchesDHT {
 
 };
 
+template <typename K, typename V, typename Hash>
+size_t MatchesDHT<K,V,Hash>::capacity;
 
 #endif // MATCHES_DHT_HPP
