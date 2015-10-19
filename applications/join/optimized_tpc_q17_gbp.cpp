@@ -201,7 +201,7 @@ T get_count(GlobalAddress<counter<T>> p) {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V1_0& t) {
     return t.dump(o);
@@ -513,7 +513,7 @@ T get_count(GlobalAddress<counter<T>> p) {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V4_0& t) {
     return t.dump(o);
@@ -669,7 +669,7 @@ T get_count(GlobalAddress<counter<T>> p) {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V5_0& t) {
     return t.dump(o);
@@ -1021,7 +1021,7 @@ T get_count(GlobalAddress<counter<T>> p) {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V8_0& t) {
     return t.dump(o);
@@ -1177,7 +1177,7 @@ T get_count(GlobalAddress<counter<T>> p) {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V10_0& t) {
     return t.dump(o);
@@ -1633,7 +1633,7 @@ T get_count(GlobalAddress<counter<T>> p) {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V11_0_1_2_3_4_5_6_7_8& t) {
     return t.dump(o);
@@ -1838,7 +1838,7 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, app_1_gce_incomplete, [] {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V13_0_1& t) {
     return t.dump(o);
@@ -2558,7 +2558,7 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, app_1_gce_incomplete, [] {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V14_0_1_2_3_4_5_6_7_8_9_10_11_12_13_14_15& t) {
     return t.dump(o);
@@ -2801,7 +2801,7 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, app_3_gce_incomplete, [] {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V17_0_1_2& t) {
     return t.dump(o);
@@ -3040,7 +3040,7 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, app_4_gce_incomplete, [] {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V20_0_1& t) {
     return t.dump(o);
@@ -3237,7 +3237,7 @@ MaterializedTupleRef_V5_0 t_012;
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V21_0_1& t) {
     return t.dump(o);
@@ -3471,7 +3471,7 @@ MaterializedTupleRef_V5_0 t_012;
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V22_0_1_2& t) {
     return t.dump(o);
@@ -3747,7 +3747,7 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, app_5_gce_incomplete, [] {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V25_0_1_2_3& t) {
     return t.dump(o);
@@ -3997,7 +3997,7 @@ static MaterializedTupleRef_V25_0_1_2_3 create_V26(const MaterializedTupleRef_V2
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V27_0_1_2& t) {
     return t.dump(o);
@@ -4190,7 +4190,7 @@ GRAPPA_DEFINE_METRIC(CallbackMetric<int64_t>, app_6_gce_incomplete, [] {
     }
 
     
-  } GRAPPA_BLOCK_ALIGNED;
+  } ;
 
   std::ostream& operator<< (std::ostream& o, const MaterializedTupleRef_V30_0& t) {
     return t.dump(o);
