@@ -46,11 +46,11 @@ namespace Grappa {
 namespace impl {
 
 class NTBuffer {
-  static const int local_buffer_size = 8;
-  static const int last_position = 7;
-  static int initial_offset;
+  static const int local_buffer_size_ = 8;
+  static const int last_position_ = 7;
+  static int initial_offset_;
   
-  uint64_t localbuf_[ local_buffer_size ];
+  uint64_t localbuf_[ local_buffer_size_ ];
 
   // TODO: squeeze these all into one 64-bit word (the last word of the buffer)
   //
@@ -74,9 +74,11 @@ public:
   { }
 
   inline bool empty() const { return position_ == 0 && local_position_ == 0; }
-  
+  inline size_t size() const { return sizeof(*localbuf_) * (position_ + local_position_); }
+
+  inline size_t initial_offset() const { return sizeof(*localbuf_) * initial_offset_; }
   static void set_initial_offset( int words ) {
-    initial_offset = words;
+    initial_offset_ = words;
   }
 
   void new_buffer( ) {
@@ -101,7 +103,7 @@ public:
   int flush() {
     DVLOG(5) << "Flushing " << this << " with position " << position_ << ", local_position " << local_position_;
     if( local_position_ > 0 ) { // skip unless we have something to write
-      for( int i = local_position_; i < local_buffer_size; ++i ) {
+      for( int i = local_position_; i < local_buffer_size_; ++i ) {
         localbuf_[i] = 0;
       }
       
@@ -124,7 +126,7 @@ public:
       _mm_store_si128( dst+3, *(src+3) );
 #endif
 
-      position_ += local_buffer_size; // advance to next cacheline of output buffer
+      position_ += local_buffer_size_; // advance to next cacheline of output buffer
       local_position_ = 0;
     }
     return position_ * sizeof(uint64_t);
@@ -138,7 +140,7 @@ public:
       --word_size;
       ++local_position_;
 
-      if( local_position_ == local_buffer_size ) {
+      if( local_position_ == local_buffer_size_ ) {
         flush();
       }
     }
@@ -151,8 +153,8 @@ public:
 
     // start with offset if necessary
     if( (position_ == 0) && (local_position_ == 0) ) {
-      uint64_t offset[ initial_offset ];
-      actual_enqueue( &offset[0], initial_offset ); // add space for header
+      uint64_t offset[ initial_offset_ ];
+      actual_enqueue( &offset[0], initial_offset_ ); // add space for header
     }
     return actual_enqueue( word_p, word_size );
   }

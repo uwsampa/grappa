@@ -4,7 +4,7 @@
 namespace Grappa {
 namespace impl {
 
-int NTBuffer::initial_offset = 0;
+int NTBuffer::initial_offset_ = 0;
 
 } // namespace impl
 } // namespace Grappa
