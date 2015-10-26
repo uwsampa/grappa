@@ -833,8 +833,10 @@ namespace Grappa {
       }
 
       inline void flush_nt( Core dest ) {
-        nt_flush( ntbuffers_ + dest );
-        send_nt_buffer( dest, ntbuffers_ + dest );
+        if( ! (ntbuffers_ + dest)->empty() ) {
+          nt_flush( ntbuffers_ + dest );
+          send_nt_buffer( dest, ntbuffers_ + dest );
+        }
       }
     };
 
