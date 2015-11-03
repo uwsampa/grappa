@@ -113,7 +113,7 @@ namespace Grappa {
     // blocking call (with return val)
     template< typename F, typename T >
     auto call(Core dest, F func, T (F::*mf)() const) -> T {
-      static_assert(std::is_convertible< decltype(func()), T >(),
+      static_assert(std::is_convertible< decltype(func()), T >::value,
                     "lambda doesn't return the expected type");
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short

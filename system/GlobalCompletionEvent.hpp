@@ -124,7 +124,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   public:
     Core target;
     int64_t completes_to_send;
-    CompletionMessage(Core target = -1): Message(), target(target), completes_to_send(0) {}
+    CompletionMessage(Core target = -1): Message<DoComplete>(), target(target), completes_to_send(0) {}
     
     bool waiting_to_send() {
       return this->is_enqueued_ && !this->is_sent_;
