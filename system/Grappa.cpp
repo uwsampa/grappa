@@ -534,9 +534,16 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   // initialize node shared memory
   if( FLAGS_node_memsize == -1 ) { 
     // if user doesn't specify how much memory each node has, try to estimate.
+#ifdef __APPLE__
+    uint64_t mem;
+    size_t len = sizeof(mem);
+    sysctlbyname("hw.memsize", &mem, &len, NULL, 0);
+    FLAGS_node_memsize = mem;
+#else
     long pages = sysconf(_SC_PHYS_PAGES);
     long page_size = sysconf(_SC_PAGE_SIZE);
     FLAGS_node_memsize = pages * page_size;
+#endif
     VLOG(2) << "Estimated node memory size = " << FLAGS_node_memsize;
   }
   locale_shared_memory.init();
