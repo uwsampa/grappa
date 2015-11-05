@@ -177,6 +177,7 @@ void user_main( void * args )
       } );
     Grappa::flush( 1 );
     Grappa::impl::poll();
+    // TODO: does this need to be protected with a while loop?
     Grappa::wait( cvp );
     LOG(INFO) << "Test 6 done";
   }

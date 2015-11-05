@@ -196,7 +196,10 @@ public:
     }
     
     // not my turn yet
-    Grappa::wait(&s->cv);
+    // TODO: what's the right answer here?
+    while (status != FCStatus::SATISFIED) {
+      Grappa::wait(&s->cv);
+    }
     
     // on wake...
     if (Grappa::current_worker() == s->sender) { // I was assigned to send

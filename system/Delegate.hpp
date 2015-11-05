@@ -393,6 +393,7 @@ namespace Grappa {
             Grappa::broadcast(&untilReceived);
           } else {
             // someone else will start the flush
+	    // TODO: does this need to be protected with a while loop?
             Grappa::wait(&untilReceived);
           }
 
