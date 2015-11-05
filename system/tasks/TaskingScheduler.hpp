@@ -397,8 +397,8 @@ class TaskingScheduler : public Scheduler {
     bool thread_yield_periodic( );
     void thread_suspend( );
     void thread_wake( Worker * next );
-    void thread_yield_wake( Worker * next );
-    void thread_suspend_wake( Worker * next );
+  //void thread_yield_wake( Worker * next );
+  //void thread_suspend_wake( Worker * next );
     bool thread_idle( uint64_t total_idle ); 
     bool thread_idle( );
 
@@ -510,42 +510,42 @@ inline void TaskingScheduler::thread_wake( Worker * next ) {
   ready( next );
 }
 
-/// Yield the current Worker and wake a suspended thread.
-/// For now, waking a running Worker is a fatal error.
-/// For now, waking a queued Worker is also a fatal error. 
-inline void TaskingScheduler::thread_yield_wake( Worker * next ) {    
-  CHECK( current_thread != master ) << "can't yield on a system Worker";
-  CHECK( next->sched == static_cast<Scheduler*>(this) ) << "can only wake a Worker on your scheduler";
-  CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
-  CHECK( !next->running ) << "woken Worker should not be running";
-  StateTimer::enterState_scheduler();
+// /// Yield the current Worker and wake a suspended thread.
+// /// For now, waking a running Worker is a fatal error.
+// /// For now, waking a queued Worker is also a fatal error. 
+// inline void TaskingScheduler::thread_yield_wake( Worker * next ) {    
+//   CHECK( current_thread != master ) << "can't yield on a system Worker";
+//   CHECK( next->sched == static_cast<Scheduler*>(this) ) << "can only wake a Worker on your scheduler";
+//   CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
+//   CHECK( !next->running ) << "woken Worker should not be running";
+//   StateTimer::enterState_scheduler();
 
-  next->suspended = 0;
+//   next->suspended = 0;
 
-  Worker * yieldedThr = current_thread;
-  ready( yieldedThr );
+//   Worker * yieldedThr = current_thread;
+//   ready( yieldedThr );
 
-  current_thread = next;
-  thread_context_switch( yieldedThr, next, NULL);
-}
+//   current_thread = next;
+//   thread_context_switch( yieldedThr, next, NULL);
+// }
 
-/// Suspend current Worker and wake a suspended thread.
-/// For now, waking a running Worker is a fatal error.
-/// For now, waking a queued Worker is also a fatal error. 
-inline void TaskingScheduler::thread_suspend_wake( Worker *next ) {
-  CHECK( current_thread != master ) << "can't yield on a system Worker";
-  CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
-  CHECK( !next->running ) << "woken Worker should not be running";
-  StateTimer::enterState_scheduler();
+// /// Suspend current Worker and wake a suspended thread.
+// /// For now, waking a running Worker is a fatal error.
+// /// For now, waking a queued Worker is also a fatal error. 
+// inline void TaskingScheduler::thread_suspend_wake( Worker *next ) {
+//   CHECK( current_thread != master ) << "can't yield on a system Worker";
+//   CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
+//   CHECK( !next->running ) << "woken Worker should not be running";
+//   StateTimer::enterState_scheduler();
 
-  next->suspended = 0;
+//   next->suspended = 0;
 
-  Worker * yieldedThr = current_thread;
-  yieldedThr->suspended = 1;
+//   Worker * yieldedThr = current_thread;
+//   yieldedThr->suspended = 1;
 
-  current_thread = next;
-  thread_context_switch( yieldedThr, next, NULL);
-}
+//   current_thread = next;
+//   thread_context_switch( yieldedThr, next, NULL);
+// }
 
 
 /// Make the current Worker idle.
@@ -625,17 +625,17 @@ static inline void wake( Worker * t ) {
   impl::global_scheduler.thread_wake( t );
 }
 
-/// Wake a Worker t by placing current thread on run queue and running t next.
-static inline void yield_wake( Worker * t ) {
-  DVLOG(5) << "yielding Worker " << impl::global_scheduler.get_current_thread() << " and waking thread " << t;
-  impl::global_scheduler.thread_yield_wake( t );
-}
+// /// Wake a Worker t by placing current thread on run queue and running t next.
+// static inline void yield_wake( Worker * t ) {
+//   DVLOG(5) << "yielding Worker " << impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+//   impl::global_scheduler.thread_yield_wake( t );
+// }
 
-/// Wake a Worker t by suspending current thread and running t next.
-static inline void suspend_wake( Worker * t ) {
-  DVLOG(5) << "suspending Worker " << impl::global_scheduler.get_current_thread() << " and waking thread " << t;
-  impl::global_scheduler.thread_suspend_wake( t );
-}
+// /// Wake a Worker t by suspending current thread and running t next.
+// static inline void suspend_wake( Worker * t ) {
+//   DVLOG(5) << "suspending Worker " << impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+//   impl::global_scheduler.thread_suspend_wake( t );
+// }
 
 /// Place current thread on queue to be reused by tasking layer as a worker.
 /// @deprecated should not be in the public API because it is a Worker-level not Task-level routine

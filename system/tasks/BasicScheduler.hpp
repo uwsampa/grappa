@@ -125,8 +125,8 @@ class BasicScheduler : public Scheduler {
        bool thread_yield( );
        void thread_suspend( );
        void thread_wake( Worker * next );
-       void thread_yield_wake( Worker * next );
-       void thread_suspend_wake( Worker * next );
+  //void thread_yield_wake( Worker * next );
+  //void thread_suspend_wake( Worker * next );
        void thread_join( Worker* wait_on );
 
        // Start running threads from <scheduler> until one dies.  Return that Worker
@@ -184,35 +184,35 @@ inline void BasicScheduler::thread_wake( Worker * next ) {
   ready( next );
 }
 
-/// Yield the current Worker and wake a suspended thread.
-/// For now, waking a running Worker is a fatal error.
-/// For now, waking a queued Worker is also a fatal error. 
-inline void BasicScheduler::thread_yield_wake( Worker * next ) {    
-    CHECK( current_thread != master ) << "can't yield on a system Worker";
-    CHECK( next->sched == this ) << "can only wake a Worker on your scheduler";
-    CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
-    CHECK( !next->running ) << "woken Worker should not be running";
+// /// Yield the current Worker and wake a suspended thread.
+// /// For now, waking a running Worker is a fatal error.
+// /// For now, waking a queued Worker is also a fatal error. 
+// inline void BasicScheduler::thread_yield_wake( Worker * next ) {    
+//     CHECK( current_thread != master ) << "can't yield on a system Worker";
+//     CHECK( next->sched == this ) << "can only wake a Worker on your scheduler";
+//     CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
+//     CHECK( !next->running ) << "woken Worker should not be running";
   
-    Worker * yieldedThr = current_thread;
-    ready( yieldedThr );
+//     Worker * yieldedThr = current_thread;
+//     ready( yieldedThr );
     
-    current_thread = next;
-    impl::thread_context_switch( yieldedThr, next, NULL);
-}
+//     current_thread = next;
+//     impl::thread_context_switch( yieldedThr, next, NULL);
+// }
 
-/// Suspend current Worker and wake a suspended thread.
-/// For now, waking a running Worker is a fatal error.
-/// For now, waking a queued Worker is also a fatal error. 
-inline void BasicScheduler::thread_suspend_wake( Worker *next ) {
-    CHECK( current_thread != master ) << "can't yield on a system Worker";
-    CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
-    CHECK( !next->running ) << "woken Worker should not be running";
+// /// Suspend current Worker and wake a suspended thread.
+// /// For now, waking a running Worker is a fatal error.
+// /// For now, waking a queued Worker is also a fatal error. 
+// inline void BasicScheduler::thread_suspend_wake( Worker *next ) {
+//     CHECK( current_thread != master ) << "can't yield on a system Worker";
+//     CHECK( next->next == NULL ) << "woken Worker should not be on any queue";
+//     CHECK( !next->running ) << "woken Worker should not be running";
   
-    Worker * yieldedThr = current_thread;
+//     Worker * yieldedThr = current_thread;
     
-    current_thread = next;
-    impl::thread_context_switch( yieldedThr, next, NULL);
-}
+//     current_thread = next;
+//     impl::thread_context_switch( yieldedThr, next, NULL);
+// }
 
     
 inline void BasicScheduler::thread_on_exit( ) {

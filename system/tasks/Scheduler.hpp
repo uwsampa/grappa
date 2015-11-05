@@ -51,10 +51,10 @@ class Scheduler {
        virtual bool thread_yield( ) = 0;
        virtual void thread_suspend( ) = 0;
        virtual void thread_wake( Worker * next ) = 0;
-       virtual void thread_yield_wake( Worker * next ) = 0;
-       virtual void thread_suspend_wake( Worker * next ) = 0;
+  //virtual void thread_yield_wake( Worker * next ) = 0;
+  //virtual void thread_suspend_wake( Worker * next ) = 0;
 
-       virtual Worker * thread_wait( void **result ) = 0;
+  //virtual Worker * thread_wait( void **result ) = 0;
        virtual void thread_on_exit( ) = 0;
 };
 
