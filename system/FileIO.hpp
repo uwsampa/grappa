@@ -162,7 +162,7 @@ struct IODescriptor {
 
   void block_on_read() {
     aio_read(desc_ptr());
-    if (!complete) wait(&cv);
+    while (!complete) wait(&cv);
   }
 
   void handle_completion() {

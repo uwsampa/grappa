@@ -78,7 +78,7 @@ namespace Grappa {
     }
     
     void wait() {
-      if (count > 0) {
+      while (count > 0) {
         Grappa::wait(&cv);
       }
     }
