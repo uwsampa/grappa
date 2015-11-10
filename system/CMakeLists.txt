@@ -143,6 +143,7 @@ set(SYSTEM_SOURCES
   tasks/Task.cpp
   tasks/TaskingScheduler.cpp
   stack.S
+  RMA.cpp
 )
 
 ################
@@ -244,6 +245,8 @@ add_check( graph/Graph_tests.cpp             2 1  pass )
 add_check( NTMessage_tests.cpp               1 1  pass NTMessage.cpp )
 add_check( NTBuffer_tests.cpp                1 1  pass NTBuffer.cpp )
 add_check( NTMessage_aggregator_tests.cpp    2 1  pass )
+
+add_check( RMA_tests.cpp                     2 2  pass )
 
 
 #

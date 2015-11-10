@@ -110,6 +110,8 @@ void immediate_deserializer_with_payload( char * f, int size, CommunicatorContex
   c->reference_count = 0;
 }
 
+class RMA;
+
 }
 }
 
@@ -118,6 +120,7 @@ void immediate_deserializer_with_payload( char * f, int size, CommunicatorContex
 class Communicator {
 private:
   DISALLOW_COPY_AND_ASSIGN( Communicator );
+  friend class RMA;
 
   Core mycore_;
   Core cores_;
@@ -333,6 +336,21 @@ inline const Locale locale_of(Core c) { return global_communicator.locale_of(c);
 /// @}
 
 }
+
+
+
+namespace Grappa {
+namespace spmd {
+namespace blocking {
+
+inline void barrier() {
+  global_communicator.barrier();
+}
+  
+} // namespace blocking
+} // namespace spmd
+} // namespace Grappa
+
 
 #define MASTER_ONLY if (Grappa::mycore() == 0)
 
