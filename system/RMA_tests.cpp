@@ -51,11 +51,219 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       void * p1 = Grappa::impl::global_rma.allocate( sizeof(int64_t) * count );
       int64_t * base = static_cast<int64_t*>( p1 );
 
+      // initialize array
       for( int i = 0; i < count; ++i ) {
         base[i] = 0;
       }
 
-      Grappa::impl::global_rma.fence();
+      Grappa::barrier();
+
+      { // test async non-blocking puts
+        
+        // put modified array to all other cores
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t src[ count ];
+            for( int j = 0; j < count; ++j ) {
+              src[j] = i;
+            }
+            Grappa::impl::global_rma.put_bytes_nbi( i, base, src, sizeof(src) );
+          }
+        }
+        
+        Grappa::impl::global_rma.fence();
+        
+        Grappa::barrier();
+        
+        // check array
+        for( int i = 0; i < count; ++i ) {
+          BOOST_CHECK_EQUAL( base[i], Grappa::mycore() );
+        }
+        
+        Grappa::barrier();
+      }
+
+      { // test non-blocking puts with blocking wait
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = 0;
+        }
+
+        Grappa::barrier();
+
+        // put modified array to all other cores
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t src[ count ];
+            for( int j = 0; j < count; ++j ) {
+              src[j] = i;
+            }
+            auto req = Grappa::impl::global_rma.put_bytes_nb( i, base, src, sizeof(src) );
+            req.wait();
+          }
+        }
+        
+        Grappa::barrier();
+        
+        // check array
+        for( int i = 0; i < count; ++i ) {
+          BOOST_CHECK_EQUAL( base[i], Grappa::mycore() );
+        }
+
+        Grappa::barrier();
+      }
+
+      { // test non-blocking puts with suspending wait
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = 0;
+        }
+
+        Grappa::barrier();
+
+        // put modified array to all other cores
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t src[ count ];
+            for( int j = 0; j < count; ++j ) {
+              src[j] = i * 10;
+            }
+            global_communicator.with_request_do_blocking( [=] ( MPI_Request * request_p ) {
+              Grappa::impl::global_rma.put_bytes_nb( i, base, src, sizeof(src), request_p );
+            });
+          }
+        }
+        
+        Grappa::barrier();
+        
+        // check array
+        for( int i = 0; i < count; ++i ) {
+          BOOST_CHECK_EQUAL( base[i], Grappa::mycore() * 10 );
+        }
+
+        Grappa::barrier();
+      }
+
+      { // test blocking puts
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = 0;
+        }
+
+        Grappa::barrier();
+
+        // put modified array to all other cores
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t src[ count ];
+            for( int j = 0; j < count; ++j ) {
+              src[j] = i;
+            }
+            Grappa::impl::global_rma.put_bytes( i, base, src, sizeof(src) );
+          }
+        }
+        
+        Grappa::barrier();
+        
+        // check array
+        for( int i = 0; i < count; ++i ) {
+          BOOST_CHECK_EQUAL( base[i], Grappa::mycore() );
+        }
+
+        Grappa::barrier();
+      }
+
+
+
+
+      { // test async non-blocking gets
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = Grappa::mycore();
+        }
+
+        Grappa::barrier();
+        
+        // check remote arrays
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t remote[ count ];
+            for( int j = 0; j < count; ++j ) {
+              remote[j] = -1;
+            }
+
+            Grappa::impl::global_rma.get_bytes_nbi( remote, i, base, sizeof(remote) );
+            Grappa::impl::global_rma.fence();
+            
+            for( int j = 0; j < count; ++j ) {
+              BOOST_CHECK_EQUAL( remote[j], i );
+            }
+          }
+        }
+        
+        Grappa::barrier();
+      }
+
+      { // test non-blocking gets
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = Grappa::mycore();
+        }
+
+        Grappa::barrier();
+        
+        // check remote arrays
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t remote[ count ];
+            for( int j = 0; j < count; ++j ) {
+              remote[j] = -1;
+            }
+
+            auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, base, sizeof(remote) );
+            req.wait();
+            
+            for( int j = 0; j < count; ++j ) {
+              BOOST_CHECK_EQUAL( remote[j], i );
+            }
+          }
+        }
+        
+        Grappa::barrier();
+      }
+
+      { // test blocking gets
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = Grappa::mycore();
+        }
+
+        Grappa::barrier();
+        
+        // check remote arrays
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t remote[ count ];
+            for( int j = 0; j < count; ++j ) {
+              remote[j] = -1;
+            }
+
+            Grappa::impl::global_rma.get_bytes( remote, i, base, sizeof(remote) );
+            
+            for( int j = 0; j < count; ++j ) {
+              BOOST_CHECK_EQUAL( remote[j], i );
+            }
+          }
+        }
+        
+        Grappa::barrier();
+      }
 
       Grappa::impl::global_rma.free( p1 );
     });

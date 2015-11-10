@@ -53,6 +53,9 @@ public:
   RMARequest(): request_( MPI_REQUEST_NULL ) {}
   RMARequest( MPI_Request request): request_( request ) {}
 
+  void wait() {
+    MPI_CHECK( MPI_Wait( &request_, MPI_STATUS_IGNORE ) );
+  }
 };  
 
   class RMAWindow {
@@ -182,44 +185,115 @@ public:
     }
   }
 
-  // copy bytes to remote memory location. For non-symmetric
+  // Copy bytes to remote memory location. For non-symmetric
   // allocations, dest pointer is converted to a remote offset
   // relative to the base of the enclosing window on the local rank.
-  void put_bytes_nbi( Core core, void * dest, void * source, size_t size ) {
+  void put_bytes_nbi( const Core core, void * dest, const void * source, const size_t size ) {
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = address_map_.lower_bound( dest_int );
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overflow target window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
     
     // TODO: deal with >31-bit offsets and sizes
-    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would MPI argument type";
-    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would MPI argument type";
+    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     MPI_CHECK( MPI_Put( source, size, MPI_CHAR,
                         core, offset, size, MPI_CHAR,
                         it->second.window_ ) );
   }
 
-  // copy bytes to remote memory location. For non-symmetric
+  // Copy bytes to remote memory location. For non-symmetric
   // allocations, dest pointer is converted to a remote offset
-  // relative to the base of the enclosing window on the local rank.
-  RMARequest put_bytes_nb( Core core, void * dest, void * source, size_t size ) {
+  // relative to the base of the enclosing window on the local
+  // rank. An MPI_Request is passed in to be used for completion
+  // detection.
+  void put_bytes_nb( const Core core, void * dest, const void * source, const size_t size, MPI_Request * request_p ) {
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = address_map_.lower_bound( dest_int );
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overflow target window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
     
     // TODO: deal with >31-bit offsets and sizes
-    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would MPI argument type";
-    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would MPI argument type";
+    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     MPI_Request request;
     MPI_CHECK( MPI_Rput( source, size, MPI_CHAR,
                          core, offset, size, MPI_CHAR,
                          it->second.window_,
-                         &request ) );
+                         request_p ) );
+  }
+
+  // Copy bytes to remote memory location. For non-symmetric
+  // allocations, dest pointer is converted to a remote offset
+  // relative to the base of the enclosing window on the local rank.
+  RMARequest put_bytes_nb( const Core core, void * dest, const void * source, const size_t size ) {
+    MPI_Request request;
+    put_bytes_nb( core, dest, source, size, &request );
     return RMARequest( request );
   }
+
+  // Copy bytes to remote memory location. For non-symmetric
+  // allocations, dest pointer is converted to a remote offset
+  // relative to the base of the enclosing window on the local rank.
+  void put_bytes( const Core core, void * dest, const void * source, const size_t size ) {
+    MPI_Request request;
+    put_bytes_nb( core, dest, source, size, &request );
+    RMARequest( request ).wait();
+  }
+
+  // Copy bytes from remote memory location. For non-symmetric
+  // allocations, source pointer is converted to a remote offset
+  // relative to the base of the enclosing window on the local rank.
+  void get_bytes_nbi( void * dest, const Core core, const void * source, const size_t size ) {
+    auto source_int = reinterpret_cast<intptr_t>(source);
+    auto it = address_map_.lower_bound( source_int );
+    auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+    auto offset = source_int - base_int;
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    
+    // TODO: deal with >31-bit offsets and sizes
+    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    MPI_CHECK( MPI_Get( dest, size, MPI_CHAR,
+                        core, offset, size, MPI_CHAR,
+                        it->second.window_ ) );
+  }
+
+  // Copy bytes from remote memory location. For non-symmetric
+  // allocations, source pointer is converted to a remote offset
+  // relative to the base of the enclosing window on the local
+  // rank. An MPI_Request is passed in to be used for completion
+  // detection.
+  void get_bytes_nb( void * dest, const Core core, const void * source, const size_t size, MPI_Request * request_p ) {
+    auto source_int = reinterpret_cast<intptr_t>(source);
+    auto it = address_map_.lower_bound( source_int );
+    auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+    auto offset = source_int - base_int;
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    
+    // TODO: deal with >31-bit offsets and sizes
+    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    MPI_CHECK( MPI_Rget( dest, size, MPI_CHAR,
+                         core, offset, size, MPI_CHAR,
+                         it->second.window_,
+                         request_p ) );
+  }
+
+  RMARequest get_bytes_nb( void * dest, const Core core, const void * source, const size_t size ) {
+    MPI_Request request;
+    get_bytes_nb( dest, core, source, size, &request );
+    return RMARequest( request );
+  }
+
+  void get_bytes( void * dest, const Core core, const void * source, const size_t size ) {
+    MPI_Request request;
+    get_bytes_nb( dest, core, source, size, &request );
+    RMARequest( request ).wait();
+  }
+
 };
 
 
