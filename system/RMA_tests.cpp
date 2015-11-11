@@ -146,6 +146,39 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         Grappa::barrier();
       }
 
+      { // test non-blocking puts with test
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = 0;
+        }
+
+        Grappa::barrier();
+
+        // put modified array to all other cores
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t src[ count ];
+            for( int j = 0; j < count; ++j ) {
+              src[j] = i;
+            }
+            auto req = Grappa::impl::global_rma.put_bytes_nb( i, base, src, sizeof(src) );
+            while( !req.test() ) {
+              ;
+            }
+          }
+        }
+        
+        Grappa::barrier();
+        
+        // check array
+        for( int i = 0; i < count; ++i ) {
+          BOOST_CHECK_EQUAL( base[i], Grappa::mycore() );
+        }
+
+        Grappa::barrier();
+      }
+
       { // test blocking puts
         
         // initialize array
@@ -227,6 +260,37 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
             auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, base, sizeof(remote) );
             req.wait();
+            
+            for( int j = 0; j < count; ++j ) {
+              BOOST_CHECK_EQUAL( remote[j], i );
+            }
+          }
+        }
+        
+        Grappa::barrier();
+      }
+
+      { // test non-blocking gets with test
+        
+        // initialize array
+        for( int i = 0; i < count; ++i ) {
+          base[i] = Grappa::mycore();
+        }
+
+        Grappa::barrier();
+        
+        // check remote arrays
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < Grappa::cores(); ++i ) {
+            int64_t remote[ count ];
+            for( int j = 0; j < count; ++j ) {
+              remote[j] = -1;
+            }
+
+            auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, base, sizeof(remote) );
+            while( !req.test() ) {
+              ;
+            }
             
             for( int j = 0; j < count; ++j ) {
               BOOST_CHECK_EQUAL( remote[j], i );

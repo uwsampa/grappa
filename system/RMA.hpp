@@ -56,9 +56,15 @@ public:
   void wait() {
     MPI_CHECK( MPI_Wait( &request_, MPI_STATUS_IGNORE ) );
   }
+
+  bool test() {
+    int flag;
+    MPI_CHECK( MPI_Test( &request_, &flag, MPI_STATUS_IGNORE ) );
+    return flag;
+  }
 };  
 
-  class RMAWindow {
+class RMAWindow {
 private:
   friend class RMA;
   
