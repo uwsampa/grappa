@@ -329,7 +329,45 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         Grappa::barrier();
       }
 
+      { // test other allocations
+
+        BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 1 );
+        
+        // allocate an array for each core
+        int64_t * other[ Grappa::cores() ];
+        for( int i = 0; i < Grappa::cores(); ++i ) {
+          other[i] = (int64_t*) Grappa::impl::global_rma.allocate( sizeof(int64_t) * Grappa::cores() );
+        }
+
+        Grappa::barrier();
+
+        for( int64_t i = 0; i < Grappa::cores(); ++i ) {
+          Grappa::impl::global_rma.put_bytes_nbi( i, &(other[i][Grappa::mycore()]), &i, sizeof(i) );
+        }
+
+        Grappa::impl::global_rma.fence();
+        Grappa::barrier();
+        
+        // check that the writes showed up in the right place
+        for( int i = 0; i < Grappa::cores(); ++i ) {
+          BOOST_CHECK_EQUAL( other[Grappa::mycore()][i], Grappa::mycore() );
+        }
+        
+        Grappa::barrier();
+
+        // free arrays
+        for( int i = Grappa::cores()-1; i >= 0; --i ) {
+          Grappa::impl::global_rma.free( other[i] );
+        }
+
+        Grappa::barrier();
+
+        BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 1 );
+
+      }
+      
       Grappa::impl::global_rma.free( p1 );
+      BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 0 );
     });
   });
 }

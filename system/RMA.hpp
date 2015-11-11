@@ -87,39 +87,72 @@ public:
 
   void * base() const { return base_; }
   const size_t size() const { return size_; }
+
+  friend std::ostream & operator<<( std::ostream & o, const RMAWindow & window ) {
+    return o << "[RMAWindow base " << window.base_
+             << " size " << window.size_ << "/" << (void*) window.size_
+             << " window " << window.window_
+             << "]";
+  }
 };
 
 
 class RMA {
 private:
-  //std::unordered_set< RMAWindow > windows_;
-  //boost::icl::interval_map< intptr_t, MPI_Win > address_map_;
   std::map< intptr_t, RMAWindow > address_map_;
+
+  std::map< intptr_t, RMAWindow >::const_iterator get_enclosing( intptr_t base_int ) {
+    // this points to the region after this address
+    auto it = address_map_.upper_bound( base_int );
+    if( it != address_map_.begin() ) {
+      it--;
+      auto region_base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+      auto region_size = it->second.size_;
+      if( ( region_base_int <= base_int ) &&
+          ( base_int < ( region_base_int + region_size ) ) ) {
+        return it;
+      }
+    }
+    return address_map_.end();
+  }
 
   // we're requiring here that windows don't overlap, which should be
   // fine for an allocate() function. Registering regions allocated
   // elsewhere may need to deal with overlap.
   void verify_no_overlap( intptr_t base_int, size_t size ) {
-    // check if we overlap with a window starting at a lower address than our base
+    DVLOG(2) << "Adding region with base "
+             << (void*) base_int
+             << " size " << size
+             << "/" << (void*) size 
+             << " to " << *this;
+    
+    // check if we overlap with a window starting at an address equal to or higher than our base
     auto it = address_map_.lower_bound( base_int );
     if( it != address_map_.end() ) {
       auto other_base_int = reinterpret_cast<intptr_t>( it->second.base_ );
-      CHECK_LE( other_base_int + it->second.size_, base_int )
-        << "Newly-allocated window (base "
-        << (void*) base_int << " size " << size << ")"
-        << " overlaps with previously-allocated window (base "
-        << (void*) other_base_int << " size " << it->second.size_ << ").";
-    }
-
-    // check if we overlap with a window starting at a higher address than our base
-    it = address_map_.upper_bound( base_int );
-    if( it != address_map_.end() ) {
-      auto other_base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+      auto other_size = it->second.size_;
       CHECK_LE( base_int + size, other_base_int )
         << "Newly-allocated window (base "
         << (void*) base_int << " size " << size << ")"
         << " overlaps with previously-allocated window (base "
-        << (void*) other_base_int << " size " << it->second.size_ << ").";
+        << (void*) other_base_int << " size " << other_size << ").";
+    }
+
+    // since we don't allow overlapping windows, if a window starting
+    // at an earlier address overlaps with the window we're checking,
+    // it must be the one previous to the lower_bound result (or the
+    // highest, if there was no result).
+    if( it != address_map_.begin() ) {
+      it--;
+      if( it != address_map_.end() ) {
+        auto other_base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+        auto other_size = it->second.size_;
+        CHECK_LE( other_base_int + other_size, base_int )
+          << "Newly-allocated window (base "
+          << (void*) base_int << " size " << size << ")"
+          << " overlaps with previously-allocated window (base "
+          << (void*) other_base_int << " size " << other_size << ").";
+      }
     }
   }
   
@@ -128,6 +161,16 @@ public:
     : address_map_()
   { }
 
+  const size_t size() const { return address_map_.size(); }
+  
+  friend std::ostream & operator<<( std::ostream & o, const RMA & rma ) {
+    o << "[RMA address map <";
+    for( auto const & kv : rma.address_map_ ) {
+      o << "\n   " << (void*) kv.first << "->" << kv.second << " ";
+    }
+    return o << ">]";
+  }
+  
   // collective call to allocate window for passive one-sided ops
   void * allocate( size_t size ) {
     MPI_Info info;
@@ -196,7 +239,8 @@ public:
   // relative to the base of the enclosing window on the local rank.
   void put_bytes_nbi( const Core core, void * dest, const void * source, const size_t size ) {
     auto dest_int = reinterpret_cast<intptr_t>(dest);
-    auto it = address_map_.lower_bound( dest_int );
+    auto it = get_enclosing( dest_int );
+    DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
     CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
@@ -216,7 +260,8 @@ public:
   // detection.
   void put_bytes_nb( const Core core, void * dest, const void * source, const size_t size, MPI_Request * request_p ) {
     auto dest_int = reinterpret_cast<intptr_t>(dest);
-    auto it = address_map_.lower_bound( dest_int );
+    auto it = get_enclosing( dest_int );
+    DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
     CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
