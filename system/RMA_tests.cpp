@@ -366,6 +366,26 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       }
       
+      { // test atomic ops
+        base[0] = Grappa::mycore();
+
+        Grappa::barrier();
+
+        int64_t source = Grappa::mycore();
+        int64_t result = Grappa::impl::global_rma.atomic_op< int64_t, op::replace<int64_t> >( (Grappa::mycore() + 1) % Grappa::cores(),
+                                                                                              &base[0], &source );
+        BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
+        
+        Grappa::barrier();
+
+        BOOST_CHECK_EQUAL( base[0], (Grappa::mycore() + Grappa::cores() - 1) % Grappa::cores() );
+
+        base[0] = 0;
+        
+        Grappa::barrier();
+
+      }
+
       Grappa::impl::global_rma.free( p1 );
       BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 0 );
     });

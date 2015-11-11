@@ -36,7 +36,9 @@
 #include <unordered_set>
 #include <map>
 #include <limits>
-#include <boost/icl/interval_map.hpp>
+#include <functional>
+#include <algorithm>
+#include <utility>
 
 #include <Communicator.hpp>
 
@@ -156,6 +158,8 @@ private:
     }
   }
   
+  int64_t atomic_op_int64_helper( const Core core, int64_t * dest, const int64_t * source, MPI_Op op );
+
 public:
   RMA()
     : address_map_()
@@ -345,8 +349,64 @@ public:
     RMARequest( request ).wait();
   }
 
+  // Perform atomic op on remote memory location. For non-symmetric
+  // allocations, dest pointer is converted to a remote offset
+  // relative to the base of the enclosing window on the local
+  // rank. See blelow for implementations:
+  template< typename T, typename OP >
+  T atomic_op( const Core core, T * dest, const T * source ) {
+    LOG(ERROR) << "No implementation for signature " << __PRETTY_FUNCTION__;
+  }
+
 };
 
+
+//
+// atomic operation implementation signatures
+//
+
+// operations used for atomics and collectives
+// these are here just to have consistent names.
+// (compared to MPI, just missing maxloc, minloc)
+// TODO: reconcile with Collective.hpp
+namespace op {
+template< typename T > struct max         { T operator()( const T & lhs, const T & rhs ) const { return std::max(lhs, rhs); } };
+template< typename T > struct min         { T operator()( const T & lhs, const T & rhs ) const { return std::min(lhs, rhs); } };
+template< typename T > struct plus        { T operator()( const T & lhs, const T & rhs ) const { return  lhs +   rhs;       } };
+template< typename T > struct sum         { T operator()( const T & lhs, const T & rhs ) const { return  lhs +   rhs;       } };
+template< typename T > struct prod        { T operator()( const T & lhs, const T & rhs ) const { return  lhs *   rhs;       } };
+template< typename T > struct bitwise_and { T operator()( const T & lhs, const T & rhs ) const { return  lhs &   rhs;       } };
+template< typename T > struct bitwise_or  { T operator()( const T & lhs, const T & rhs ) const { return  lhs |   rhs;       } };
+template< typename T > struct bitwise_xor { T operator()( const T & lhs, const T & rhs ) const { return  lhs ^   rhs;       } };
+template< typename T > struct logical_and { T operator()( const T & lhs, const T & rhs ) const { return  lhs &&  rhs;       } };
+template< typename T > struct logical_or  { T operator()( const T & lhs, const T & rhs ) const { return  lhs ||  rhs;       } };
+template< typename T > struct logical_xor { T operator()( const T & lhs, const T & rhs ) const { return !lhs != !rhs;       } };
+template< typename T > struct replace     { T operator()( const T & lhs, const T & rhs ) const { return          rhs;       } };
+template< typename T > struct no_op       { T operator()( const T & lhs, const T & rhs ) const { return  lhs        ;       } };
+// these need to be fixed to handle lhs.first == rhs.first properly
+//template< typename T > struct maxloc      { T operator()( const T & lhs, const T & rhs ) const { return lhs.first > rhs.first ? lhs : rhs; } };
+//template< typename T > struct minloc      { T operator()( const T & lhs, const T & rhs ) const { return lhs.first < rhs.first ? lhs : rhs; } };
+}
+
+template<>
+int64_t RMA::atomic_op< int64_t, op::plus<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
+
+template<>
+int64_t RMA::atomic_op< int64_t, op::bitwise_and<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
+
+template<>
+int64_t RMA::atomic_op< int64_t, op::bitwise_or<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
+
+template<>
+int64_t RMA::atomic_op< int64_t, op::bitwise_xor<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
+
+template<>
+int64_t RMA::atomic_op< int64_t, op::replace<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
+
+
+//
+// static RMA instance
+//
 
 extern RMA global_rma;
 
