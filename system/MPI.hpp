@@ -103,25 +103,65 @@ template<> struct MPIDatatype< std::complex<long double> > { static const MPI_Da
 ///
 /// Equivalences between certain known C++ functors and MPI operation types for collective/atomic ops
 ///
-template< typename T, typename OP > struct MPIOp;
-template< typename T > struct MPIOp< T, std::plus<T>       > { static const MPI_Op value = MPI_SUM; };
-template< typename T > struct MPIOp< T, std::less<T>       > { static const MPI_Op value = MPI_MIN; };
-template< typename T > struct MPIOp< T, std::greater<T>    > { static const MPI_Op value = MPI_MAX; };
-template< typename T > struct MPIOp< T, op::max<T>         > { static const MPI_Op value = MPI_MAX; };
-template< typename T > struct MPIOp< T, op::min<T>         > { static const MPI_Op value = MPI_MIN; };
-template< typename T > struct MPIOp< T, op::plus<T>        > { static const MPI_Op value = MPI_SUM; };
-template< typename T > struct MPIOp< T, op::sum<T>         > { static const MPI_Op value = MPI_SUM; };
-template< typename T > struct MPIOp< T, op::prod<T>        > { static const MPI_Op value = MPI_PROD; };
-template< typename T > struct MPIOp< T, op::bitwise_and<T> > { static const MPI_Op value = MPI_BAND; };
-template< typename T > struct MPIOp< T, op::bitwise_or<T>  > { static const MPI_Op value = MPI_BOR; };
-template< typename T > struct MPIOp< T, op::bitwise_xor<T> > { static const MPI_Op value = MPI_BXOR; };
-template< typename T > struct MPIOp< T, op::logical_and<T> > { static const MPI_Op value = MPI_LAND; };
-template< typename T > struct MPIOp< T, op::logical_or<T>  > { static const MPI_Op value = MPI_LOR; };
-template< typename T > struct MPIOp< T, op::logical_xor<T> > { static const MPI_Op value = MPI_LXOR; };
+
+// default setting, triggering MPI user-defined operation construction in MPIOpWrapper
+template< typename T, typename OP > struct MPIOp             { static const MPI_Op value = MPI_OP_NULL; };
+
+// specializations for known functors
+template< typename T > struct MPIOp< T, std::plus<T>       > { static const MPI_Op value = MPI_SUM;     };
+template< typename T > struct MPIOp< T, std::less<T>       > { static const MPI_Op value = MPI_MIN;     };
+template< typename T > struct MPIOp< T, std::greater<T>    > { static const MPI_Op value = MPI_MAX;     };
+template< typename T > struct MPIOp< T, op::max<T>         > { static const MPI_Op value = MPI_MAX;     };
+template< typename T > struct MPIOp< T, op::min<T>         > { static const MPI_Op value = MPI_MIN;     };
+template< typename T > struct MPIOp< T, op::plus<T>        > { static const MPI_Op value = MPI_SUM;     };
+template< typename T > struct MPIOp< T, op::sum<T>         > { static const MPI_Op value = MPI_SUM;     };
+template< typename T > struct MPIOp< T, op::prod<T>        > { static const MPI_Op value = MPI_PROD;    };
+template< typename T > struct MPIOp< T, op::bitwise_and<T> > { static const MPI_Op value = MPI_BAND;    };
+template< typename T > struct MPIOp< T, op::bitwise_or<T>  > { static const MPI_Op value = MPI_BOR;     };
+template< typename T > struct MPIOp< T, op::bitwise_xor<T> > { static const MPI_Op value = MPI_BXOR;    };
+template< typename T > struct MPIOp< T, op::logical_and<T> > { static const MPI_Op value = MPI_LAND;    };
+template< typename T > struct MPIOp< T, op::logical_or<T>  > { static const MPI_Op value = MPI_LOR;     };
+template< typename T > struct MPIOp< T, op::logical_xor<T> > { static const MPI_Op value = MPI_LXOR;    };
 template< typename T > struct MPIOp< T, op::replace<T>     > { static const MPI_Op value = MPI_REPLACE; };
-template< typename T > struct MPIOp< T, op::no_op<T>       > { static const MPI_Op value = MPI_NO_OP; };
+template< typename T > struct MPIOp< T, op::no_op<T>       > { static const MPI_Op value = MPI_NO_OP;   };
+// TODO: find the right types for these
 // template< typename T > struct MPIOp< T, op::maxloc<T>      > { static const MPI_Op value = MPI_MINLOC; };
 // template< typename T > struct MPIOp< T, op::minloc<T>      > { static const MPI_Op value = MPI_MAXLOC; };
+
+// General case for user-defined operations. The code here is bypassed for pre-defined MPI operations.
+// Op must be associative and optionally commutative (which is assumed by default).
+template< typename T, typename OP > struct MPIOpWrapper {
+private:
+  static bool cleanup;
+  static OP * func;
+  
+  static void wrapper( T * rhs, T * lhs, int * len, MPI_Datatype * dt ) {
+    for( int i = 0; i < *len; ++i ) {
+      lhs[i] = (*func)( lhs[i], rhs[i] );
+    }
+  }
+  
+public:
+  static MPI_Op value;
+
+  MPIOpWrapper( OP & op, bool commutative = true ) {
+    if( MPI_OP_NULL == value ) {
+      cleanup = true;
+      func = &op;
+      MPI_Op_create( reinterpret_cast<void(*)(void*,void*,int*,MPI_Datatype*)>(wrapper), commutative, &value );
+    }
+  }
+
+  ~MPIOpWrapper() {
+    if( cleanup ) {
+      MPI_Op_free( &value );
+    }
+  }
+};
+
+template< typename T, typename OP > bool   MPIOpWrapper<T,OP>::cleanup = false;
+template< typename T, typename OP > OP *   MPIOpWrapper<T,OP>::func    = nullptr;
+template< typename T, typename OP > MPI_Op MPIOpWrapper<T,OP>::value   = MPIOp<T,OP>::value;
 
 } // namespace impl
 } // namespace Grappa

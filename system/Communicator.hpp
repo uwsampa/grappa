@@ -359,20 +359,22 @@ inline void broadcast( T * buf, size_t count, Core root = 0 ) {
 
 /// Raw blocking reduction
 template< typename T, typename OP >
-inline void reduce( const T * src, T * dest, const size_t count, const Core root = 0 ) {
+inline void reduce( const T * src, OP op, T * dest, const size_t count, const Core root = 0 ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
   MPI_CHECK( MPI_Reduce( src, dest, count,
                          Grappa::impl::MPIDatatype<T>::value,
-                         Grappa::impl::MPIOp<T,OP>::value,
+                         mpi_op.value,
                          root,
                          global_communicator.grappa_comm ) );
 }
 
 /// Raw blocking in-place reduction
 template< typename T, typename OP >
-inline void reduce( const T * src, const size_t count, const Core root = 0 ) {
-  MPI_CHECK( MPI_Reduce( global_communicator.mycore == root ? MPI_IN_PLACE : src, src, count,
+inline void reduce( T * buf, OP op, const size_t count, const Core root = 0 ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Reduce( global_communicator.mycore == root ? MPI_IN_PLACE : buf, buf, count,
                          Grappa::impl::MPIDatatype<T>::value,
-                         Grappa::impl::MPIOp<T,OP>::value,
+                         mpi_op.value,
                          root,
                          global_communicator.grappa_comm ) );
 }

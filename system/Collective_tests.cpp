@@ -39,7 +39,7 @@
 #include "GlobalAllocator.hpp"
 #include "Addressing.hpp"
 
-// Tests the functions in Collective.hpp
+// Tests the functions in Collective.hpp, as well as raw MPI collectives from the communicator
 
 BOOST_AUTO_TEST_SUITE( Collective_tests );
 
@@ -116,7 +116,63 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     auto total = Grappa::sum_all_cores([]{ return global_x; });
     CHECK_EQ(total, cores());
-    
+
+    Grappa::on_all_cores([]{
+      
+      { // test broadcast
+        int64_t other[ 8 ] = { 0 };
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < 8; ++i ) {
+            other[i] = i;
+          }
+        } else {
+          for( int i = 0; i < 8; ++i ) {
+            BOOST_CHECK_EQUAL( other[i], 0 );
+          }
+        }
+
+        Grappa::spmd::blocking::broadcast( &other[0], 8, 0 );
+        
+        for( int i = 0; i < 8; ++i ) {
+          BOOST_CHECK_EQUAL( other[i], i );
+        }
+      }
+
+      { // test reduce
+        int64_t other[ 8 ];
+        for( int i = 0; i < 8; ++i ) {
+          other[i] = Grappa::mycore() * 8 + i;
+        }
+
+        Grappa::spmd::blocking::reduce( &other[0], std::greater<int64_t>(), 8 );
+
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < 8; ++i ) {
+            BOOST_CHECK_EQUAL( other[i], 8 * (Grappa::cores()-1) + i );
+          }
+        }
+      }
+
+      { // test user-defined reduction
+        int64_t other[ 8 ];
+        for( int i = 0; i < 8; ++i ) {
+          other[i] = Grappa::mycore() * 8 + i;
+        }
+
+        auto op = [] (const int64_t & lhs, const int64_t & rhs) -> int64_t {
+          return lhs > rhs ? lhs : rhs;
+        };
+        Grappa::spmd::blocking::reduce( &other[0], op, 8 );
+
+        if( Grappa::mycore() == 0 ) {
+          for( int i = 0; i < 8; ++i ) {
+            BOOST_CHECK_EQUAL( other[i], 8 * (Grappa::cores()-1) + i );
+          }
+        }
+      }
+
+    });
+
   });
   Grappa::finalize();
 }
