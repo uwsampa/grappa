@@ -404,6 +404,31 @@ static inline void prefetcht2(const void *p) {
     __builtin_prefetch(p, 0, 1);
 }
 
+
+template < typename T >
+inline void destruct( T* p ) {
+  (*p).~T();
+}
+
+template< typename T, size_t S >
+inline void destruct( T (*p)[S] ) {
+  for ( size_t i = 0; i < S; ++i ) {
+    destruct( &(*p)[i] );
+  }
+}
+
+template< typename T >
+inline void copy( T* target, T* source ) {
+  *target = *source;
+}
+
+template< typename T, size_t S >
+inline void copy( T (*target)[S], T (*source)[S] ) {
+  for ( size_t i = 0; i < S; ++i ) {
+    copy( &(*target)[i], &(*source)[i] );
+  }
+}
+
 }
 
 /// @}
