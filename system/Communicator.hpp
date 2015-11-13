@@ -347,6 +347,35 @@ namespace blocking {
 inline void barrier() {
   global_communicator.barrier();
 }
+
+/// Raw blocking broadcast
+template< typename T >
+inline void broadcast( T * buf, size_t count, Core root = 0 ) {
+  MPI_CHECK( MPI_Bcast( buf, count,
+                        Grappa::impl::MPIDatatype<T>::value,
+                        root,
+                        global_communicator.grappa_comm ) );
+}
+
+/// Raw blocking reduction
+template< typename T, typename OP >
+inline void reduce( const T * src, T * dest, const size_t count, const Core root = 0 ) {
+  MPI_CHECK( MPI_Reduce( src, dest, count,
+                         Grappa::impl::MPIDatatype<T>::value,
+                         Grappa::impl::MPIOp<T,OP>::value,
+                         root,
+                         global_communicator.grappa_comm ) );
+}
+
+/// Raw blocking in-place reduction
+template< typename T, typename OP >
+inline void reduce( const T * src, const size_t count, const Core root = 0 ) {
+  MPI_CHECK( MPI_Reduce( global_communicator.mycore == root ? MPI_IN_PLACE : src, src, count,
+                         Grappa::impl::MPIDatatype<T>::value,
+                         Grappa::impl::MPIOp<T,OP>::value,
+                         root,
+                         global_communicator.grappa_comm ) );
+}
   
 } // namespace blocking
 } // namespace spmd
