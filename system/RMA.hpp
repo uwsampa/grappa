@@ -55,6 +55,16 @@ public:
   RMARequest(): request_( MPI_REQUEST_NULL ) {}
   RMARequest( MPI_Request request): request_( request ) {}
 
+  void reset() {
+    // MPI_Wait just returns if called with MPI_REQUEST_NULL.
+    MPI_CHECK( MPI_Wait( &request_, MPI_STATUS_IGNORE ) );
+  }
+
+  /// Warning: may leak request if someone has not completed it elsewhere.
+  void reset_nowait() {
+    request_ = MPI_REQUEST_NULL;
+  }
+  
   void wait() {
     MPI_CHECK( MPI_Wait( &request_, MPI_STATUS_IGNORE ) );
   }
