@@ -63,13 +63,14 @@
 
 //#include "PerformanceTools.hpp"
 
-#include <mpi.h>
 #include <memory>
 #include <deque>
 
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
+
+#include <MPI.hpp>
 
 // GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_messages);
 // GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_bytes);
