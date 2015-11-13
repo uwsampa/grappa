@@ -372,8 +372,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         Grappa::barrier();
 
         int64_t source = Grappa::mycore();
-        int64_t result = Grappa::impl::global_rma.atomic_op< int64_t, op::replace<int64_t> >( (Grappa::mycore() + 1) % Grappa::cores(),
-                                                                                              &base[0], &source );
+        int64_t result = Grappa::impl::global_rma.atomic_op( (Grappa::mycore() + 1) % Grappa::cores(),
+                                                             &base[0],
+                                                             op::replace<int64_t>(),
+                                                             &source );
         BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
         
         Grappa::barrier();

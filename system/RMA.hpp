@@ -41,6 +41,7 @@
 #include <utility>
 
 #include <Communicator.hpp>
+#include <CollectiveOps.hpp>
 
 namespace Grappa {
 namespace impl {
@@ -362,34 +363,32 @@ public:
   // Perform atomic op on remote memory location. For non-symmetric
   // allocations, dest pointer is converted to a remote offset
   // relative to the base of the enclosing window on the local
-  // rank. See blelow for implementations:
+  // rank. See MPI.hpp for supported operations.
   template< typename T, typename OP >
-  T atomic_op( const Core core, T * dest, const T * source ) {
-    LOG(ERROR) << "No implementation for signature " << __PRETTY_FUNCTION__;
+  T atomic_op( const Core core, T * dest, OP op, const T * source ) {
+    static_assert( MPI_OP_NULL != Grappa::impl::MPIOp< T, OP >::value,
+                   "No MPI atomic op implementation for this operator" );
+    size_t size = sizeof(T);
+    auto dest_int = reinterpret_cast<intptr_t>(dest);
+    auto it = get_enclosing( dest_int );
+    DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
+    auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+    auto offset = dest_int - base_int;
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+  
+    // TODO: deal with >31-bit offsets and sizes. For now, just report error.
+    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+
+    int64_t result;
+    MPI_CHECK( MPI_Fetch_and_op( source, &result, Grappa::impl::MPIDatatype< T >::value,
+                                 core, offset,
+                                 Grappa::impl::MPIOp< T, OP >::value,
+                                 it->second.window_ ) );
+    return result;
   }
 
 };
-
-
-//
-// atomic operation implementation signatures
-//
-
-template<>
-int64_t RMA::atomic_op< int64_t, op::plus<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
-
-template<>
-int64_t RMA::atomic_op< int64_t, op::bitwise_and<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
-
-template<>
-int64_t RMA::atomic_op< int64_t, op::bitwise_or<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
-
-template<>
-int64_t RMA::atomic_op< int64_t, op::bitwise_xor<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
-
-template<>
-int64_t RMA::atomic_op< int64_t, op::replace<int64_t> >( const Core core, int64_t * dest, const int64_t * source );
-
 
 //
 // static RMA instance
