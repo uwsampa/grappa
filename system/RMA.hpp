@@ -365,7 +365,7 @@ public:
   // relative to the base of the enclosing window on the local
   // rank. See MPI.hpp for supported operations.
   template< typename T, typename OP >
-  T atomic_op( const Core core, T * dest, OP op, const T * source ) {
+  void atomic_op_nbi( T * result, const Core core, T * dest, OP op, const T * source ) {
     static_assert( MPI_OP_NULL != Grappa::impl::MPIOp< T, OP >::value,
                    "No MPI atomic op implementation for this operator" );
     size_t size = sizeof(T);
@@ -380,11 +380,26 @@ public:
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
 
-    int64_t result;
-    MPI_CHECK( MPI_Fetch_and_op( source, &result, Grappa::impl::MPIDatatype< T >::value,
+    MPI_CHECK( MPI_Fetch_and_op( source, result, Grappa::impl::MPIDatatype< T >::value,
                                  core, offset,
                                  Grappa::impl::MPIOp< T, OP >::value,
                                  it->second.window_ ) );
+  }
+
+  // Perform atomic op on remote memory location. For non-symmetric
+  // allocations, dest pointer is converted to a remote offset
+  // relative to the base of the enclosing window on the local
+  // rank. See MPI.hpp for supported operations.
+  template< typename T, typename OP >
+  T atomic_op( const Core core, T * dest, OP op, const T * source ) {
+    T result;
+
+    // start operation
+    atomic_op_nbi( &result, core, dest, op, source );
+
+    // make sure operation is complete
+    auto dest_int = reinterpret_cast<intptr_t>(dest);
+    auto it = get_enclosing( dest_int );
     MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
     
     return result;
@@ -396,7 +411,7 @@ public:
   // offset relative to the base of the enclosing window on the local
   // rank. See MPI.hpp for supported operations.
   template< typename T >
-  T compare_and_swap( const Core core, T * dest, const T * compare, const T * source ) {
+  void compare_and_swap_nbi( T * result, const Core core, T * dest, const T * compare, const T * source ) {
     size_t size = sizeof(T);
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
@@ -409,12 +424,28 @@ public:
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
 
-    int64_t result;
-    MPI_CHECK( MPI_Compare_and_swap( source, compare, &result, Grappa::impl::MPIDatatype< T >::value,
+    MPI_CHECK( MPI_Compare_and_swap( source, compare, result, Grappa::impl::MPIDatatype< T >::value,
                                      core, offset,
                                      it->second.window_ ) );
-    MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
+  }
 
+  // Atomic compare-and-swap. If dest and compare values are the same,
+  // replace dest with source. Return previous value of dest. For
+  // non-symmetric allocations, dest pointer is converted to a remote
+  // offset relative to the base of the enclosing window on the local
+  // rank. See MPI.hpp for supported operations.
+  template< typename T >
+  T compare_and_swap( const Core core, T * dest, const T * compare, const T * source ) {
+    T result;
+
+    // start operation
+    compare_and_swap_nbi( &result, core, dest, compare, source );
+    
+    // make sure operation is complete
+    auto dest_int = reinterpret_cast<intptr_t>(dest);
+    auto it = get_enclosing( dest_int );
+    MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
+    
     return result;
   }
 
