@@ -379,6 +379,26 @@ inline void reduce( T * buf, OP op, const size_t count, const Core root = 0 ) {
                          global_communicator.grappa_comm ) );
 }
   
+/// Raw blocking allreduce
+template< typename T, typename OP >
+inline void allreduce( const T * src, OP op, T * dest, const size_t count ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Allreduce( src, dest, count,
+                            Grappa::impl::MPIDatatype<T>::value,
+                            mpi_op.value,
+                            global_communicator.grappa_comm ) );
+}
+
+/// Raw blocking in-place allreduce
+template< typename T, typename OP >
+inline void allreduce( T * buf, OP op, const size_t count ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, buf, count,
+                            Grappa::impl::MPIDatatype<T>::value,
+                            mpi_op.value,
+                            global_communicator.grappa_comm ) );
+}
+  
 } // namespace blocking
 } // namespace spmd
 } // namespace Grappa

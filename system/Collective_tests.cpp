@@ -153,6 +153,19 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         }
       }
 
+      { // test allreduce
+        int64_t other[ 8 ];
+        for( int i = 0; i < 8; ++i ) {
+          other[i] = Grappa::mycore() * 8 + i;
+        }
+
+        Grappa::spmd::blocking::allreduce( &other[0], std::greater<int64_t>(), 8 );
+
+        for( int i = 0; i < 8; ++i ) {
+          BOOST_CHECK_EQUAL( other[i], 8 * (Grappa::cores()-1) + i );
+        }
+      }
+
       { // test user-defined reduction
         int64_t other[ 8 ];
         for( int i = 0; i < 8; ++i ) {
