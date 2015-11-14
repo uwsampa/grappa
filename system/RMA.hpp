@@ -385,6 +385,8 @@ public:
                                  core, offset,
                                  Grappa::impl::MPIOp< T, OP >::value,
                                  it->second.window_ ) );
+    MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
+    
     return result;
   }
 
@@ -411,6 +413,8 @@ public:
     MPI_CHECK( MPI_Compare_and_swap( source, compare, &result, Grappa::impl::MPIDatatype< T >::value,
                                      core, offset,
                                      it->second.window_ ) );
+    MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
+
     return result;
   }
 
