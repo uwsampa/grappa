@@ -388,6 +388,41 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       }
 
+      { // test compare and swap
+        base[0] = Grappa::mycore();
+        base[1] = Grappa::mycore();
+
+        Grappa::barrier();
+
+        int64_t source = Grappa::mycore();
+        int64_t result;
+        
+        int64_t good_compare = (Grappa::mycore() + 1) % Grappa::cores();
+        result = Grappa::impl::global_rma.compare_and_swap( static_cast<Core>( (Grappa::mycore() + 1) % Grappa::cores() ),
+                                                            &base[0],
+                                                            &good_compare,
+                                                            &source );
+        BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
+
+        int64_t bad_compare  = Grappa::mycore();
+        result = Grappa::impl::global_rma.compare_and_swap( static_cast<Core>( (Grappa::mycore() + 1) % Grappa::cores() ),
+                                                            &base[1],
+                                                            &bad_compare,
+                                                            &source );
+        BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
+        
+        Grappa::barrier();
+
+        BOOST_CHECK_EQUAL( base[0], (Grappa::mycore() + Grappa::cores() - 1) % Grappa::cores() );
+        BOOST_CHECK_EQUAL( base[1], Grappa::mycore() );
+
+        base[0] = 0;
+        base[1] = 0;
+        
+        Grappa::barrier();
+
+      }
+
       Grappa::impl::global_rma.free( p1 );
       BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 0 );
     });

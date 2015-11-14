@@ -388,6 +388,32 @@ public:
     return result;
   }
 
+  // Atomic compare-and-swap. If dest and compare values are the same,
+  // replace dest with source. Return previous value of dest. For
+  // non-symmetric allocations, dest pointer is converted to a remote
+  // offset relative to the base of the enclosing window on the local
+  // rank. See MPI.hpp for supported operations.
+  template< typename T >
+  T compare_and_swap( const Core core, T * dest, const T * compare, const T * source ) {
+    size_t size = sizeof(T);
+    auto dest_int = reinterpret_cast<intptr_t>(dest);
+    auto it = get_enclosing( dest_int );
+    DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
+    auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
+    auto offset = dest_int - base_int;
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+  
+    // TODO: deal with >31-bit offsets and sizes. For now, just report error.
+    CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,   std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+
+    int64_t result;
+    MPI_CHECK( MPI_Compare_and_swap( source, compare, &result, Grappa::impl::MPIDatatype< T >::value,
+                                     core, offset,
+                                     it->second.window_ ) );
+    return result;
+  }
+
 };
 
 //
