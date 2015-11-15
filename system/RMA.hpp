@@ -225,6 +225,39 @@ public:
     return base;
   }
 
+  // collective call to register window for passive one-sided ops
+  void register_region( void * base, size_t size ) {
+    MPI_Info info;
+    MPI_CHECK( MPI_Info_create( &info ) );
+
+    // Assure MPI that all locale shared memory segments have identical displacement units
+    MPI_CHECK( MPI_Info_set( info, "same_disp_unit", "true" ) );
+
+    // Allocate and add to map
+    MPI_Win window;
+    MPI_CHECK( MPI_Win_create( base, size, 1,
+                               info,
+                               global_communicator.grappa_comm,
+                               &window ) );
+    intptr_t base_int = reinterpret_cast<intptr_t>(base);
+    verify_no_overlap( base_int, size ); 
+    address_map_.emplace( base_int, RMAWindow( base, size, window ) );
+      
+    // Clean up info struct now that we're done with it
+    MPI_CHECK( MPI_Info_free( &info ) );
+    
+    // Verify we got what we expected
+    int * attr;
+    int attr_flag;
+    MPI_CHECK( MPI_Win_get_attr( window, MPI_WIN_MODEL, &attr, &attr_flag ) );
+    CHECK( attr_flag ) << "Error getting attributes for MPI window";
+    CHECK_EQ( *attr, MPI_WIN_UNIFIED ) << "MPI window doesn't use MPI_WIN_UNIFIED model.";
+
+    // "acquire locks" for all other regions to allow async puts and gets
+    MPI_CHECK( MPI_Win_lock_all( MPI_MODE_NOCHECK, window ) );
+    MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
+  }
+
   // collective call to free window
   void free( void * base ) {
     // synchronize
@@ -242,6 +275,11 @@ public:
     address_map_.erase( it );
   }
 
+  // deregistering memory allocated elsewhere is the same as freeing it in the MPI API
+  void deregister_region( void * base ) {
+    free(base);
+  }
+  
   // non-collective local fence/flush operation
   void fence() {
     for( auto & kv : address_map_ ) {
