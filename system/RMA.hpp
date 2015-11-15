@@ -438,7 +438,7 @@ public:
     // make sure operation is complete
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
-    MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
+    MPI_CHECK( MPI_Win_flush( core, it->second.window_ ) );
     
     return result;
   }
@@ -482,7 +482,7 @@ public:
     // make sure operation is complete
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
-    MPI_CHECK( MPI_Win_flush_all( it->second.window_ ) );
+    MPI_CHECK( MPI_Win_flush( core, it->second.window_ ) );
     
     return result;
   }
