@@ -293,10 +293,12 @@ public:
   void put_bytes_nbi( const Core core, void * dest, const void * source, const size_t size ) {
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << dest << " size " << size;  
     DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation at " << source << " size " << size
+						<< " would overrun RMA window at " << it->second.base_ << " size " << it->second.size_;
     
     // TODO: deal with >31-bit offsets and sizes
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
@@ -314,10 +316,12 @@ public:
   void put_bytes_nb( const Core core, void * dest, const void * source, const size_t size, MPI_Request * request_p ) {
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << dest << " size " << size;  
     DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation at " << source << " size " << size
+						<< " would overrun RMA window at " << it->second.base_ << " size " << it->second.size_;
     
     // TODO: deal with >31-bit offsets and sizes
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
@@ -352,10 +356,12 @@ public:
   // relative to the base of the enclosing window on the local rank.
   void get_bytes_nbi( void * dest, const Core core, const void * source, const size_t size ) {
     auto source_int = reinterpret_cast<intptr_t>(source);
-    auto it = address_map_.lower_bound( source_int );
+    auto it = get_enclosing( source_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << source << " size " << size;  
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = source_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation at " << source << " size " << size
+						<< " would overrun RMA window at " << it->second.base_ << " size " << it->second.size_;
     
     // TODO: deal with >31-bit offsets and sizes
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
@@ -372,10 +378,12 @@ public:
   // detection.
   void get_bytes_nb( void * dest, const Core core, const void * source, const size_t size, MPI_Request * request_p ) {
     auto source_int = reinterpret_cast<intptr_t>(source);
-    auto it = address_map_.lower_bound( source_int );
+    auto it = get_enclosing( source_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << source << " size " << size;  
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = source_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation at " << source << " size " << size
+						<< " would overrun RMA window at " << it->second.base_ << " size " << it->second.size_;
     
     // TODO: deal with >31-bit offsets and sizes
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
@@ -409,10 +417,11 @@ public:
     size_t size = sizeof(T);
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
-    DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
+    DVLOG(2) << "Found " << it->second << " for dest " << (void*) dest;
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation at " << source << " size " << size
+						<< " would overrun RMA window at " << it->second.base_ << " size " << it->second.size_;
   
     // TODO: deal with >31-bit offsets and sizes. For now, just report error.
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
@@ -438,6 +447,7 @@ public:
     // make sure operation is complete
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << (void*) dest;
     MPI_CHECK( MPI_Win_flush( core, it->second.window_ ) );
     
     return result;
@@ -453,10 +463,12 @@ public:
     size_t size = sizeof(T);
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << (void*) dest;
     DVLOG(2) << "Found " << it->second << " for dest " << dest << " size " << size;
     auto base_int = reinterpret_cast<intptr_t>( it->second.base_ );
     auto offset = dest_int - base_int;
-    CHECK_LE( offset + size, it->second.size_ ) << "Operation would overrun RMA window";
+    CHECK_LE( offset + size, it->second.size_ ) << "Operation at " << source << " size " << size
+						<< " would overrun RMA window at " << it->second.base_ << " size " << it->second.size_;
   
     // TODO: deal with >31-bit offsets and sizes. For now, just report error.
     CHECK_LT( offset, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
@@ -482,6 +494,7 @@ public:
     // make sure operation is complete
     auto dest_int = reinterpret_cast<intptr_t>(dest);
     auto it = get_enclosing( dest_int );
+    CHECK( it != address_map_.end() ) << "No mapping found for " << (void*) dest;
     MPI_CHECK( MPI_Win_flush( core, it->second.window_ ) );
     
     return result;
