@@ -78,13 +78,6 @@ using std::nullptr_t;
 #define MILLION         (1000ULL * THOUSAND)
 #define BILLION         (1000ULL * MILLION)
 
-#ifndef MAX
-#  define MAX(a,b) ((a) < (b) ? (b) : (a))
-#endif
-#ifndef MIN
-#  define MIN(a,b) ((a) > (b) ? (b) : (a))
-#endif
-
 // align ptr x to y boundary (rounding up)
 #define ALIGN_UP(x, y) \
     ((((u_int64_t)(x) & (((u_int64_t)(y))-1)) != 0) ? \

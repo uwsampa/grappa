@@ -99,7 +99,7 @@ static void _aligned_allocator_append_chunk(struct aligned_allocator *aa,
     chunkallocator_allocated += std::max( chunk_struct_size, (decltype(chunk_struct_size)) CACHE_LINE_SIZE );
     
     new_chunk->next = NULL;
-    new_chunk->chunk_size = MAX(min_size, aa->chunk_size) + aa->align_on;
+    new_chunk->chunk_size = std::max(min_size, aa->chunk_size) + aa->align_on;
     new_chunk->chunk = Grappa::locale_alloc_aligned<char>(CACHE_LINE_SIZE, new_chunk->chunk_size);
     CHECK_NOTNULL(new_chunk->chunk);
 
@@ -152,7 +152,7 @@ void aligned_pool_allocator_init(struct aligned_pool_allocator *apa,
                                  size_t object_size,
                                  u_int64_t chunk_count) {
     int i;
-    object_size = MAX(object_size, sizeof(void *));
+    object_size = std::max(object_size, sizeof(void *));
     apa->aa = aligned_allocator_create();
     aligned_allocator_init(apa->aa, align_on, object_size * chunk_count);
     for (i = 0; i < ALLOCATOR_PREFETCH_DISTANCE; i++)
