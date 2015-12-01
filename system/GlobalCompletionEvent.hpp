@@ -375,15 +375,11 @@ public:
   void wait() {
     DVLOG(3) << "wait(): gce(" << this << " event_in_progress: " << event_in_progress << ", count: " << count << ")";
     if (event_in_progress) {
-      while (event_in_progress) {
-	Grappa::wait(&cv);
-      }
+      Grappa::wait(&cv);
     } else {
       // conservative check, in case we're calling `wait` without calling `enroll`
       if (impl::call(master_core, [this]{ return cores_out; }) > 0) {
-	while (impl::call(master_core, [this]{ return cores_out; }) > 0) {
-	  Grappa::wait(&cv);
-	}
+        Grappa::wait(&cv);
         DVLOG(3) << "woke from conservative check";
       }
       DVLOG(3) << "fell thru conservative check";
