@@ -49,7 +49,7 @@ void freeJoinReducers(GlobalAddress<JoinReducer<K,VL,VR,OutType>> reducers, size
 
 template <typename K, typename VL, typename VR, typename OutType, Grappa::GlobalCompletionEvent * GCE = &default_join_left_gce>
 static void reducer_append_left( GlobalAddress<JoinReducer<K,VL,VR,OutType>> r, K key, VL val ) {
-  Grappa::delegate::call<async, GCE>(r.core(), [=] {
+  Grappa::delegate::call<Grappa::async, GCE>(r.core(), [=] {
     VLOG(5) << "add (" << key << ", " << val << ") at " << r.pointer();
     std::vector<VL>& slot = (*(r->groupsL))[key];
     slot.push_back(val);
@@ -58,7 +58,7 @@ static void reducer_append_left( GlobalAddress<JoinReducer<K,VL,VR,OutType>> r, 
 
 template <typename K, typename VL, typename VR, typename OutType, Grappa::GlobalCompletionEvent * GCE = &default_join_right_gce>
 static void reducer_append_right( GlobalAddress<JoinReducer<K,VL,VR,OutType>> r, K key, VR val ) {
-  Grappa::delegate::call<async, GCE>(r.core(), [=] {
+  Grappa::delegate::call<Grappa::async, GCE>(r.core(), [=] {
     VLOG(5) << "add (" << key << ", " << val << ") at " << r.pointer();
     std::vector<VR>& slot = (*(r->groupsR))[key];
     slot.push_back(val);

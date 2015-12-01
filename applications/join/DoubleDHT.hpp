@@ -218,7 +218,7 @@ class DoubleDHT {
         if (lookup_local_right( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
           // Critical for correctness: uses the current size of the vector, so later inserts are not used
-          Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
+          Grappa::forall_here<Grappa::async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               auto results = *resultsptr;
               // call the continuation with the lookup result
@@ -257,7 +257,7 @@ class DoubleDHT {
         if (lookup_local_left( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
           // Critical for correctness: uses the current size of the vector, so later inserts are not used
-          Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
+          Grappa::forall_here<Grappa::async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               auto results = *resultsptr;
               // call the continuation with the lookup result
@@ -285,7 +285,7 @@ class DoubleDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
 
-      Grappa::delegate::call<async, GCE>( target.core(), [key, target, val, f]() {
+      Grappa::delegate::call<Grappa::async, GCE>( target.core(), [key, target, val, f]() {
         // this is atomic { insert_local; lookup_local }
         insert_local<D, VIns>( key, target.pointer(), val );
 

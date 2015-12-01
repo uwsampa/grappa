@@ -202,7 +202,7 @@ class MatchesDHT {
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
           auto resultsptr = e.vs;
-          Grappa::forall_here<async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
+          Grappa::forall_here<Grappa::async,GCE>(0, e.vs->size(), [f,resultsptr](int64_t start, int64_t iters) {
             for  (int64_t i=start; i<start+iters; i++) {
               auto results = *resultsptr;
               // call the continuation with the lookup result
@@ -223,7 +223,7 @@ class MatchesDHT {
       uint64_t index = computeIndex( key );
       GlobalAddress< Cell > target = base + index; 
 
-      Grappa::delegate::call<async>( target.core(), [key, target, f]() {
+      Grappa::delegate::call<Grappa::async>( target.core(), [key, target, f]() {
         hash_called_lookups++;
         Entry e;
         if (lookup_local( key, target.pointer(), &e)) {
@@ -285,7 +285,7 @@ class MatchesDHT {
       } else {
         hash_remote_inserts++;
       }
-      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
+      Grappa::delegate::call<Grappa::async, GCE>( target.core(), [key, val, target]() {   // TODO: upgrade to call_async; using GCE
         hash_called_inserts++;
 
         // list of entries in this cell
