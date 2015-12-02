@@ -14,11 +14,11 @@ before_install:
   ### install boost and other necessary packages
   - sudo apt-get install -q gfortran libcr0 default-jdk libboost1.54-all-dev
   ### get an MPI that supports MPI-3 
-  - wget -q http://www.cebacad.net/files/mpich/ubuntu/mpich-3.1/mpich_3.1-1ubuntu_amd64.deb;
+  - wget --no-check-certificate -q http://www.cebacad.net/files/mpich/ubuntu/mpich-3.1/mpich_3.1-1ubuntu_amd64.deb;
   - sudo dpkg -i ./mpich_3.1-1ubuntu_amd64.deb
   - rm -f ./mpich_3.1-1ubuntu_amd64.deb
   ### stupid hack to get a modern version of cmake
-  - wget -q http://www.cmake.org/files/v3.2/cmake-3.2.3-Linux-x86_64.tar.gz;
+  - wget --no-check-certificate -q http://www.cmake.org/files/v3.2/cmake-3.2.3-Linux-x86_64.tar.gz;
   - ln -s /usr/local ./cmake-3.2.3-Linux-x86_64
   - sudo tar xzf ./cmake-3.2.3-Linux-x86_64.tar.gz
   - rm -f ./cmake-3.2.3-Linux-x86_64.tar.gz
