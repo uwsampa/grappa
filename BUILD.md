@@ -84,7 +84,7 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
     --third-party-tarfile=/path/to/file.tar
                                  Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website).
     --prefix=path/to/grappa/installation
-                                 Specify destination for Grappa installation (defaults to /opt/grappa).
+                                 Specify destination for Grappa installation (defaults to inside build directory).
 
 To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
@@ -117,7 +117,7 @@ To do so, download this file: [http://grappa.cs.washington.edu/files/grappa-thir
 
 ## Installing Grappa
 
-Grappa supports a ```install``` target which will install compiled libraries and header files to a directory on your system. The default install path is ```/opt/grappa```. If you'd prefer it to go somewhere else, specify the ```--prefix=<path>``` option when you run ```configure```.
+Grappa supports a ```install``` target which will install compiled libraries and header files to a directory on your system. The default install path is an ```install``` directory under the build directory, like ```build/Make+Release/install```. If you'd prefer it to go somewhere else, specify the ```--prefix=<path>``` option when you run ```configure```.
 
 So to install Grappa to a directory ```/shared/grappa```, do the following in the Grappa source directory:
 
