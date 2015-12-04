@@ -40,7 +40,7 @@ install:
       ### get a modern version of MPI
       wget --no-check-certificate -q http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz
       tar xzf mpich-3.2.tar.gz
-      cd mpich-3.2 && ./configure --disable-fortran --prefix=$HOME/installed && make -j2 && make install
+      (cd mpich-3.2 && ./configure --disable-fortran --prefix=$HOME/installed && make -j2 && make install)
     else
       echo 'Using cached dependences.'
     fi
@@ -50,7 +50,7 @@ before_script:
   
 script:
   - ./configure
-  - cd build/Make+Release && make VERBOSE=1 -j2 check-all-pass-compile-only
+  - (cd build/Make+Release && make VERBOSE=1 -j2 check-all-pass-compile-only)
 
 branches:
   only:
