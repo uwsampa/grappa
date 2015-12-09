@@ -292,7 +292,7 @@ TupleGraph TupleGraph::load_tsv( std::string path ) {
 }
 
 /// Matrix Market format loader
-TupleGraph TupleGraph::load_mm( std::string path, bool one_indexed = true ) {
+TupleGraph TupleGraph::load_mm( std::string path, bool one_indexed ) {
   // make sure file exists
   CHECK( fs::exists( path ) ) << "File not found.";
   CHECK( fs::is_regular_file( path ) ) << "File is not a regular file.";
