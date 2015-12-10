@@ -53,7 +53,9 @@ script:
   - (cd build/Make+Release && make VERBOSE=1 -j2 check-all-pass-compile-only)
 
 after_success:
+  ### fire off web documentation build if this change modified master
   - >
+    [ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_BRANCH}" = "master" ] &&
     curl -v -s -X POST
     -H "Content-Type: application/json"
     -H "Accept: application/json"
