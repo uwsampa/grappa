@@ -55,7 +55,8 @@ script:
 after_success:
   ### fire off web documentation build if this change modified master
   - >
-    echo ${TRAVIS_PULL_REQUEST} && echo ${TRAVIS_BRANCH};
+    echo Pull request: ${TRAVIS_PULL_REQUEST};
+    echo Branch: ${TRAVIS_BRANCH};
     [[ "${TRAVIS_PULL_REQUEST}" = "false" && "${TRAVIS_BRANCH}" = "master" ]] &&
     curl -v -s -X POST
     -H "Content-Type: application/json"
