@@ -55,12 +55,12 @@ script:
 after_success:
   - >
     curl -v -s -X POST
-      -H "Content-Type: application/json"
-      -H "Accept: application/json"
-      -H "Travis-API-Version: 3"
-      -H "Authorization: token ${TRAVISCI_TOKEN}"
-      -d '{ "request": { "branch": "master" } }'
-        https://api.travis-ci.org/repo/uwsampa%2Fgrappa-doxygen/requests
+    -H "Content-Type: application/json"
+    -H "Accept: application/json"
+    -H "Travis-API-Version: 3"
+    -H "Authorization: token ${TRAVISCI_TOKEN}"
+    -d '{ "request": { "branch": "master" } }'
+    https://api.travis-ci.org/repo/uwsampa%2Fgrappa-doxygen/requests
 
 branches:
   only:
