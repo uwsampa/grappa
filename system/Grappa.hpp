@@ -88,7 +88,7 @@ namespace Grappa {
   ///   forall<unbound>(...)
   ///   forall<unbound,async>(...)
   /// @endcode
-  #define unbound Grappa::TaskMode::Unbound
+  const auto unbound = Grappa::TaskMode::Unbound;
 #endif
   
 #ifndef GRAPPA_NO_ABBREV
@@ -99,7 +99,7 @@ namespace Grappa {
   ///   delegate::call<async>(...)
   ///   delegate::write<async>(...)
   /// @endcode
-  #define async Grappa::SyncMode::Async
+  const auto async = Grappa::SyncMode::Async;
 #endif
   
 }

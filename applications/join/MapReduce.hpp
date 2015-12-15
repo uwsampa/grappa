@@ -26,7 +26,7 @@ void forall_symmetric(GlobalAddress<RandomAccess> vs, AF accessor, CF f ) {
   Grappa::on_all_cores([=] {
       //VLOG(1) << "size = " << accessor(vs).size();
       auto local_vs = accessor(vs);
-      Grappa::forall_here<async,GCE>(0, local_vs.size(), [=](int64_t start, int64_t iters) {
+      Grappa::forall_here<Grappa::async,GCE>(0, local_vs.size(), [=](int64_t start, int64_t iters) {
         for (int i=start; i<start+iters; i++) {
           auto e = local_vs[i];
           f(e);
@@ -50,7 +50,7 @@ struct Reducer {
 
 template <typename K, typename V, typename OutType, Grappa::GlobalCompletionEvent * GCE = &default_mr_gce>
 void reducer_append( GlobalAddress<Reducer<K,V,OutType>> r, K key, V val ) {
-  Grappa::delegate::call<async, GCE>(r.core(), [=] {
+  Grappa::delegate::call<Grappa::async, GCE>(r.core(), [=] {
     VLOG(5) << "add (" << key << ", " << val << ") at " << r.pointer();
     std::vector<V>& slot = (*(r->groups))[key];
     slot.push_back(val);

@@ -60,10 +60,7 @@ std::unique_ptr<T> make_unique(Args&&... args) {
 #include <cstddef>
 using std::nullptr_t;
 
-#if defined(__MTA__)
-#include <sys/mta_task.h>
-#include <machine/runtime.h>
-#elif defined(__MACH__)
+#if defined(__MACH__)
 #include <mach/mach_time.h>
 #else
 #include <time.h>
@@ -80,13 +77,6 @@ using std::nullptr_t;
 #define THOUSAND        (1000ULL * ONE)
 #define MILLION         (1000ULL * THOUSAND)
 #define BILLION         (1000ULL * MILLION)
-
-#ifndef MAX
-#  define MAX(a,b) ((a) < (b) ? (b) : (a))
-#endif
-#ifndef MIN
-#  define MIN(a,b) ((a) > (b) ? (b) : (a))
-#endif
 
 // align ptr x to y boundary (rounding up)
 #define ALIGN_UP(x, y) \
@@ -106,11 +96,9 @@ namespace Grappa {
   enum class SyncMode { Blocking /*default*/, Async };
     
   
-/// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
+/// "Universal" wallclock time (works at least for Mac, and most Linux)
 inline double walltime(void) {
-#if defined(__MTA__)
-	return((double)mta_get_clock(0) / mta_clock_freq());
-#elif defined(__MACH__)
+#if defined(__MACH__)
 	static mach_timebase_info_data_t info;
 	mach_timebase_info(&info);
 	uint64_t now = mach_absolute_time();

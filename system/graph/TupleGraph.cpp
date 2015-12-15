@@ -219,14 +219,14 @@ TupleGraph TupleGraph::load_tsv( std::string path ) {
   on_all_cores( [=] {
       Edge * local_ptr = edges.localize();
       Edge * local_end = (edges+nedge).localize();
-      auto local_count = local_end - local_ptr;
-      auto read_count = read_edges.size();
+      size_t local_count = local_end - local_ptr;
+      size_t read_count = read_edges.size();
 
       DVLOG(7) << "local_count " << local_count
                << " read_count " << read_count;
       
       // copy everything in our read buffer that fits locally
-      auto local_max = MIN( local_count, read_count );
+      auto local_max = std::min( local_count, read_count );
       std::memcpy( local_ptr, &read_edges[0], local_max * sizeof(Edge) );
       local_offset = local_max;
       Grappa::barrier();
@@ -476,14 +476,14 @@ TupleGraph TupleGraph::load_mm( std::string path ) {
   on_all_cores( [=] {
       Edge * local_ptr = edges.localize();
       Edge * local_end = (edges+nedge).localize();
-      auto local_count = local_end - local_ptr;
-      auto read_count = read_edges.size();
+      size_t local_count = local_end - local_ptr;
+      size_t read_count = read_edges.size();
 
       DVLOG(7) << "local_count " << local_count
                << " read_count " << read_count;
       
       // copy everything in our read buffer that fits locally
-      auto local_max = MIN( local_count, read_count );
+      auto local_max = std::min( local_count, read_count );
       std::memcpy( local_ptr, &read_edges[0], local_max * sizeof(Edge) );
       local_offset = local_max;
       Grappa::barrier();
