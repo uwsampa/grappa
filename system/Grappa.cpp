@@ -756,4 +756,8 @@ namespace Grappa {
     return Grappa_finish(0);
   }
 
+  size_t symmetric_heap_size() {
+    return Grappa::impl::global_memory_size_bytes;
+  }
+
 } // namespace Grappa
