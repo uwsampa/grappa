@@ -35,6 +35,7 @@
 /// Tests for delegate operations
 
 #include <boost/test/unit_test.hpp>
+#include <cstdio>
 
 #include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
@@ -103,6 +104,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     more_data.push_back(one);
     more_data.push_back(two);
 
+    std::remove("write.bin");
     writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &more_data, write_file );
 
     // try read
@@ -111,13 +113,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     BOOST_CHECK_EQUAL( 2, results.numtuples );
     MaterializedTupleRef_V1_0_1 expected;
-    expected.set(0, 10);
-    expected.set(1, 11);
-    BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0) );
-    BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1) );
+    if (one.get(0) == (*results.data.localize()).get(0)) {
+      BOOST_CHECK_EQUAL( one.get(0), (*results.data.localize()).get(0) );
+      BOOST_CHECK_EQUAL( one.get(1), (*results.data.localize()).get(1) );
+    } else {
+      BOOST_CHECK_EQUAL( two.get(0), (*results.data.localize()).get(0) );
+      BOOST_CHECK_EQUAL( two.get(1), (*results.data.localize()).get(1) );
+    }
 
-
-    // write to existing file
+    // write more
     MaterializedTupleRef_V1_0_1 three;
     MaterializedTupleRef_V1_0_1 four;
     three.set(0, 14);
@@ -125,9 +129,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     four.set(0, 16);
     four.set(1, 17);
     more_data.clear();
+    more_data.push_back(one);
+    more_data.push_back(two);
     more_data.push_back(three);
     more_data.push_back(four);
 
+    std::remove("write.bin");
     writeTuplesUnordered<MaterializedTupleRef_V1_0_1>( &more_data, write_file );
 
     // verify write
@@ -136,10 +143,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     BOOST_CHECK_EQUAL( 4, results.numtuples );
 
-    expected.set(0, 10);
-    expected.set(1, 11);
-    BOOST_CHECK_EQUAL( expected.get(0), (*results.data.localize()).get(0) );
-    BOOST_CHECK_EQUAL( expected.get(1), (*results.data.localize()).get(1) );
+    if ( one.get(0) == (*results.data.localize()).get(0) ) {
+      BOOST_CHECK_EQUAL( one.get(0), (*results.data.localize()).get(0) );
+      BOOST_CHECK_EQUAL( one.get(1), (*results.data.localize()).get(1) );
+    } else if ( two.get(0) == (*results.data.localize()).get(0) ) {
+      BOOST_CHECK_EQUAL( two.get(0), (*results.data.localize()).get(0) );
+      BOOST_CHECK_EQUAL( two.get(1), (*results.data.localize()).get(1) );
+    } else if ( three.get(0) == (*results.data.localize()).get(0) ) {
+      BOOST_CHECK_EQUAL( three.get(0), (*results.data.localize()).get(0) );
+      BOOST_CHECK_EQUAL( three.get(1), (*results.data.localize()).get(1) );
+    } else {
+      BOOST_CHECK_EQUAL( four.get(0), (*results.data.localize()).get(0) );
+      BOOST_CHECK_EQUAL( four.get(1), (*results.data.localize()).get(1) );
+    }
+      
 
   });
   Grappa::finalize();
