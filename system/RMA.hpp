@@ -280,6 +280,16 @@ public:
     free(base);
   }
   
+  // deregistering memory allocated elsewhere is the same as freeing it in the MPI API
+  void deregister_or_free( void * base ) {
+    free(base);
+  }
+  
+  // check if an address is already registered
+  bool registered( void * base ) {
+    return get_enclosing( reinterpret_cast<intptr_t>(base) ) != address_map_.end();
+  }
+
   // non-collective local fence/flush operation
   void fence() {
     for( auto & kv : address_map_ ) {
