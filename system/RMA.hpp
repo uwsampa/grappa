@@ -206,7 +206,7 @@ public:
                                  &window ) );
     intptr_t base_int = reinterpret_cast<intptr_t>(base);
     verify_no_overlap( base_int, size ); 
-    address_map_[ base_int ] = RMAWindow( base, size, window );
+    address_map_.insert( { base_int, RMAWindow( base, size, window ) } );
       
     // Clean up info struct now that we're done with it
     MPI_CHECK( MPI_Info_free( &info ) );
@@ -241,7 +241,7 @@ public:
                                &window ) );
     intptr_t base_int = reinterpret_cast<intptr_t>(base);
     verify_no_overlap( base_int, size ); 
-    address_map_[ base_int ] = RMAWindow( base, size, window );
+    address_map_.insert( { base_int, RMAWindow( base, size, window ) } );
       
     // Clean up info struct now that we're done with it
     MPI_CHECK( MPI_Info_free( &info ) );
