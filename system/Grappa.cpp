@@ -51,6 +51,7 @@
 
 #include "FileIO.hpp"
 
+#include "RMA.hpp"
 #include "RDMAAggregator.hpp"
 #include "LocaleSharedMemory.hpp"
 #include "SharedMessagePool.hpp"
@@ -439,6 +440,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
+  global_rma.init();
   
   MPI_Errhandler mpi_error_handler;
   MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
