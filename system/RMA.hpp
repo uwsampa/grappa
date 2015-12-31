@@ -109,12 +109,12 @@ public:
   }
 };
 
+template< typename T >
 class RMAAddress {
 private:
-  friend class RMA;
-  void * base_;
+  T * base_;
   MPI_Win  window_;
-  MPI_Aint offset_;
+  ptrdiff_t offset_;
 
 public:
   RMAAddress()
@@ -123,15 +123,121 @@ public:
     , offset_( 0 )
   { }
 
-  RMAAddress( void * base, MPI_Win window, MPI_Aint byte_offset )
-    : base_( base )
-    , window_( window )
-    , offset_( byte_offset )
+  RMAAddress( const RMAAddress & r )
+    : base_( r.base_ )
+    , window_( r.window_ )
+    , offset_( r.offset_ )
   { }
 
-  void * to_local() {
-    return reinterpret_cast<void*>( reinterpret_cast<char*>(base_) + offset_ );
+  RMAAddress( T * base, MPI_Win window, ptrdiff_t offset )
+    : base_( base )
+    , window_( window )
+    , offset_( offset )
+  { }
+
+  T * to_local() const { return reinterpret_cast<T*>( base_ + offset_ ); }
+  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(offset_) * sizeof(T); }
+  MPI_Win window() const { return window_; }
+  
+  void reset() {
+    base_   = 0;
+    window_ = MPI_WIN_NULL;
+    offset_ = 0;
   }
+
+  RMAAddress & operator=( const RMAAddress & r ) {
+    base_ = r.base_;
+    window_ = r.window_;
+    offset_ = r.offset_;
+    return *this;
+  }
+
+  RMAAddress & operator+=( ptrdiff_t diff ) {
+    offset_ += diff;
+    return *this;
+  }
+
+  RMAAddress & operator-=( ptrdiff_t diff ) {
+    offset_ -= diff;
+    return *this;
+  }
+
+  T & operator*() const {
+    return *to_local();
+  }
+
+  T & operator[]( ptrdiff_t index ) const {
+    auto tp = to_local();
+    return tp[index];
+  }
+
+  T * operator->() const {
+    return to_local();
+  }
+
+  RMAAddress operator++( int ) {
+    auto temp = *this;
+    offset_++;
+    return temp;
+  }
+
+  RMAAddress operator--( int ) {
+    auto temp = *this;
+    offset_--;
+    return temp;
+  }
+
+  RMAAddress&  operator++() {
+    ++offset_;
+    return *this;
+  }
+
+  RMAAddress operator--() {
+    --offset_;
+    return *this;
+  }
+  
+  friend RMAAddress operator+( ptrdiff_t diff, const RMAAddress & r ) {
+    return RMAAddress( r.base_, r.window_, r.offset + diff );
+  }
+  
+  friend RMAAddress operator+( const RMAAddress & r, ptrdiff_t diff) {
+    return RMAAddress( r.base_, r.window_, r.offset + diff );
+  }
+  
+  friend RMAAddress operator-( const RMAAddress & r, const RMAAddress & s ) {
+    CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
+    return r.offset_ - s.offset_;
+  }
+  
+  friend bool operator<( const RMAAddress & r, const RMAAddress & s ) {
+    CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
+    return r.offset_ < s.offset_;
+  }
+  
+  friend bool operator<=( const RMAAddress & r, const RMAAddress & s ) {
+    CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
+    return r.offset_ <= s.offset_;
+  }
+  
+  friend bool operator>( const RMAAddress & r, const RMAAddress & s ) {
+    CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
+    return r.offset_ > s.offset_;
+  }
+  
+  friend bool operator>=( const RMAAddress & r, const RMAAddress & s ) {
+    CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
+    return r.offset_ >= s.offset_;
+  }
+  
+  friend bool operator==( const RMAAddress & r, const RMAAddress & s ) {
+    return ( r.window_ == s.window_ ) && ( r.offset_ == s.offset_ );
+  }
+  
+  friend bool operator!=( const RMAAddress & r, const RMAAddress & s ) {
+    return ( r.window_ != s.window_ ) || ( r.offset_ != s.offset_ );
+  }
+  
 };
 
 
@@ -226,15 +332,26 @@ public:
     return o << ">]";
   }
 
-  RMAAddress to_global( Core core, void * local ) {
+  template< typename T >
+  RMAAddress<T> to_global( Core core, T * local ) {
     auto local_int = reinterpret_cast< intptr_t >( local );
     auto it = get_enclosing( core, local_int );
     CHECK( it != address_maps_[core].end() ) << "No mapping found for " << (void*) local << " on core " << core;
-    auto offset = local_int - it->first;
-    CHECK_LT( offset, std::numeric_limits<MPI_Aint>::max() ) << "Operation would overflow MPI offset argument type";
-    return RMAAddress( it->second.base_, it->second.window_, offset );
+    auto byte_offset = local_int - it->first;
+    CHECK_LT( byte_offset, std::numeric_limits<MPI_Aint>::max() ) << "Operation would overflow MPI offset argument type";
+    return RMAAddress<T>( static_cast<T*>( it->second.base_ ),
+                          it->second.window_,
+                          byte_offset / sizeof(T) );
   }
 
+  template< typename T >
+  T * from_global( Core core, RMAAddress<T> global ) {
+    RMAWindow local = window_maps_[core][ global.window() ];
+    intptr_t base_int = reinterpret_cast<intptr_t>( local.base_ );
+    intptr_t offset_int = base_int + global.byte_offset();
+    return reinterpret_cast<T*>( offset_int );
+  }
+  
   // collective call to allocate window for passive one-sided ops
   void * allocate( size_t size ) {
     MPI_Info info;
@@ -417,13 +534,14 @@ public:
   // Copy bytes to remote memory location. For non-symmetric
   // allocations, dest pointer is converted to a remote offset
   // relative to the base of the enclosing window on the local rank.
-  void put_bytes_nbi( const Core core, RMAAddress dest, const void * source, const size_t size ) {
+  template< typename T >
+  void put_bytes_nbi( const Core core, RMAAddress<T> dest, const void * source, const size_t size ) {
     // TODO: deal with >31-bit offsets and sizes
-    CHECK_LT( dest.offset_, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
-    CHECK_LT( size,         std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( dest.byte_offset(), std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,               std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     MPI_CHECK( MPI_Put( source, size, MPI_CHAR,
-                        core, dest.offset_, size, MPI_CHAR,
-                        dest.window_ ) );
+                        core, dest.byte_offset(), size, MPI_CHAR,
+                        dest.window() ) );
   }
 
   // Copy bytes to remote memory location. For non-symmetric
@@ -431,21 +549,23 @@ public:
   // relative to the base of the enclosing window on the local
   // rank. An MPI_Request is passed in to be used for completion
   // detection.
-  void put_bytes_nb( const Core core, RMAAddress dest, const void * source, const size_t size, MPI_Request * request_p ) {
+  template< typename T >
+  void put_bytes_nb( const Core core, RMAAddress<T> dest, const void * source, const size_t size, MPI_Request * request_p ) {
     // TODO: deal with >31-bit offsets and sizes
-    CHECK_LT( dest.offset_, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
-    CHECK_LT( size,         std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( dest.byte_offset(), std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,               std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     MPI_Request request;
     MPI_CHECK( MPI_Rput( source, size, MPI_CHAR,
-                         core, dest.offset_, size, MPI_CHAR,
-                         dest.window_,
+                         core, dest.byte_offset(), size, MPI_CHAR,
+                         dest.window(),
                          request_p ) );
   }
 
   // Copy bytes to remote memory location. For non-symmetric
   // allocations, dest pointer is converted to a remote offset
   // relative to the base of the enclosing window on the local rank.
-  RMARequest put_bytes_nb( const Core core, RMAAddress dest, const void * source, const size_t size ) {
+  template< typename T >
+  RMARequest put_bytes_nb( const Core core, RMAAddress<T> dest, const void * source, const size_t size ) {
     MPI_Request request;
     put_bytes_nb( core, dest, source, size, &request );
     return RMARequest( request );
@@ -454,7 +574,8 @@ public:
   // Copy bytes to remote memory location. For non-symmetric
   // allocations, dest pointer is converted to a remote offset
   // relative to the base of the enclosing window on the local rank.
-  void put_bytes( const Core core, RMAAddress dest, const void * source, const size_t size ) {
+  template< typename T >
+  void put_bytes( const Core core, RMAAddress<T> dest, const void * source, const size_t size ) {
     MPI_Request request;
     put_bytes_nb( core, dest, source, size, &request );
     RMARequest( request ).wait();
@@ -463,13 +584,14 @@ public:
   // Copy bytes from remote memory location. For non-symmetric
   // allocations, source pointer is converted to a remote offset
   // relative to the base of the enclosing window on the local rank.
-  void get_bytes_nbi( void * dest, const Core core, const RMAAddress source, const size_t size ) {
+  template< typename T >
+  void get_bytes_nbi( void * dest, const Core core, const RMAAddress<T> source, const size_t size ) {
     // TODO: deal with >31-bit offsets and sizes
-    CHECK_LT( source.offset_, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
-    CHECK_LT( size,           std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( source.byte_offset(), std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,                 std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     MPI_CHECK( MPI_Get( dest, size, MPI_CHAR,
-                        core, source.offset_, size, MPI_CHAR,
-                        source.window_ ) );
+                        core, source.byte_offset(), size, MPI_CHAR,
+                        source.window() ) );
   }
 
   // Copy bytes from remote memory location. For non-symmetric
@@ -477,23 +599,26 @@ public:
   // relative to the base of the enclosing window on the local
   // rank. An MPI_Request is passed in to be used for completion
   // detection.
-  void get_bytes_nb( void * dest, const Core core, const RMAAddress source, const size_t size, MPI_Request * request_p ) {
+  template< typename T >
+  void get_bytes_nb( void * dest, const Core core, const RMAAddress<T> source, const size_t size, MPI_Request * request_p ) {
     // TODO: deal with >31-bit offsets and sizes
-    CHECK_LT( source.offset_, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
-    CHECK_LT( size,           std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( source.byte_offset(), std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( size,                 std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
     MPI_CHECK( MPI_Rget( dest, size, MPI_CHAR,
-                         core, source.offset_, size, MPI_CHAR,
-                         source.window_,
+                         core, source.byte_offset(), size, MPI_CHAR,
+                         source.window(),
                          request_p ) );
   }
 
-  RMARequest get_bytes_nb( void * dest, const Core core, const RMAAddress source, const size_t size ) {
+  template< typename T >
+  RMARequest get_bytes_nb( void * dest, const Core core, const RMAAddress<T> source, const size_t size ) {
     MPI_Request request;
     get_bytes_nb( dest, core, source, size, &request );
     return RMARequest( request );
   }
 
-  void get_bytes( void * dest, const Core core, const RMAAddress source, const size_t size ) {
+  template< typename T >
+  void get_bytes( void * dest, const Core core, const RMAAddress<T> source, const size_t size ) {
     MPI_Request request;
     get_bytes_nb( dest, core, source, size, &request );
     RMARequest( request ).wait();
@@ -504,18 +629,18 @@ public:
   // relative to the base of the enclosing window on the local
   // rank. See MPI.hpp for supported operations.
   template< typename T, typename OP >
-  void atomic_op_nbi( T * result, const Core core, RMAAddress dest, OP op, const T * source ) {
+  void atomic_op_nbi( T * result, const Core core, RMAAddress<T> dest, OP op, const T * source ) {
     static_assert( MPI_OP_NULL != Grappa::impl::MPIOp< T, OP >::value,
                    "No MPI atomic op implementation for this operator" );
   
     // TODO: deal with >31-bit offsets and sizes. For now, just report error.
-    CHECK_LT( dest.offset_, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
-    CHECK_LT( sizeof(T),    std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( dest.byte_offset(), std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( sizeof(T),          std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
 
     MPI_CHECK( MPI_Fetch_and_op( source, result, Grappa::impl::MPIDatatype< T >::value,
-                                 core, dest.offset_,
+                                 core, dest.byte_offset(),
                                  Grappa::impl::MPIOp< T, OP >::value,
-                                 dest.window_ ) );
+                                 dest.window() ) );
   }
 
   // Perform atomic op on remote memory location. For non-symmetric
@@ -523,14 +648,14 @@ public:
   // relative to the base of the enclosing window on the local
   // rank. See MPI.hpp for supported operations.
   template< typename T, typename OP >
-  T atomic_op( const Core core, RMAAddress dest, OP op, const T * source ) {
+  T atomic_op( const Core core, RMAAddress<T> dest, OP op, const T * source ) {
     T result;
 
     // start operation
     atomic_op_nbi( &result, core, dest, op, source );
 
     // make sure operation is complete
-    MPI_CHECK( MPI_Win_flush( core, dest.window_ ) );
+    MPI_CHECK( MPI_Win_flush( core, dest.window() ) );
     
     return result;
   }
@@ -541,14 +666,14 @@ public:
   // offset relative to the base of the enclosing window on the local
   // rank. See MPI.hpp for supported operations.
   template< typename T >
-  void compare_and_swap_nbi( T * result, const Core core, RMAAddress dest, const T * compare, const T * source ) {
+  void compare_and_swap_nbi( T * result, const Core core, RMAAddress<T> dest, const T * compare, const T * source ) {
     // TODO: deal with >31-bit offsets and sizes. For now, just report error.
-    CHECK_LT( dest.offset_, std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
-    CHECK_LT( sizeof(T),    std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( dest.byte_offset(), std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
+    CHECK_LT( sizeof(T),          std::numeric_limits<int>::max() ) << "Operation would overflow MPI argument type";
 
     MPI_CHECK( MPI_Compare_and_swap( source, compare, result, Grappa::impl::MPIDatatype< T >::value,
-                                     core, dest.offset_,
-                                     dest.window_ ) );
+                                     core, dest.byte_offset(),
+                                     dest.window() ) );
   }
 
   // Atomic compare-and-swap. If dest and compare values are the same,
@@ -557,14 +682,14 @@ public:
   // offset relative to the base of the enclosing window on the local
   // rank. See MPI.hpp for supported operations.
   template< typename T >
-  T compare_and_swap( const Core core, RMAAddress dest, const T * compare, const T * source ) {
+  T compare_and_swap( const Core core, RMAAddress<T> dest, const T * compare, const T * source ) {
     T result;
 
     // start operation
     compare_and_swap_nbi( &result, core, dest, compare, source );
     
     // make sure operation is complete
-    MPI_CHECK( MPI_Win_flush( core, dest.window_ ) );
+    MPI_CHECK( MPI_Win_flush( core, dest.window() ) );
     
     return result;
   }
