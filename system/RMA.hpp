@@ -198,11 +198,11 @@ public:
   }
   
   friend RMAAddress operator+( ptrdiff_t diff, const RMAAddress & r ) {
-    return RMAAddress( r.base_, r.window_, r.offset + diff );
+    return RMAAddress( r.base_, r.window_, r.offset_ + diff );
   }
   
   friend RMAAddress operator+( const RMAAddress & r, ptrdiff_t diff) {
-    return RMAAddress( r.base_, r.window_, r.offset + diff );
+    return RMAAddress( r.base_, r.window_, r.offset_ + diff );
   }
   
   friend RMAAddress operator-( const RMAAddress & r, const RMAAddress & s ) {
