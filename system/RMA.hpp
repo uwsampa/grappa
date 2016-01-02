@@ -112,6 +112,8 @@ public:
 template< typename T >
 class RMAAddress {
 private:
+  template< typename TT > friend class RMAAddress;
+    
   T * base_;
   MPI_Win  window_;
   ptrdiff_t offset_;
@@ -124,6 +126,13 @@ public:
   { }
 
   RMAAddress( const RMAAddress & r )
+    : base_( r.base_ )
+    , window_( r.window_ )
+    , offset_( r.offset_ )
+  { }
+
+  template< typename TT >
+  RMAAddress( const RMAAddress<TT> & r )
     : base_( r.base_ )
     , window_( r.window_ )
     , offset_( r.offset_ )
