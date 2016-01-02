@@ -114,137 +114,129 @@ class RMAAddress {
 private:
   template< typename TT > friend class RMAAddress;
     
-  T * base_;
   MPI_Win  window_;
-  ptrdiff_t offset_;
+  ptrdiff_t byte_offset_;
 
 public:
+  friend std::ostream & operator<<( std::ostream & o, const RMAAddress & r ) {
+    return o << "<RMAAddress window=" << r.window_ << " offset=" << r.byte_offset_ << ">";
+  }
+    
   RMAAddress()
-    : base_( 0 )
-    , window_( MPI_WIN_NULL )
-    , offset_( 0 )
+    : window_( MPI_WIN_NULL )
+    , byte_offset_( 0 )
   { }
 
   RMAAddress( const RMAAddress & r )
-    : base_( r.base_ )
-    , window_( r.window_ )
-    , offset_( r.offset_ )
+    : window_( r.window_ )
+    , byte_offset_( r.byte_offset_ )
   { }
 
   template< typename TT >
   RMAAddress( const RMAAddress<TT> & r )
-    : base_( r.base_ )
-    , window_( r.window_ )
-    , offset_( r.offset_ )
+    : window_( r.window_ )
+    , byte_offset_( r.byte_offset_ )
   { }
 
-  RMAAddress( T * base, MPI_Win window, ptrdiff_t offset )
-    : base_( base )
-    , window_( window )
-    , offset_( offset )
+  RMAAddress( MPI_Win window, ptrdiff_t byte_offset )
+    : window_( window )
+    , byte_offset_( byte_offset )
   { }
 
-  T * to_local() const { return reinterpret_cast<T*>( base_ + offset_ ); }
-  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(offset_) * sizeof(T); }
+  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(byte_offset_); }
   MPI_Win window() const { return window_; }
   
   void reset() {
-    base_   = 0;
     window_ = MPI_WIN_NULL;
-    offset_ = 0;
+    byte_offset_ = 0;
+  }
+
+  template< typename M, typename TT >
+  RMAAddress<M> member( M TT::* pmember ) const {
+    // TODO: is there a safer way to computer the RMA address of a member?
+    static_assert( std::is_standard_layout<TT>::value,
+                   "Member access through RMAAddresses only supported for standard layout types." );
+    ptrdiff_t member_offset = reinterpret_cast<ptrdiff_t>( &(((TT*)0)->*pmember) );
+    return RMAAddress<M>( window_, byte_offset() + member_offset );
   }
 
   RMAAddress & operator=( const RMAAddress & r ) {
-    base_ = r.base_;
     window_ = r.window_;
-    offset_ = r.offset_;
+    byte_offset_ = r.byte_offset_;
     return *this;
   }
 
   RMAAddress & operator+=( ptrdiff_t diff ) {
-    offset_ += diff;
+    byte_offset_ += diff * sizeof(T);
     return *this;
   }
 
   RMAAddress & operator-=( ptrdiff_t diff ) {
-    offset_ -= diff;
+    byte_offset_ -= diff * sizeof(T);
     return *this;
-  }
-
-  T & operator*() const {
-    return *to_local();
-  }
-
-  T & operator[]( ptrdiff_t index ) const {
-    auto tp = to_local();
-    return tp[index];
-  }
-
-  T * operator->() const {
-    return to_local();
   }
 
   RMAAddress operator++( int ) {
     auto temp = *this;
-    offset_++;
+    byte_offset_ += sizeof(T);
     return temp;
   }
 
   RMAAddress operator--( int ) {
     auto temp = *this;
-    offset_--;
+    byte_offset_ -= sizeof(T);
     return temp;
   }
 
   RMAAddress&  operator++() {
-    ++offset_;
+    byte_offset_ += sizeof(T);
     return *this;
   }
 
   RMAAddress operator--() {
-    --offset_;
+    byte_offset_ -= sizeof(T);
     return *this;
   }
   
   friend RMAAddress operator+( ptrdiff_t diff, const RMAAddress & r ) {
-    return RMAAddress( r.base_, r.window_, r.offset_ + diff );
+    return RMAAddress( r.window_, r.byte_offset_ + diff * sizeof(T) );
   }
   
   friend RMAAddress operator+( const RMAAddress & r, ptrdiff_t diff) {
-    return RMAAddress( r.base_, r.window_, r.offset_ + diff );
+    return RMAAddress( r.window_, r.byte_offset_ + diff * sizeof(T) );
   }
   
   friend RMAAddress operator-( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ - s.offset_;
+    return (r.byte_offset_ - s.byte_offset_) / sizeof(T);
   }
   
   friend bool operator<( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ < s.offset_;
+    return r.byte_offset_ < s.byte_offset_;
   }
   
   friend bool operator<=( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ <= s.offset_;
+    return r.byte_offset_ <= s.byte_offset_;
   }
   
   friend bool operator>( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ > s.offset_;
+    return r.byte_offset_ > s.byte_offset_;
   }
   
   friend bool operator>=( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ >= s.offset_;
+    return r.byte_offset_ >= s.byte_offset_;
   }
   
   friend bool operator==( const RMAAddress & r, const RMAAddress & s ) {
-    return ( r.window_ == s.window_ ) && ( r.offset_ == s.offset_ );
+    return ( r.window_ == s.window_ ) && ( r.byte_offset_ == s.byte_offset_ );
   }
   
   friend bool operator!=( const RMAAddress & r, const RMAAddress & s ) {
-    return ( r.window_ != s.window_ ) || ( r.offset_ != s.offset_ );
+    return ( r.window_ != s.window_ ) || ( r.byte_offset_ != s.byte_offset_ );
   }
   
 };
@@ -254,79 +246,71 @@ class RMAAddress<void> {
 private:
   template< typename TT > friend class RMAAddress;
     
-  void * base_;
   MPI_Win  window_;
-  ptrdiff_t offset_;
+  ptrdiff_t byte_offset_;
 
 public:
   RMAAddress()
-    : base_( 0 )
-    , window_( MPI_WIN_NULL )
-    , offset_( 0 )
+    : window_( MPI_WIN_NULL )
+    , byte_offset_( 0 )
   { }
 
   RMAAddress( const RMAAddress & r )
-    : base_( r.base_ )
-    , window_( r.window_ )
-    , offset_( r.offset_ )
+    : window_( r.window_ )
+    , byte_offset_( r.byte_offset_ )
   { }
 
   template< typename TT >
   RMAAddress( const RMAAddress<TT> & r )
-    : base_( r.base_ )
-    , window_( r.window_ )
-    , offset_( r.byte_offset() )
+    : window_( r.window_ )
+    , byte_offset_( r.byte_byte_offset() )
   { }
 
-  RMAAddress( void * base, MPI_Win window, ptrdiff_t offset )
-    : base_( base )
-    , window_( window )
-    , offset_( offset )
+  RMAAddress( MPI_Win window, ptrdiff_t byte_offset )
+    : window_( window )
+    , byte_offset_( byte_offset )
   { }
 
-  void * to_local() const { return reinterpret_cast<void*>( reinterpret_cast<char*>(base_) + offset_ ); }
-  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(offset_); }
+  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(byte_offset_); }
   MPI_Win window() const { return window_; }
   
   void reset() {
-    base_   = 0;
     window_ = MPI_WIN_NULL;
-    offset_ = 0;
+    byte_offset_ = 0;
   }
     
   RMAAddress & operator=( const RMAAddress & r ) {
-    base_ = r.base_;
     window_ = r.window_;
-    offset_ = r.offset_;
+    byte_offset_ = r.byte_offset_;
     return *this;
   }
 
   friend bool operator<( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ < s.offset_;
+    return r.byte_offset_ < s.byte_offset_;
   }
   
   friend bool operator<=( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ <= s.offset_;
+    return r.byte_offset_ <= s.byte_offset_;
   }
   
   friend bool operator>( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ > s.offset_;
+    return r.byte_offset_ > s.byte_offset_;
   }
   
   friend bool operator>=( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ >= s.offset_;
+    return r.byte_offset_ >= s.byte_offset_;
   }
   
   friend bool operator==( const RMAAddress & r, const RMAAddress & s ) {
-    return ( r.window_ == s.window_ ) && ( r.offset_ == s.offset_ );
+    return ( r.window_ == s.window_ ) && ( r.byte_offset_ == s.byte_offset_ );
   }
   
   friend bool operator!=( const RMAAddress & r, const RMAAddress & s ) {
-    return ( r.window_ != s.window_ ) || ( r.offset_ != s.offset_ );
+    return ( r.window_ != s.window_ ) || ( r.byte_offset_ != s.byte_offset_ );
   }
   
 };
@@ -336,79 +320,71 @@ class RMAAddress<const void> {
 private:
   template< typename TT > friend class RMAAddress;
     
-  void * base_;
   MPI_Win  window_;
-  ptrdiff_t offset_;
+  ptrdiff_t byte_offset_;
 
 public:
   RMAAddress()
-    : base_( 0 )
-    , window_( MPI_WIN_NULL )
-    , offset_( 0 )
+    : window_( MPI_WIN_NULL )
+    , byte_offset_( 0 )
   { }
 
   RMAAddress( const RMAAddress & r )
-    : base_( r.base_ )
-    , window_( r.window_ )
-    , offset_( r.offset_ )
+    : window_( r.window_ )
+    , byte_offset_( r.byte_offset_ )
   { }
 
   template< typename TT >
   RMAAddress( const RMAAddress<TT> & r )
-    : base_( r.base_ )
-    , window_( r.window_ )
-    , offset_( r.byte_offset() )
+    : window_( r.window_ )
+    , byte_offset_( r.byte_byte_offset() )
   { }
 
-  RMAAddress( void * base, MPI_Win window, ptrdiff_t offset )
-    : base_( base )
-    , window_( window )
-    , offset_( offset )
+  RMAAddress( MPI_Win window, ptrdiff_t byte_offset )
+    : window_( window )
+    , byte_offset_( byte_offset )
   { }
 
-  const void * to_local() const { return reinterpret_cast<const void*>( reinterpret_cast<char*>(base_) + offset_ ); }
-  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(offset_); }
+  MPI_Aint byte_offset() const { return static_cast<MPI_Aint>(byte_offset_); }
   MPI_Win window() const { return window_; }
   
   void reset() {
-    base_   = 0;
     window_ = MPI_WIN_NULL;
-    offset_ = 0;
+    byte_offset_ = 0;
   }
     
   RMAAddress & operator=( const RMAAddress & r ) {
-    base_ = r.base_;
     window_ = r.window_;
-    offset_ = r.offset_;
+    byte_offset_ = r.byte_offset_;
     return *this;
   }
 
   friend bool operator<( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ < s.offset_;
+    return r.byte_offset_ < s.byte_offset_;
   }
   
   friend bool operator<=( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ <= s.offset_;
+    return r.byte_offset_ <= s.byte_offset_;
   }
   
   friend bool operator>( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ > s.offset_;
+    return r.byte_offset_ > s.byte_offset_;
   }
   
   friend bool operator>=( const RMAAddress & r, const RMAAddress & s ) {
     CHECK_EQ( r.window_, s.window_ ) << "Comparing RMAAddresses from different windows";
-    return r.offset_ >= s.offset_;
+    return r.byte_offset_ >= s.byte_offset_;
   }
   
   friend bool operator==( const RMAAddress & r, const RMAAddress & s ) {
-    return ( r.window_ == s.window_ ) && ( r.offset_ == s.offset_ );
+    return ( r.window_ == s.window_ ) && ( r.byte_offset_ == s.byte_offset_ );
   }
   
   friend bool operator!=( const RMAAddress & r, const RMAAddress & s ) {
-    return ( r.window_ != s.window_ ) || ( r.offset_ != s.offset_ );
+    return ( r.window_ != s.window_ ) || ( r.byte_offset_ != s.byte_offset_ );
   }
   
 };
@@ -512,9 +488,8 @@ public:
     CHECK( it != address_maps_[core].end() ) << "No mapping found for " << (void*) local << " on core " << core;
     auto byte_offset = local_int - it->first;
     CHECK_LT( byte_offset, std::numeric_limits<MPI_Aint>::max() ) << "Operation would overflow MPI offset argument type";
-    return RMAAddress<T>( static_cast<T*>( it->second.base_ ),
-                          it->second.window_,
-                          byte_offset / sizeof(T) );
+    return RMAAddress<T>( it->second.window_,
+                          byte_offset );
   }
 
   template< typename T >
@@ -868,15 +843,6 @@ public:
   }
 
 };
-
-// specialize for void *
-template<>
-RMAAddress<void> RMA::to_global<void>( Core core, void * local );
-
-// specialize for void *
-template<>
-RMAAddress<const void> RMA::to_global<const void>( Core core, const void * local );
-
 
 //
 // static RMA instance
