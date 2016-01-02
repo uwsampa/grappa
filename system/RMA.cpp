@@ -39,6 +39,32 @@ namespace impl {
 
 RMA global_rma;
 
+// specialize for void *
+template<>
+RMAAddress<void> RMA::to_global<void>( Core core, void * local ) {
+  auto local_int = reinterpret_cast< intptr_t >( local );
+  auto it = get_enclosing( core, local_int );
+  CHECK( it != address_maps_[core].end() ) << "No mapping found for " << (void*) local << " on core " << core;
+  auto byte_offset = local_int - it->first;
+  CHECK_LT( byte_offset, std::numeric_limits<MPI_Aint>::max() ) << "Operation would overflow MPI offset argument type";
+  return RMAAddress<void>( static_cast<void*>( it->second.base_ ),
+                           it->second.window_,
+                           byte_offset );
+}
+
+// specialize for const void *
+template<>
+RMAAddress<const void> RMA::to_global<const void>( Core core, const void * local ) {
+  auto local_int = reinterpret_cast< intptr_t >( local );
+  auto it = get_enclosing( core, local_int );
+  CHECK( it != address_maps_[core].end() ) << "No mapping found for " << (void*) local << " on core " << core;
+  auto byte_offset = local_int - it->first;
+  CHECK_LT( byte_offset, std::numeric_limits<MPI_Aint>::max() ) << "Operation would overflow MPI offset argument type";
+  return RMAAddress<const void>( static_cast<void*>( it->second.base_ ),
+                                 it->second.window_,
+                                 byte_offset );
+}
+
 } // namespace impl
 } // namespace Grappa
 
