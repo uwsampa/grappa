@@ -564,6 +564,10 @@ public:
 
   // collective call to register window for passive one-sided ops
   void register_region( void * base, size_t size ) {
+    if( 0 == size ) {
+      DVLOG(1) << "Registering size 0 region at " << base << " as size 1.";
+      size++;
+    }
     MPI_Info info;
     MPI_CHECK( MPI_Info_create( &info ) );
 
