@@ -62,16 +62,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         
         // put modified array to all other cores
         if( Grappa::mycore() == 0 ) {
+          int64_t src[ cores() ][ count ];
           for( int i = 0; i < Grappa::cores(); ++i ) {
-            int64_t src[ count ];
             for( int j = 0; j < count; ++j ) {
-              src[j] = i;
+              src[i][j] = i;
             }
-            auto dest = Grappa::impl::global_rma.to_global( mycore(), base );
-            Grappa::impl::global_rma.put_bytes_nbi( i, dest, src, sizeof(src) );
+            Grappa::impl::global_rma.put_bytes_nbi( i, base, src[i], sizeof(src) );
           }
         }
-        
+
         Grappa::impl::global_rma.fence();
         
         Grappa::barrier();
@@ -100,8 +99,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
             for( int j = 0; j < count; ++j ) {
               src[j] = i;
             }
-            auto dest = Grappa::impl::global_rma.to_global( mycore(), base );
-            auto req = Grappa::impl::global_rma.put_bytes_nb( i, dest, src, sizeof(src) );
+            auto req = Grappa::impl::global_rma.put_bytes_nb( i, base, src, sizeof(src) );
             req.wait();
           }
         }
@@ -133,8 +131,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               src[j] = i * 10;
             }
             global_communicator.with_request_do_blocking( [=] ( MPI_Request * request_p ) {
-              auto dest = Grappa::impl::global_rma.to_global( mycore(), base );
-              Grappa::impl::global_rma.put_bytes_nb( i, dest, src, sizeof(src), request_p );
+              Grappa::impl::global_rma.put_bytes_nb( i, base, src, sizeof(src), request_p );
             });
           }
         }
@@ -165,8 +162,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
             for( int j = 0; j < count; ++j ) {
               src[j] = i;
             }
-            auto dest = Grappa::impl::global_rma.to_global( mycore(), base );
-            auto req = Grappa::impl::global_rma.put_bytes_nb( i, dest, src, sizeof(src) );
+            auto req = Grappa::impl::global_rma.put_bytes_nb( i, base, src, sizeof(src) );
             while( !req.test() ) {
               ;
             }
@@ -199,8 +195,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
             for( int j = 0; j < count; ++j ) {
               src[j] = i;
             }
-            auto dest = Grappa::impl::global_rma.to_global( mycore(), base );
-            Grappa::impl::global_rma.put_bytes( i, dest, src, sizeof(src) );
+            Grappa::impl::global_rma.put_bytes( i, base, src, sizeof(src) );
           }
         }
         
@@ -234,8 +229,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               remote[j] = -1;
             }
 
-            auto source = Grappa::impl::global_rma.to_global( mycore(), base );
-            Grappa::impl::global_rma.get_bytes_nbi( remote, i, source, sizeof(remote) );
+            Grappa::impl::global_rma.get_bytes_nbi( remote, i, base, sizeof(remote) );
             Grappa::impl::global_rma.fence();
             
             for( int j = 0; j < count; ++j ) {
@@ -264,8 +258,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               remote[j] = -1;
             }
 
-            auto source = Grappa::impl::global_rma.to_global( mycore(), base );
-            auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, source, sizeof(remote) );
+            auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, base, sizeof(remote) );
             req.wait();
             
             for( int j = 0; j < count; ++j ) {
@@ -294,8 +287,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               remote[j] = -1;
             }
 
-            auto source = Grappa::impl::global_rma.to_global( mycore(), base );
-            auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, source, sizeof(remote) );
+            auto req = Grappa::impl::global_rma.get_bytes_nb( remote, i, base, sizeof(remote) );
             while( !req.test() ) {
               ;
             }
@@ -326,8 +318,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               remote[j] = -1;
             }
 
-            auto source = Grappa::impl::global_rma.to_global( mycore(), base );
-            Grappa::impl::global_rma.get_bytes( remote, i, source, sizeof(remote) );
+            Grappa::impl::global_rma.get_bytes( remote, i, base, sizeof(remote) );
             
             for( int j = 0; j < count; ++j ) {
               BOOST_CHECK_EQUAL( remote[j], i );
@@ -340,8 +331,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       { // test other allocations
 
-        BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 1 );
-        
         // allocate an array for each core
         int64_t * other[ Grappa::cores() ];
         for( int i = 0; i < Grappa::cores(); ++i ) {
@@ -350,9 +339,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
         Grappa::barrier();
 
+        int64_t iarr[Grappa::cores()]; // temporary storage for in-flight values
         for( int64_t i = 0; i < Grappa::cores(); ++i ) {
-          auto dest = Grappa::impl::global_rma.to_global( mycore(), &(other[i][Grappa::mycore()]) );
-          Grappa::impl::global_rma.put_bytes_nbi( i, dest, &i, sizeof(i) );
+          iarr[i] = i;
+          Grappa::impl::global_rma.put_bytes_nbi( i, &(other[i][Grappa::mycore()]), &iarr[i], sizeof(i) );
         }
 
         Grappa::impl::global_rma.fence();
@@ -372,8 +362,46 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
         Grappa::barrier();
 
-        BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 1 );
+      }
 
+      { // test memory registration
+        int64_t data = Grappa::mycore();
+        static int64_t * data_pointer = &data;
+        Grappa::impl::global_rma.register_region( &data, sizeof(data) );
+        Grappa::impl::global_rma.register_region( &data_pointer, sizeof(data_pointer) );
+
+        Grappa::barrier();
+
+        int64_t * data_pointers[ Grappa::cores() ];
+        int64_t datas[ Grappa::cores() ];
+
+        for( int i = 0; i < Grappa::cores(); ++i ) {
+          data_pointers[i] = nullptr;
+          datas[i] = -1;
+        }
+
+        Grappa::barrier();
+        
+        for( int i = 0; i < Grappa::cores(); ++i ) {
+          Grappa::impl::global_rma.get_bytes_nbi( &data_pointers[i], i, &data_pointer, sizeof(data_pointer) );
+        }
+        Grappa::impl::global_rma.fence();
+
+        for( int i = 0; i < Grappa::cores(); ++i ) {
+          Grappa::impl::global_rma.get_bytes_nbi( &datas[i], i, data_pointers[i], sizeof(data) );
+        }
+        Grappa::impl::global_rma.fence();
+        
+        Grappa::barrier();
+
+        for( int i = 0; i < Grappa::cores(); ++i ) {
+          BOOST_CHECK_EQUAL( i, datas[i] );
+        }
+        
+        Grappa::barrier();
+
+        Grappa::impl::global_rma.deregister_region( &data );
+        Grappa::impl::global_rma.deregister_region( &data_pointer );
       }
       
       { // test atomic ops
@@ -382,9 +410,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         Grappa::barrier();
 
         int64_t source = Grappa::mycore();
-        auto dest = Grappa::impl::global_rma.to_global( mycore(), &base[0] );
         int64_t result = Grappa::impl::global_rma.atomic_op( (Grappa::mycore() + 1) % Grappa::cores(),
-                                                             dest,
+                                                             &base[0],
                                                              op::replace<int64_t>(),
                                                              &source );
         BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
@@ -409,17 +436,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         int64_t result;
         
         int64_t good_compare = (Grappa::mycore() + 1) % Grappa::cores();
-        auto dest = Grappa::impl::global_rma.to_global( mycore(), &base[0] );
         result = Grappa::impl::global_rma.compare_and_swap( static_cast<Core>( (Grappa::mycore() + 1) % Grappa::cores() ),
-                                                            dest,
+                                                            &base[0],
                                                             &good_compare,
                                                             &source );
         BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
 
         int64_t bad_compare  = Grappa::mycore();
-        auto dest1 = Grappa::impl::global_rma.to_global( mycore(), &base[1] );
         result = Grappa::impl::global_rma.compare_and_swap( static_cast<Core>( (Grappa::mycore() + 1) % Grappa::cores() ),
-                                                            dest1,
+                                                            &base[1],
                                                             &bad_compare,
                                                             &source );
         BOOST_CHECK_EQUAL( result, (Grappa::mycore() + 1) % Grappa::cores() );
@@ -437,7 +462,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       }
 
       Grappa::impl::global_rma.free( p1 );
-      BOOST_CHECK_EQUAL( Grappa::impl::global_rma.size(), 0 );
     });
   });
 }

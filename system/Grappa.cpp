@@ -740,6 +740,7 @@ int Grappa_finish( int retval )
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
 
+  global_rma.finish();
   global_communicator.finish( retval );
 
   locale_shared_memory.finish();
