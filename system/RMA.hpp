@@ -150,7 +150,11 @@ public:
 
   // non-collective call to de-register region for passive one-sided ops
   void deregister_region( void * base ) {
-    MPI_CHECK( MPI_Win_detach( dynamic_window_, base ) );
+    int already_finalised;
+    MPI_CHECK( MPI_Finalized( &already_finalised ) );
+    if( !already_finalised ) {
+      MPI_CHECK( MPI_Win_detach( dynamic_window_, base ) );
+    }
   }
   
   // collective call to allocate symmetric region for passive one-sided ops
