@@ -7,12 +7,14 @@
 # To use this:
 #
 #   1. Make sure GRAPPA_PREFIX contains the path to your Grappa
-#   installation directory. If the default value set in this file is
-#   not correct, override it in your Makefile or by setting an
-#   environment variable.
+#      installation directory. Generally, one does this by sourcing
+#      the file bin/settings.sh inside a Grappa install directory. If
+#      you don't want to do that and the default value set in this
+#      file is not correct, override it in your Makefile or set the
+#      environment variable yourself.
 #
 #   2. Include this file in your Makefile with a line like this:
-#      include ${CMAKE_INSTALL_PREFIX}/share/Grappa/grappa.mk
+#      include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
 #
 #   3. The following variables are then avaliable to you in writing make rules:
 #      $(GRAPPA_CXX)
@@ -26,7 +28,7 @@
 # setting the GRAPPA_IMPLICIT_RULES before including this file, like
 # this:
 #      GRAPPA_IMPLICIT_RULES:=on
-#      include ${CMAKE_INSTALL_PREFIX}/share/Grappa/grappa.mk
+#      include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
 # Then building a Grappa app is as simple as adding a rule like this:
 #      grappa_app: grappa_app.o
 #
