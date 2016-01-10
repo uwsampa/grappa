@@ -1,3 +1,4 @@
+#pragma once
 ////////////////////////////////////////////////////////////////////////
 // Copyright (c) 2010-2015, University of Washington and Battelle
 // Memorial Institute.  All rights reserved.
@@ -62,6 +63,8 @@
 #include "Array.hpp"
 
 #include "Metrics.hpp"
+
+#include "Version.hpp"
 
 //#include <typeinfo>
 //#include <cxxabi.h>

@@ -20,11 +20,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 project(Grappa)
 
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-DGRAPPA -O3 -g -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DGRAPPA -O3 -g -DNDEBUG")
 
-set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+set(CMAKE_C_FLAGS_DEBUG "-DGRAPPA -O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+set(CMAKE_CXX_FLAGS_DEBUG "-DGRAPPA -O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
@@ -70,6 +70,49 @@ endif()
 
 # ##### </RUNPATH> ########
 
+#############################################################################
+# capture information about build from git
+#############################################################################
+
+# find git
+find_package(Git)
+if(GIT_FOUND)
+  
+  # Get the current "revision"
+  execute_process(
+    COMMAND bash -c "${GIT_EXECUTABLE} log --oneline | wc -l"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GRAPPA_REVISION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  
+  # Get the current working branch
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GRAPPA_GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  
+  # Get the latest abbreviated commit hash of the working branch
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} log -1 --format=%h
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GRAPPA_GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  
+else()
+  set(GRAPPA_REVISION        "0")
+  set(GRAPPA_GIT_BRANCH      "unknown")
+  set(GRAPPA_GIT_COMMIT_HASH "unknown")
+endif()
+
+# fill in configuration file
+configure_file(
+  "system/Version.hpp.in"
+  "system/Version.hpp"
+  )
 
 #############################################################################
 # configure profiling and tracing
