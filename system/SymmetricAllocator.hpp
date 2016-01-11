@@ -53,22 +53,25 @@ namespace impl {
 /// Grappa symmetric MORECORE provider
 ///
 
-// idea is
+// Note: this describes the design we're moving towards; lots of the
+// existing Grappa code uses 15 core bits and 48 address bits. We're
+// moving away from that.
+
+// Grappa global addresses are 64 bits, composed of a core part and an
+// address part.
+// * Core field is at least 20 bits
+// * Address field uses remaining bits, so it is 44 bits for 20 core bits.
+// * Grappa global addresses can only refer to user addresses, not system addresses: this means that the top 17 bits of raw virtual addresses will always be 0.
+
+// idea is to split virtual address into 4 regions differentiated by the top two bits:
 // local:     0x00000'000'0000'0000ULL
 // symmetric: 0x00000'400'0000'0000ULL
-//        and 0x00000'800'0000'0000ULL
+//        and 0x00000'800'0000'0000ULL (for now; maybe use for something else later)
 // stack:     0x00000'C00'0000'0000ULL to 0x00000'fff'ffff'ffffULL
 //            (sign-extended to 47 bits, since it usually starts at 7fff'ffff'ffff)
 
 // set personality() to disable aslr?      personality(ADDR_NO_RANDOMIZE);
 // do we need to exec() to pick this up, or will it apply to shared libraries now?
-
-// Grappa global addresses are 64 bits, composed of a core part and an
-// address part.
-// * Core field is at least 20 bits
-// * Address field uses remaining bits, so it is at least 44 bits.
-// * Grappa global addresses can only refer to user addresses, not system addresses.
-//   
 
 #define GRAPPA_CORE_BITS (20)
 #define GRAPPA_ADDR_BITS (64 - GRAPPA_CORE_BITS)
