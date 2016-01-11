@@ -144,6 +144,7 @@ set(SYSTEM_SOURCES
   tasks/TaskingScheduler.cpp
   stack.S
   RMA.cpp
+  SymmetricAllocator.cpp
 )
 
 ################
@@ -247,6 +248,7 @@ add_check( NTBuffer_tests.cpp                1 1  pass NTBuffer.cpp )
 add_check( NTMessage_aggregator_tests.cpp    2 1  pass )
 
 add_check( RMA_tests.cpp                     2 2  pass )
+add_check( SymmetricAllocator_tests.cpp      2 2  pass )
 
 
 #
