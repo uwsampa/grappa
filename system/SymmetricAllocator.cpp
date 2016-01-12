@@ -38,6 +38,8 @@
 #include <unordered_map>
 #include <sys/mman.h>
 
+DEFINE_uint64( initial_symmetric_heap_size, (1ULL << 24), "Initial size of symmetric heap" );
+
 namespace Grappa {
 namespace impl {
 
@@ -46,6 +48,7 @@ char * const Morecore::alloc_min_ = reinterpret_cast<char*>( 0x1ULL << (GRAPPA_A
 char * const Morecore::alloc_max_ = reinterpret_cast<char*>( 0x3ULL << (GRAPPA_ADDR_BITS - 2) );
 
 void * Morecore::morecore( intptr_t size ) {
+  if( 0 == Grappa::mycore() ) LOG(INFO) << "Called morecore() with " << size;
   if( size < 0 ) {
     // we don't currently support shrink behavior
     return reinterpret_cast<void*>(-1LL); // defined as MFAIL in dlmalloc sources

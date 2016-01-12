@@ -374,7 +374,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
       std::cout << "Error setting GLOG_logtostderr default value";
       exit(1);
     }
-    if( 0 != setenv("GLOG_v", "1", DONT_OVERWRITE_ENV) ) {
+    if( 0 != setenv("GLOG_v", "0", DONT_OVERWRITE_ENV) ) {
       std::cout << "Error setting GLOG_v default value";
       exit(1);
     }
@@ -382,7 +382,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     // Most of the time glog knows about gflags, and so these are used
     // instead:
     FLAGS_logtostderr = 1;
-    FLAGS_v = 1;
+    FLAGS_v = 0;
 
     // set Google profiler sample rate
     setenv("CPUPROFILE_FREQUENCY", "50", DONT_OVERWRITE_ENV);
