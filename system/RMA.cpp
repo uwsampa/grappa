@@ -41,7 +41,7 @@ namespace impl {
 
 RMA global_rma;
 
-// collective call to create dynamic window
+/// collective call to create dynamic window
 void RMA::create_dynamic_window() {
   MPI_Info info;
   MPI_CHECK( MPI_Info_create( &info ) );
@@ -72,7 +72,7 @@ void RMA::create_dynamic_window() {
   MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
 }
 
-// collective call to free dynamic window
+/// collective call to free dynamic window
 void RMA::teardown_dynamic_window() {
   if( MPI_WIN_NULL != dynamic_window_ ) {
     MPI_CHECK( MPI_Win_unlock_all( dynamic_window_ ) );
@@ -80,7 +80,7 @@ void RMA::teardown_dynamic_window() {
   }
 }
 
-// collective call to allocate symmetric region for passive one-sided ops
+/// collective call to allocate symmetric region for passive one-sided ops
 void * RMA::allocate( size_t size ) {
   // TODO: this is all a hack; replace with a proper allocator
   static size_t alloc_count = 0;
@@ -146,7 +146,7 @@ void * RMA::allocate( size_t size ) {
   return base;
 }
 
-// collective call to free symmetric region
+/// collective call to free symmetric region
 void RMA::free( void * base ) {
   deregister_region( base );
   auto it = alloc_sizes_.find( base );
