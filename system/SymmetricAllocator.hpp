@@ -1562,18 +1562,20 @@ namespace blocking {
 template< typename T >
 T * symmetric_alloc( size_t n = 1 ) {
   //if( 0 == Grappa::mycore() ) {
-    auto byte_size = n * sizeof(T);
-    void * p = Grappa::impl::dlmalloc( byte_size );
-    return reinterpret_cast< T * >( p );
-    //}
+  auto byte_size = n * sizeof(T);
+  void * p = Grappa::impl::dlmalloc( byte_size );
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
+  return reinterpret_cast< T * >( p );
+  //}
 }
 
 /// Free space allocated by symmetric_alloc.
 template< typename T >
 void symmetric_free( T * t ) {
   //if( 0 == Grappa::mycore() ) {
-    Grappa::impl::dlfree( t );
-    //}
+  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
+  Grappa::impl::dlfree( t );
+  //}
 }
 
 } // namespace blocking
