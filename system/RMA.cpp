@@ -34,6 +34,7 @@
 
 #include <sys/mman.h>
 
+#include <SymmetricAllocator.hpp>
 #include <RMA.hpp>
 
 namespace Grappa {
@@ -82,82 +83,12 @@ void RMA::teardown_dynamic_window() {
 
 /// collective call to allocate symmetric region for passive one-sided ops
 void * RMA::allocate( size_t size ) {
-  // TODO: this is all a hack; replace with a proper allocator
-  static size_t alloc_count = 0;
-  static char * alloc_base = reinterpret_cast<char*>( 0x0000200000000000ULL );
-    
-  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
-  void * base = mmap( alloc_base, size,
-                      PROT_READ | PROT_WRITE,
-                      // TODO: consider MAP_FIXED or MAP_HUGETLB here );
-                      MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED,
-                      -1, 0 );
-
-  DVLOG(2) << "Allocating " << size << " bytes at " << base;
-
-  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
-
-  if( MAP_FAILED == base ) {
-    perror( "Failed to allocate memory at requested address." );
-    exit(1);
-  }
-
-  { // check that allocations happened at same address
-    size_t counts[ cores() ];
-    void * bases[ cores() ];
-
-    MPI_CHECK( MPI_Allgather( &alloc_count, sizeof(size_t), MPI_BYTE,
-                              &counts[0], sizeof(size_t), MPI_BYTE,
-                              global_communicator.grappa_comm ) );
-    MPI_CHECK( MPI_Allgather( &base, sizeof(base), MPI_BYTE,
-                              &bases[0], sizeof(base), MPI_BYTE,
-                              global_communicator.grappa_comm ) );
-
-    for( int i = 0; i < cores(); ++i ) {
-      CHECK_EQ( alloc_count, counts[i] ) << "Allocation sequence number didn't match!";
-      CHECK_EQ( base, bases[i] ) << "Allocation didn't happen at same address!";
-    }
-  }
-    
-  MPI_CHECK( MPI_Barrier( global_communicator.grappa_comm ) );
-
-  // save size for deallocation
-  alloc_sizes_[ base ] = size;
-
-  // increment next allocation pointer
-  alloc_count++;
-  {
-    const size_t page_size = 1 << 12;
-    size_t increment = size;
-      
-    if( increment < page_size ) {
-      increment = page_size;
-    } else {
-      size_t diff = increment % page_size;
-      if( 0 != diff ) {
-        increment = size + page_size - diff;
-      }
-    }
-    alloc_base += increment;
-  }
-
-  register_region( base, size );
-    
-  return base;
+  return Grappa::blocking::spmd::symmetric_alloc<char>( size );
 }
 
 /// collective call to free symmetric region
 void RMA::free( void * base ) {
-  deregister_region( base );
-  auto it = alloc_sizes_.find( base );
-  CHECK( it != alloc_sizes_.end() ) << "Couldn't find symmetric region to free at " << base;
-  DVLOG(2) << "Freeing " << it->second << " bytes at " << base;
-  auto result = munmap( base, it->second );
-  alloc_sizes_.erase( it );
-  if( result < 0 ) {
-    perror( "Failed to deallocate memory at requested address." );
-    exit(1);
-  }
+  Grappa::blocking::spmd::symmetric_free( base );
 }
 
 } // namespace impl
