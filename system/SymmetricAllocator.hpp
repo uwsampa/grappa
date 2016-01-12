@@ -46,6 +46,8 @@
 #include <Collective.hpp>
 #include <RMA.hpp>
 
+DECLARE_uint64( initial_symmetric_heap_size );
+
 namespace Grappa {
 namespace impl {
 
