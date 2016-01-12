@@ -83,12 +83,12 @@ void RMA::teardown_dynamic_window() {
 
 /// collective call to allocate symmetric region for passive one-sided ops
 void * RMA::allocate( size_t size ) {
-  return Grappa::blocking::spmd::symmetric_alloc<char>( size );
+  return Grappa::spmd::blocking::symmetric_alloc<char>( size );
 }
 
 /// collective call to free symmetric region
 void RMA::free( void * base ) {
-  Grappa::blocking::spmd::symmetric_free( base );
+  Grappa::spmd::blocking::symmetric_free( base );
 }
 
 } // namespace impl
