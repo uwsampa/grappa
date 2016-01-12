@@ -37,10 +37,24 @@
 #include <SymmetricAllocator.hpp>
 #include <RMA.hpp>
 
+DECLARE_uint64( initial_symmetric_heap_size );
+
 namespace Grappa {
 namespace impl {
 
 RMA global_rma;
+
+/// Call before using RMA operations
+void RMA::init() {
+  create_dynamic_window();
+  auto p = allocate( FLAGS_initial_symmetric_heap_size );
+  free( p );
+}
+
+/// Call during shutdown, after using RMA operations
+void RMA::finish() {
+  teardown_dynamic_window();
+}
 
 /// collective call to create dynamic window
 void RMA::create_dynamic_window() {

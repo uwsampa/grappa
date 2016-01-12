@@ -108,14 +108,10 @@ public:
   }
 
   /// Call before using RMA operations
-  void init() {
-    create_dynamic_window();
-  }
+  void init();
 
   /// Call during shutdown, after using RMA operations
-  void finish() {
-    teardown_dynamic_window();
-  }
+  void finish();
 
   /// Non-collective call to register region for passive one-sided ops
   void register_region( void * base, size_t size ) {
