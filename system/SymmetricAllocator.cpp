@@ -41,6 +41,10 @@
 namespace Grappa {
 namespace impl {
 
+// limits of symmetric region. (const pointer to char, rather than pointer to const char)
+char * const Morecore::alloc_min_ = reinterpret_cast<char*>( 0x1ULL << (GRAPPA_ADDR_BITS - 2) );
+char * const Morecore::alloc_max_ = reinterpret_cast<char*>( 0x3ULL << (GRAPPA_ADDR_BITS - 2) );
+
 void * Morecore::morecore( intptr_t size ) {
   if( size < 0 ) {
     // we don't currently support shrink behavior

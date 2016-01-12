@@ -78,8 +78,8 @@ namespace impl {
 
 class Morecore {
 private:
-  static constexpr char * alloc_min_ = (char*) ( 0x1ULL << (GRAPPA_ADDR_BITS - 2) );
-  static constexpr char * alloc_max_ = (char*) ( 0x3ULL << (GRAPPA_ADDR_BITS - 2) );
+  static char * const alloc_min_;
+  static char * const alloc_max_;
 
   size_t alloc_count_;
   char * next_alloc_base_;
