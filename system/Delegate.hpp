@@ -53,12 +53,19 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_cmpswap_targets);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadds);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadd_targets);
 
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, combinable_header_count);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, total_message_count);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint32_t>, stride);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint32_t>, prevCore);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, prevPointer);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, run_length);
 
 namespace Grappa {
     /// @addtogroup Delegates
     /// @{
     
   namespace impl {
+    
             
     template< SyncMode S, GlobalCompletionEvent * C, typename F >
     struct Specializer {
@@ -119,8 +126,23 @@ namespace Grappa {
   } // namespace delegate
     
   namespace impl {
+
     template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
     inline auto call(GlobalAddress<T> t, F func, R (F::*mf)(T&) const) -> decltype(func(*t.pointer())) {
+      total_message_count++;
+      if ((uint64_t)t.pointer()-stride == prevPointer && t.core() == prevCore) {
+	run_length++;
+      } else {
+	stride = (uint64_t)t.pointer() - prevPointer;
+	combinable_header_count += run_length;
+	combinable_header_count.json(std::cout);
+	std::cout<<std::endl;
+
+	run_length.reset();
+      }
+      prevCore = t.core();
+      prevPointer =(uint64_t)t.pointer();
+      
       return delegate::call<S,C>(t.core(), [t,func]{ return func(*t.pointer()); });
     }
     template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
