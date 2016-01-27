@@ -18,8 +18,8 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
     # in `build/Make+Release`
     make graph_new.exe
     # generates <project_root>/build/Make+Release/applications/graph500/grappa/graph_new.exe
-    # to run, use the 'srun' script which has been copied to build/Make+Release/bin:
-    bin/grappa_srun --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
+    # now run as you would any other MPI job. If your cluster uses Slurm, do:
+    srun --nodes=4 --ntasks-per-node=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
 
 This is the simplest build configuration. You are likely to want to specify more things, such as a specific compiler, a directory for already-installed dependencies so you don't have to rebuild them for each new configuration, and more. So read on.
 
@@ -40,6 +40,7 @@ You must have a Linux system with the following installed to be able to build Gr
     * MVAPICH2 >= 1.9
     * MPICH >= 3.1
     * Intel MPI >= 5.0.2.044
+    * Cray MPT >= 6.0, probably (tested with 7.1.3)
 
 The following dependencies are dealt with automatically. You may want to override the default behavior for your specific system as described in the next section, especially in the case of Boost (if you already have a copy in a non-standard place).
 
@@ -107,13 +108,29 @@ CMake will download and build `gflags`, `boost`, and `gperfools`. It will build 
 
 The external dependencies can be shared between Grappa configurations. If you specify a directory to `--third-party`, CMake will build and install the dependencies there, and then any other configurations will reuse them. Sometimes this won't work; for instance, if using two different compilers, you may have difficulty sharing a third-party directory. If this happens, just make a new third-party directory and rebuild them using the new configuration, or don't specify it and have this configuration build them just for itself.
 
-Because Boost takes the longest to compile and is often included in systems, Boost can be specified separately from the other third-party installs. Existing system installs of the other dependencies should typically *not* be relied on.
+Because Boost takes the longest to compile and is often included in systems, Boost can be specified separately from the other third-party installs. You can use the ```--boost``` argument to ```configure``` to point at an existing Boost installation.
+
+Existing system installs of the other dependencies should typically *not* be relied on.
 
 ### No web access for third-party dependencies
 
 If you want to build Grappa on a machine without access to the web, and that machine doesn't already have all the third-party libraries installed that Grappa needs, you'll have to provide the source archives for those dependences yourself. 
 
 To do so, download this file: [http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar). Then run ```configure``` with the option ```--third-party-tarfile=</path/to/file.tar>``` pointing at the tarfile.
+
+### Building on a Cray XC
+
+Cray provides helpful compiler wrapper scripts (```cc``` and ```CC```) that cause problems with some of the third-party dependences, so the ```configure``` script allows you to specify separate compilers for the dependences with the ```--third-party-cc``` and ```-third-party-cxx``` flags. Since the Cray C++ compiler is not supported, you'll need to use GCC or another supported compiler instead. Here's an example of how to build on a Cray XC:
+
+```
+module load cmake ruby
+module swap PrgEnv-cray PrgEnv-gnu
+./configure --cc=`which cc` --cxx=`which CC` --third-party-cc=`which gcc` --third-party-cxx=`which g++`
+cd build/Make+Release
+make -j16 && make install
+```
+
+Note that due to problems with dynamic linking, Grappa's unit tests don't build properly on a Cray XC yet.
 
 ## Installing Grappa
 
@@ -212,7 +229,7 @@ To make it easy to prototype ideas, there's a directory in root: `scratch`. Any 
     make rebuild_cache
     # then...
     make scratch-test.exe
-    bin/grappa_srun --nnode=2 --ppn=1 -- scratch/scratch-test.exe
+    srun --nodes=2 --ntasks-per-node=1 -- scratch/scratch-test.exe
 
 ### Demos
 Similar to the scratch directory, all sub-directories in the `applications/demos` directory will be searched for `.cpp` files, and added as targets (`demo-#{base_name}.exe`). (note: search is not recursive, just one level of subdirectory).
