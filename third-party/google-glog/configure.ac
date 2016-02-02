@@ -131,8 +131,9 @@ fi
 #CFLAGS="$SAVE_CFLAGS"
 #LIBS="$SAVE_LIBS"
 # Modified for Ymer 2011-01-30: use local copy of gflags
-GFLAGS_CFLAGS="-I../gflags/src"
-GFLAGS_LIBS="../gflags/.libs/libgflags.la"
+### Modified again to allow Grappa to point at gflags in third-party
+###GFLAGS_CFLAGS="-I../gflags/src"
+###GFLAGS_LIBS="../gflags/.libs/libgflags.la"
 AC_DEFINE([HAVE_LIB_GFLAGS], [1], [Define to 1 if you have google glog library])
 ac_cv_have_libgflags=1
 
