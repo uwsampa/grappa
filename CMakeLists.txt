@@ -503,10 +503,8 @@ foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
     list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
   endif()
 
-  # add library to link list
-  get_filename_component(name ${lib} NAME_WE)  # remove any extension
-  string(SUBSTRING ${name} 3 -1 name)          # chop off "lib"
-  list(APPEND GRAPPA_STATIC_LIB_NAMES ${name})
+  # add library to link list (use full path for static linking)
+  list(APPEND GRAPPA_STATIC_LIB_NAMES ${lib})
 
   # check for reasonable extension
   get_filename_component(ext ${lib} EXT)
@@ -553,7 +551,7 @@ list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS_INSTALLED)
 string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS_INSTALLED ";${GRAPPA_LIB_PATHS_INSTALLED}")
 
 list(REMOVE_DUPLICATES GRAPPA_STATIC_LIB_NAMES)
-string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
+string(REPLACE ";" " \\\n\t" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
 
 list(REMOVE_DUPLICATES GRAPPA_DYNAMIC_LIB_NAMES)
 string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GRAPPA_DYNAMIC_LIB_NAMES}")
