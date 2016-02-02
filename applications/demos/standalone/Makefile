@@ -9,3 +9,6 @@ GRAPPA_IMPLICIT_RULES:=on
 include $(GRAPPA_PREFIX)/share/Grappa/grappa.mk
 
 standalone: standalone.o
+
+clean: 
+	rm -f standalone standalone.o
