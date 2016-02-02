@@ -70,22 +70,32 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
                                    Default: Make.
                                    Can specify multiple with commas.
     --mode=[Release]|Debug[,*]   Build mode. Default: Release (with debug symbols)
-    --cc=path/to/c/compiler      Use alternative C compiler.
+    --cc=path/to/c/compiler      Use alternative C compiler (infer C++ compiler from this path).
+    --cxx=path/to/c++/compiler   Use alternative C++ compiler (infer C compiler from this path).
     --boost=path/to/boost/root   Specify location of compatible boost (>= 1.53)
                                    (otherwise, cmake will download and build it)
-    --name=NAME                  Add an additional name to this configuration to distinguish it 
-                                   (i.e. compiler version)
-    --tracing                    Enable VampirTrace/gperftools-based sampled tracing. Looks for
-                                   VampirTrace build in 'third-party' dir.
+    --name=NAME                  Add an additional name to this configuration to 
+                                   distinguish it (i.e. compiler version)
+    --tracing                    Enable VampirTrace/gperftools-based sampled tracing. 
+                                   Looks for VampirTrace build in 'third-party' dir.
+    --profiling                  Enable gperftools-based sampled profiling.
     --vampir=path/to/vampirtrace/root
                                  Specify path to VampirTrace build (enables tracing).
     --third-party=path/to/built/deps/root
-                                 Can optionally pre-build third-party dependencies instead of 
-                                   re-building for each configuration.
+                                 Can optionally pre-build third-party dependencies 
+                                   instead of re-building for each configuration.
+    --third-party-cc=path/to/c/compiler
+                                 Use alternative C compiler just for third-party builds.
+    --third-party-cxx=path/to/c++/compiler
+                                 Use alternative C++ compiler just for third-party builds.
+    --build-here                 Just configure into current directory rather than creating new build directories.
     --third-party-tarfile=/path/to/file.tar
                                  Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website).
-    --prefix=path/to/grappa/installation
+    --enable_rpath               Set RPATH on binaries to help them find necessary libraries.
+    --verbose                    Output verbose configure information.
+    --prefix=path/to/installed/grappa
                                  Specify destination for Grappa installation (defaults to inside build directory).
+
 
 To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
@@ -185,6 +195,14 @@ We've made it easier to use Grappa as a library by providing a GNU Make include 
    ```
 
    An example of the first usage is included in the directory ```applications/demos/standalone```.
+
+## Finding libraries; RPATH; RUNPATH
+
+A standard problem when running MPI jobs is making sure the binary is able to find all the shared libraries it needs. Some systems are good about propagating the user's environment to all the job's processes (we've had good experiences with Slurm); but some require setting environment variables like ```LD_LIBRARY_PATH``` manually, which quickly gets complicated. Ideally we'd just build all binaries as static, but some MPI distributions make this difficult.
+
+To make this easier, you can pass the argument ```--enable_rpath``` to the configure script, and Grappa will be configured to set the ```RPATH``` search path in binaries it builds. This is not a foolproof solution. In particular, it overrides any ```LD_LIBRARY_PATH``` variable set in the environment. For this reason, this feature is disabled by default.
+
+If your binaries have trouble finding libraries when you run them, try reconfiguring/rebuilding with ```--enable_rpath```.
 
 ## CMake Notes
 A couple notes about adding new targets for CMake to build. First: each directory where something is built should typically have a `CMakeLists.txt` file. Somewhere up the directory hierarchy, this directory must be 'added'. For instance, applications directories are added from `applications/CMakeLists.txt`:

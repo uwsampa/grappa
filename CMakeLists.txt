@@ -7,6 +7,8 @@ include(util/grappa.cmake)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
+option(ENABLE_RPATH "Set RPATH when building binaries." OFF)
+
 SET(GRAPPA_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Prefix prepended to install directories")
 SET(CMAKE_INSTALL_PREFIX "${GRAPPA_INSTALL_PREFIX}" CACHE INTERNAL "Prefix prepended to install directories" FORCE)
 
@@ -44,32 +46,6 @@ else()
   message(WARNING "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
 endif()
 
-###########################
-# Use RUNPATH if available
-# use, i.e. don't skip the full RPATH for the build tree
-set(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_RPATH}")
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-
-# the RPATH to be used when installing, but only if it's not a system directory
-list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
-if("${isSystemDir}" STREQUAL "-1") # not a system directory
-  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
-endif("${isSystemDir}" STREQUAL "-1")
-
-## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
-# set runpath, too
-# if(NOT APPLE)
-#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
-# endif()
-
-##### </RUNPATH> ########
-
 
 #############################################################################
 # configure profiling and tracing
@@ -100,7 +76,9 @@ if(TRACING)
   # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
 
   if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
-    set(CMAKE_INSTALL_RPATH "${VAMPIR_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+    if(ENABLE_RPATH)
+      set(CMAKE_INSTALL_RPATH "${VAMPIR_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+    endif()
   endif()
 endif()
 
@@ -132,7 +110,10 @@ else()
 endif()
 include_directories("${THIRD_PARTY_ROOT}/include")
 link_directories("${THIRD_PARTY_ROOT}/lib")
-set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+
+if(ENABLE_RPATH)
+  set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+endif()
 
 
 #
@@ -356,12 +337,46 @@ endif()
 add_subdirectory(third-party)
 
 
+# RPATH causes problems on some systems, but is helpful on others. Make it an option
+if(ENABLE_RPATH)
+  ###########################
+  # Use RUNPATH if available
+  # use, i.e. don't skip the full RPATH for the build tree
+  set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+  # use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
+  # add the automatically determined parts of the RPATH
+  # which point to directories outside the build tree to the install RPATH
+  # set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+  
+  # the RPATH to be used when installing, but only if it's not a system directory
+  list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+  if("${isSystemDir}" STREQUAL "-1") # not a system directory
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
+  endif("${isSystemDir}" STREQUAL "-1")
+  
+  # not sure if this is useful any more, but what the heck.
+  foreach(lib ${Boost_LIBRARY_DIRS})
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${lib}")
+  endforeach()
+  
+  ## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
+  # set runpath, too
+  # if(NOT APPLE)
+  #   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+  # endif()
 
-# RPATH
-# not sure if this is useful any more, but what the heck.
-foreach(lib ${Boost_LIBRARY_DIRS})
-  set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
-endforeach()
+
+  ##### </RUNPATH> ########
+
+else()
+  set(CMAKE_INSTALL_RPATH "")
+endif()
+
+message("Setting RPATH to ${CMAKE_INSTALL_RPATH}")
+
 
 
 
