@@ -491,49 +491,68 @@ endif()
 ####################################
 # Build lists of library names and paths
 
-# static libs
-foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
-
-  # add directory to search paths
-  get_filename_component(dir ${lib} PATH)      # get directory for libs
-  list(APPEND GRAPPA_LIB_PATHS ${dir})
-  string(FIND "${dir}" "${CMAKE_BINARY_DIR}" STATIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
-  string(FIND "${dir}" "${THIRD_PARTY_ROOT}" STATIC_IN_TPR_DIR)    # -1 if not found, 0 if found
-  if(NOT STATIC_IN_BUILD_DIR EQUAL 0 AND NOT STATIC_IN_TPR_DIR EQUAL 0)
-    list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
+# fixup library lists in case things got added to the wrong one
+foreach(lib ${GRAPPA_DYNAMIC_LIBS})
+  get_filename_component(ext "${lib}" EXT)
+  if("${ext}" STREQUAL ".a")
+    list(APPEND GRAPPA_STATIC_LIBS "${lib}")
+  else()
+    list(APPEND GRAPPA_CLEANED_DYNAMIC_LIBS "${lib}")
   endif()
-
-  # add library to link list (use full path for static linking)
-  list(APPEND GRAPPA_STATIC_LIB_NAMES ${lib})
-
-  # check for reasonable extension
-  get_filename_component(ext ${lib} EXT)
-  if(NOT ${ext} STREQUAL ".a")
-    message(WARNING "Static library found didn't have .a extension: ${lib}")
+endforeach()
+foreach(lib ${GRAPPA_STATIC_LIBS})
+  get_filename_component(ext "${lib}" EXT)
+  if("${ext}" STREQUAL ".so")
+    message(WARNING "Adding to dynamic list: ${lib}")
+    list(APPEND GRAPPA_DYNAMIC_LIBS "${lib}")
+  else()
+    list(APPEND GRAPPA_CLEANED_STATIC_LIBS "${lib}")
   endif()
 endforeach()
 
-# dynamic libs
-foreach(lib ${GRAPPA_DYNAMIC_LIBS})
+# generate list of dynamic libs
+foreach(lib ${GRAPPA_CLEANED_DYNAMIC_LIBS})
 
   # add directory to search paths
-  get_filename_component(dir ${lib} PATH)
-  list(APPEND GRAPPA_LIB_PATHS ${dir})
+  get_filename_component(dir "${lib}" PATH)
+  list(APPEND GRAPPA_LIB_PATHS "${dir}")
   string(FIND "${dir}" "${CMAKE_BINARY_DIR}" DYNAMIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
   string(FIND "${dir}" "${THIRD_PARTY_ROOT}" DYNAMIC_IN_TPR_DIR)    # -1 if not found, 0 if found
   if(NOT DYNAMIC_IN_BUILD_DIR EQUAL 0 AND NOT DYNAMIC_IN_TPR_DIR EQUAL 0)
-    list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
+    list(APPEND GRAPPA_LIB_PATHS_INSTALLED "${dir}")
   endif()
 
   # add library to link list
-  get_filename_component(name ${lib} NAME_WE)
-  string(SUBSTRING ${name} 3 -1 name)
-  list(APPEND GRAPPA_DYNAMIC_LIB_NAMES ${name})
+  get_filename_component(name "${lib}" NAME_WE)
+  string(SUBSTRING "${name}" 3 -1 name)
+  list(APPEND GRAPPA_DYNAMIC_LIB_NAMES "${name}")
 
   # check for reasonable extension
-  get_filename_component(ext ${lib} EXT)
-  if(NOT ${ext} STREQUAL ".so")
+  get_filename_component(ext "${lib}" EXT)
+  if(NOT "${ext}" STREQUAL ".so")
     message(WARNING "Dynamic library found didn't have .so extension: ${lib}")
+  endif()
+endforeach()
+
+# static libs
+foreach(lib "${CMAKE_BINARY_DIR}/system/libGrappa.a" ${GRAPPA_CLEANED_STATIC_LIBS})
+
+  # add directory to search paths
+  get_filename_component(dir "${lib}" PATH)      # get directory for libs
+  list(APPEND GRAPPA_LIB_PATHS "${dir}")
+  string(FIND "${dir}" "${CMAKE_BINARY_DIR}" STATIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
+  string(FIND "${dir}" "${THIRD_PARTY_ROOT}" STATIC_IN_TPR_DIR)    # -1 if not found, 0 if found
+  if(NOT STATIC_IN_BUILD_DIR EQUAL 0 AND NOT STATIC_IN_TPR_DIR EQUAL 0)
+    list(APPEND GRAPPA_LIB_PATHS_INSTALLED "${dir}")
+  endif()
+
+  # add library to link list (use full path for static linking)
+  list(APPEND GRAPPA_STATIC_LIB_NAMES "${lib}")
+
+  # check for reasonable extension
+  get_filename_component(ext "${lib}" EXT)
+  if(NOT "${ext}" STREQUAL ".a")
+    message(WARNING "Static library found didn't have .a extension: ${lib}")
   endif()
 endforeach()
 
@@ -557,10 +576,11 @@ list(REMOVE_DUPLICATES GRAPPA_DYNAMIC_LIB_NAMES)
 string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GRAPPA_DYNAMIC_LIB_NAMES}")
 
 # fill in prototype file and place in build directory
-configure_file(util/grappa.mk util/grappa.mk)
+configure_file("util/grappa.mk" "util/grappa.mk")
 
 #
 # Installation
 #
-install(FILES ${CMAKE_BINARY_DIR}/util/grappa.mk         DESTINATION "share/Grappa/")
+install(FILES "${CMAKE_BINARY_DIR}/util/grappa.mk"
+        DESTINATION "share/Grappa/")
 
