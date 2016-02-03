@@ -375,8 +375,6 @@ else()
   set(CMAKE_INSTALL_RPATH "")
 endif()
 
-message("Setting RPATH to ${CMAKE_INSTALL_RPATH}")
-
 
 
 

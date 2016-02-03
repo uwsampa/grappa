@@ -68,6 +68,26 @@ if opt.used_cxx_flag && not(opt.used_cc_flag)
   end
 end
 
+if opt.third_party_cc != '' && opt.third_party_cxx == ''
+  # automatically determine cxx from --cc
+  case opt.third_party_cc
+  when /gcc$/
+    opt.third_party_cxx = opt.third_party_cc.gsub(/gcc$/,'g++')
+  when /clang$/
+    opt.third_party_cxx = opt.third_party_cc.gsub(/clang$/,'clang++')
+  end
+end
+
+if opt.third_party_cxx != '' && opt.third_party_cc == ''
+  # automatically determine cc from --cxx
+  case opt.third_party_cxx
+  when /g\+\+$/
+    opt.third_party_cc = opt.third_party_cxx.gsub(/g\+\+$/,'gcc')
+  when /clang\+\+$/
+    opt.third_party_cc = opt.third_party_cxx.gsub(/clang\+\+$/,'clang')
+  end
+end
+
 # Xcode generator must have CC set to a version of Clang, and must have a corresponding plugin
 # see github.com/bholt/Clang-Head.xcplugin for an example
 
