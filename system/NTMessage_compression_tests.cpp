@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       // Now the core 0 buffer should have a bunch of messages.
       // The first test currently passes; adding compression should make the second one pass instead
       BOOST_CHECK_EQUAL( FLAGS_message_count * 16, buffer_size_for(0) );
-      // BOOST_CHECK_EQUAL( 8 + FLAGS_message_count * 8, buffer_size_for(0) );
+      // BOOST_CHECK_EQUAL( 16, buffer_size_for(0) );
       
       // force messages to be sent, and wait for them to be received
       Grappa::impl::global_rdma_aggregator.flush_nt( 0 );
