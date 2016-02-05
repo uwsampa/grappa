@@ -230,13 +230,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     {
       int x = 0;
 
-      // Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int*)>( [] (int * xp) {
-      //   ;
-      // } ) );
+      Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int*)>( [] (int * xp) {
+        ;
+      } ) );
 
-      // Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int&)>( [] (int & xr) {
-      //   ;
-      // } ) );
+      Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int&)>( [] (int & xr) {
+        ;
+      } ) );
 
       Grappa::send_new_ntmessage( make_global( &x ), [] (int * xp) {
         ;
@@ -267,6 +267,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         }
       };
       Grappa::send_new_ntmessage( make_global( &x ), BlahReference() );
+
+      struct BlahPointerConst {
+        void operator()(int * xp) const {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), BlahPointerConst() );
+
+      struct BlahReferenceConst {
+        void operator()(int & xr) const {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), BlahReferenceConst() );
     }
 
     //
@@ -313,15 +327,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       const int payload_count = 16;
       int payload[payload_count] = {0};
 
-      // Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
-      //                             static_cast<void(*)(int*,int*,size_t)>( [] (int * xp, int * payload, size_t count) {
-      //                               ;
-      //                             } ) );
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+                                  static_cast<void(*)(int*,int*,size_t)>( [] (int * xp, int * payload, size_t count) {
+                                    ;
+                                  } ) );
       
-      // Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
-      //                             static_cast<void(*)(int&,int*,size_t)>( [] (int & xr, int * payload, size_t count) {
-      //                               ;
-      //                             } ) );
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+                                  static_cast<void(*)(int&,int*,size_t)>( [] (int & xr, int * payload, size_t count) {
+                                    ;
+                                  } ) );
       
       Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
                                   [] (int * xp, int * payload, size_t count) {
@@ -357,6 +371,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         }
       };
       Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count, BlahReferencePayload() );
+
+      struct BlahPointerPayloadConst {
+        void operator()(int * xp, int * payload, size_t count) const {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count, BlahPointerPayloadConst() );
+
+      struct BlahReferencePayloadConst {
+        void operator()(int & xr, int * payload, size_t count) const {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count, BlahReferencePayloadConst() );
     }
   }
 

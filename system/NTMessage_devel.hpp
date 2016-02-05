@@ -144,8 +144,10 @@ struct NTHeader {
 // Messages without payload or address
 //
 
-template< typename H,
+template< typename H, // handler type
+          // is this a function pointer or no-capture lambda?
           bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value),
+          // if this is a lambda with capture, can we fit it entirely in the address bits?
           bool fits_in_address      = (sizeof(H) * 8 <= NTMESSAGE_ADDRESS_BITS) >
 struct NTMessageSpecializer : public NTHeader {
   static void send_ntmessage( Core destination, H handler );
@@ -183,27 +185,45 @@ struct NTMessageSpecializer<H, false, false > {
 // Messages with address but without payload
 //
 
-template< typename T,
-          typename H,
+
+// helper struct to check operator() type if H has class type (functor or lambda)
+template< typename H, typename ARG >
+struct NTAddressMessageHelper :
+    std::integral_constant< bool,
+                            ( std::is_same< decltype( &H::operator() ), void (H::*)(ARG) const >::value ||
+                              std::is_same< decltype( &H::operator() ), void (H::*)(ARG) >::value ) > { };
+
+// handler is function pointer, not functor or lambda; don't check operator() type
+template<typename ARG>
+struct NTAddressMessageHelper<void(*)(int*),ARG> : std::false_type { };
+
+// handler is function pointer, not functor or lambda; don't check operator() type
+template< typename ARG >
+struct NTAddressMessageHelper<void(*)(int&),ARG> : std::false_type { };
+
+
+template< typename T, // address type
+          typename H, // handler type
+          // if this is a function pointer or no-capture lambda, note whether it takes a pointer or reference argument
           bool cast_to_voidstarptr = (std::is_convertible<H,void(*)(T*)>::value),
           bool cast_to_voidstarref = (std::is_convertible<H,void(*)(T&)>::value),
-          bool operator_takes_ptr  = (std::is_same< decltype( &H::operator() ), void ( H::* )(T*) >::value ||
-                                      std::is_same< decltype( &H::operator() ), void ( H::* )(T*) const >::value),
-          bool operator_takes_ref  = (std::is_same< decltype( &H::operator() ), void ( H::* )(T&) >::value ||
-                                      std::is_same< decltype( &H::operator() ), void ( H::* )(T&) const >::value) >
+          // if this is a functor or lambda with capture, note whether it takes a pointer or reference argument
+          bool operator_takes_ptr  = (NTAddressMessageHelper<H,T*>::value),
+          bool operator_takes_ref  = (NTAddressMessageHelper<H,T&>::value) >
 struct NTAddressMessageSpecializer : public NTHeader {
   static void send_ntmessage( GlobalAddress<T> address, H handler );
   static char * deserialize_and_call( char * t );
 };
 
-// Specializer for no-payload no-capture message with address
-template< typename T, typename H, bool dontcare1, bool dontcare2>
+// Specializer for no-payload no-capture message with address with pointer argument
+template< typename T, typename H, bool dontcare1, bool dontcare2 >
 struct NTAddressMessageSpecializer<T, H, true, false, dontcare1, dontcare2> {
   static void send_ntmessage( GlobalAddress<T> address, H handler ) {
     LOG(INFO) << "GlobalAddress; handler has pointer and empty capture: " << __PRETTY_FUNCTION__;
   }
 };
 
+// Specializer for no-payload no-capture message with address with reference argument
 template< typename T, typename H, bool dontcare1, bool dontcare2 >
 struct NTAddressMessageSpecializer<T, H, false, true, dontcare1, dontcare2> {
   static void send_ntmessage( GlobalAddress<T> address, H handler ) {
@@ -211,7 +231,7 @@ struct NTAddressMessageSpecializer<T, H, false, true, dontcare1, dontcare2> {
   }
 };
 
-// Specializer for no-payload message with address and capture
+// Specializer for no-payload message with address and capture with pointer argument
 template< typename T, typename H >
 struct NTAddressMessageSpecializer<T, H, false, false, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, H handler ) {
@@ -219,6 +239,7 @@ struct NTAddressMessageSpecializer<T, H, false, false, true, false> {
   }
 };
 
+// Specializer for no-payload message with address and capture with reference argument
 template< typename T, typename H >
 struct NTAddressMessageSpecializer<T, H, false, false, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, H handler ) {
@@ -231,9 +252,11 @@ struct NTAddressMessageSpecializer<T, H, false, false, false, true> {
 // Messages with payload but without address
 //
 
-template< typename H,
-          typename P,
+template< typename H, // handler type
+          typename P, // payload type
+          // is this a function pointer or no-capture lambda?
           bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value),
+          // if this is a lambda with capture, can we fit it entirely in the address bits?
           bool fits_in_address      = (sizeof(H) * 8 <= NTMESSAGE_ADDRESS_BITS) >
 struct NTPayloadMessageSpecializer : public NTHeader {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler );
@@ -268,15 +291,31 @@ struct NTPayloadMessageSpecializer<H, P, false, false > {
 // Messages with address and payload
 //
 
-template< typename T,
-          typename H,
-          typename P,
+// helper struct to check operator() type if H has class type (functor or lambda)
+template< typename H, typename ARG, typename P >
+struct NTPayloadAddressMessageHelper :
+    std::integral_constant< bool,
+                            ( std::is_same< decltype( &H::operator() ), void (H::*)(ARG,P*,size_t) const >::value ||
+                              std::is_same< decltype( &H::operator() ), void (H::*)(ARG,P*,size_t) >::value ) > { };
+
+// handler is function pointer, not functor or lambda; don't check operator() type
+template< typename ARG, typename P >
+struct NTPayloadAddressMessageHelper<void(*)(int*,P*,size_t),ARG,P> : std::false_type { };
+
+// handler is function pointer, not functor or lambda; don't check operator() type
+template< typename ARG, typename P >
+struct NTPayloadAddressMessageHelper<void(*)(int&,P*,size_t),ARG,P> : std::false_type { };
+
+
+template< typename T, // address type
+          typename H, // handler type
+          typename P, // payload type
+          // if this is a function pointer or no-capture lambda, note whether it takes a pointer or reference argument
           bool cast_to_voidstarptr = (std::is_convertible<H,void(*)(T*,P*,size_t)>::value),
           bool cast_to_voidstarref = (std::is_convertible<H,void(*)(T&,P*,size_t)>::value),
-          bool operator_takes_ptr  = (std::is_same< decltype( &H::operator() ), void ( H::* )(T*,P*,size_t) >::value ||
-                                      std::is_same< decltype( &H::operator() ), void ( H::* )(T*,P*,size_t) const >::value),
-          bool operator_takes_ref  = (std::is_same< decltype( &H::operator() ), void ( H::* )(T&,P*,size_t) >::value ||
-                                      std::is_same< decltype( &H::operator() ), void ( H::* )(T&,P*,size_t) const >::value) >
+          // if this is a functor or lambda with capture, note whether it takes a pointer or reference argument
+          bool operator_takes_ptr  = (NTPayloadAddressMessageHelper<H,T*,P>::value),
+          bool operator_takes_ref  = (NTPayloadAddressMessageHelper<H,T&,P>::value) >
 struct NTPayloadAddressMessageSpecializer : public NTHeader {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler );
   static char * deserialize_and_call( char * t );
