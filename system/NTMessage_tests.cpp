@@ -115,6 +115,24 @@ void bar( const char * buf, size_t size ) {
   BOOST_CHECK_EQUAL( 1, 1 );
 }
 
+struct Baz {
+  void operator()() {
+    LOG(INFO) << "Struct operator message handler";
+  }
+  template< typename P >
+  void operator()(P * payload, size_t size) {
+    LOG(INFO) << "Struct operator message handler with payload";
+  }
+  template< typename T, typename P >
+  void operator()(T * t, P * payload, size_t size) {
+    LOG(INFO) << "Struct operator message handler with pointer and payload";
+  }
+  template< typename T, typename P >
+  void operator()(T & t, P * payload, size_t size) {
+    LOG(INFO) << "Struct operator message handler with reference and payload";
+  }
+};
+
 BOOST_AUTO_TEST_CASE( test1 ) {
 
   // Grappa::init( &(boost::unit_test::framework::master_test_suite().argc),
@@ -171,30 +189,176 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   // check new message format
   {
-    Grappa::send_new_ntmessage( 0, static_cast<void(*)()>( [] {
-      LOG(INFO) << "Lambda message handler cast to function pointer with no capture " << __PRETTY_FUNCTION__;
-    } ) );
-
-    Grappa::send_new_ntmessage( 0, [] {
-      LOG(INFO) << "Lambda message handler with no args and no capture " << __PRETTY_FUNCTION__;
-    } );
-
-    char c = 'x';
-    Grappa::send_new_ntmessage( 0, [c] {
-      LOG(INFO) << "Lambda message handler with no args and 1-byte capture " << __PRETTY_FUNCTION__;
-    } );
-
-    char d[4] = {'x'};
-    Grappa::send_new_ntmessage( 0, [d] {
-      LOG(INFO) << "Lambda message handler with no args and 4-byte capture " << __PRETTY_FUNCTION__;
-    } );
-
-    char e[16] = {'x'};
-    Grappa::send_new_ntmessage( 0, [e] {
-      LOG(INFO) << "Lambda message handler with no args and 16-byte capture " << __PRETTY_FUNCTION__;
-    } );
-  }
+    //
+    // no payload, no address
+    //
+    {
+      Grappa::send_new_ntmessage( 0, static_cast<void(*)()>( [] {
+        LOG(INFO) << "Lambda message handler cast to function pointer with no capture " << __PRETTY_FUNCTION__;
+      } ) );
       
+      Grappa::send_new_ntmessage( 0, [] {
+        LOG(INFO) << "Lambda message handler with no args and no capture " << __PRETTY_FUNCTION__;
+      } );
+
+      char c = 'x';
+      Grappa::send_new_ntmessage( 0, [c] {
+        LOG(INFO) << "Lambda message handler with no args and 1-byte capture " << __PRETTY_FUNCTION__;
+      } );
+      
+      char d[4] = {'x'};
+      Grappa::send_new_ntmessage( 0, [d] {
+        LOG(INFO) << "Lambda message handler with no args and 4-byte capture " << __PRETTY_FUNCTION__;
+      } );
+      
+      char e[16] = {'x'};
+      Grappa::send_new_ntmessage( 0, [e] {
+        LOG(INFO) << "Lambda message handler with no args and 16-byte capture " << __PRETTY_FUNCTION__;
+      } );
+
+      struct Blah {
+        void operator()() {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( 0, Blah() );
+    }
+    
+    //
+    // address, no payload
+    //
+    {
+      int x = 0;
+
+      // Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int*)>( [] (int * xp) {
+      //   ;
+      // } ) );
+
+      // Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int&)>( [] (int & xr) {
+      //   ;
+      // } ) );
+
+      Grappa::send_new_ntmessage( make_global( &x ), [] (int * xp) {
+        ;
+      } );
+
+      Grappa::send_new_ntmessage( make_global( &x ), [] (int & xr) {
+        ;
+      } );
+
+      Grappa::send_new_ntmessage( make_global( &x ), [x] (int * xp) {
+        ;
+      } );
+
+      Grappa::send_new_ntmessage( make_global( &x ), [x] (int & xr) {
+        ;
+      } );
+
+      struct BlahPointer {
+        void operator()(int * xp) {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), BlahPointer() );
+
+      struct BlahReference {
+        void operator()(int & xr) {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), BlahReference() );
+    }
+
+    //
+    // payload, no address
+    //
+    {
+      const int payload_count = 16;
+      int payload[payload_count] = {0};
+      Grappa::send_new_ntmessage( 0, &payload[0], payload_count,
+                                  static_cast<void(*)(int*,size_t)>( [] (int * payload, size_t count) {
+                                    ;
+
+                                  } ) );
+      
+      Grappa::send_new_ntmessage( 0, &payload[0], payload_count,
+                                  [] (int * payload, size_t count) {
+                                    ;
+                                  } );
+
+      char c = 'x';
+      Grappa::send_new_ntmessage( 0, &payload[0], payload_count,
+                                  [c] (int * payload, size_t count) {
+                                    ;
+                                  } );
+      
+      char d[4] = {'x'};
+      Grappa::send_new_ntmessage( 0, &payload[0], payload_count,
+                                  [d] (int * payload, size_t count) {
+                                    ;
+                                  } );
+      
+      char e[16] = {'x'};
+      Grappa::send_new_ntmessage( 0, &payload[0], payload_count,
+                                  [e] (int * payload, size_t count) {
+                                    ;
+                                  } );
+    }
+
+    //
+    // payload with address
+    //
+    {
+      int x = 0;
+      const int payload_count = 16;
+      int payload[payload_count] = {0};
+
+      // Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+      //                             static_cast<void(*)(int*,int*,size_t)>( [] (int * xp, int * payload, size_t count) {
+      //                               ;
+      //                             } ) );
+      
+      // Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+      //                             static_cast<void(*)(int&,int*,size_t)>( [] (int & xr, int * payload, size_t count) {
+      //                               ;
+      //                             } ) );
+      
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+                                  [] (int * xp, int * payload, size_t count) {
+                                    ;
+                                  } );
+
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+                                  [] (int & xr, int * payload, size_t count) {
+                                    ;
+                                  } );
+
+      char c = 'x';
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+                                  [c] (int * xp, int * payload, size_t count) {
+                                    ;
+                                  } );
+      
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
+                                  [c] (int & xr, int * payload, size_t count) {
+                                    ;
+                                  } );
+      
+      struct BlahPointerPayload {
+        void operator()(int * xp, int * payload, size_t count) {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count, BlahPointerPayload() );
+
+      struct BlahReferencePayload {
+        void operator()(int & xr, int * payload, size_t count) {
+          LOG(INFO) << __PRETTY_FUNCTION__;
+        }
+      };
+      Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count, BlahReferencePayload() );
+    }
+  }
 
 }
 
