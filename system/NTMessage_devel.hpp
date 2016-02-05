@@ -40,6 +40,7 @@
 // with the rest of Grappa.
 
 #include <NTMessage.hpp>
+#include <Addressing.hpp>
 
 namespace Grappa {
 namespace impl {
@@ -139,6 +140,10 @@ struct NTHeader {
 }  __attribute__((aligned(8))); // TODO: verify alignment?
 
 
+//
+// Messages without payload or address
+//
+
 template< typename H,
           bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value),
           bool fits_in_address      = (sizeof(H) * 8 <= NTMESSAGE_ADDRESS_BITS) >
@@ -147,7 +152,7 @@ struct NTMessageSpecializer : public NTHeader {
   static char * deserialize_and_call( char * t );
 };
 
-/// Specializer for 
+// Specializer for no-payload no-capture no-address message
 template< typename H, bool dontcare >
 struct NTMessageSpecializer<H, true, dontcare> {
   static void send_ntmessage( Core destination, H handler ) {
@@ -156,6 +161,7 @@ struct NTMessageSpecializer<H, true, dontcare> {
   }
 };
 
+// Specializer for no-payload no-address message with capture that fits in address bits
 template< typename H >
 struct NTMessageSpecializer<H, false, true > {
   static void send_ntmessage( Core destination, H handler ) {
@@ -164,6 +170,7 @@ struct NTMessageSpecializer<H, false, true > {
   }
 };
 
+// Specializer for no-payload no-address message with capture that doesn't fit in address bits
 template< typename H >
 struct NTMessageSpecializer<H, false, false > {
   static void send_ntmessage( Core destination, H handler ) {
@@ -171,6 +178,39 @@ struct NTMessageSpecializer<H, false, false > {
     handler();
   }
 };
+
+//
+// Messages with address but without payload
+//
+
+template< typename T,
+          typename H,
+          bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value) >
+struct NTAddressMessageSpecializer : public NTHeader {
+  static void send_ntmessage( GlobalAddress<T> address, H handler );
+  static char * deserialize_and_call( char * t );
+};
+
+// Specializer for no-payload no-capture message with address
+template< typename T, typename H >
+struct NTAddressMessageSpecializer<T, H, true> {
+  static void send_ntmessage( GlobalAddress<T> address, H handler ) {
+    LOG(INFO) << "GlobalAddress; handler has empty capture: " << __PRETTY_FUNCTION__;
+  }
+};
+
+// Specializer for no-payload message with address and capture
+template< typename T, typename H >
+struct NTAddressMessageSpecializer<T, H, false> {
+  static void send_ntmessage( GlobalAddress<T> address, H handler ) {
+    LOG(INFO) << "GlobalAddress; handler has non-empty capture: " << __PRETTY_FUNCTION__;
+  }
+};
+
+
+//
+// Messages with payload but without address
+//
 
 template< typename H,
           typename P,
@@ -181,28 +221,56 @@ struct NTPayloadMessageSpecializer : public NTHeader {
   static char * deserialize_and_call( char * t );
 };
 
-/// Specializer for 
+// Specializer for no-capture no-address message with payload
 template< typename H, typename P, bool dontcare >
 struct NTPayloadMessageSpecializer<H, P, true, dontcare> {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler ) {
-    LOG(INFO) << "No address; handler has empty capture: " << __PRETTY_FUNCTION__;
-    handler();
+    LOG(INFO) << "Payload with no address; handler has empty capture: " << __PRETTY_FUNCTION__;
   }
 };
 
+// Specializer for no-address message with payload and capture that fits in address bits
 template< typename H, typename P >
 struct NTPayloadMessageSpecializer<H, P, false, true > {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler ) {
-    LOG(INFO) << "No address; handler of size " << sizeof(H) << " fits in address field: " << __PRETTY_FUNCTION__;
-    handler();
+    LOG(INFO) << "Payload with no address; handler of size " << sizeof(H) << " fits in address field: " << __PRETTY_FUNCTION__;
   }
 };
 
+// Specializer for no-address message with payload and capture that does not fit in address bits
 template< typename H, typename P >
 struct NTPayloadMessageSpecializer<H, P, false, false > {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler ) {
-    LOG(INFO) << "No address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__;
-    handler();
+    LOG(INFO) << "Payload with no address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__;
+  }
+};
+
+//
+// Messages with address and payload
+//
+
+template< typename T,
+          typename H,
+          typename P,
+          bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value) >
+struct NTPayloadAddressMessageSpecializer : public NTHeader {
+  static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler );
+  static char * deserialize_and_call( char * t );
+};
+
+// Specializer for no-capture message with address and payload
+template< typename T, typename H, typename P >
+struct NTPayloadAddressMessageSpecializer<T, H, P, true> {
+  static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler ) {
+    LOG(INFO) << "Payload with GlobalAddress; handler has empty capture: " << __PRETTY_FUNCTION__;
+  }
+};
+
+// Specializer for message with address, payload, and capture
+template< typename T, typename H, typename P >
+struct NTPayloadAddressMessageSpecializer<T, H, P, false> {
+  static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler ) {
+    LOG(INFO) << "Payload with GlobalAddress; handler has non-empty capture: " << __PRETTY_FUNCTION__;
   }
 };
 
