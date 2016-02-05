@@ -351,25 +351,39 @@ struct NTPayloadAddressMessageSpecializer<T, H, P, false, false, false, true> {
 // NTMessage sending functions exposed to user
 //
 
-/// Send message with no payload. 
+// These are placeholders; really these functions should be doing the following:
+// * get pointer to aggregation buffer to store message
+// * form header for message with correct deserialization pointer (or combine with previous)
+// * copy header and lambda and/or payload into buffer as appropriate
+// * update most-recently-used bits to note that the buffer has a message in it
+// * if buffer has reeached capactiy, send it now.
+// The API of the specializers will need to be updated for this.
+
+/// Send message with no address and no payload. 
 template< typename H >
 void send_new_ntmessage( Core destination, H handler ) {
+  // placeholder API; should be updated to serialize into aggregation buffer
   Grappa::impl::NTMessageSpecializer<H>::send_ntmessage( destination, handler );
 }
 
+/// Send message with address and no payload. 
 template< typename T, typename H >
 void send_new_ntmessage( GlobalAddress<T> address, H handler ) {
+  // placeholder API; should be updated to serialize into aggregation buffer
   Grappa::impl::NTAddressMessageSpecializer<T,H>::send_ntmessage( address, handler );
 }
 
 /// Send message with payload. Payload is copied, so payload buffer can be immediately reused.
 template< typename H, typename P >
 void send_new_ntmessage( Core destination, P * payload, size_t count, H handler ) {
+  // placeholder API; should be updated to serialize into aggregation buffer
   Grappa::impl::NTPayloadMessageSpecializer<H,P>::send_ntmessage( destination, payload, count, handler );
 }
 
+/// Send message with address and payload. Payload is copied, so payload buffer can be immediately reused.
 template< typename T, typename H, typename P >
 void send_new_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler ) {
+  // placeholder API; should be updated to serialize into aggregation buffer
   Grappa::impl::NTPayloadAddressMessageSpecializer<T,H,P>::send_ntmessage( address, payload, count, handler );
 }
 
