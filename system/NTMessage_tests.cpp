@@ -229,6 +229,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     //
     {
       int x = 0;
+      char cx = 'x';
+      
+      Grappa::send_new_ntmessage( make_global( &cx ), static_cast<void(*)(char*)>( [] (char * xp) {
+        ;
+      } ) );
 
       Grappa::send_new_ntmessage( make_global( &x ), static_cast<void(*)(int*)>( [] (int * xp) {
         ;
@@ -326,7 +331,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       int x = 0;
       const int payload_count = 16;
       int payload[payload_count] = {0};
-
+      char cx = 'x';
+      
+      Grappa::send_new_ntmessage( make_global( &cx ), &payload[0], payload_count,
+                                  static_cast<void(*)(char*,int*,size_t)>( [] (char * xp, int * payload, size_t count) {
+                                    ;
+                                  } ) );
+      
       Grappa::send_new_ntmessage( make_global( &x ), &payload[0], payload_count,
                                   static_cast<void(*)(int*,int*,size_t)>( [] (int * xp, int * payload, size_t count) {
                                     ;

@@ -194,12 +194,8 @@ struct NTAddressMessageHelper :
                               std::is_same< decltype( &H::operator() ), void (H::*)(ARG) >::value ) > { };
 
 // handler is function pointer, not functor or lambda; don't check operator() type
-template<typename ARG>
-struct NTAddressMessageHelper<void(*)(int*),ARG> : std::false_type { };
-
-// handler is function pointer, not functor or lambda; don't check operator() type
-template< typename ARG >
-struct NTAddressMessageHelper<void(*)(int&),ARG> : std::false_type { };
+template< typename H, typename ARG >
+struct NTAddressMessageHelper<H*,ARG> : std::false_type { };
 
 
 template< typename T, // address type
@@ -299,12 +295,8 @@ struct NTPayloadAddressMessageHelper :
                               std::is_same< decltype( &H::operator() ), void (H::*)(ARG,P*,size_t) >::value ) > { };
 
 // handler is function pointer, not functor or lambda; don't check operator() type
-template< typename ARG, typename P >
-struct NTPayloadAddressMessageHelper<void(*)(int*,P*,size_t),ARG,P> : std::false_type { };
-
-// handler is function pointer, not functor or lambda; don't check operator() type
-template< typename ARG, typename P >
-struct NTPayloadAddressMessageHelper<void(*)(int&,P*,size_t),ARG,P> : std::false_type { };
+template< typename H, typename ARG, typename P >
+struct NTPayloadAddressMessageHelper<H*,ARG,P> : std::false_type { };
 
 
 template< typename T, // address type
