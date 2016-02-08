@@ -129,20 +129,20 @@ namespace Grappa {
 
     template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
     inline auto call(GlobalAddress<T> t, F func, R (F::*mf)(T&) const) -> decltype(func(*t.pointer())) {
+#ifdef COMPRESSION_METS
       total_message_count++;
       if ((uint64_t)t.pointer()-stride == prevPointer && t.core() == prevCore) {
-	run_length++;
+        run_length++;
       } else {
-	stride = (uint64_t)t.pointer() - prevPointer;
-	combinable_header_count += run_length;
-	combinable_header_count.json(std::cout);
-	std::cout<<std::endl;
+        stride = (uint64_t)t.pointer() - prevPointer;
+        combinable_header_count += run_length;
+        // find end values in stats.json
 
-	run_length.reset();
+        run_length.reset();
       }
       prevCore = t.core();
       prevPointer =(uint64_t)t.pointer();
-      
+#endif
       return delegate::call<S,C>(t.core(), [t,func]{ return func(*t.pointer()); });
     }
     template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
