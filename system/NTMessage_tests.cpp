@@ -53,6 +53,14 @@ NTMessage<T> send_ntmessage( Core dest, T t ) {
   return m;
 }
 
+template< typename T, typename U >
+NTPayloadMessage<T,U> send_ntmessage( Core dest, U * payload, size_t count, T t ) {
+  NTPayloadMessage<T,U> m(dest,payload,count,t);
+  LOG(INFO) << "NTMessageBase " << m;
+  t(payload,count);
+  return m;
+}
+
 } // namespace impl
 } // namespace Grappa
 
@@ -158,6 +166,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   auto m = Grappa::impl::send_ntmessage( 0, [=] {
       LOG(INFO) << "Lambda message handler with default capture of x = " << x << ": " << __PRETTY_FUNCTION__;
     } );
+
+
+  int payload[8] = {0,1,2,3,4,5,6,7};
+  Grappa::impl::send_ntmessage( 0, &payload[0], 8, [] (int * payload, size_t count) {
+    int sum = 0;
+    int expected_sum = 0;
+    for( int i = 0; i < count; ++i ) {
+      sum += payload[i];
+      expected_sum += i;
+    }
+    CHECK_EQ( sum, expected_sum );
+    LOG(INFO) << "Lambda message handler with payload " << __PRETTY_FUNCTION__;
+  } );
+
 
   Grappa::impl::deaggregate_nt_buffer( reinterpret_cast<char*>(&m), sizeof(m) );
   // Grappa::impl::send_ntmessage( 0, [] (const char * buf, size_t size) {
