@@ -160,7 +160,21 @@ struct NTMessageSpecializer<H, true, dontcare> {
   static void send_ntmessage( Core destination, H handler ) {
     LOG(INFO) << "No address; handler has empty capture: " << __PRETTY_FUNCTION__;
     handler();
+    // dest_ = destination;
+    // addr_ = 0; // don't care; unused
+    // offset_ = 0; // don't care; unused
+    // fp_ = make_32bit(&deserialize_and_call);
+    // size_ = sizeof(*this); // should be 16 bytes, same as header
+    // count_ = 1; // increment if previous call was the same
+    // // call nt_enqueue on this, or something like that
   }
+  // static char * deserialize_and_call( char * buf ) {
+  //   auto header_p = reinterpret_cast< decltype(this) >( buf );
+  //   for( int i = 0; i < header_p->count_; ++i ) {
+  //     H(); // ???
+  //   }
+  //   return buf + sizeof(*this);
+  // }
 };
 
 // Specializer for no-payload no-address message with capture that fits in address bits
