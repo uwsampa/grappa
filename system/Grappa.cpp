@@ -493,7 +493,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   sigsegv_sa.sa_flags = SA_SIGINFO;
   sigsegv_sa.sa_sigaction = &Grappa::impl::failure_sighandler;
   CHECK_EQ( 0, sigaction( SIGSEGV, &sigsegv_sa, 0 ) ) << "SIGSEGV signal handler installation failed.";
-
+  CHECK_EQ( 0, sigaction( SIGBUS, &sigsegv_sa, 0 ) ) << "SIGBUS signal handler installation failed.";
+  
   // Asynchronous IO
   // initialize completed stack
   aio_completed_stack = NULL;
