@@ -29,6 +29,8 @@ set(QUERYLIB_SOURCES
   DHT_symmetric.cpp
   DHT_symmetric_generic.hpp
   Operators.hpp
+  pipeline.hpp
+  pipeline.cpp
 )
 #FIXME: these MapReduce Hash joins belong in the above sources
   #HashJoin.hpp
