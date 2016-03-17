@@ -441,8 +441,6 @@ struct NTPayloadAddressMessageSpecializer<T, H, P, false, false, true, false> {
       h.count_ = 1; // increment if previous call was the same
       h.size_ = sizeof( H ) + sizeof( P ) * count;
       
-      LOG(INFO) << h;
-      
       // Enqueue byte with header flag set. 
       // TODO: add padding if necessary? Have NTBuffer do it?
       Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
