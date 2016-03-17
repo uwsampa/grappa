@@ -75,6 +75,7 @@ public:
 
   inline bool empty() const { return position_ == 0 && local_position_ == 0; }
   inline size_t size() const { return sizeof(*localbuf_) * (position_ + local_position_); }
+  inline size_t remaining() const { return BUFFER_SIZE - size(); }
 
   inline size_t initial_offset() const { return sizeof(*localbuf_) * initial_offset_; }
   static void set_initial_offset( int words ) {
@@ -161,8 +162,11 @@ public:
 
 } __attribute__((aligned(64)));
 
+/// Adds data to a non-temporal message buffer with appropriate
+/// prefetches to avoid polluting the cache. Optionally marks this data
+/// as a header to be returned by the nt_get_previous() call.
 template< typename T >
-static inline int nt_enqueue( NTBuffer * b, T * p, int size ) {
+static inline int nt_enqueue( NTBuffer * b, T * p, int size, bool header = false ) {
 #ifdef USE_NT_OPS
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
@@ -172,6 +176,8 @@ static inline int nt_enqueue( NTBuffer * b, T * p, int size ) {
   return b->enqueue( reinterpret_cast<uint64_t*>(p), size/8 );
 }
 
+/// Flushes NTBuffer temporary aggregation buffer to main aggregation
+/// in preparation for sending the buffer.
 static inline int nt_flush( NTBuffer * b ) {
 #ifdef USE_NT_OPS
   _mm_prefetch( b, _MM_HINT_NTA );
@@ -179,6 +185,17 @@ static inline int nt_flush( NTBuffer * b ) {
 #endif
   return b->flush();
 }
+
+/// If NTBuffer is non-empty, returns pointer to last enqueued header
+/// for use in message compression tests.
+static inline void * nt_get_previous( NTBuffer * b ) {
+#ifdef USE_NT_OPS
+  _mm_prefetch( b, _MM_HINT_NTA );
+  _mm_prefetch( reinterpret_cast<char*>(b)+64, _MM_HINT_NTA );
+#endif
+  return nullptr; //b->get_previous();
+}
+
 
 } // namespace impl
 } // namespace Grappa

@@ -399,6 +399,73 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
   }
 
+  //
+  // test aggregation/deaggregation with new NTMessage specializers
+  //
+  LOG(INFO) << "test aggregation/deaggregation with new NTMessage specializers";
+  
+  { // no capture, no payload, no address
+    static int i = 0;
+    Grappa::impl::NTBuffer ntbuf;
+    auto f = [] { ++i; };
+
+    // send some messages
+    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
+    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
+    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
+    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
+    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
+    //Grappa::impl::NTMessageSpecializer< decltype(&foo) >::send_ntmessage( 0, &foo, &ntbuf );
+
+    auto g = [] { foo(); };
+    Grappa::impl::NTMessageSpecializer< decltype(g) >::send_ntmessage( 0, g, &ntbuf );
+
+    // deserialize and call
+    {
+      auto buftuple = ntbuf.take_buffer();
+      char * buf = static_cast< char * >( std::get<0>(buftuple) );
+      size_t size = std::get<1>(buftuple);
+
+      char * end = Grappa::impl::deaggregate_new_nt_buffer( buf, size );
+      BOOST_CHECK_EQUAL( end, buf + size );
+      
+      free( buf );
+    }
+    
+    BOOST_CHECK_EQUAL( i, 5 );
+  }
+
+  { // capture, payload, address
+    LOG(INFO) << "capture, payload, address";
+    int64_t i = 0;
+    LOG(INFO) << "Target address is " << &i;
+    auto global_i = make_global( &i, 0 );
+    Grappa::impl::NTBuffer ntbuf;
+    int64_t increment = 1;
+    int64_t payload   = 2;
+    auto f = [increment] ( int64_t * i, int64_t * payload, size_t size ) { *i += increment + *payload; };
+
+    // send some messages
+    Grappa::impl::NTPayloadAddressMessageSpecializer< int64_t, decltype(f), int64_t >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< int64_t, decltype(f), int64_t >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< int64_t, decltype(f), int64_t >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< int64_t, decltype(f), int64_t >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< int64_t, decltype(f), int64_t >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+
+    // deserialize and call
+    {
+      auto buftuple = ntbuf.take_buffer();
+      char * buf = static_cast< char * >( std::get<0>(buftuple) );
+      size_t size = std::get<1>(buftuple);
+
+      char * end = Grappa::impl::deaggregate_new_nt_buffer( buf, size );
+      BOOST_CHECK_EQUAL( end, buf + size );
+      
+      free( buf );
+    }
+    
+    BOOST_CHECK_EQUAL( i, 15 );
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END();
