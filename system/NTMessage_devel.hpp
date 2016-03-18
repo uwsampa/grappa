@@ -173,18 +173,16 @@ static constexpr uint32_t make_31bit( T t ) {
 //
 
 template< typename H, // handler type
-          // is this a function pointer or no-capture lambda?
-          bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value),
-          // if this is a lambda with capture, can we fit it entirely in the address bits?
-          bool fits_in_address      = (sizeof(H) * 8 <= NTMESSAGE_ADDRESS_BITS) >
+          // is this a no-capture functor or lambda?
+          bool empty_capture = std::is_empty<H>::value >
 struct NTMessageSpecializer {
   static void send_ntmessage( Core destination, H handler, NTBuffer * buffer );
   static char * deserialize_and_call( char * t );
 };
 
 // Specializer for no-payload no-capture no-address message
-template< typename H, bool dontcare >
-struct NTMessageSpecializer<H, true, dontcare> {
+template< typename H >
+struct NTMessageSpecializer<H, true> {
 
   static void send_ntmessage( Core destination, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "No address; handler has empty capture: " << __PRETTY_FUNCTION__;
@@ -238,23 +236,15 @@ struct NTMessageSpecializer<H, true, dontcare> {
   }
 };
 
-// Specializer for no-payload no-address message with capture that fits in address bits
+// Specializer for no-payload no-address message with capture
 template< typename H >
-struct NTMessageSpecializer<H, false, true > {
-  static void send_ntmessage( Core destination, H handler, NTBuffer * buffer ) {
-    LOG(INFO) << "No address; handler of size " << sizeof(H) << " fits in address field: " << __PRETTY_FUNCTION__;
-    handler();
-  }
-};
-
-// Specializer for no-payload no-address message with capture that doesn't fit in address bits
-template< typename H >
-struct NTMessageSpecializer<H, false, false > {
+struct NTMessageSpecializer<H, false> {
   static void send_ntmessage( Core destination, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "No address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__;
     handler();
   }
 };
+
 
 //
 // Messages with address but without payload
@@ -275,10 +265,9 @@ struct NTAddressMessageHelper<H*,ARG> : std::false_type { };
 
 template< typename T, // address type
           typename H, // handler type
-          // if this is a function pointer or no-capture lambda, note whether it takes a pointer or reference argument
-          bool cast_to_voidstarptr = (std::is_convertible<H,void(*)(T*)>::value),
-          bool cast_to_voidstarref = (std::is_convertible<H,void(*)(T&)>::value),
-          // if this is a functor or lambda with capture, note whether it takes a pointer or reference argument
+          // is this a no-capture functor or lambda?
+          bool empty_capture = std::is_empty<H>::value,
+          // does it takes a pointer or reference argument?
           bool operator_takes_ptr  = (NTAddressMessageHelper<H,T*>::value),
           bool operator_takes_ref  = (NTAddressMessageHelper<H,T&>::value) >
 struct NTAddressMessageSpecializer {
@@ -287,16 +276,16 @@ struct NTAddressMessageSpecializer {
 };
 
 // Specializer for no-payload no-capture message with address with pointer argument
-template< typename T, typename H, bool dontcare1, bool dontcare2 >
-struct NTAddressMessageSpecializer<T, H, true, false, dontcare1, dontcare2> {
+template< typename T, typename H >
+struct NTAddressMessageSpecializer<T, H, true, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has pointer and empty capture: " << __PRETTY_FUNCTION__;
   }
 };
 
 // Specializer for no-payload no-capture message with address with reference argument
-template< typename T, typename H, bool dontcare1, bool dontcare2 >
-struct NTAddressMessageSpecializer<T, H, false, true, dontcare1, dontcare2> {
+template< typename T, typename H >
+struct NTAddressMessageSpecializer<T, H, true, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has reference and empty capture: " << __PRETTY_FUNCTION__;
   }
@@ -304,7 +293,7 @@ struct NTAddressMessageSpecializer<T, H, false, true, dontcare1, dontcare2> {
 
 // Specializer for no-payload message with address and capture with pointer argument
 template< typename T, typename H >
-struct NTAddressMessageSpecializer<T, H, false, false, true, false> {
+struct NTAddressMessageSpecializer<T, H, false, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has pointer and non-empty capture: " << __PRETTY_FUNCTION__;
   }
@@ -312,7 +301,7 @@ struct NTAddressMessageSpecializer<T, H, false, false, true, false> {
 
 // Specializer for no-payload message with address and capture with reference argument
 template< typename T, typename H >
-struct NTAddressMessageSpecializer<T, H, false, false, false, true> {
+struct NTAddressMessageSpecializer<T, H, false, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has reference and non-empty capture: " << __PRETTY_FUNCTION__;
   }
@@ -325,34 +314,24 @@ struct NTAddressMessageSpecializer<T, H, false, false, false, true> {
 
 template< typename H, // handler type
           typename P, // payload type
-          // is this a function pointer or no-capture lambda?
-          bool cast_to_voidstarvoid = (std::is_convertible<H,void(*)(void)>::value),
-          // if this is a lambda with capture, can we fit it entirely in the address bits?
-          bool fits_in_address      = (sizeof(H) * 8 <= NTMESSAGE_ADDRESS_BITS) >
+          // is this a no-capture lambda?
+          bool empty_capture = std::is_empty<H>::value >
 struct NTPayloadMessageSpecializer : public NTHeader {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer );
   static char * deserialize_and_call( char * t );
 };
 
 // Specializer for no-capture no-address message with payload
-template< typename H, typename P, bool dontcare >
-struct NTPayloadMessageSpecializer<H, P, true, dontcare> {
+template< typename H, typename P >
+struct NTPayloadMessageSpecializer<H, P, true> {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with no address; handler has empty capture: " << __PRETTY_FUNCTION__;
   }
 };
 
-// Specializer for no-address message with payload and capture that fits in address bits
-template< typename H, typename P >
-struct NTPayloadMessageSpecializer<H, P, false, true > {
-  static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer ) {
-    LOG(INFO) << "Payload with no address; handler of size " << sizeof(H) << " fits in address field: " << __PRETTY_FUNCTION__;
-  }
-};
-
 // Specializer for no-address message with payload and capture that does not fit in address bits
 template< typename H, typename P >
-struct NTPayloadMessageSpecializer<H, P, false, false > {
+struct NTPayloadMessageSpecializer<H, P, false> {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with no address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__;
   }
@@ -377,10 +356,9 @@ struct NTPayloadAddressMessageHelper<H*,ARG,P> : std::false_type { };
 template< typename T, // address type
           typename H, // handler type
           typename P, // payload type
-          // if this is a function pointer or no-capture lambda, note whether it takes a pointer or reference argument
-          bool cast_to_voidstarptr = (std::is_convertible<H,void(*)(T*,P*,size_t)>::value),
-          bool cast_to_voidstarref = (std::is_convertible<H,void(*)(T&,P*,size_t)>::value),
-          // if this is a functor or lambda with capture, note whether it takes a pointer or reference argument
+          // is this a no-capture lambda?
+          bool empty_capture = std::is_empty<H>::value,
+          // does it takes a pointer or reference argument?
           bool operator_takes_ptr  = (NTPayloadAddressMessageHelper<H,T*,P>::value),
           bool operator_takes_ref  = (NTPayloadAddressMessageHelper<H,T&,P>::value) >
 struct NTPayloadAddressMessageSpecializer : public NTHeader {
@@ -389,16 +367,16 @@ struct NTPayloadAddressMessageSpecializer : public NTHeader {
 };
 
 // Specializer for no-capture message with address and payload; lambda takes pointer
-template< typename T, typename H, typename P, bool dontcare1, bool dontcare2 >
-struct NTPayloadAddressMessageSpecializer<T, H, P, true, false, dontcare1, dontcare2> {
+template< typename T, typename H, typename P >
+struct NTPayloadAddressMessageSpecializer<T, H, P, true, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes pointer and has empty capture: " << __PRETTY_FUNCTION__;
   }
 };
 
 // Specializer for no-capture message with address and payload; lambda takes reference
-template< typename T, typename H, typename P, bool dontcare1, bool dontcare2 >
-struct NTPayloadAddressMessageSpecializer<T, H, P, false, true, dontcare1, dontcare2> {
+template< typename T, typename H, typename P >
+struct NTPayloadAddressMessageSpecializer<T, H, P, true, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes reference and has empty capture: " << __PRETTY_FUNCTION__;
   }
@@ -406,7 +384,7 @@ struct NTPayloadAddressMessageSpecializer<T, H, P, false, true, dontcare1, dontc
 
 // Specializer for message with address, payload, and capture, lambda takes pointer
 template< typename T, typename H, typename P >
-struct NTPayloadAddressMessageSpecializer<T, H, P, false, false, true, false> {
+struct NTPayloadAddressMessageSpecializer<T, H, P, false, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes pointer and has non-empty capture: " << __PRETTY_FUNCTION__;
 
@@ -477,7 +455,7 @@ struct NTPayloadAddressMessageSpecializer<T, H, P, false, false, true, false> {
 
 // Specializer for message with address, payload, and capture, lambda takes reference
 template< typename T, typename H, typename P >
-struct NTPayloadAddressMessageSpecializer<T, H, P, false, false, false, true> {
+struct NTPayloadAddressMessageSpecializer<T, H, P, false, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes reference and has non-empty capture: " << __PRETTY_FUNCTION__;
   }
@@ -504,6 +482,9 @@ static Grappa::impl::NTBuffer placeholder;
 template< typename H >
 void send_new_ntmessage( Core destination, H handler ) {
   // placeholder API; should be updated to serialize into aggregation buffer
+  static_assert( std::is_empty<H>::value ||
+                 ! std::is_convertible<H,void(*)(void)>::value,
+                 "Function pointers not supported here; please wrap in a lambda." );
   Grappa::impl::NTMessageSpecializer<H>::send_ntmessage( destination, handler, &placeholder );
 }
 
@@ -511,6 +492,10 @@ void send_new_ntmessage( Core destination, H handler ) {
 template< typename T, typename H >
 void send_new_ntmessage( GlobalAddress<T> address, H handler ) {
   // placeholder API; should be updated to serialize into aggregation buffer
+  static_assert( std::is_empty<H>::value ||
+                 ! ( std::is_convertible<H,void(*)(T&)>::value ||
+                     std::is_convertible<H,void(*)(T*)>::value ),
+                 "Function pointers not supported here; please wrap in a lambda." );
   Grappa::impl::NTAddressMessageSpecializer<T,H>::send_ntmessage( address, handler, &placeholder );
 }
 
@@ -518,6 +503,9 @@ void send_new_ntmessage( GlobalAddress<T> address, H handler ) {
 template< typename H, typename P >
 void send_new_ntmessage( Core destination, P * payload, size_t count, H handler ) {
   // placeholder API; should be updated to serialize into aggregation buffer
+  static_assert( std::is_empty<H>::value ||
+                 ! std::is_convertible<H,void(*)(P*,size_t)>::value,
+                 "Function pointers not supported here; please wrap in a lambda." );
   Grappa::impl::NTPayloadMessageSpecializer<H,P>::send_ntmessage( destination, payload, count, handler, &placeholder );
 }
 
@@ -525,6 +513,10 @@ void send_new_ntmessage( Core destination, P * payload, size_t count, H handler 
 template< typename T, typename H, typename P >
 void send_new_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler ) {
   // placeholder API; should be updated to serialize into aggregation buffer
+  static_assert( std::is_empty<H>::value ||
+                 ! ( std::is_convertible<H,void(*)(T&,P*,size_t)>::value ||
+                     std::is_convertible<H,void(*)(T*,P*,size_t)>::value ),
+                 "Function pointers not supported here; please wrap in a lambda." );
   Grappa::impl::NTPayloadAddressMessageSpecializer<T,H,P>::send_ntmessage( address, payload, count, handler, &placeholder );
 }
 
