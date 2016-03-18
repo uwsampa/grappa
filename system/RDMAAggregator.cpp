@@ -301,7 +301,7 @@ namespace Grappa {
       }
 
       // where can NTBuffer start storing data?
-      NTBuffer::set_initial_offset( 4 ); // TODO: for now we say 32 bytes.
+      NTBuffer::set_initial_offset( 32 ); // TODO: for now we say 32 bytes.
       ntbuffers_ = new NTBuffer[ global_communicator.cores ];
     }
     
@@ -1335,7 +1335,7 @@ void RDMAAggregator::draw_routing_graph() {
     b->deserializer = (void*) &enqueue_buffer_am;
     b->context.callback = [] ( CommunicatorContext * c, int source, int tag, int received_size ) {
       DVLOG(4) << "Got callback for " << c;
-      free( c->buf );
+      NTBuffer::free_buffer( c->buf );
     };
     b->context.buf = (void*) b;
     b->context.size = b->get_max_size();

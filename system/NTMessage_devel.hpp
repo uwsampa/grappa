@@ -134,17 +134,6 @@ struct NTHeader {
     };
     uint64_t raw_[2]; // for size/alignment
   };
-  // NTHeader(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
-  // NTHeader(): dest_(-1), size_(0), fp_(0) { }
-  // NTHeader( const NTMessageBase& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
-  // NTHeader( NTMessageBase&& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
-
-  // static char * deserialize_and_call( char * t ) {
-  //   // TODO: what goes here? Specialize for various cases above
-  //   NTMessage<T> * tt = reinterpret_cast< NTMessage<T> * >( t );
-  //   tt->storage_();
-  //   return t + sizeof( NTMessage<T> );
-  // }
 }  __attribute__((aligned(8))); // TODO: verify alignment?
 
 static_assert( sizeof(NTHeader) == 16, "NTHeader seems to have grown beyond intended 16 bytes" );
@@ -232,7 +221,8 @@ struct NTMessageSpecializer<H, true> {
       (*fake_lambda_p)();
     }
 
-    return buf + sizeof( NTHeader );
+    size_t increment = round_up_to_n<8>( sizeof(NTHeader) );
+    return buf + increment;
   }
 };
 
@@ -420,7 +410,6 @@ struct NTPayloadAddressMessageSpecializer<T, H, P, false, true, false> {
       h.size_ = sizeof( H ) + sizeof( P ) * count;
       
       // Enqueue byte with header flag set. 
-      // TODO: add padding if necessary? Have NTBuffer do it?
       Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
       Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
       Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );

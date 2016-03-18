@@ -36,6 +36,8 @@
 
 #include "NTBuffer.hpp"
 
+DECLARE_string( vmodule );
+
 BOOST_AUTO_TEST_SUITE( NTBuffer_tests );
 
 static const int fill = 14;
@@ -48,11 +50,25 @@ struct tuple {
   int64_t c;
 };
 
+std::ostream & operator<<( std::ostream & o, const tuple & t ) {
+  return o << "{ " << t.a << ", " << t.b << ", " << t.c << " }";
+}
+
+#define GRAPPA_TEST_ARGS 
+
 BOOST_AUTO_TEST_CASE( test1 ) {
+  //FLAGS_vmodule="NT*=5";
+  google::ParseCommandLineFlags( &(boost::unit_test::framework::master_test_suite().argc),
+                                 &(boost::unit_test::framework::master_test_suite().argv),
+                                 true);
+  google::InitGoogleLogging( boost::unit_test::framework::master_test_suite().argv[0] );
+                                 
+
   Grappa::impl::NTBuffer b;
   LOG(INFO) << "Size of tuple is " << sizeof(tuple);
   for( int i = 0; i < fill; ++i ) {
     tuple x = { i*1000 + 0, i*1000 + 1, i*1000 + 2 };
+    VLOG(2) << "Enqueueing " << i << ": " << x;
     nt_enqueue( &b, &x, sizeof(x) );
   }
 
@@ -61,11 +77,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   auto t = b.take_buffer();
   auto p = reinterpret_cast<tuple*>( std::get<0>( t ) );
   for( int i = 0; i < fill; ++i ) {
+    VLOG(2) << "Dequeued " << i << ": " << p[i];
     BOOST_CHECK_EQUAL( p[i].a, i*1000 + 0 );
     BOOST_CHECK_EQUAL( p[i].b, i*1000 + 1 );
     BOOST_CHECK_EQUAL( p[i].c, i*1000 + 2 );
   }
   for( int i = fill; i < max; ++i ) {
+    VLOG(2) << "Dequeued " << i << ": " << p[i];
     BOOST_CHECK_EQUAL( p[i].a, 0 );
     BOOST_CHECK_EQUAL( p[i].b, 0 );
     BOOST_CHECK_EQUAL( p[i].c, 0 );
