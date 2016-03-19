@@ -473,6 +473,9 @@ namespace Grappa {
 
       if( core_partner_locales_ ) delete [] core_partner_locales_;
       Grappa::impl::locale_shared_memory.deallocate( rdma_buffers_ );
+
+      // clean up NTBuffer pool
+      Grappa::impl::NTBuffer::cleanup_free_pool();
 #endif
     }
 
