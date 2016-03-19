@@ -41,6 +41,12 @@ class DoubleDHT {
       Entry( K key ) : key(key), vs(new std::vector<V>()) {}
       //Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
       Entry ( ) {}
+      void clear() { 
+        if (vs) {
+          delete vs; 
+          vs = NULL;
+        }
+      }
     };
 
     struct PairCell {
@@ -48,6 +54,23 @@ class DoubleDHT {
       std::list<Entry<VR>> * entriesRight;
 
       PairCell() : entriesLeft( NULL ), entriesRight( NULL ) {}
+
+      void clear() {
+        if (entriesLeft) {
+          for (auto e : *entriesLeft) {
+            e.clear();
+          }
+          delete entriesLeft; 
+          entriesLeft = NULL;
+        }
+        if (entriesRight) {
+          for (auto e : *entriesRight) {
+            e.clear();
+          }
+          delete entriesRight;
+          entriesRight = NULL;
+        }
+      }
     };
 
     template <typename V>
@@ -155,8 +178,13 @@ class DoubleDHT {
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, PairCell& c ) {
-        PairCell empty;
-        c = empty;
+        new (&c) PairCell();
+      });
+    }
+
+    void clear() {
+      Grappa::forall( base, capacity, []( PairCell& c ) {
+        c.clear();
       });
     }
 

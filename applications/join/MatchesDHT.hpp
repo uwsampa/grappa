@@ -67,13 +67,29 @@ class MatchesDHT {
       //BufferVector<V> * vs;
       Entry( K key ) : key(key), vs(new std::vector<V>()) {}
       //Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
-      Entry ( ) {}
+      Entry ( ) : vs(NULL) {}
+      void clear() { 
+        if (vs) {
+          delete vs;
+          vs = NULL;
+        }
+      }
     };
 
     struct Cell {
       std::list<Entry> * entries;
 
       Cell() : entries( NULL ) {}
+
+      void clear() {
+        if (entries) {
+          for (auto e : *entries) {
+            e.clear(); 
+          }
+          delete entries;
+          entries = NULL;
+        }
+      }
     };
 
     struct lookup_result {
@@ -133,11 +149,15 @@ class MatchesDHT {
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, Cell& c ) {
-        Cell empty;
-        c = empty;
+        new (&c) Cell();
       });
     }
 
+    void clear( ) {
+      Grappa::forall( base, capacity, []( Cell& c ) {
+        c.clear();   
+      });
+    }
 
     struct size_aligned {
       size_t s;

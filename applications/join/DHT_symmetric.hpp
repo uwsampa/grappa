@@ -54,6 +54,13 @@ class DHT_symmetric {
       return object;
     }
 
+    void clear() {
+      auto self_c = this->self;
+      Grappa::on_all_cores( [self_c] {
+        self_c->local_map->clear();
+      });
+    }
+
     template< typename UV, V (*UpF)(const V& oldval, const UV& incVal), V (*Init)(void) >
   void update_partition( K key, UV val ) {
       std::pair<K,V> entry(key, Init());
