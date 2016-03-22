@@ -56,9 +56,11 @@ GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, delegate_fetchadd_targets);
 GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, combinable_header_count);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, total_message_count);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint32_t>, stride);
+GRAPPA_DECLARE_METRIC(SummarizingMetric<uint64_t>, successful_stride);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint32_t>, prevCore);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, prevPointer);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, run_length);
+GRAPPA_DECLARE_METRIC(SimpleMetric<uint32_t>, stridin);
 
 namespace Grappa {
     /// @addtogroup Delegates
@@ -129,20 +131,28 @@ namespace Grappa {
 
     template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >
     inline auto call(GlobalAddress<T> t, F func, R (F::*mf)(T&) const) -> decltype(func(*t.pointer())) {
-#ifdef COMPRESSION_METS
+      //#ifdef COMPRESSION_METS
       total_message_count++;
       if ((uint64_t)t.pointer()-stride == prevPointer && t.core() == prevCore) {
         run_length++;
       } else {
+        if (run_length > 0) {
+          successful_stride += stride;
+        }
+        stride.reset();
         stride = (uint64_t)t.pointer() - prevPointer;
         combinable_header_count += run_length;
         // find end values in stats.json
-
-        run_length.reset();
+        
+        run_length.reset();;
+        // stridin.reset();
+        // run_length.reset();
       }
+      prevCore.reset();
       prevCore = t.core();
+      prevPointer.reset();
       prevPointer =(uint64_t)t.pointer();
-#endif
+      //#endif
       return delegate::call<S,C>(t.core(), [t,func]{ return func(*t.pointer()); });
     }
     template< SyncMode S, GlobalCompletionEvent * C, typename T, typename R, typename F >

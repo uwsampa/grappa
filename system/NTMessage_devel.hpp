@@ -114,7 +114,8 @@ struct NTHeader {
       //
       // TODO: rebalance these after collecting data
       //
-      
+      // separate into two possible structs (one with address, one without)
+           
       uint16_t size_  : 13; // overall message size (capture + payload). May be zero for no-capture, no-payload messages
 
       // TODO: how many messages can we practically combine?
@@ -125,7 +126,26 @@ struct NTHeader {
     };
     uint64_t raw_[2]; // for size/alignment
   };
-  // NTHeader(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
+
+  // AHHHH
+
+  // How to update the header of the initial NTHeader.
+  // - save pointer here? will the working header be copied/moved?
+  // - create method in NTBuffer:
+  //            // returns 0 on success, some error codes for failure
+  //            int increment_header(uint32_t fp) { 
+  //             // header is the mru header for the given destination core buffer
+  //             // needs work to make sure header is not yet in flight
+  //             // needs to be able to signal backout of combining
+  //               if (this_offset = my_addr - header->addr_ == header->offset)
+  //                 header->count_++;
+  //               else if (header->count_ == 0) {
+  //                 header->count++;
+  //                 header->offset_ = this_offset;
+  //               }
+  //             }
+  //                 
+  // NTHeader(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp){ }
   // NTHeader(): dest_(-1), size_(0), fp_(0) { }
   // NTHeader( const NTMessageBase& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
   // NTHeader( NTMessageBase&& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
@@ -400,5 +420,26 @@ void send_new_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H 
   // placeholder API; should be updated to serialize into aggregation buffer
   Grappa::impl::NTPayloadAddressMessageSpecializer<T,H,P>::send_ntmessage( address, payload, count, handler );
 }
+
+/// create a message to be squashed:
+//// With a capture, the message size should be sizeof(lambda) + optional size of dynamic argument:
+// * send_ntmessage( Core destination, [capture]                          { ; }                  );
+// * send_ntmessage( Core destination, [capture] (       U * u, size_t s) { ; }, U * u, size_t s );
+// With a capture, the message size should be sizeof(lambda) + optional sizeof(size of dynamic argument):
+// * send_ntmessage( GlobalAddress<T>, [capture] (T & t                 ) { ; }                  );
+// * send_ntmessage( GlobalAddress<T>, [capture] (T * t                 ) { ; }                  );
+// * send_ntmessage( GlobalAddress<T>, [capture] (T & t, U * u, size_t s) { ; }, U * u, size_t s );
+// * send_ntmessage( GlobalAddress<T>, [capture] (T * t, U * u, size_t s) { ; }, U * u, size_t s );
+template< typename T >
+inline void send_generic_ntmessage( Core dest, T t) {
+  uint64_t * tt = reinterpret_cast<uint64_t*>&t;
+  data__ = *tt;
+  NTMessage<T> m( dest, squash, (char*)&t+sizeof(squash));
+  
+  int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
+}
+
+  //you're gonna want to make a temp buffer, throw this new message in there, and then just throw it
+  // at nt_enqueue
 
 } // namespace Grappa
