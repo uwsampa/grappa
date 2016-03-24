@@ -32,6 +32,8 @@ set(QUERYLIB_SOURCES
   pipeline.hpp
   pipeline.cpp
   TemporaryTable.hpp
+  dowhile.hpp
+  dowhile.cpp
 )
 #FIXME: these MapReduce Hash joins belong in the above sources
   #HashJoin.hpp
