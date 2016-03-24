@@ -105,7 +105,9 @@ class DHT_symmetric {
     template < GlobalCompletionEvent * GCE, typename CF >
     void forall_entries( CF f ) {
       auto target = this->self;
-      Grappa::on_all_cores([target, f] {
+      GCE->enroll(Grappa::cores());
+      auto origin = Grappa::mycore();
+      Grappa::on_all_cores([target, f, origin] {
           // TODO: cannot use forall_here because unordered_map->begin() is a forward iterator (std::advance is O(n))
           // TODO: for now the serial loop is only performant if the continuation code is also in CPS
           // TODO: best solution is a forall_here where loop decomposition is just linear continuation instead of divide and conquer
@@ -123,8 +125,10 @@ class DHT_symmetric {
               Grappa::yield();
             }
           }
+          // block until async tasks are done
+          GCE->send_completion(origin);
+          GCE->wait();
       }); 
-      // TODO GCE->wait(); // block until all tasks are done
     }
 
     std::unordered_map<K,V,Hash> * get_local_map() {
