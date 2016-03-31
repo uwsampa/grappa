@@ -429,6 +429,13 @@ static inline void prefetcht2(const void *p) {
     __builtin_prefetch(p, 0, 1);
 }
 
+/// Round up to next largest multiple of n, if not already a multiple of n.
+template< size_t n >
+static constexpr size_t round_up_to_n( size_t value ) {
+  return (value + (n - 1)) & ~(n - 1);
+}
+
+
 }
 
 /// @}
