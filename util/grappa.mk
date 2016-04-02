@@ -77,8 +77,8 @@ GRAPPA_LINK_PATHS=-L$(GRAPPA_PREFIX)/lib ${GMAKE_LIB_PATHS_INSTALLED}
 GRAPPA_LDFLAGS=$(GRAPPA_LINK_FLAGS) $(GRAPPA_LINK_PATHS)
 
 # assign to LDLIBS for automatic builds using gmake default implicit rules
-GRAPPA_LDLIBS=${CMAKE_EXE_LINK_STATIC_CXX_FLAGS} ${GMAKE_STATIC_LIBS} \
-	${CMAKE_EXE_LINK_DYNAMIC_CXX_FLAGS} ${GMAKE_DYNAMIC_LIBS}
+GRAPPA_LDLIBS=${GMAKE_STATIC_LIBS} \
+	${GMAKE_DYNAMIC_LIBS}
 
 #############################################################################
 # support for implicit make rules

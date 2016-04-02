@@ -7,6 +7,8 @@ include(util/grappa.cmake)
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 option(PROFILING "Sample profile with GPerftools at regular intervals." OFF)
 
+option(ENABLE_RPATH "Set RPATH when building binaries." OFF)
+
 SET(GRAPPA_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Prefix prepended to install directories")
 SET(CMAKE_INSTALL_PREFIX "${GRAPPA_INSTALL_PREFIX}" CACHE INTERNAL "Prefix prepended to install directories" FORCE)
 
@@ -44,32 +46,6 @@ else()
   message(WARNING "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
 endif()
 
-###########################
-# Use RUNPATH if available
-# use, i.e. don't skip the full RPATH for the build tree
-set(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_RPATH}")
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-
-# the RPATH to be used when installing, but only if it's not a system directory
-list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
-if("${isSystemDir}" STREQUAL "-1") # not a system directory
-  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
-endif("${isSystemDir}" STREQUAL "-1")
-
-## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
-# set runpath, too
-# if(NOT APPLE)
-#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
-# endif()
-
-##### </RUNPATH> ########
-
 
 #############################################################################
 # configure profiling and tracing
@@ -100,7 +76,9 @@ if(TRACING)
   # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --as-needed --whole-archive -lvt --no-whole-archive --no-as-needed -lopen-trace-format -lz -lpapi -ldl -lm")
 
   if(NOT THIRD_PARTY_ROOT STREQUAL ${VAMPIR_ROOT})
-    set(CMAKE_INSTALL_RPATH "${VAMPIR_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+    if(ENABLE_RPATH)
+      set(CMAKE_INSTALL_RPATH "${VAMPIR_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+    endif()
   endif()
 endif()
 
@@ -132,7 +110,10 @@ else()
 endif()
 include_directories("${THIRD_PARTY_ROOT}/include")
 link_directories("${THIRD_PARTY_ROOT}/lib")
-set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+
+if(ENABLE_RPATH)
+  set(CMAKE_INSTALL_RPATH "${THIRD_PARTY_ROOT}/lib:${CMAKE_INSTALL_RPATH}")
+endif()
 
 
 #
@@ -356,12 +337,44 @@ endif()
 add_subdirectory(third-party)
 
 
+# RPATH causes problems on some systems, but is helpful on others. Make it an option
+if(ENABLE_RPATH)
+  ###########################
+  # Use RUNPATH if available
+  # use, i.e. don't skip the full RPATH for the build tree
+  set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+  # use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
+  # add the automatically determined parts of the RPATH
+  # which point to directories outside the build tree to the install RPATH
+  # set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+  
+  # the RPATH to be used when installing, but only if it's not a system directory
+  list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+  if("${isSystemDir}" STREQUAL "-1") # not a system directory
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
+  endif("${isSystemDir}" STREQUAL "-1")
+  
+  # not sure if this is useful any more, but what the heck.
+  foreach(lib ${Boost_LIBRARY_DIRS})
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${lib}")
+  endforeach()
+  
+  ## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
+  # set runpath, too
+  # if(NOT APPLE)
+  #   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+  # endif()
 
-# RPATH
-# not sure if this is useful any more, but what the heck.
-foreach(lib ${Boost_LIBRARY_DIRS})
-  set(CMAKE_INSTALL_RPATH "${lib}:${CMAKE_INSTALL_RPATH}")
-endforeach()
+
+  ##### </RUNPATH> ########
+
+else()
+  set(CMAKE_INSTALL_RPATH "")
+endif()
+
 
 
 
@@ -491,51 +504,68 @@ endif()
 ####################################
 # Build lists of library names and paths
 
-# static libs
-foreach(lib ${CMAKE_BINARY_DIR}/system/libGrappa.a ${GRAPPA_STATIC_LIBS})
-
-  # add directory to search paths
-  get_filename_component(dir ${lib} PATH)      # get directory for libs
-  list(APPEND GRAPPA_LIB_PATHS ${dir})
-  string(FIND "${dir}" "${CMAKE_BINARY_DIR}" STATIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
-  string(FIND "${dir}" "${THIRD_PARTY_ROOT}" STATIC_IN_TPR_DIR)    # -1 if not found, 0 if found
-  if(NOT STATIC_IN_BUILD_DIR EQUAL 0 AND NOT STATIC_IN_TPR_DIR EQUAL 0)
-    list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
+# fixup library lists in case things got added to the wrong one
+foreach(lib ${GRAPPA_DYNAMIC_LIBS})
+  get_filename_component(ext "${lib}" EXT)
+  if("${ext}" STREQUAL ".a")
+    list(APPEND GRAPPA_STATIC_LIBS "${lib}")
+  else()
+    list(APPEND GRAPPA_CLEANED_DYNAMIC_LIBS "${lib}")
   endif()
-
-  # add library to link list
-  get_filename_component(name ${lib} NAME_WE)  # remove any extension
-  string(SUBSTRING ${name} 3 -1 name)          # chop off "lib"
-  list(APPEND GRAPPA_STATIC_LIB_NAMES ${name})
-
-  # check for reasonable extension
-  get_filename_component(ext ${lib} EXT)
-  if(NOT ${ext} STREQUAL ".a")
-    message(WARNING "Static library found didn't have .a extension: ${lib}")
+endforeach()
+foreach(lib ${GRAPPA_STATIC_LIBS})
+  get_filename_component(ext "${lib}" EXT)
+  if("${ext}" STREQUAL ".so")
+    message(WARNING "Adding to dynamic list: ${lib}")
+    list(APPEND GRAPPA_DYNAMIC_LIBS "${lib}")
+  else()
+    list(APPEND GRAPPA_CLEANED_STATIC_LIBS "${lib}")
   endif()
 endforeach()
 
-# dynamic libs
-foreach(lib ${GRAPPA_DYNAMIC_LIBS})
+# generate list of dynamic libs
+foreach(lib ${GRAPPA_CLEANED_DYNAMIC_LIBS})
 
   # add directory to search paths
-  get_filename_component(dir ${lib} PATH)
-  list(APPEND GRAPPA_LIB_PATHS ${dir})
+  get_filename_component(dir "${lib}" PATH)
+  list(APPEND GRAPPA_LIB_PATHS "${dir}")
   string(FIND "${dir}" "${CMAKE_BINARY_DIR}" DYNAMIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
   string(FIND "${dir}" "${THIRD_PARTY_ROOT}" DYNAMIC_IN_TPR_DIR)    # -1 if not found, 0 if found
   if(NOT DYNAMIC_IN_BUILD_DIR EQUAL 0 AND NOT DYNAMIC_IN_TPR_DIR EQUAL 0)
-    list(APPEND GRAPPA_LIB_PATHS_INSTALLED ${dir})
+    list(APPEND GRAPPA_LIB_PATHS_INSTALLED "${dir}")
   endif()
 
   # add library to link list
-  get_filename_component(name ${lib} NAME_WE)
-  string(SUBSTRING ${name} 3 -1 name)
-  list(APPEND GRAPPA_DYNAMIC_LIB_NAMES ${name})
+  get_filename_component(name "${lib}" NAME_WE)
+  string(SUBSTRING "${name}" 3 -1 name)
+  list(APPEND GRAPPA_DYNAMIC_LIB_NAMES "${name}")
 
   # check for reasonable extension
-  get_filename_component(ext ${lib} EXT)
-  if(NOT ${ext} STREQUAL ".so")
+  get_filename_component(ext "${lib}" EXT)
+  if(NOT "${ext}" STREQUAL ".so")
     message(WARNING "Dynamic library found didn't have .so extension: ${lib}")
+  endif()
+endforeach()
+
+# static libs
+foreach(lib "${CMAKE_BINARY_DIR}/system/libGrappa.a" ${GRAPPA_CLEANED_STATIC_LIBS})
+
+  # add directory to search paths
+  get_filename_component(dir "${lib}" PATH)      # get directory for libs
+  list(APPEND GRAPPA_LIB_PATHS "${dir}")
+  string(FIND "${dir}" "${CMAKE_BINARY_DIR}" STATIC_IN_BUILD_DIR)  # -1 if not found, 0 if found
+  string(FIND "${dir}" "${THIRD_PARTY_ROOT}" STATIC_IN_TPR_DIR)    # -1 if not found, 0 if found
+  if(NOT STATIC_IN_BUILD_DIR EQUAL 0 AND NOT STATIC_IN_TPR_DIR EQUAL 0)
+    list(APPEND GRAPPA_LIB_PATHS_INSTALLED "${dir}")
+  endif()
+
+  # add library to link list (use full path for static linking)
+  list(APPEND GRAPPA_STATIC_LIB_NAMES "${lib}")
+
+  # check for reasonable extension
+  get_filename_component(ext "${lib}" EXT)
+  if(NOT "${ext}" STREQUAL ".a")
+    message(WARNING "Static library found didn't have .a extension: ${lib}")
   endif()
 endforeach()
 
@@ -553,16 +583,17 @@ list(REMOVE_DUPLICATES GRAPPA_LIB_PATHS_INSTALLED)
 string(REPLACE ";" " \\\n\t${CMAKE_LIBRARY_PATH_FLAG}" GMAKE_LIB_PATHS_INSTALLED ";${GRAPPA_LIB_PATHS_INSTALLED}")
 
 list(REMOVE_DUPLICATES GRAPPA_STATIC_LIB_NAMES)
-string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
+string(REPLACE ";" " \\\n\t" GMAKE_STATIC_LIBS ";${GRAPPA_STATIC_LIB_NAMES}")
 
 list(REMOVE_DUPLICATES GRAPPA_DYNAMIC_LIB_NAMES)
 string(REPLACE ";" " \\\n\t${CMAKE_LINK_LIBRARY_FLAG}" GMAKE_DYNAMIC_LIBS ";${GRAPPA_DYNAMIC_LIB_NAMES}")
 
 # fill in prototype file and place in build directory
-configure_file(util/grappa.mk util/grappa.mk)
+configure_file("util/grappa.mk" "util/grappa.mk")
 
 #
 # Installation
 #
-install(FILES ${CMAKE_BINARY_DIR}/util/grappa.mk         DESTINATION "share/Grappa/")
+install(FILES "${CMAKE_BINARY_DIR}/util/grappa.mk"
+        DESTINATION "share/Grappa/")
 

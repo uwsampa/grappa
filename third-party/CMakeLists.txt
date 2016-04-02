@@ -70,23 +70,21 @@ endif()
 
 if( NOT GFLAGS_FOUND )
   if(NOT "${CMAKE_THIRD_PARTY_TARFILE}" STREQUAL "")
-      set(URL "${THIRD_PARTY_DOWNLOADS}/gflags-2.0-no-svn-files.tar.gz")
+      set(URL "${THIRD_PARTY_DOWNLOADS}/v2.1.2.tar.gz")
   else()
-      set(URL "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz")
+      set(URL "http://github.com/gflags/gflags/archive/v2.1.2.tar.gz")
   endif()
   message("    gflags: <building>")
+
   ExternalProject_Add( third-party-gflags
     URL                ${URL}
     ##URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821  # ignored to support older cmake
-    SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
+    SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.1.2
     PREFIX             ${EXTERN_BUILD_DIR}/gflags
     STAMP_DIR          ${EXTERN_STAMP_DIR}/gflags
     BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
-    CONFIGURE_COMMAND
-      CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} CFLAGS=-g ${APPLE_CXXFLAGS} <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-    BUILD_COMMAND      make -j 4
-    INSTALL_COMMAND    make install
+    CMAKE_ARGS         "${CMAKE_ARGS};-DBUILD_SHARED_LIBS=OFF;-DBUILD_STATIC_LIBS=ON;-DBUILD_gflags_LIB=ON;-DBUILD_gflags_nothreads_LIB=ON;-DBUILD_TESTING=OFF;-DBUILD_PACKAGING=OFF;-DBUILD_NC_TESTS=OFF;-DINSTALL_HEADERS=ON;-DCMAKE_INSTALL_PREFIX=${THIRD_PARTY_ROOT}"
   )
   list(APPEND tool_list third-party-gflags)
 else()
@@ -105,7 +103,8 @@ if( NOT GLOG_FOUND )
     BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
     INSTALL_DIR        ${THIRD_PARTY_ROOT}
     CONFIGURE_COMMAND
-      CC=${BASE_C_COMPILER} CXX=${BASE_CXX_COMPILER} ${APPLE_CXXFLAGS} CFLAGS=-g CXXFLAGS=-g CFLAGS=-I${THIRD_PARTY_ROOT}/include CXXFLAGS=-I${THIRD_PARTY_ROOT}/include LDFLAGS=-L${THIRD_PARTY_ROOT}/lib <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+      CC=${THIRD_PARTY_C_COMPILER} CXX=${THIRD_PARTY_CXX_COMPILER} <SOURCE_DIR>/configure --enable-shared=no --prefix=<INSTALL_DIR>  GFLAGS_CFLAGS="-I${THIRD_PARTY_ROOT}/include" GFLAGS_LIBS="${THIRD_PARTY_ROOT}/lib/libgflags.a"
+
     BUILD_COMMAND      make -j 4
     INSTALL_COMMAND    make install
     DEPENDS third-party-gflags

@@ -9,6 +9,8 @@ opt.mode      = 'Release'
 opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
 opt.third_party = ENV['GRAPPA_THIRD_PARTY']
+opt.third_party_cc  = ''
+opt.third_party_cxx = ''
 
 # verify we're running a supported ruby version
 required_version = '1.9.3'
@@ -19,8 +21,6 @@ if (av_arr <=> rv_arr) < 0
 end
 
 case `hostname`
-when /n[\d+]/
-  opt.boost = "/sampa/share/gcc-4.7.2/src/boost_1_51_0"
 when /pal/
   opt.boost = "~nels707/boost153-install"
 end
@@ -39,29 +39,52 @@ OptionParser.new{|p|
   p.on('--profiling',"Enable gperftools-based sampled profiling."){|b| opt.profiling = true }
   p.on('--vampir=path/to/vampirtrace/root',"Specify path to VampirTrace build (enables tracing)."){|p| opt.vampir = p; opt.tracing = true }
   p.on('--third-party=path/to/built/deps/root',"Can optionally pre-build third-party dependencies #{line_break}instead of re-building for each configuration."){|p| opt.third_party = p }
+  p.on('--third-party-cc=path/to/c/compiler','Use alternative C compiler just for third-party builds.'){|p| opt.third_party_cc = p; }
+  p.on('--third-party-cxx=path/to/c++/compiler','Use alternative C++ compiler just for third-party builds.'){|p| opt.third_party_cxx = p; }
   p.on('--build-here', "Just configure into current directory rather than creating new build directories."){|b| opt.build_here = true }
   p.on('--third-party-tarfile=/path/to/file.tar', "Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website)."){|p| opt.third_party_tarfile = p }
+  p.on('--enable_rpath', "Set RPATH on binaries to help them find necessary libraries."){|b| opt.enable_rpath = true }
   p.on('--verbose', "Output verbose configure information."){|b| opt.verbose = true }
   p.on('--prefix=path/to/installed/grappa',"Specify destination for Grappa installation (default=/opt/grappa)."){|p| opt.install_prefix = p }
 }.parse!(ARGV)
 
-if opt.used_cc_flag
+if opt.used_cc_flag && not(opt.used_cxx_flag)
   # automatically determine cxx from --cc
   case opt.cc
-  when /gcc/
+  when /gcc$/
     opt.cxx = opt.cc.gsub(/gcc$/,'g++')
-  when /clang/
+  when /clang$/
     opt.cxx = opt.cc.gsub(/clang$/,'clang++')
   end
 end
 
-if opt.used_cxx_flag
+if opt.used_cxx_flag && not(opt.used_cc_flag)
   # automatically determine cc from --cxx
   case opt.cxx
-  when /g\+\+/
+  when /g\+\+$/
     opt.cc = opt.cxx.gsub(/g\+\+$/,'gcc')
-  when /clang\+\+/
+  when /clang\+\+$/
     opt.cc = opt.cxx.gsub(/clang\+\+$/,'clang')
+  end
+end
+
+if opt.third_party_cc != '' && opt.third_party_cxx == ''
+  # automatically determine cxx from --cc
+  case opt.third_party_cc
+  when /gcc$/
+    opt.third_party_cxx = opt.third_party_cc.gsub(/gcc$/,'g++')
+  when /clang$/
+    opt.third_party_cxx = opt.third_party_cc.gsub(/clang$/,'clang++')
+  end
+end
+
+if opt.third_party_cxx != '' && opt.third_party_cc == ''
+  # automatically determine cc from --cxx
+  case opt.third_party_cxx
+  when /g\+\+$/
+    opt.third_party_cc = opt.third_party_cxx.gsub(/g\+\+$/,'gcc')
+  when /clang\+\+$/
+    opt.third_party_cc = opt.third_party_cxx.gsub(/clang\+\+$/,'clang')
   end
 end
 
@@ -137,9 +160,20 @@ def configure(generator, mode, opt)
     args << "-DBASE_C_COMPILER=#{opt.cc}"
     args << "-DBASE_CXX_COMPILER=#{opt.cxx}"
   end
-  
+
   args << "-DTHIRD_PARTY_ROOT:PATH=#{opt.third_party}" if opt.third_party
-  
+
+  if opt.third_party_cc == ''
+    opt.third_party_cc = opt.cc
+  end
+     
+  if opt.third_party_cxx == ''
+    opt.third_party_cxx = opt.cxx
+  end
+     
+  args << "-DTHIRD_PARTY_C_COMPILER=#{opt.third_party_cc}"
+  args << "-DTHIRD_PARTY_CXX_COMPILER=#{opt.third_party_cxx}"
+
   if mode
     # note: use 'RelWithDebInfo' because it adds '-g'...
     args << "-DCMAKE_BUILD_TYPE=" + {'Debug'=>'Debug', 'Release'=>'RelWithDebInfo'}[mode]
@@ -151,6 +185,10 @@ def configure(generator, mode, opt)
     args << "-DBOOST_ROOT=#{opt.boost}"
   end
   
+  if opt.enable_rpath
+    args << "-DENABLE_RPATH=ON"
+  end
+
   if opt.verbose
     args << "-DVERBOSE=ON"
   end

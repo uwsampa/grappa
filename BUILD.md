@@ -18,8 +18,8 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
     # in `build/Make+Release`
     make graph_new.exe
     # generates <project_root>/build/Make+Release/applications/graph500/grappa/graph_new.exe
-    # to run, use the 'srun' script which has been copied to build/Make+Release/bin:
-    bin/grappa_srun --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
+    # now run as you would any other MPI job. If your cluster uses Slurm, do:
+    srun --nodes=4 --ntasks-per-node=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
 
 This is the simplest build configuration. You are likely to want to specify more things, such as a specific compiler, a directory for already-installed dependencies so you don't have to rebuild them for each new configuration, and more. So read on.
 
@@ -40,6 +40,7 @@ You must have a Linux system with the following installed to be able to build Gr
     * MVAPICH2 >= 1.9
     * MPICH >= 3.1
     * Intel MPI >= 5.0.2.044
+    * Cray MPT >= 6.0, probably (tested with 7.1.3)
 
 The following dependencies are dealt with automatically. You may want to override the default behavior for your specific system as described in the next section, especially in the case of Boost (if you already have a copy in a non-standard place).
 
@@ -69,22 +70,32 @@ The `configure` script creates a new "build/*" subdirectory and runs CMake to ge
                                    Default: Make.
                                    Can specify multiple with commas.
     --mode=[Release]|Debug[,*]   Build mode. Default: Release (with debug symbols)
-    --cc=path/to/c/compiler      Use alternative C compiler.
+    --cc=path/to/c/compiler      Use alternative C compiler (infer C++ compiler from this path).
+    --cxx=path/to/c++/compiler   Use alternative C++ compiler (infer C compiler from this path).
     --boost=path/to/boost/root   Specify location of compatible boost (>= 1.53)
                                    (otherwise, cmake will download and build it)
-    --name=NAME                  Add an additional name to this configuration to distinguish it 
-                                   (i.e. compiler version)
-    --tracing                    Enable VampirTrace/gperftools-based sampled tracing. Looks for
-                                   VampirTrace build in 'third-party' dir.
+    --name=NAME                  Add an additional name to this configuration to 
+                                   distinguish it (i.e. compiler version)
+    --tracing                    Enable VampirTrace/gperftools-based sampled tracing. 
+                                   Looks for VampirTrace build in 'third-party' dir.
+    --profiling                  Enable gperftools-based sampled profiling.
     --vampir=path/to/vampirtrace/root
                                  Specify path to VampirTrace build (enables tracing).
     --third-party=path/to/built/deps/root
-                                 Can optionally pre-build third-party dependencies instead of 
-                                   re-building for each configuration.
+                                 Can optionally pre-build third-party dependencies 
+                                   instead of re-building for each configuration.
+    --third-party-cc=path/to/c/compiler
+                                 Use alternative C compiler just for third-party builds.
+    --third-party-cxx=path/to/c++/compiler
+                                 Use alternative C++ compiler just for third-party builds.
+    --build-here                 Just configure into current directory rather than creating new build directories.
     --third-party-tarfile=/path/to/file.tar
                                  Instead of downloading third-party dependences from the web, extract them from the specified tar file (available from Grappa website).
-    --prefix=path/to/grappa/installation
+    --enable_rpath               Set RPATH on binaries to help them find necessary libraries.
+    --verbose                    Output verbose configure information.
+    --prefix=path/to/installed/grappa
                                  Specify destination for Grappa installation (defaults to inside build directory).
+
 
 To build, after calling `configure`, cd into the generated directory, and use the build tool selected (e.g. `make` or `ninja`), specifying the desired target (e.g. `graph_new.exe` to build the new Graph500 implementation, or `check-New_delegate_tests` to run the delegate tests, or `demo-gups.exe` to build the GUPS demo).
 
@@ -107,13 +118,29 @@ CMake will download and build `gflags`, `boost`, and `gperfools`. It will build 
 
 The external dependencies can be shared between Grappa configurations. If you specify a directory to `--third-party`, CMake will build and install the dependencies there, and then any other configurations will reuse them. Sometimes this won't work; for instance, if using two different compilers, you may have difficulty sharing a third-party directory. If this happens, just make a new third-party directory and rebuild them using the new configuration, or don't specify it and have this configuration build them just for itself.
 
-Because Boost takes the longest to compile and is often included in systems, Boost can be specified separately from the other third-party installs. Existing system installs of the other dependencies should typically *not* be relied on.
+Because Boost takes the longest to compile and is often included in systems, Boost can be specified separately from the other third-party installs. You can use the ```--boost``` argument to ```configure``` to point at an existing Boost installation.
+
+Existing system installs of the other dependencies should typically *not* be relied on.
 
 ### No web access for third-party dependencies
 
 If you want to build Grappa on a machine without access to the web, and that machine doesn't already have all the third-party libraries installed that Grappa needs, you'll have to provide the source archives for those dependences yourself. 
 
 To do so, download this file: [http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar](http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar). Then run ```configure``` with the option ```--third-party-tarfile=</path/to/file.tar>``` pointing at the tarfile.
+
+### Building on a Cray XC
+
+Cray provides helpful compiler wrapper scripts (```cc``` and ```CC```) that cause problems with some of the third-party dependences, so the ```configure``` script allows you to specify separate compilers for the dependences with the ```--third-party-cc``` and ```-third-party-cxx``` flags. Since the Cray C++ compiler is not supported, you'll need to use GCC or another supported compiler instead. Here's an example of how to build on a Cray XC:
+
+```
+module load cmake ruby
+module swap PrgEnv-cray PrgEnv-gnu
+./configure --cc=`which cc` --cxx=`which CC` --third-party-cc=`which gcc` --third-party-cxx=`which g++`
+cd build/Make+Release
+make -j16 && make install
+```
+
+Note that due to problems with dynamic linking, Grappa's unit tests don't build properly on a Cray XC yet.
 
 ## Installing Grappa
 
@@ -169,6 +196,14 @@ We've made it easier to use Grappa as a library by providing a GNU Make include 
 
    An example of the first usage is included in the directory ```applications/demos/standalone```.
 
+## Finding libraries; RPATH; RUNPATH
+
+A standard problem when running MPI jobs is making sure the binary is able to find all the shared libraries it needs. Some systems are good about propagating the user's environment to all the job's processes (we've had good experiences with Slurm); but some require setting environment variables like ```LD_LIBRARY_PATH``` manually, which quickly gets complicated. Ideally we'd just build all binaries as static, but some MPI distributions make this difficult.
+
+To make this easier, you can pass the argument ```--enable_rpath``` to the configure script, and Grappa will be configured to set the ```RPATH``` search path in binaries it builds. This is not a foolproof solution. In particular, it overrides any ```LD_LIBRARY_PATH``` variable set in the environment. For this reason, this feature is disabled by default.
+
+If your binaries have trouble finding libraries when you run them, try reconfiguring/rebuilding with ```--enable_rpath```.
+
 ## CMake Notes
 A couple notes about adding new targets for CMake to build. First: each directory where something is built should typically have a `CMakeLists.txt` file. Somewhere up the directory hierarchy, this directory must be 'added'. For instance, applications directories are added from `applications/CMakeLists.txt`:
 
@@ -212,7 +247,7 @@ To make it easy to prototype ideas, there's a directory in root: `scratch`. Any 
     make rebuild_cache
     # then...
     make scratch-test.exe
-    bin/grappa_srun --nnode=2 --ppn=1 -- scratch/scratch-test.exe
+    srun --nodes=2 --ntasks-per-node=1 -- scratch/scratch-test.exe
 
 ### Demos
 Similar to the scratch directory, all sub-directories in the `applications/demos` directory will be searched for `.cpp` files, and added as targets (`demo-#{base_name}.exe`). (note: search is not recursive, just one level of subdirectory).

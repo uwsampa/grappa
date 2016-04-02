@@ -48,13 +48,13 @@ cd build/Make+Release
 make demo-hello_world
 ```
 
-Now you should have a binary which you can launch as an MPI job. If you have Slurm installed on your system, you can use our convenient job-launch script:
+Now you should have a binary which you can launch as an MPI job. If you have Slurm installed on your system, you should be able to do:
 
 ```bash
-bin/grappa_srun --nnode=2 --ppn=2 -- applications/demos/hello_world/hello_world.exe
+srun --nodes=2 --ntasks-per-node=2 -- applications/demos/hello_world/hello_world.exe
 ```
 
-Otherwise, just source ```bin/settings.sh``` and run as a MPI job on your system.
+If you don't have Slurm, just run like you would any other MPI job. 
 
 For more detailed instructions on building Grappa, see [BUILD.md](BUILD.md).
 
