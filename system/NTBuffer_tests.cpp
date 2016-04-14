@@ -88,6 +88,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( p[i].b, 0 );
     BOOST_CHECK_EQUAL( p[i].c, 0 );
   }
+
+  Grappa::impl::NTBuffer::cleanup_free_pool();
 }
 
 BOOST_AUTO_TEST_SUITE_END();

@@ -134,7 +134,15 @@ struct NTHeader {
     };
     uint64_t raw_[2]; // for size/alignment
   };
-  __attribute__((aligned(8))); // TODO: verify alignment?
+
+  inline const size_t next_offset() const {
+    /// We want all message headers to start on 8-byte alignment, but
+    /// captures and payloads may be only a byte; round up if
+    /// necessary. NTBuffer takes care of this during aggregation.
+    return round_up_to_n<8>( sizeof(NTHeader) + this->count_ * this->size_ );
+  }
+  
+}  __attribute__((aligned(8))); // TODO: verify alignment?
 
 static_assert( sizeof(NTHeader) == 16, "NTHeader seems to have grown beyond intended 16 bytes" );
 
@@ -218,13 +226,12 @@ struct NTMessageSpecializer<H, true> {
     // lambda type.
     auto dummy         = [] { ; };
     auto fake_lambda_p = reinterpret_cast< H * >( &dummy );
-    
+
     for( int i = 0; i < header_p->count_; ++i ) {
       (*fake_lambda_p)();
     }
 
-    size_t increment = round_up_to_n<8>( sizeof(NTHeader) );
-    return buf + increment;
+    return buf + header_p->next_offset();
   }
 };
 
@@ -436,11 +443,7 @@ struct NTPayloadAddressMessageSpecializer<H, T, P, false, true, false> {
       address += offset;
     }
         
-    /// We want all message headers to start on 8-byte alignment, but
-    /// captures and payloads may be only a byte; round up if
-    /// necessary. Aggregation code should do the same.
-    size_t increment = round_up_to_n<8>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
-    return buf + increment;
+    return buf + header_p->next_offset();
   }
 };
 

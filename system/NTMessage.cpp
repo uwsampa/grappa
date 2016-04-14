@@ -34,30 +34,70 @@ char * deaggregate_nt_buffer( char * buf, size_t size ) {
   return buf;
 }
 
+
+/// Extract address field from NTMessage header and prefetch it.
+static inline void prefetch_header( NTHeader * header_p ) {
+  // remind system this cacheline and the next are nontemporal
+  _mm_prefetch( header_p  , _MM_HINT_NTA );
+  _mm_prefetch( header_p+1, _MM_HINT_NTA );
+
+  // get address field from header and prefetch
+  int64_t addr_int = header_p->addr_;
+  auto addr        = reinterpret_cast< void * >( addr_int );
+  _mm_prefetch( addr, _MM_HINT_NTA ); // TODO: is T0 or NTA better here?
+}
+
+/// Deserialize and execute message given by header pointer.
+static inline void execute_header( NTHeader * header_p ) {
+  // remind system this cacheline is nontemporal
+  _mm_prefetch( header_p, _MM_HINT_NTA );
+
+  if( 0 == header_p->count_ ) { // if message is empty, skip it.
+    DVLOG(5) << "Skipping " << header_p << ": " << *header_p;
+  } else {                      // otherwise, deserialize and execute it.
+    DVLOG(5) << "Deserializing at " << header_p << ": " << *header_p;
+    uint64_t fp_int = header_p->fp_;
+    auto deserializer = reinterpret_cast< deserializer_t >( fp_int );
+    (*deserializer)( reinterpret_cast<char*>( header_p ) );
+  }
+}
+
 char * deaggregate_new_nt_buffer( char * buf, size_t size ) {
-  LOG(INFO) << "Deserializing " << size << " bytes at " << (void*) buf;
+  DVLOG(5) << "Deserializing " << size << " bytes at " << (void*) buf;
+
+  char * prefetch  = buf;
   const char * end = buf + size;
+
+  const int PREFETCH_DISTANCE = 5; // TODO: measure and tune
+
+  // start by prefetching some cachelines from the buffer
+  _mm_prefetch( buf +   0, _MM_HINT_NTA );
+  _mm_prefetch( buf +  64, _MM_HINT_NTA );
+  _mm_prefetch( buf + 128, _MM_HINT_NTA );
+  _mm_prefetch( buf + 192, _MM_HINT_NTA );
+  
+  // issue initial prefetches of address fields
+  for( int i = 0; i < PREFETCH_DISTANCE; ++i ) {
+    auto header_p = reinterpret_cast< NTHeader * >( prefetch );
+    prefetch_header( header_p );
+    prefetch += header_p->next_offset();
+  }
+
+  // now start deserializing from the beginning while still prefetching ahead.
   while( buf < end ) {
-#ifdef USE_NT_OPS
-    _mm_prefetch( buf, _MM_HINT_NTA );
-    _mm_prefetch( buf+64, _MM_HINT_NTA );
-#endif
-    auto header_p   = reinterpret_cast< NTHeader * >( buf );
-    if( 0 == header_p->count_ ) {
-      LOG(INFO) << "Skipping " << (void*) buf << ": " << *header_p;
-      buf += sizeof( NTHeader );
-    } else {
-      uint64_t fp_int = header_p->fp_;
-      if( fp_int < 0 ) {  // no-capture case
-        //if( header_p->size_ > 0 ) { // no-capture payload case
-        ;
-      } else {
-        LOG(INFO) << "Deserializing at " << (void*) buf << ": " << *header_p;
-        auto deserializer         = reinterpret_cast< deserializer_t >( fp_int );
-        buf                       = (*deserializer)( buf );
-      }
+    // deserialize and execute
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    execute_header( header_p );
+    buf += header_p->next_offset();
+
+    // prefetch farther ahead
+    if( prefetch < end ) {
+      auto header_p = reinterpret_cast< NTHeader * >( prefetch );
+      prefetch_header( header_p );
+      prefetch += header_p->next_offset();
     }
   }
+  
   return buf;
 }
 

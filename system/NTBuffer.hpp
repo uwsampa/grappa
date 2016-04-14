@@ -150,6 +150,15 @@ public:
     //free( buf );
   }
 
+  /// free all buffers on free pool.
+  static void cleanup_free_pool( ) {
+    while( buffer_pool_ ) {
+      uint8_t * next = *(reinterpret_cast<uint8_t**>( buffer_pool_ ));
+      free( buffer_pool_ );
+      buffer_pool_ = next;
+    }
+  }
+
   /// Move any data in temporary cacheline-size buffer to main
   /// buffer. Pad remaining bytes in cache line with zeros.
   ///
