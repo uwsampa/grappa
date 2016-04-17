@@ -514,25 +514,4 @@ void send_new_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H 
   Grappa::impl::NTPayloadAddressMessageSpecializer<H,T,P>::send_ntmessage( address, payload, count, handler, &placeholder );
 }
 
-/// create a message to be squashed:
-//// With a capture, the message size should be sizeof(lambda) + optional size of dynamic argument:
-// * send_ntmessage( Core destination, [capture]                          { ; }                  );
-// * send_ntmessage( Core destination, [capture] (       U * u, size_t s) { ; }, U * u, size_t s );
-// With a capture, the message size should be sizeof(lambda) + optional sizeof(size of dynamic argument):
-// * send_ntmessage( GlobalAddress<T>, [capture] (T & t                 ) { ; }                  );
-// * send_ntmessage( GlobalAddress<T>, [capture] (T * t                 ) { ; }                  );
-// * send_ntmessage( GlobalAddress<T>, [capture] (T & t, U * u, size_t s) { ; }, U * u, size_t s );
-// * send_ntmessage( GlobalAddress<T>, [capture] (T * t, U * u, size_t s) { ; }, U * u, size_t s );
-template< typename T >
-inline void send_generic_ntmessage( Core dest, T t) {
-  uint64_t * tt = reinterpret_cast<uint64_t*>&t;
-  data__ = *tt;
-  NTMessage<T> m( dest, squash, (char*)&t+sizeof(squash));
-  
-  int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
-}
-
-  //you're gonna want to make a temp buffer, throw this new message in there, and then just throw it
-  // at nt_enqueue
-
 } // namespace Grappa
