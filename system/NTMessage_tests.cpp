@@ -37,6 +37,8 @@
 #include "NTMessage.hpp"
 #include "NTMessage_devel.hpp"
 
+// make check-NTMessage_tests
+
 DECLARE_string( vmodule );
 
 #define PRINT 0
@@ -406,6 +408,28 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     Grappa::impl::NTMessageSpecializer< decltype(g) >::send_ntmessage( 0, g, &ntbuf );
 
     deserialize_helper( &ntbuf );
+  }
+
+  { // no capture, payload, address
+    LOG(INFO) << "no capture, payload, address";
+    Grappa::impl::NTBuffer ntbuf;
+
+    int64_t i = 0;
+    auto global_i = make_global( &i, 0 );
+    int payload = 1;
+    auto f = [] ( int64_t * i, int * payload, size_t size ) {
+      *i += *payload;
+    };
+
+    Grappa::impl::NTPayloadAddressMessageSpecializer< decltype(f), int64_t, int >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< decltype(f), int64_t, int >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< decltype(f), int64_t, int >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< decltype(f), int64_t, int >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+    Grappa::impl::NTPayloadAddressMessageSpecializer< decltype(f), int64_t, int >::send_ntmessage( global_i, &payload, 1, f, &ntbuf );
+
+    deserialize_helper( &ntbuf );
+
+    BOOST_CHECK_EQUAL( i, 5 );
   }
 
   { // capture, payload, address

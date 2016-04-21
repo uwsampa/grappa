@@ -326,6 +326,8 @@ struct NTPayloadMessageSpecializer<H, P, true> {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with no address; handler has empty capture: " << __PRETTY_FUNCTION__;
   }
+
+
 };
 
 // Specializer for no-address message with payload and capture that does not fit in address bits
@@ -370,7 +372,68 @@ template< typename H, typename T, typename P >
 struct NTPayloadAddressMessageSpecializer<H, T, P, true, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes pointer and has empty capture: " << __PRETTY_FUNCTION__;
+
+    Core destination = address.core();
+
+    auto fp = make_31bit( &NTPayloadAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTPayloadAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+
+    auto previous = static_cast < NTHeader * >( nt_get_previous( buffer ) );
+
+    if( previous && 
+        previous->dest_   == destination &&
+        previous->fp_     == fp &&
+        ( previous->offset_ == 0 ||
+          false ) ) { // TODO: fix offset test
+      // aggregate with previous header
+      previous->count_ += 1;
+      // TODO: update offset when appropriate
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      // copy new payload
+      Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );
+    } else {
+      // aggregate new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0;
+      h.fp_ = fp;
+      h.count_ = 1;
+      h.size_ = sizeof( P ) * count;
+
+      // Enqueue byte with header flag set.
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );
+    }
   }
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+    
+    auto data_p        = buf + sizeof(NTHeader);
+    auto address       = reinterpret_cast< T * >( header_p->addr_ );
+    auto dummy         = [] { ; };
+    auto fake_lambda_p = reinterpret_cast< H * >( &dummy );
+    
+    for( int i = 0; i < count; ++i ) {
+      auto payload_p = reinterpret_cast< P * >( data_p );
+      const auto payload_size = invocation_size;
+      (*fake_lambda_p)(address, payload_p, payload_size);
+      data_p  += invocation_size;
+      address += offset;
+    }
+    
+    /// We want all message headers to start on 8-byte alignment, but
+    /// captures and payloads may be only a byte; round up if
+    /// necessary. Aggregation code should do the same.
+    size_t increment = round_up_to_n<8>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
+    return buf + increment;
+  }
+
 };
 
 // Specializer for no-capture message with address and payload; lambda takes reference
@@ -378,6 +441,7 @@ template< typename H, typename T, typename P >
 struct NTPayloadAddressMessageSpecializer<H, T, P, true, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes reference and has empty capture: " << __PRETTY_FUNCTION__;
+
   }
 };
 
