@@ -42,7 +42,7 @@ int main( int argc, char * argv[] ) {
     
     on_all_cores([]{
       
-      LOG(INFO) << "Hello world from locale " << mylocale() << " core " << mycore();
+      LOG(INFO) << "Hello world from locale " << mylocale() << " core " << mycore() << " hostname " << hostname();
       
     });
     

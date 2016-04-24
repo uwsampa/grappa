@@ -18,8 +18,8 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
     # in `build/Make+Release`
     make graph_new.exe
     # generates <project_root>/build/Make+Release/applications/graph500/grappa/graph_new.exe
-    # to run, use the 'srun' script which has been copied to build/Make+Release/bin:
-    bin/grappa_srun --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
+    # to run, use whatever MPI job launch mechansim is provided on your system. Ours uses Slurm with srun, but there are many variants.
+    srun --nodes=4 --ntasks-per-node=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
 
 This is the simplest build configuration. You are likely to want to specify more things, such as a specific compiler, a directory for already-installed dependencies so you don't have to rebuild them for each new configuration, and more. So read on.
 
@@ -212,7 +212,7 @@ To make it easy to prototype ideas, there's a directory in root: `scratch`. Any 
     make rebuild_cache
     # then...
     make scratch-test.exe
-    bin/grappa_srun --nnode=2 --ppn=1 -- scratch/scratch-test.exe
+    srun --nodes=2 --ntasks-per-node=1 -- scratch/scratch-test.exe
 
 ### Demos
 Similar to the scratch directory, all sub-directories in the `applications/demos` directory will be searched for `.cpp` files, and added as targets (`demo-#{base_name}.exe`). (note: search is not recursive, just one level of subdirectory).
