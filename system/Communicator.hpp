@@ -330,6 +330,9 @@ inline const Locale mylocale() { return global_communicator.mylocale; }
 /// What shared memory domain does core c belong to?
 inline const Locale locale_of(Core c) { return global_communicator.locale_of(c); }
 
+/// What name does MPI think this node has?
+inline const char * hostname() { return global_communicator.hostname(); }
+
 /// @}
 
 }
