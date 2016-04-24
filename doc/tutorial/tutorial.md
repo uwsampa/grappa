@@ -33,7 +33,7 @@ When run with 4 cores (2 nodes, with 2 processes per node) using the Slurm launc
 
 ```bash
 > make tutorial-hello_world_1
-> bin/grappa_srun --nnode=2 --ppn=2 -- tutorial/hello_world_1.exe
+> bin/srun --nodes=2 --ntasks-per-node=2 -- tutorial/hello_world_1.exe
 Hello world from the root task!
 ```
 
@@ -73,7 +73,7 @@ This time when run on 4 cores, we may get output like this:
 
 ```bash
 > make tutorial-hello_world_2
-> bin/grappa_srun --nnode=2 --ppn=2 -- tutorial/hello_world_2.exe
+> bin/srun --nodes=2 --ntasks-per-node=2 -- tutorial/hello_world_2.exe
 Hello world from the root task!
 Hello world from Core 1 of 4 (locale 0)
 Hello world from Core 0 of 4 (locale 0)
@@ -135,7 +135,7 @@ std::cout << "\n";
 ```
 
 ```bash
-> grappa_srun --nnode=2 --ppn=2 -- tutorial/addressing_linear.exe
+> srun --nodes=2 --ntasks-per-node=2 -- tutorial/addressing_linear.exe
 [0: core 0] [1: core 0] [2: core 0] [3: core 0] [4: core 0] [5: core 0] [6: core 0] [7: core 0]
 [8: core 1] [9: core 1] [10: core 1] [11: core 1] [12: core 1] [13: core 1] [14: core 1] [15: core 1]
 [16: core 2] [17: core 2] [18: core 2] [19: core 2] [20: core 2] [21: core 2] [22: core 2] [23: core 2]
@@ -241,7 +241,7 @@ for (size_t i = 0; i < N; i += 10) {
 
 
 ```bash
-> make tutorial-delegates && bin/grappa_srun --nnode=2 --ppn=2 -- tutorial/delegates.exe
+> make tutorial-delegates && bin/srun --nodes=2 --ntasks-per-node=2 -- tutorial/delegates.exe
 0: [0] = 0, tan = 0
 0: [10] = 10, tan = 0.648361
 0: [20] = 20, tan = 2.23716

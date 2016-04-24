@@ -5,8 +5,8 @@ First of all, Grappa is a very young system, so there are likely to be many bugs
 
 * Build with `./configure --mode=Debug` to get better stack traces (note, you'll have to use a different CMake-generated build directory, but this prevents confusing situations where not all files were built for debug).
 * The Google logging library we use is *really* good at getting things in order and flushing correctly. Use them and trust them. Debugging verbosity can be changed per-file with `--vmodule`. See [their documentation](http://google-glog.googlecode.com/svn/trunk/doc/glog.html).
-* Grappa has support for suspending applications to allow you to attach to them in gdb. Calling `grappa_srun` with `--freeze-on-error` will enable this feature. If you are using another launcher, like mprirun, then set the environment variable GRAPPA_FREEZE_ON_ERROR=1.
-* **(TO BE FIXED SOON)** `system/grappa_gdb.macros`: Some useful macros for introspection into grappa data structures. Also allows you to switch to a running task and see its stack. Add the macro to your `.gdbinit` and type `help grappa` in gdb to see commands and usage.
+* Grappa has support for suspending applications to allow you to attach to them in gdb. Set the environment variable GRAPPA_FREEZE_ON_ERROR=1 before running your job to make this happen.
+* `system/grappa_gdb.macros`: Some useful macros for introspection into grappa data structures. Also allows you to switch to a running task and see its stack. Add the macro to your `.gdbinit` and type `help grappa` in gdb to see commands and usage.
 
 Performance debugging tips
 -------------------------------------------------------------------------------

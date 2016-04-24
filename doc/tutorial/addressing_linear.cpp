@@ -18,4 +18,4 @@ int main(int argc, char *argv[]) {
   finalize();
 }
 
-//> grappa_srun --nnode=2 --ppn=2 -- tutorial/addressing_linear.exe
+//> srun --nodes=2 --ntasks-per-node=2 -- tutorial/addressing_linear.exe

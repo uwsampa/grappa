@@ -1,10 +1,41 @@
 Running Grappa programs
 ===============================================================================
-Grappa jobs are run like any other MPI job. This process varies depending on how your cluster is configured and what version of MPI you use. The Grappa team primarily works on machines that use the Slurm scheduler, and thus we have built a tools to make it easy to run Grappa programs under Slurm. However, it is not necessary to use these tools to run Grappa jobs---as long as you make sure the right environment variables are set, any MPI job launcher will work.
+Grappa jobs are run like any other MPI job. This process varies depending on how your cluster is configured and what version of MPI you use. Here are some examples.
 
-Using Slurm and `grappa_srun`
+Note that running MPI jobs like Grappa is very system-dependent. Talk to your system administrator to learn the correct commands for running process-per-core jobs like Grappa apps.
+
+Slurm with srun
+---------------
+
+Most of the systems we run on allow MPI jobs to be launched with ```srun``` directly:
+
+```bash
+srun --nodes=2 --ntasks-per-node=2 -- applications/demos/hello_world/hello_world.exe
+```
+
+Slurm with salloc/mpirun
+------------------------
+
+Some MPI installations aren't configured to work with srun; instead, they require first getting an "allocation" from the scheduler and then calling "mpirun" or "mpiexec" inside that allocation:
+
+```bash
+salloc --nodes=2 --ntasks-per-node=2 -- mpirun applications/demos/hello_world/hello_world.exe
+```
+
+Mpirun with hostfile
+------------------------
+
+Some MPI installations aren't configured to work with srun; instead, they require first getting an "allocation" from the scheduler and then calling "mpirun" or "mpiexec" inside that allocation. On these systems you have to make sure the task count and host count are appropriate to get you whatever number of tasks per node you expect.
+
+```bash
+mpirun -n 4 -hosts=<list of 2 hosts> applications/demos/hello_world/hello_world.exe
+```
+
+Legacy information: using Slurm and `grappa_srun`
 -------------------------------------------------------------------------------
-The Ruby script `bin/grappa_srun` can be used to automatically manage the pesky `srun` flags and GASNET settings that are needed to run Grappa programs correctly on a number of machines that we've tested on. Try running `bin/grappa_srun --help` for more detailed usage information.
+The Grappa team built a tool with some shortcuts for running on machines they commonly use during the development process. It's not necessary to use this tool to run Grappa jobs---any MPI job launcher will work. These days, we usually just use ```srun``` directly.
+
+But for posterity, here's more info: the Ruby script `bin/grappa_srun` can be used to automatically manage the pesky `srun` flags that are needed to run Grappa programs correctly on a number of machines that we've tested on. Try running `bin/grappa_srun --help` for more detailed usage information.
 
 ### Running an application: ###
 ```bash
@@ -24,7 +55,3 @@ make -j check-New_delegate_tests
 make -j New_delegate_tests.test
 bin/grappa_srun --nnode=2 --ppn=2 --test=New_delegate_tests
 ```
-
-Using another MPI job launcher
--------------------------------------------------------------------------------
-You may use whatever mechanism you normally do to launch MPI jobs, but make sure you set the appropriate environment variables. Take a look at `bin/srun_prolog` and `bin/srun_epilog` to see what we do for Slurm.
