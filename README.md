@@ -72,8 +72,8 @@ Virtual machine images
 -------------------------------------------------------------------------------
 We have a couple other ways to try Grappa without installing it yourself!
 
-a. [grappa-docker](https://github.com/uwsampa/grappa-docker/): Grappa in a docker container
-b. [grappa-starcluster](https://github.com/uwsampa/grappa-starcluster): Grappa in the Amazon cloud
+* [grappa-docker](https://github.com/uwsampa/grappa-docker/): Grappa in a docker container
+* [grappa-starcluster](https://github.com/uwsampa/grappa-starcluster): Grappa in the Amazon cloud
 
 Getting Help
 -------------------------------------------------------------------------------
