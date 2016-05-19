@@ -240,7 +240,50 @@ template< typename H >
 struct NTMessageSpecializer<H, false> {
   static void send_ntmessage( Core destination, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "No address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__;
-    handler();
+
+    // 32 bits is actually okay for our current message format, but 31 bits should be all we need.
+    auto fp = make_31bit( &NTMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+
+    if( previous &&
+        previous->dest_ == destination &&
+        previous->fp_   == fp ) {
+      // aggregate with previous header
+      previous->count_ += 1;
+    } else {
+      // aggregate new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = 0; // don't care; unused in this message format
+      h.offset_ = 0; // don't care; unused in this message format
+      h.fp_ = fp;
+      h.count_ = 1; // increment if previous call was the same
+      h.size_ = sizeof(H);
+
+      // Enqueue byte with header flag set. No padding is necessary
+      // since headers are always 8-byte aligned.
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(H) );
+    }
+  }
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = buf + sizeof(NTHeader);
+
+    for( int i = 0; i < count; ++i) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      (*capture_p)();
+      data_p += invocation_size;
+    }
+
+    return buf + header_p->next_offset();
   }
 };
 
@@ -279,6 +322,54 @@ template< typename H, typename T >
 struct NTAddressMessageSpecializer<H, T, true, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has pointer and empty capture: " << __PRETTY_FUNCTION__;
+
+    Core destination = address.core();
+    
+    auto fp = make_31bit( &NTAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+    
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+    
+    if( previous &&
+        previous->dest_ == destination &&
+        previous->fp_   == fp ) {
+      // aggregate with previous header
+      previous->count_ += 1;
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    } else {
+      // aggregate a new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0; // unused
+      h.fp_ = fp;
+      h.count_ = 1;
+      h.size_ = sizeof( H ); // no-capture, no payload
+
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    }
+  }
+
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = buf + sizeof(NTHeader);
+    auto address = reinterpret_cast< T * >( header_p->addr_ );
+
+    for( int i = 0; i < count; ++i) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      (*capture_p)(address);
+      data_p += invocation_size;
+      address += offset;
+    }
+
+    return buf + header_p->next_offset();
   }
 };
 
@@ -287,6 +378,54 @@ template< typename H, typename T >
 struct NTAddressMessageSpecializer<H, T, true, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has reference and empty capture: " << __PRETTY_FUNCTION__;
+
+    Core destination = address.core();
+    
+    auto fp = make_31bit( &NTAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+    
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+    
+    if( previous &&
+        previous->dest_ == destination &&
+        previous->fp_   == fp ) {
+      // aggregate with previous header
+      previous->count_ += 1;
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    } else {
+      // aggregate a new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0; // unused
+      h.fp_ = fp;
+      h.count_ = 1;
+      h.size_ = sizeof( H ); // no-capture, no payload
+
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    }
+  }
+
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = buf + sizeof(NTHeader);
+    auto address = reinterpret_cast< T * >( header_p->addr_ );
+
+    for( int i = 0; i < count; ++i) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      (*capture_p)(*address);
+      data_p += invocation_size;
+      address += offset;
+    }
+
+    return buf + header_p->next_offset();
   }
 };
 
@@ -295,6 +434,54 @@ template< typename H, typename T >
 struct NTAddressMessageSpecializer<H, T, false, true, false> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has pointer and non-empty capture: " << __PRETTY_FUNCTION__;
+
+    Core destination = address.core();
+    
+    auto fp = make_31bit( &NTAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+    
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+    
+    if( previous &&
+        previous->dest_ == destination &&
+        previous->fp_   == fp ) {
+      // aggregate with previous header
+      previous->count_ += 1;
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    } else {
+      // aggregate a new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0; // unused
+      h.fp_ = fp;
+      h.count_ = 1;
+      h.size_ = sizeof( H ); // no-capture, no payload
+
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    }
+  }
+
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = buf + sizeof(NTHeader);
+    auto address = reinterpret_cast< T * >( header_p->addr_ );
+
+    for( int i = 0; i < count; ++i) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      (*capture_p)(address);
+      data_p += invocation_size;
+      address += offset;
+    }
+
+    return buf + header_p->next_offset();
   }
 };
 
@@ -303,6 +490,53 @@ template< typename H, typename T >
 struct NTAddressMessageSpecializer<H, T, false, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "GlobalAddress; handler has reference and non-empty capture: " << __PRETTY_FUNCTION__;
+    Core destination = address.core();
+    
+    auto fp = make_31bit( &NTAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+    
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+    
+    if( previous &&
+        previous->dest_ == destination &&
+        previous->fp_   == fp ) {
+      // aggregate with previous header
+      previous->count_ += 1;
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    } else {
+      // aggregate a new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0; // unused
+      h.fp_ = fp;
+      h.count_ = 1;
+      h.size_ = sizeof( H ); // no-capture, no payload
+
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+    }
+  }
+
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = buf + sizeof(NTHeader);
+    auto address = reinterpret_cast< T * >( header_p->addr_ );
+
+    for( int i = 0; i < count; ++i) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      (*capture_p)(*address);
+      data_p += invocation_size;
+      address += offset;
+    }
+
+    return buf + header_p->next_offset();
   }
 };
 
@@ -325,16 +559,123 @@ template< typename H, typename P >
 struct NTPayloadMessageSpecializer<H, P, true> {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with no address; handler has empty capture: " << __PRETTY_FUNCTION__;
+
+    // 32 bits is actually okay for our current message format, but 31 bits should be all we need.
+    auto fp = make_31bit( &NTPayloadMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTPayloadMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+
+    if( previous && 
+        previous->dest_   == destination &&
+        previous->fp_     == fp &&
+        ( previous->offset_ == 0 ||
+          false ) ) { // TODO: fix offset test
+      // aggregate with previous header
+      previous->count_ += 1;
+      // TODO: update offset when appropriate
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      // copy new payload
+      Grappa::impl::nt_enqueue( buffer, p, sizeof(P) );
+    } else {
+      // aggregate new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = 0; // don't care
+      h.offset_ = 0; // initial value
+      h.fp_ = fp;
+      h.count_ = 1; // increment if previous call was the same
+      h.size_ = sizeof( H ) + sizeof( P );
+      
+      // Enqueue byte with header flag set.
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      Grappa::impl::nt_enqueue( buffer, p, sizeof(P) );
+    }
   }
 
+  static char * deserialize_and_call( char * t ) {
+    auto header_p = reinterpret_cast< NTHeader * >( t );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
 
+    auto data_p = t + sizeof(NTHeader);
+
+    for( int i = 0; i < count; ++i ) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      auto payload_p = reinterpret_cast< P * >( data_p + sizeof(H) );
+      const auto payload_size = invocation_size - sizeof(H);
+      (*capture_p)(payload_p, payload_size);
+      data_p += invocation_size;
+    }
+
+    return t + header_p->next_offset();
+  }
 };
 
 // Specializer for no-address message with payload and capture that does not fit in address bits
 template< typename H, typename P >
 struct NTPayloadMessageSpecializer<H, P, false> {
   static void send_ntmessage( Core destination, P * p, size_t size, H handler, NTBuffer * buffer ) {
-    LOG(INFO) << "Payload with no address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__;
+    LOG(INFO) << "Payload with no address; handler of size " << sizeof(H) << " too big for address field: " << __PRETTY_FUNCTION__<<"right here right now";
+     
+    
+    // 32 bits is actually okay for our current message format, but 31 bits should be all we need.
+    auto fp = make_31bit( &NTPayloadMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTPayloadMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+
+    if( previous && 
+        previous->dest_   == destination &&
+        previous->fp_     == fp &&
+        ( previous->offset_ == 0 ||
+          false ) ) { // TODO: fix offset test
+      // aggregate with previous header
+      previous->count_ += 1;
+      // TODO: update offset when appropriate
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      // copy new payload
+      Grappa::impl::nt_enqueue( buffer, p, sizeof(P) );
+    } else {
+      // aggregate new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = 0; // don't care
+      h.offset_ = 0; // initial value
+      h.fp_ = fp;
+      h.count_ = 1; // increment if previous call was the same
+      h.size_ = sizeof( H ) + sizeof( P );
+      
+      // Enqueue byte with header flag set.
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      Grappa::impl::nt_enqueue( buffer, p, sizeof(P) );
+    }
+  }
+
+  static char * deserialize_and_call( char * t ) {
+    auto header_p = reinterpret_cast< NTHeader * >( t );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = t + sizeof(NTHeader);
+      
+    for( int i = 0; i < count; ++i ) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      auto payload_p = reinterpret_cast< P * >( data_p + sizeof(H) );
+      const auto payload_size = invocation_size - sizeof(H);
+      (*capture_p)(payload_p, payload_size);
+      data_p  += invocation_size;
+    }
+
+    return t + header_p->next_offset();
   }
 };
 
@@ -442,6 +783,65 @@ struct NTPayloadAddressMessageSpecializer<H, T, P, true, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes reference and has empty capture: " << __PRETTY_FUNCTION__;
 
+    Core destination = address.core();
+
+    auto fp = make_31bit( &NTPayloadAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTPayloadAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+
+    auto previous = static_cast < NTHeader * >( nt_get_previous( buffer ) );
+
+    if( previous && 
+        previous->dest_   == destination &&
+        previous->fp_     == fp &&
+        ( previous->offset_ == 0 ||
+          false ) ) { // TODO: fix offset test
+      // aggregate with previous header
+      previous->count_ += 1;
+      // TODO: update offset when appropriate
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      // copy new payload
+      Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );
+    } else {
+      // aggregate new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0;
+      h.fp_ = fp;
+      h.count_ = 1;
+      h.size_ = sizeof( P ) * count;
+
+      // Enqueue byte with header flag set.
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );
+    }
+  }
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+    
+    auto data_p        = buf + sizeof(NTHeader);
+    auto address       = reinterpret_cast< T * >( header_p->addr_ );
+    auto dummy         = [] { ; };
+    auto fake_lambda_p = reinterpret_cast< H * >( &dummy );
+    
+    for( int i = 0; i < count; ++i ) {
+      auto payload_p = reinterpret_cast< P * >( data_p );
+      const auto payload_size = invocation_size;
+      (*fake_lambda_p)(*address, payload_p, payload_size);
+      data_p  += invocation_size;
+      address += offset;
+    }
+    
+    /// We want all message headers to start on 8-byte alignment, but
+    /// captures and payloads may be only a byte; round up if
+    /// necessary. Aggregation code should do the same.
+    size_t increment = round_up_to_n<8>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
+    return buf + increment;
   }
 };
 
@@ -516,6 +916,63 @@ template< typename H, typename T, typename P >
 struct NTPayloadAddressMessageSpecializer<H, T, P, false, false, true> {
   static void send_ntmessage( GlobalAddress<T> address, P * payload, size_t count, H handler, NTBuffer * buffer ) {
     LOG(INFO) << "Payload with GlobalAddress; handler takes reference and has non-empty capture: " << __PRETTY_FUNCTION__;
+    Core destination = address.core();
+    
+    // 32 bits is actually okay for our current message format, but 31 bits should be all we need.
+    auto fp = make_31bit( &NTPayloadAddressMessageSpecializer::deserialize_and_call );
+    CHECK_EQ( 0, (~((1ULL << 31)-1)) & make_31bit( &NTPayloadAddressMessageSpecializer::deserialize_and_call ) )
+      << "Deserializer pointer can't be represented in 31 bits";
+
+    auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
+
+    if( previous && 
+        previous->dest_   == destination &&
+        previous->fp_     == fp &&
+        ( previous->offset_ == 0 ||
+          false ) ) { // TODO: fix offset test
+      // aggregate with previous header
+      previous->count_ += 1;
+      // TODO: update offset when appropriate
+      // copy new lambda
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      // copy new payload
+      Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );
+    } else {
+      // aggregate new header
+      NTHeader h;
+      h.dest_ = destination;
+      h.addr_ = reinterpret_cast< intptr_t >( address.pointer() );
+      h.offset_ = 0; // initial value
+      h.fp_ = fp;
+      h.count_ = 1; // increment if previous call was the same
+      h.size_ = sizeof( H ) + sizeof( P ) * count;
+      
+      // Enqueue byte with header flag set.
+      Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(handler) );
+      Grappa::impl::nt_enqueue( buffer, payload, count * sizeof(P) );
+    }
+  }
+
+  static char * deserialize_and_call( char * buf ) {
+    auto header_p = reinterpret_cast< NTHeader * >( buf );
+    const auto invocation_size = header_p->size_;
+    const auto offset          = header_p->offset_;
+    const auto count           = header_p->count_;
+
+    auto data_p = buf + sizeof(NTHeader);
+    auto address = reinterpret_cast< T * >( header_p->addr_ );
+      
+    for( int i = 0; i < count; ++i ) {
+      auto capture_p = reinterpret_cast< H * >( data_p );
+      auto payload_p = reinterpret_cast< P * >( data_p + sizeof(H) );
+      const auto payload_size = invocation_size - sizeof(H);
+      (*capture_p)(*address, payload_p, payload_size);
+      data_p  += invocation_size;
+      address += offset;
+    }
+        
+    return buf + header_p->next_offset();
   }
 };
 
