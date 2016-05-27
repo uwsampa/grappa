@@ -11,6 +11,7 @@
 #include <list>
 #include <cmath>
 #include <utility>
+#include <unordered_set>
 
 //GRAPPA_DECLARE_METRIC(MaxMetric<uint64_t>, max_cell_length);
 GRAPPA_DECLARE_METRIC(SimpleMetric<uint64_t>, hash_tables_size);
@@ -58,16 +59,20 @@ class DoubleDHT {
     
     // private members
     GlobalAddress< PairCell > base;
+    std::unordered_set<PairCell*> * non_empty_cells;
     size_t capacity;
+    DoubleDHT<K,VL,VR,Hash> * self;
 
     size_t computeIndex( K key ) {
       return Hash()(key) & (capacity - 1);
     }
 
     // for creating local DoubleDHT
-    DoubleDHT( GlobalAddress<PairCell> base, uint32_t capacity_pow2 ) {
+    DoubleDHT( GlobalAddress<PairCell> base, uint32_t capacity_pow2, DoubleDHT<K,VL,VR,Hash> * self ) {
       this->base = base;
       this->capacity = capacity_pow2;
+      this->non_empty_cells = new std::unordered_set<PairCell*>();
+      this->self = self;
     }
 
     template <typename V>
@@ -121,19 +126,21 @@ class DoubleDHT {
     }
    
     template < bool Unique >
-    static void insert_local_left( K key, PairCell * target, VL val ) {
+    static void insert_local_left( K key, PairCell * target, VL val, DoubleDHT<K,VL,VR,Hash> * self=NULL ) {
       // if first time the cell is hit then initialize
       if ( target->entriesLeft == NULL ) {
+        if (self) self->non_empty_cells->insert(target);
         target->entriesLeft = new std::list<Entry<VL>>();
       }
 
       insert_local_helper<Unique>( key, target->entriesLeft, val ); 
     }
-
+    
     template < bool Unique >
-    static void insert_local_right( K key, PairCell * target, VR val ) {
+    static void insert_local_right( K key, PairCell * target, VR val, DoubleDHT<K,VL,VR,Hash> * self=NULL ) {
       // if first time the cell is hit then initialize
       if ( target->entriesRight == NULL ) {
+        if (self) self->non_empty_cells->insert(target);
         target->entriesRight = new std::list<Entry<VR>>();
       }
 
@@ -151,7 +158,7 @@ class DoubleDHT {
       GlobalAddress<PairCell> base = Grappa::global_alloc<PairCell>( capacity_powerof2 );
 
       Grappa::on_all_cores( [globally_valid_local_pointer,base,capacity_powerof2] {
-        *globally_valid_local_pointer = DoubleDHT<K,VL,VR,Hash>( base, capacity_powerof2 );
+        *globally_valid_local_pointer = DoubleDHT<K,VL,VR,Hash>( base, capacity_powerof2, globally_valid_local_pointer );
       });
 
       Grappa::forall( base, capacity_powerof2, []( int64_t i, PairCell& c ) {
@@ -251,8 +258,8 @@ class DoubleDHT {
       auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
       
-      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {
-        insert_local_left<false>( key, target.pointer(), val );
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target, this]() {
+        insert_local_left<false>( key, target.pointer(), val, this );
     });
   }
   
@@ -261,8 +268,8 @@ template<Grappa::GlobalCompletionEvent * GCE>
       auto index = computeIndex( key );
       GlobalAddress< PairCell > target = base + index; 
       
-      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target]() {
-        insert_local_right<false>( key, target.pointer(), val );
+      Grappa::delegate::call<async, GCE>( target.core(), [key, val, target, this]() {
+        insert_local_right<false>( key, target.pointer(), val, this);
     });
   }
     
@@ -356,6 +363,30 @@ template<Grappa::GlobalCompletionEvent * GCE>
         PairCell * end = (base+capacity).localize();
 
         VLOG(3) << "has " << (end-p) << " paircells"; 
+
+        for ( auto p : *non_empty_cells ) {
+          auto left_full = (p->entriesLeft != NULL);
+          auto right_full = (p->entriesRight != NULL);
+          if (left_full && right_full) {
+            for (auto& l : *(p->entriesLeft)) {
+              for (auto& r : *(p->entriesRight)) {
+                if (l.key == r.key) {
+                  for (auto& le : *(l.vs)) {
+                    for (auto& re : *(r.vs)) {
+                      // yield
+                      c->writeEF(std::make_pair(true, std::make_pair(le, re)));
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        // end
+        c->writeEF(std::make_pair(false, std::pair<VL, VR>()));
+
+#if 0
+        // this version does a full scan of cells array instead of an index lookup in non_empty_cells
         while ( p != end ) {
           auto left_full = (p->entriesLeft != NULL);
           auto right_full = (p->entriesRight != NULL);
@@ -380,6 +411,7 @@ template<Grappa::GlobalCompletionEvent * GCE>
           }
           // end
           c->writeEF(std::make_pair(false, std::pair<VL, VR>()));
+#endif
       }); 
       return c;
     }
