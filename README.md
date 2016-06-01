@@ -75,6 +75,7 @@ We have a couple other ways to try Grappa without installing it yourself!
 * [grappa-docker](https://github.com/uwsampa/grappa-docker/): Grappa in a docker container
 * [grappa-starcluster](https://github.com/uwsampa/grappa-starcluster): Grappa in the Amazon cloud
 
+
 Getting Help
 -------------------------------------------------------------------------------
 The best way to ask questions is to submit an issue on GitHub: by keeping questions there we can make sure the answers are easy for everyone to find. View previously-discussed issues here: https://github.com/uwsampa/grappa/issues?labels=question. If your question isn't already answered, please submit an issue there!
