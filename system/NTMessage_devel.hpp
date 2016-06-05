@@ -139,10 +139,10 @@ struct NTHeader {
     /// We want all message headers to start on 8-byte alignment, but
     /// captures and payloads may be only a byte; round up if
     /// necessary. NTBuffer takes care of this during aggregation.
-    return round_up_to_n<8>( sizeof(NTHeader) + this->count_ * this->size_ );
+    return round_up_to_n<16>( sizeof(NTHeader) + this->count_ * this->size_ );
   }
   
-}  __attribute__((aligned(8))); // TODO: verify alignment?
+}  __attribute__((aligned(16))); // TODO: verify alignment?
 
 static_assert( sizeof(NTHeader) == 16, "NTHeader seems to have grown beyond intended 16 bytes" );
 
@@ -209,7 +209,7 @@ struct NTMessageSpecializer<H, true> {
       h.size_ = 0; // no capture or payload
 
       // Enqueue byte with header flag set. No padding is necessary
-      // since headers are always 8-byte aligned.
+      // since headers are always 16-byte aligned.
       Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
     }
   }
@@ -247,12 +247,14 @@ struct NTMessageSpecializer<H, false> {
       << "Deserializer pointer can't be represented in 31 bits";
 
     auto previous = static_cast< NTHeader * >( nt_get_previous( buffer ) );
-
+    
     if( previous &&
         previous->dest_ == destination &&
         previous->fp_   == fp ) {
       // aggregate with previous header
       previous->count_ += 1;
+      // includ new payload
+      Grappa::impl::nt_enqueue( buffer, &handler, sizeof(H) );
     } else {
       // aggregate new header
       NTHeader h;
@@ -264,7 +266,7 @@ struct NTMessageSpecializer<H, false> {
       h.size_ = sizeof(H);
 
       // Enqueue byte with header flag set. No padding is necessary
-      // since headers are always 8-byte aligned.
+      // since headers are always 16-byte aligned.
       Grappa::impl::nt_enqueue( buffer, &h, sizeof(h), true );
       Grappa::impl::nt_enqueue( buffer, &handler, sizeof(H) );
     }
@@ -768,10 +770,10 @@ struct NTPayloadAddressMessageSpecializer<H, T, P, true, true, false> {
       address += offset;
     }
     
-    /// We want all message headers to start on 8-byte alignment, but
+    /// We want all message headers to start on 16-byte alignment, but
     /// captures and payloads may be only a byte; round up if
     /// necessary. Aggregation code should do the same.
-    size_t increment = round_up_to_n<8>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
+    size_t increment = round_up_to_n<16>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
     return buf + increment;
   }
 
@@ -837,10 +839,10 @@ struct NTPayloadAddressMessageSpecializer<H, T, P, true, false, true> {
       address += offset;
     }
     
-    /// We want all message headers to start on 8-byte alignment, but
+    /// We want all message headers to start on 16-byte alignment, but
     /// captures and payloads may be only a byte; round up if
     /// necessary. Aggregation code should do the same.
-    size_t increment = round_up_to_n<8>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
+    size_t increment = round_up_to_n<16>( sizeof(NTHeader) + header_p->count_ * header_p->size_ );
     return buf + increment;
   }
 };

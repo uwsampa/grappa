@@ -58,10 +58,15 @@ class NTBuffer {
   // address.
   //
   // Position_ and local_position_ count bytes, and can be combined
-  // (masking off the lower three bits for the local part).
+  // (masking off the lower three bits for the local part). We don't
+  // do that here yet.
   uint8_t * buffer_;
   int position_;
   int local_position_;
+
+  // byte index of previous header. < position_ means in memory; >=
+  // position_ means in localbuf_.
+  int header_position_;
 
   /// copy data into buffer
   inline int actual_enqueue( uint8_t * p, int size ) {
@@ -211,21 +216,38 @@ public:
       actual_enqueue( &offset[0], initial_offset_ ); // add space for header
     }
 
-    // if we're enqueuing a header, make sure it's 8-byte aligned.
+    // if we're enqueuing a header, make sure it's 16-byte aligned.
     if( header ) {
-      DVLOG(5) << "Checking alignment for header: local position is " << local_position_ << " , rounded " << round_up_to_n<8>( local_position_ );
-      int align_bytes = round_up_to_n<8>( local_position_ ) - local_position_;
+      DVLOG(5) << "Checking alignment for header: local position is " << local_position_ << " , rounded " << round_up_to_n<16>( local_position_ );
+      int align_bytes = round_up_to_n<16>( local_position_ ) - local_position_;
       if( align_bytes > 0 ) {
         DVLOG(5) << this << " enqueuing " << align_bytes << " alignment bytes.";
         static uint8_t zeros[ 64 ] = { 0 };
         actual_enqueue( &zeros[0], align_bytes );
       }
+
+      // Remember the position of this header
+      header_position_ = position_ + local_position_;
     }
-      
+
     // Now enqueue the actual data.
     return actual_enqueue( p, size );
   }
 
+    /// Enqueue data into buffer.
+  inline void * get_previous( ) {
+    void * p = nullptr;
+    if( header_position_ < position_ ) {
+      // header is already in DRAM. Prefetch as nontemporal.
+      p = &buffer_[ header_position_ ];
+      _mm_prefetch( p, _MM_HINT_NTA );
+    } else {
+      // header still in cached buffer; just return.
+      p = &localbuf_[ header_position_ - position_ ];
+    }
+    return p;
+  }
+  
 } __attribute__((aligned(64)));
 
 /// Adds data to a non-temporal message buffer with appropriate
@@ -260,7 +282,7 @@ static inline void * nt_get_previous( NTBuffer * b ) {
   _mm_prefetch( b, _MM_HINT_NTA );
   _mm_prefetch( reinterpret_cast<uint8_t*>(b)+64, _MM_HINT_NTA );
 #endif
-  return nullptr; //b->get_previous();
+  return b->get_previous();
 }
 
 

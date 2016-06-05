@@ -386,35 +386,59 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     static int i = 0;
     auto f = [] { ++i; };
 
-    // send some messages
+    // send some compressable messages
     Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
     Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
     Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
     Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
     Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
 
+    // check that compression worked as expected
+    BOOST_CHECK_EQUAL( ntbuf.size(), sizeof( Grappa::impl::NTHeader ) );
+    
+    // send a non-compressable message
+    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 1, f, &ntbuf );
+
+    // check that compression worked as expected
+    BOOST_CHECK_EQUAL( ntbuf.size(), 2 * sizeof( Grappa::impl::NTHeader ) );
+
     // deserialize and call
     deserialize_helper( &ntbuf );
     
-    BOOST_CHECK_EQUAL( i, 5 );
+    BOOST_CHECK_EQUAL( i, 6 );
   }
 
   { // no payload, no address, with capture
     Grappa::impl::NTBuffer ntbuf;
 
     static int i = 0;
+
+    // Compressable messages; ensure capture changes each iteration
+    const int compressed_count = 15; // large enough to cause flush
+    for( int j = 0; j < compressed_count; ++j ) {
+      auto ff = [j] { i += j; };
+      Grappa::impl::NTMessageSpecializer< decltype(ff) >::send_ntmessage( 0, ff, &ntbuf );
+    }
+    
+    // check that compression worked as expected
+    BOOST_CHECK_EQUAL( ntbuf.size(),
+                       ( sizeof( Grappa::impl::NTHeader ) +
+                         compressed_count * sizeof(int) ) );
+
+    // Non-compressable message
     int increment = 1;
     auto f = [increment] { i += increment; };
-
-    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
-    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
-    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
-    Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
     Grappa::impl::NTMessageSpecializer< decltype(f) >::send_ntmessage( 0, f, &ntbuf );
 
+    // check that compression worked as expected
+    BOOST_CHECK_EQUAL( ntbuf.size(),
+                       ( 2 * sizeof( Grappa::impl::NTHeader ) +
+                         (1 + compressed_count) * sizeof(int) + // payloads
+                         4 ) ); // padding for 16-byte alignment of second header
+    
     deserialize_helper( &ntbuf );
 
-    BOOST_CHECK_EQUAL(i,5);
+    BOOST_CHECK_EQUAL(i, 1 + compressed_count * (compressed_count-1) / 2 );
   }
 
   { // My plan for dealing with function pointers takes more space
