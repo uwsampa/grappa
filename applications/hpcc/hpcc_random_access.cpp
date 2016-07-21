@@ -31,44 +31,41 @@ std::string print_time(time_type t)
 uint64_t N;
 uint64_t HPCC_starts(int64_t n);
 
-Grappa::GlobalCompletionEvent randomaccess_gce;
+Grappa::GlobalCompletionEvent gce;
 
-template <Grappa::GlobalCompletionEvent * GCE = &randomaccess_gce >
-	double run_random_access() {
-		LOG(INFO) << "HPCC RandomAccess" << std::endl;
-		N = (1 << FLAGS_scale) * cores();
+double run_random_access() {
+	LOG(INFO) << "HPCC RandomAccess" << std::endl;
+	N = (1 << FLAGS_scale) * cores();
 
-		// create target array that we'll be updating
-		auto hpcc_table = global_alloc<int64_t>(N);
-		Grappa::memset( hpcc_table, 0, N);
+	// create target array that we'll be updating
+	auto hpcc_table = global_alloc<int64_t>(N);
+	Grappa::memset( hpcc_table, 0, N);
 
-		double tstart = walltime();
+	double tstart = walltime();
 
-		on_all_cores([hpcc_table] {
-			//for(int k = 0; k < FLAGS_iters; k++)
-			//forall_here<async>(0, FLAGS_iters, [=](uint64_t k) {
-			forall_here<Grappa::SyncMode::Async>(0, FLAGS_iters, [=](int64_t k) {
-					uint64_t key = HPCC_starts((FLAGS_iters + k)* mycore() * N / cores());
-					for(uint64_t i = 0; i < N / cores(); i++) {
-						key = key << 1 ^ ((int64_t) key < 0 ? POLY : 0);
-						auto addr = hpcc_table + (key & N - 1);
-						//auto core = key >> (int)log2((double)(N / cores())) & cores() - 1;
-						delegate::call<async, GCE>(addr.core(), [addr, key] {
-							//uint64_t offset = key & (N / cores() - 1);
-							*(addr.pointer()) ^= key;
-						});
-					}
+	on_all_cores([hpcc_table] {
+		uint64_t key = HPCC_starts(FLAGS_iters * mycore() * N / cores());
+		for(int k = 0; k < FLAGS_iters; k++)
+			for(uint64_t i = 0; i < N / cores(); i++) {
+				key = key << 1 ^ ((int64_t) key < 0 ? POLY : 0);
+				auto addr = hpcc_table + (key & N - 1);
+				//auto core = key >> (int)log2((double)(N / cores())) & cores() - 1;
+				delegate::call<async, &gce>(addr.core(), [addr, key] {
+					//uint64_t offset = key & (N / cores() - 1);
+					*(addr.pointer()) ^= key;
 				});
-		});
+			}
+	});
+	gce.wait();
 
-		double tend = walltime();
+	double tend = walltime();
 
-		LOG(INFO) << "\tTime elapsed " << (double)(tend - tstart) << " sec" << std::endl;
+	LOG(INFO) << "\tTime elapsed " << (double)(tend - tstart) << " sec" << std::endl;
 
-		global_free(hpcc_table);
+	global_free(hpcc_table);
 
-		return (double)(tend - tstart);
-	}
+	return (double)(tend - tstart);
+}
 
 uint64_t HPCC_starts(int64_t n) {
 	int i, j;
