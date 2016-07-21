@@ -35,7 +35,7 @@ Grappa::GlobalCompletionEvent gce;
 
 double run_random_access() {
 	LOG(INFO) << "HPCC RandomAccess" << std::endl;
-	N = (1 << FLAGS_scale) * cores();
+	N = (1LL << FLAGS_scale) * cores();
 
 	// create target array that we'll be updating
 	auto hpcc_table = global_alloc<int64_t>(N);
@@ -44,6 +44,7 @@ double run_random_access() {
 	double tstart = walltime();
 
 	on_all_cores([hpcc_table] {
+		N = (1LL << FLAGS_scale) * cores();
 		uint64_t key = HPCC_starts(FLAGS_iters * mycore() * N / cores());
 		for(int k = 0; k < FLAGS_iters; k++)
 			for(uint64_t i = 0; i < N / cores(); i++) {
@@ -103,9 +104,9 @@ int main(int argc, char * argv[]) {
   init( &argc, &argv );
   run([]{
 
-		LOG(INFO) << "\tGlobal table size   = 2^" << FLAGS_scale << " * " << cores() << " = " << (1 << FLAGS_scale) * cores() << " words\n";
+		LOG(INFO) << "\tGlobal table size   = 2^" << FLAGS_scale << " * " << cores() << " = " << (1LL << FLAGS_scale) * cores() << " words\n";
 		LOG(INFO) << "\tNumber of processes = " << cores() << std::endl;
-		LOG(INFO) << "\tNumber of updates = " << FLAGS_iters * (1 << FLAGS_scale) * cores() << std::endl;
+		LOG(INFO) << "\tNumber of updates = " << FLAGS_iters * (1LL << FLAGS_scale) * cores() << std::endl;
 
 		gups_runtime = run_random_access();
     gups_throughput = 1e-9 * FLAGS_iters * N / gups_runtime;
