@@ -147,7 +147,7 @@ struct NaiveGraphlabEngine {
     
     if (ct > 0) {
       forall(g, [=](Vertex& v){
-        forall<async>(adj(g,v), [=,&v](Edge& e){
+        forall<SyncMode::Async>(adj(g,v), [=,&v](Edge& e){
           // gather
           auto delta = prog(v).gather(v, e);
 
@@ -183,7 +183,7 @@ struct NaiveGraphlabEngine {
           v->active_minor_step = false;
           auto prog_copy = prog(v);
           // scatter
-          forall<async>(adj(g,v), [=](Edge& e){
+          forall<SyncMode::Async>(adj(g,v), [=](Edge& e){
             _do_scatter(prog_copy, e, &VertexProg::scatter);
           });
         }
