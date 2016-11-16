@@ -4,7 +4,7 @@ Grappa
 
 Grappa is a runtime system for scaling irregular applications on commodity clusters. It's a PGAS library and runtime system that allows you to write global-view C++11 code that runs on distributed-memory computers.
 
-Grappa is a research project and is still young! Please expect things to break. Please do not expect amazing performance yet. Please ask for help if you run into problems. We're excited for you to use the software and to help make Grappa a great tool for the irregular applications community! For more information about the project, visit the project website: [grappa.io](http://grappa.io).
+Note: all the Grappa developers have graduated and gone on to other things, so the code is no longer maintained. Bit rot has begun to set in, and you are likely to run into problems running it; hopefully our documentation will help.
 
 Dependences
 -------------------------------------------------------------------------------
@@ -38,12 +38,13 @@ If you don't have github keys set up and get an authentication error, then try t
 ```bash
 git clone http://github.com/uwsampa/grappa.git
 ```
+Then download Grappa's third-party dependences: http://grappa.cs.washington.edu/files/grappa-third-party-downloads.tar. 
 
 Now build grappa and hello world.
 
 ```bash
 cd grappa
-./configure
+./configure --third-party-tarfile=</path/to/grappa-third-party-downloads.tar>
 cd build/Make+Release
 make demo-hello_world
 ```
