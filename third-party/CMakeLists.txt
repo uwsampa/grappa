@@ -70,7 +70,7 @@ endif()
 
 if( NOT GFLAGS_FOUND )
   if(NOT "${CMAKE_THIRD_PARTY_TARFILE}" STREQUAL "")
-      set(URL "${THIRD_PARTY_DOWNLOADS}/v2.0.tar.gz")
+      set(URL "${THIRD_PARTY_DOWNLOADS}/gflags-2.0-no-svn-files.tar.gz")
   else()
       set(URL "https://github.com/gflags/gflags/archive/v2.0.tar.gz")
   endif()

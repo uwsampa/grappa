@@ -44,7 +44,7 @@ Now build grappa and hello world.
 
 ```bash
 cd grappa
-./configure --third-party-tarfile=</path/to/grappa-third-party-downloads.tar>
+./configure --third-party-tarfile=</full/path/to/grappa-third-party-downloads.tar>
 cd build/Make+Release
 make demo-hello_world
 ```
