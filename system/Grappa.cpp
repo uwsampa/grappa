@@ -512,8 +512,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   CHECK( global_communicator.locale_cores <= MAX_CORES_PER_LOCALE );
   
-  //  initializes system_wide global_aggregator
-  global_aggregator.init();
+  // //  initializes system_wide global_aggregator
+  // global_aggregator.init();
 
   VLOG(2) << "Aggregator initialized.";
   
@@ -724,7 +724,7 @@ int Grappa_finish( int retval )
   StateTimer::finish();
 
   global_task_manager.finish();
-  global_aggregator.finish();
+  //global_aggregator.finish();
 
   if (global_memory) delete global_memory;
 
