@@ -202,6 +202,12 @@ list(APPEND GRAPPA_ENV
   GLOG_v=1
 )
 
+# libunwind must go after GLOG library in the linking list to resolve its references.
+# We force find_library to use static library because we are putting all dynamics before statics
+find_library(UNWIND_FOUND NAMES libunwind.a REQUIRED)
+message("UNWIND_FOUND: ${UNWIND_FOUND}")
+list(APPEND GRAPPA_STATIC_LIBS ${UNWIND_FOUND})
+
 ######################################################################
 # Google flags
 # in theory, it may come from third-party or from system directories,
