@@ -38,6 +38,7 @@
 #include <type_traits>
 #include <functional>
 #include <iostream>
+#include <limits>
 
 typedef int16_t Core;
 
@@ -45,9 +46,9 @@ namespace Grappa {
 namespace impl {
 
 struct NTMessageBase {
-  Core     dest_;
-  uint16_t size_;
-  uint32_t fp_;
+  const Core     dest_;
+  const uint16_t size_;
+  const uint32_t fp_;
   NTMessageBase(Core dest, uint16_t size, uint32_t fp): dest_(dest), size_(size), fp_(fp) { }
   NTMessageBase(): dest_(-1), size_(0), fp_(0) { }
   NTMessageBase( const NTMessageBase& m ): dest_(m.dest_), size_(m.size_), fp_(m.fp_) { }
@@ -91,7 +92,42 @@ public:
       //DVLOG(5) << "In " << __PRETTY_FUNCTION__;
       NTMessage<T> * tt = reinterpret_cast< NTMessage<T> * >( t );
       tt->storage_();
-      return t + sizeof( NTMessage<T> );
+      return t + tt->size_; //sizeof( NTMessage<T> );
+    }
+}  __attribute__((aligned(8)));
+
+template< typename T, typename U >
+struct NTPayloadMessage : NTMessageBase {
+  T storage_;
+
+  inline NTPayloadMessage( )
+    : NTMessageBase()
+    , storage_()
+  { }
+
+  inline NTPayloadMessage( Core dest, U * payload, size_t count, T t )
+    : NTMessageBase( dest, sizeof(*this) + sizeof(U) * count, make_32bit(&deserialize_and_call) )
+    , storage_( t )
+  {
+    CHECK_LE( count, std::numeric_limits<decltype(size_)>::max() ) << "Payload is too large for message";
+    CHECK_EQ( (sizeof(U) * count) % 8, 0 ) << "Payload currently must have a total size that is a multiple of 8";
+  }
+
+  friend char * run_deserialize_and_call( char * c );
+public:
+    NTPayloadMessage( const NTPayloadMessage& m ) = delete; ///< Not allowed.
+    NTPayloadMessage& operator=( const NTPayloadMessage& m ) = delete;         ///< Not allowed.
+    NTPayloadMessage& operator=( NTPayloadMessage&& m ) = delete;
+
+    NTPayloadMessage( NTPayloadMessage&& m ) = default;
+
+    static char * deserialize_and_call( char * t ) {
+      //DVLOG(5) << "In " << __PRETTY_FUNCTION__;
+      NTPayloadMessage<T,U> * tt = reinterpret_cast< NTPayloadMessage<T,U> * >( t );
+      U * payload = reinterpret_cast<U*>(tt+1);
+      U * end     = reinterpret_cast<U*>(t + tt->size_);
+      tt->storage_( payload, end - payload );
+      return t + tt->size_;
     }
 }  __attribute__((aligned(8)));
 
@@ -103,6 +139,12 @@ char * deaggregate_nt_buffer( char * buf, size_t size );
 
 template< typename T >
 std::ostream& operator<<( std::ostream& o, const NTMessage<T>& m ) {
+  const NTMessageBase * mb = &m;
+  return o << *mb;
+}
+
+template< typename T, typename U >
+std::ostream& operator<<( std::ostream& o, const NTPayloadMessage<T,U>& m ) {
   const NTMessageBase * mb = &m;
   return o << *mb;
 }

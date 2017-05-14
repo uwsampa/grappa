@@ -51,6 +51,7 @@
 
 #include "FileIO.hpp"
 
+#include "RMA.hpp"
 #include "RDMAAggregator.hpp"
 #include "LocaleSharedMemory.hpp"
 #include "SharedMessagePool.hpp"
@@ -373,7 +374,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
       std::cout << "Error setting GLOG_logtostderr default value";
       exit(1);
     }
-    if( 0 != setenv("GLOG_v", "1", DONT_OVERWRITE_ENV) ) {
+    if( 0 != setenv("GLOG_v", "0", DONT_OVERWRITE_ENV) ) {
       std::cout << "Error setting GLOG_v default value";
       exit(1);
     }
@@ -381,7 +382,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
     // Most of the time glog knows about gflags, and so these are used
     // instead:
     FLAGS_logtostderr = 1;
-    FLAGS_v = 1;
+    FLAGS_v = 0;
 
     // set Google profiler sample rate
     setenv("CPUPROFILE_FREQUENCY", "50", DONT_OVERWRITE_ENV);
@@ -439,6 +440,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
+  global_rma.init();
   
   MPI_Errhandler mpi_error_handler;
   MPI_Comm_create_errhandler( &Grappa::impl::mpi_failure_function, &mpi_error_handler );
@@ -491,7 +493,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], int64_t global_memory_size_byt
   sigsegv_sa.sa_flags = SA_SIGINFO;
   sigsegv_sa.sa_sigaction = &Grappa::impl::failure_sighandler;
   CHECK_EQ( 0, sigaction( SIGSEGV, &sigsegv_sa, 0 ) ) << "SIGSEGV signal handler installation failed.";
-
+  CHECK_EQ( 0, sigaction( SIGBUS, &sigsegv_sa, 0 ) ) << "SIGBUS signal handler installation failed.";
+  
   // Asynchronous IO
   // initialize completed stack
   aio_completed_stack = NULL;
@@ -738,6 +741,7 @@ int Grappa_finish( int retval )
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
 
+  global_rma.finish();
   global_communicator.finish( retval );
 
   locale_shared_memory.finish();
@@ -754,6 +758,10 @@ namespace Grappa {
 
   int finalize() {
     return Grappa_finish(0);
+  }
+
+  size_t symmetric_heap_size() {
+    return Grappa::impl::global_memory_size_bytes;
   }
 
 } // namespace Grappa

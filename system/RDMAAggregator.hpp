@@ -832,6 +832,22 @@ namespace Grappa {
         }
       }
 
+      template< typename T, typename U >
+      inline void send_nt_message( Core dest, U * payload, size_t count, T t ) {
+        NTPayloadMessage<T,U> m( dest, payload, count, t );
+        DVLOG(3) << "Sending " << sizeof(m) + sizeof(U) * count << " bytes to " << dest;
+        app_nt_message_bytes += sizeof(m) + sizeof(U) * count;
+        int size = nt_enqueue( ntbuffers_ + dest, &m, sizeof(m) );
+        size += nt_enqueue( ntbuffers_ + dest, payload, sizeof(U) * count );
+        // update mru
+        nt_mru_.set(dest);
+
+        // send if we've reached capacity
+        if( size >= (FLAGS_aggregator_target_size + 4 * sizeof(uint64_t)) ) { // TODO: magic number
+          send_nt_buffer( dest, ntbuffers_ + dest );
+        }
+      }
+
       inline void flush_nt( Core dest ) {
         nt_flush( ntbuffers_ + dest );
         send_nt_buffer( dest, ntbuffers_ + dest );

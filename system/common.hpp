@@ -381,19 +381,6 @@ namespace Grappa {
   ;
 #endif  
 
-
-#define MPI_CHECK( mpi_call )                                           \
-  do {                                                                  \
-    int retval;                                                         \
-    if( (retval = (mpi_call)) != 0 ) {                                  \
-      char error_string[MPI_MAX_ERROR_STRING];                          \
-      int length;                                                       \
-      MPI_Error_string( retval, error_string, &length);                 \
-      LOG(FATAL) << "MPI call failed: " #mpi_call ": "                  \
-                 << error_string;                                       \
-    }                                                                   \
-  } while(0)
-
   /// @}
 
 }
@@ -415,6 +402,31 @@ static inline void prefetchnta(const void *p) {
 
 static inline void prefetcht2(const void *p) {
     __builtin_prefetch(p, 0, 1);
+}
+
+
+template < typename T >
+inline void destruct( T* p ) {
+  (*p).~T();
+}
+
+template< typename T, size_t S >
+inline void destruct( T (*p)[S] ) {
+  for ( size_t i = 0; i < S; ++i ) {
+    destruct( &(*p)[i] );
+  }
+}
+
+template< typename T >
+inline void copy( T* target, T* source ) {
+  *target = *source;
+}
+
+template< typename T, size_t S >
+inline void copy( T (*target)[S], T (*source)[S] ) {
+  for ( size_t i = 0; i < S; ++i ) {
+    copy( &(*target)[i], &(*source)[i] );
+  }
 }
 
 }

@@ -216,6 +216,11 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
 
 
   MPI_CHECK( MPI_Barrier( grappa_comm ) );
+}
+
+                             
+void Communicator::activate() {
+  MPI_CHECK( MPI_Barrier( grappa_comm ) );
 
   // initialize masks
   receive_mask = (1 << FLAGS_log2_concurrent_receives) - 1;
@@ -226,10 +231,6 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   sends = new CommunicatorContext[ 1 << FLAGS_log2_concurrent_sends ];
   
   MPI_CHECK( MPI_Barrier( grappa_comm ) );
-}
-
-                             
-void Communicator::activate() {
 
   for( int i = 0; i < (1 << FLAGS_log2_concurrent_sends); ++i ) {
     char * buf;
@@ -341,6 +342,7 @@ void Communicator::post_external_send( CommunicatorContext * c,
 }
 
 void Communicator::post_receive( CommunicatorContext * c ) {
+  DCHECK_GT( c->size, 0 ) << "Posting buffer of size zero?";
   MPI_CHECK( MPI_Irecv( c->buf, c->size, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, grappa_comm, &c->request ) );
   DVLOG(6) << "Posted receive " << c << " with buf " << c->buf << " callback " << (void*) c->callback;
 }

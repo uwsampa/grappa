@@ -128,6 +128,57 @@ BOOST_AUTO_TEST_CASE( test1 ) {
         BOOST_CHECK_EQUAL( 1, 1 );
       }
 
+      { // payload messages with explicit flush
+        int x = 0;
+        Grappa::CompletionEvent ce(5);
+        Grappa::impl::global_rdma_aggregator.send_nt_message( 0, [&x,&ce] {
+            x++;
+            ce.complete();
+          } );
+        const size_t count = 8;
+        int32_t payload[count] = {0,1,2,3,4,5,6,7};
+        Grappa::impl::global_rdma_aggregator.send_nt_message( 0, &payload[0], count, [&x,&ce] (int * payload, size_t count) {
+          int sum = 0;
+          int expected_sum = 0;
+          for( int i = 0; i < count; ++i ) {
+            sum += payload[i];
+            expected_sum += i;
+          }
+          CHECK_EQ( sum, expected_sum );
+          x++;
+          ce.complete();
+        } );
+        Grappa::impl::global_rdma_aggregator.send_nt_message( 0, [&x,&ce] {
+            x++;
+            ce.complete();
+          } );
+        Grappa::impl::global_rdma_aggregator.send_nt_message( 0, &payload[0], count, [&x,&ce] (int * payload, size_t count) {
+          int sum = 0;
+          int expected_sum = 0;
+          for( int i = 0; i < count; ++i ) {
+            sum += payload[i];
+            expected_sum += i;
+          }
+          CHECK_EQ( sum, expected_sum );
+          x++;
+          ce.complete();
+        } );
+        Grappa::impl::global_rdma_aggregator.send_nt_message( 0, &payload[0], count, [&x,&ce] (int * payload, size_t count) {
+          int sum = 0;
+          int expected_sum = 0;
+          for( int i = 0; i < count; ++i ) {
+            sum += payload[i];
+            expected_sum += i;
+          }
+          CHECK_EQ( sum, expected_sum );
+          x++;
+          ce.complete();
+        } );
+        Grappa::impl::global_rdma_aggregator.flush_nt( 0 );
+        ce.wait();
+        BOOST_CHECK_EQUAL( x, 5 );
+      }
+
     });
   Grappa::finalize();
 }

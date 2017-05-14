@@ -20,11 +20,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 project(Grappa)
 
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-DGRAPPA -O3 -g -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-DGRAPPA -O3 -g -DNDEBUG")
 
-set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
-set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+set(CMAKE_C_FLAGS_DEBUG "-DGRAPPA -O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
+set(CMAKE_CXX_FLAGS_DEBUG "-DGRAPPA -O1 -DDEBUG -g -DGUARD_PAGES_ON_STACK")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
@@ -44,32 +44,75 @@ else()
   message(WARNING "You are using an unsupported compiler! Compilation has only been tested with Clang and GCC.")
 endif()
 
-###########################
-# Use RUNPATH if available
-# use, i.e. don't skip the full RPATH for the build tree
-set(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_RPATH}")
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+# ###########################
+# # Use RUNPATH if available
+# # use, i.e. don't skip the full RPATH for the build tree
+# set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+# # use final INSTALL_RPATH even in build tree (this lets us manually add things to CMAKE_INSTALL_RPATH)
+# set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+# set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_RPATH}")
+# # add the automatically determined parts of the RPATH
+# # which point to directories outside the build tree to the install RPATH
+# # set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
 
-# the RPATH to be used when installing, but only if it's not a system directory
-list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
-if("${isSystemDir}" STREQUAL "-1") # not a system directory
-  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
-endif("${isSystemDir}" STREQUAL "-1")
+# # the RPATH to be used when installing, but only if it's not a system directory
+# list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+# if("${isSystemDir}" STREQUAL "-1") # not a system directory
+#   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${CMAKE_INSTALL_PREFIX}/lib")
+# endif("${isSystemDir}" STREQUAL "-1")
 
-## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
-# set runpath, too
-# if(NOT APPLE)
-#   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
-# endif()
+# ## Not setting runpath because having MPI libs in LD_LIBRARY_PATH was messing up VampirTrace's ability to find its own libs. Maybe there's another way to fix this, but it just seems more robust (for now) to not allow LD_LIBRARY_PATH to affect our libs (after configure uses it to find them).
+# # set runpath, too
+# # if(NOT APPLE)
+# #   set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+# # endif()
 
-##### </RUNPATH> ########
+# ##### </RUNPATH> ########
 
+#############################################################################
+# capture information about build from git
+#############################################################################
+
+# find git
+find_package(Git)
+if(GIT_FOUND)
+  
+  # Get the current "revision"
+  execute_process(
+    COMMAND bash -c "${GIT_EXECUTABLE} log --oneline | wc -l"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GRAPPA_REVISION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  
+  # Get the current working branch
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GRAPPA_GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  
+  # Get the latest abbreviated commit hash of the working branch
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} log -1 --format=%h
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE GRAPPA_GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  
+else()
+  set(GRAPPA_REVISION        "0")
+  set(GRAPPA_GIT_BRANCH      "unknown")
+  set(GRAPPA_GIT_COMMIT_HASH "unknown")
+endif()
+
+# fill in configuration file
+configure_file(
+  "system/Version.hpp.in"
+  "system/Version.hpp"
+  )
 
 #############################################################################
 # configure profiling and tracing

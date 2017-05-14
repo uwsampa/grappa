@@ -63,13 +63,14 @@
 
 //#include "PerformanceTools.hpp"
 
-#include <mpi.h>
 #include <memory>
 #include <deque>
 
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
+
+#include <MPI.hpp>
 
 // GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_messages);
 // GRAPPA_DECLARE_METRIC( SimpleMetric<uint64_t>, communicator_bytes);
@@ -110,6 +111,8 @@ void immediate_deserializer_with_payload( char * f, int size, CommunicatorContex
   c->reference_count = 0;
 }
 
+class RMA;
+
 }
 }
 
@@ -118,6 +121,7 @@ void immediate_deserializer_with_payload( char * f, int size, CommunicatorContex
 class Communicator {
 private:
   DISALLOW_COPY_AND_ASSIGN( Communicator );
+  friend class RMA;
 
   Core mycore_;
   Core cores_;
@@ -336,6 +340,72 @@ inline const char * hostname() { return global_communicator.hostname(); }
 /// @}
 
 }
+
+
+
+namespace Grappa {
+namespace spmd {
+namespace blocking {
+
+inline void barrier() {
+  global_communicator.barrier();
+}
+
+/// Raw blocking broadcast
+template< typename T >
+inline void broadcast( T * buf, size_t count, Core root = 0 ) {
+  MPI_CHECK( MPI_Bcast( buf, count,
+                        Grappa::impl::MPIDatatype<T>::value,
+                        root,
+                        global_communicator.grappa_comm ) );
+}
+
+/// Raw blocking reduction
+template< typename T, typename OP >
+inline void reduce( const T * src, OP op, T * dest, const size_t count, const Core root = 0 ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Reduce( src, dest, count,
+                         Grappa::impl::MPIDatatype<T>::value,
+                         mpi_op.value,
+                         root,
+                         global_communicator.grappa_comm ) );
+}
+
+/// Raw blocking in-place reduction
+template< typename T, typename OP >
+inline void reduce( T * buf, OP op, const size_t count, const Core root = 0 ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Reduce( global_communicator.mycore == root ? MPI_IN_PLACE : buf, buf, count,
+                         Grappa::impl::MPIDatatype<T>::value,
+                         mpi_op.value,
+                         root,
+                         global_communicator.grappa_comm ) );
+}
+  
+/// Raw blocking allreduce
+template< typename T, typename OP >
+inline void allreduce( const T * src, OP op, T * dest, const size_t count ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Allreduce( src, dest, count,
+                            Grappa::impl::MPIDatatype<T>::value,
+                            mpi_op.value,
+                            global_communicator.grappa_comm ) );
+}
+
+/// Raw blocking in-place allreduce
+template< typename T, typename OP >
+inline void allreduce( T * buf, OP op, const size_t count ) {
+  Grappa::impl::MPIOpWrapper<T,OP> mpi_op( op );
+  MPI_CHECK( MPI_Allreduce( MPI_IN_PLACE, buf, count,
+                            Grappa::impl::MPIDatatype<T>::value,
+                            mpi_op.value,
+                            global_communicator.grappa_comm ) );
+}
+  
+} // namespace blocking
+} // namespace spmd
+} // namespace Grappa
+
 
 #define MASTER_ONLY if (Grappa::mycore() == 0)
 

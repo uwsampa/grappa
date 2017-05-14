@@ -118,7 +118,7 @@ void* alloc(size_t sz) {
   size_t cacheline_count = sz / CACHE_LINE_SIZE;
   CHECK_EQ( cacheline_count * CACHE_LINE_SIZE, sz ) << "Message size not a multiple of cacheline size?";
   
-  if( sz > MAX_POOL_MESSAGE_SIZE ) {
+  if( sz >= MAX_POOL_MESSAGE_SIZE ) {
     shared_pool_alloc_toobig++;
     return locale_alloc_aligned<char>(CACHE_LINE_SIZE, sz);
   } else {

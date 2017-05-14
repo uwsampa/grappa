@@ -1,3 +1,4 @@
+#pragma once
 ////////////////////////////////////////////////////////////////////////
 // Copyright (c) 2010-2015, University of Washington and Battelle
 // Memorial Institute.  All rights reserved.
@@ -63,6 +64,8 @@
 
 #include "Metrics.hpp"
 
+//#include "Version.hpp"
+
 //#include <typeinfo>
 //#include <cxxabi.h>
 
@@ -78,7 +81,10 @@ namespace Grappa {
   /// Clean up Grappa. Call in SPMD context after all Grappa code
   /// finishes. Running Grappa code after calling finalize() is illegal.
   int finalize();
-  
+
+  /// Give users an idea of how much global memory they can allocate
+  /// on this core. This is not guaranteed to be precise.
+  size_t symmetric_heap_size();
   
 #ifndef GRAPPA_NO_ABBREV
   /// Specify non-default behavior: stealable tasks
